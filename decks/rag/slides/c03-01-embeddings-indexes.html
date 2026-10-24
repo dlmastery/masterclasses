@@ -1,0 +1,79 @@
+<section class="slide chapter" id="rag-c03-embeddings-indexes" data-tone="state" data-title="03 Embeddings and vector indexes">
+  <svg class="interactive" id="rag-c03-ei-svg" viewBox="0 0 860 250" width="860" height="250" style="position:absolute;left:104px;top:40px" aria-label="Points that move into topic clusters, then index cells over them"></svg>
+  <div class="ch-num" data-fx="blur">03</div>
+  <h2 class="display">Embeddings and vector indexes</h2>
+  <p class="lede" data-fx="up">An encoder maps meaning to a vector. Similar meanings land near each other. An index finds the nearest vectors fast.</p>
+  <div class="grid g3">
+    <div class="panel tight k-model" data-step="1">
+      <h4>Similarity is geometry</h4>
+      <p class="small">Use cosine, dot product on normalized vectors, or L2. In 2026 one space can hold text, images, audio, video and PDFs.</p>
+    </div>
+    <div class="panel tight k-state" data-step="2">
+      <h4>Exact search does not scale</h4>
+      <p class="small">Exact k-NN costs O(N × d) per query. ANN gives up a little recall for orders of magnitude more speed.</p>
+    </div>
+    <div class="panel tight" data-step="3">
+      <h4>Three questions for this chapter</h4>
+      <div class="tags"><span class="tag t-model">Which model?</span><span class="tag t-state">How many dimensions?</span><span class="tag t-state">Which index?</span></div>
+    </div>
+  </div>
+  <aside class="notes">
+    This chapter is about the geometry under every dense retriever. First, the points are scattered; press next and they move into topic clusters, because the encoder puts similar meanings near each other. Then the grid shows how an index cuts the space into cells, so a query only looks in a few cells and not at every vector. Analogy: a library puts books on shelves by subject, so you walk to one shelf and do not read every spine. A student often asks: "Why not just compute exact distances?" Answer: exact k-NN is O(N × d) per query, which is too slow at tens of millions of vectors, and ANN keeps most of the recall at a small fraction of the cost.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "rag-c03-embeddings-indexes";
+  const CENTRES = [[150, 95], [340, 185], [560, 85], [750, 180]];
+  const TOPICS = ["refunds", "shipping", "login", "billing"];
+  let built = false, pts = [], labels = [], cells = [];
+  const scatter = (i) => [30 + (i * 137) % 800, 22 + (i * 71) % 206];
+  const cluster = (i) => {
+    const c = CENTRES[i % 4], a = i * 2.4, r = 8 + (i * 13) % 32;
+    return [c[0] + Math.cos(a) * r * 1.5, c[1] + Math.sin(a) * r * 0.85];
+  };
+  const mk = (tag, attrs, parent) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    parent.appendChild(e); return e;
+  };
+  function build(slide) {
+    const svg = slide.querySelector("#rag-c03-ei-svg");
+    svg.innerHTML = "";
+    const gGrid = mk("g", {}, svg);
+    cells = [];
+    for (let c = 1; c < 6; c++) cells.push(mk("line", { x1: c * 143, y1: 6, x2: c * 143, y2: 244, stroke: "var(--state)", "stroke-width": 1.5, "stroke-dasharray": "5 6", opacity: 0 }, gGrid));
+    for (let r = 1; r < 3; r++) cells.push(mk("line", { x1: 4, y1: r * 83, x2: 856, y2: r * 83, stroke: "var(--state)", "stroke-width": 1.5, "stroke-dasharray": "5 6", opacity: 0 }, gGrid));
+    pts = Array.from({ length: 60 }, (_, i) => {
+      const [x, y] = scatter(i);
+      return mk("circle", { cx: x, cy: y, r: 6.5, fill: "var(--state)", opacity: 0.35 + (i % 4) * 0.12 }, svg);
+    });
+    labels = CENTRES.map((c, k) => {
+      const t = mk("text", { x: c[0], y: c[1] - 50, "text-anchor": "middle", fill: "var(--ink-2)", style: "font: 600 16px var(--f-mono)" }, svg);
+      t.textContent = TOPICS[k];
+      gsap.set(t, { autoAlpha: 0 });
+      return t;
+    });
+    built = true;
+  }
+  function render(n, animate) {
+    const d = animate ? 1.1 : 0;
+    pts.forEach((p, i) => {
+      const [x, y] = n >= 1 ? cluster(i) : scatter(i);
+      gsap.to(p, { attr: { cx: x, cy: y }, duration: d, delay: animate ? (i % 12) * 0.015 : 0, ease: "power3.inOut", overwrite: "auto" });
+    });
+    gsap.to(labels, { autoAlpha: n >= 1 ? 1 : 0, y: 0, duration: animate ? 0.5 : 0, delay: animate && n === 1 ? 0.8 : 0, stagger: animate ? 0.08 : 0, overwrite: "auto" });
+    gsap.to(cells, { attr: { opacity: n >= 2 ? 0.55 : 0 }, duration: animate ? 0.6 : 0, stagger: animate ? 0.05 : 0, overwrite: "auto" });
+  }
+  Deck.register(ID, {
+    enter(slide, step) {
+      build(slide);
+      render(step, false);
+      if (step === 0) gsap.from(pts, { scale: 0, transformOrigin: "center", duration: 0.5, stagger: 0.012, ease: "back.out(2)" });
+    },
+    step(slide, n, animate) { if (built) render(n, animate); },
+    leave() { gsap.killTweensOf([...pts, ...labels, ...cells]); built = false; }
+  });
+})();
+</script>
