@@ -1,0 +1,200 @@
+<section class="slide" id="adk-c04-hitl" data-tone="human" data-title="RequestInput on the wire">
+  <h2 class="title sm">RequestInput pauses the graph as a long-running function call that any client can answer</h2>
+  <div class="grid fill" style="grid-template-columns:740px 620px;gap:32px;align-items:start">
+    <div class="stack" style="gap:16px">
+      <svg class="interactive" id="c4h-svg" viewBox="0 0 760 280" width="740" height="273" aria-label="Sequence of a RequestInput pause: the workflow emits a function call, the client shows it, the human answers, the workflow resumes"></svg>
+      <div class="grid g2" style="gap:16px">
+        <div class="panel tight k-human" data-step="3">
+          <h4><code>rerun_on_resume</code> decides who reads the reply</h4>
+          <p class="tiny"><b>False</b> (default for functions): the reply becomes the node's output. It goes to the successor.</p>
+          <p class="tiny"><b>True</b> (default for <code>LlmAgent</code> and <code>Workflow</code>): the node runs again from the top. It reads <code>ctx.resume_inputs[interrupt_id]</code>.</p>
+          <p class="tiny">Any client that can send a <code>FunctionResponse</code> can resume the run.</p>
+        </div>
+        <div class="panel tight k-tool" data-step="5">
+          <h4>Approval gates</h4>
+          <ul class="clean tiny" style="gap:5px">
+            <li><code>@node(require_confirmation=True | pred)</code>: 2.12, turns on <code>rerun_on_resume</code></li>
+            <li>Tool nodes pause through <code>RequestInput</code>: 2.11</li>
+            <li><code>FunctionTool(fn, require_confirmation=pred)</code>, e.g. <code>amount &gt; 1000</code></li>
+            <li><code>tool_context.request_confirmation(hint, payload)</code> for structured answers</li>
+          </ul>
+          <p class="tiny"><b>ambient-expense-agent:</b> under $100 → <code>auto_approve</code>, no LLM call. $100 or more → <code>single_turn</code> <code>review_agent</code> → <code>RequestInput</code>.</p>
+        </div>
+      </div>
+    </div>
+    <div class="stack" style="gap:16px">
+      <div class="code-wrap"><div class="code-head">samples/workflows/request_input/agent.py</div>
+<pre class="code xs" data-lang="python" style="line-height:1.45" data-focus="1:2-3, 3:5-11, 4:11-11, 5:13-17"><code>
+from google.adk.events import RequestInput
+def step1():  # the reply goes to the next node
+  yield RequestInput(message="Enter a number:")
+
+def handle_human_review(node_input: str):
+  if node_input == "reject":
+    yield Event(route="rejected")
+  elif node_input == "approve":
+    yield Event(route="approved")
+  else:
+    yield Event(state={"feedback": node_input}, route="revise")
+
+root_agent = Workflow(name="request_input", edges=[
+  ("START", process_input, draft_email,
+   request_human_review, handle_human_review),
+  (handle_human_review, {"revise": draft_email,
+    "approved": send_email, "rejected": reject_email})])
+</code></pre></div>
+      <div class="callout pitfall" data-step="3"><span><code>response_schema</code> does not reformat a free-text reply. Put an agent after the pause to normalize it.</span></div>
+      <div class="cites" data-step="5">
+        <a class="cite codelab" href="https://codelabs.developers.google.com/vibecode-ambient-expense-agent" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;Vibecode an ADK 2.0 Ambient Agent with Antigravity and Agents CLI</a>
+        <a class="cite doc" href="https://adk.dev/graphs/human-input/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Human input for agent workflows</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Read the diagram from left to right. Step 1: request_human_review yields a RequestInput, and ADK sends it to the client as a functionCall with interruptId fc-1, listed in longRunningToolIds. Step 2: the node is WAITING and the invocation ends; no process waits in memory. Step 3: the human types "shorter", and the client sends a functionResponse named adk_request_input; handle_human_review gets the string and routes "revise". Step 4: the back-edge runs draft_email again, and the second pause has a new id, fc-2, at path request_human_review@2. Step 5: "approve" routes to send_email. Analogy: a paper form in an inbox tray; the office closes, and work starts again when the signed form comes back. Likely question: "Why a function call and not a special API?" Answer: every ADK client already knows how to return a FunctionResponse, so web UIs, Slack bots and A2A callers can all resume the same run.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  let svg = null, items = [], chips = {}, dots = [];
+  const mk = (tag, a, p) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); (p || svg).appendChild(e); return e; };
+  const txt = (s, a, p) => { const t = mk("text", a, p); t.textContent = s; return t; };
+  const mono = (sz, w, c) => `font:${w} ${sz}px var(--f-mono);fill:${c}`;
+  const add = (el, from, until = 99, dim = 99) => { items.push({ el, from, until, dim, vis: false }); return el; };
+
+  function chip(id, x, w, label, tone) {
+    const g = mk("g", {});
+    const r = mk("rect", { x, y: 50, width: w, height: 40, rx: 9, style: `fill:var(--surface-2);stroke:var(--${tone});stroke-width:2;transition:fill .4s, stroke .4s` }, g);
+    txt(label, { x: x + w / 2, y: 75, "text-anchor": "middle", style: mono(12.5, 600, "var(--ink)") }, g);
+    chips[id] = { g, r, tone };
+    return g;
+  }
+  function line(d, tone, parent, dash) {
+    return mk("path", { d, class: "c4h-draw", style: `fill:none;stroke:var(--${tone});stroke-width:2.2;stroke-linecap:round;${dash ? "stroke-dasharray:6 6;" : ""}`, "marker-end": `url(#c4h-ar-${tone})` }, parent);
+  }
+  function box(x, y, w, l1, l2, tone, parent) {
+    mk("rect", { x, y, width: w, height: 44, rx: 8, style: `fill:var(--${tone}-soft);stroke:var(--${tone});stroke-width:1.5` }, parent);
+    txt(l1, { x: x + 10, y: y + 18, style: mono(12, 700, "var(--ink)") }, parent);
+    txt(l2, { x: x + 10, y: y + 35, style: mono(11, 500, "var(--ink-2)") }, parent);
+  }
+  function bubble(x, w, s, parent) {
+    mk("rect", { x, y: 194, width: w, height: 34, rx: 17, style: "fill:var(--human-soft);stroke:var(--human);stroke-width:2" }, parent);
+    txt(s, { x: x + w / 2, y: 216, "text-anchor": "middle", style: mono(13, 700, "var(--human)") }, parent);
+  }
+
+  function build(slide) {
+    svg = slide.querySelector("#c4h-svg");
+    svg.innerHTML = ""; items = []; chips = {}; dots = [];
+    const defs = mk("defs", {});
+    ["human", "tool", "agent", "state", "risk"].forEach((t) => {
+      const m = mk("marker", { id: `c4h-ar-${t}`, viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto-start-reverse" }, defs);
+      mk("path", { d: "M0,0 L10,5 L0,10 Z", style: `fill:var(--${t})` }, m);
+    });
+    // lanes
+    const lanes = [["Workflow", 2, 106, "agent"], ["Client UI", 114, 60, "tool"], ["Human", 180, 60, "human"]];
+    lanes.forEach(([l, y, h, t]) => {
+      const r = mk("rect", { x: 0, y, width: 760, height: h, rx: 12, style: `fill:color-mix(in oklab, var(--${t}) 5%, transparent);stroke:var(--line);stroke-width:1;transition:fill .4s` });
+      if (t === "agent") chips.lane = r;
+      txt(l.toUpperCase(), { x: 14, y: y + 17, style: mono(11, 700, `var(--${t})`) });
+    });
+    // base graph row
+    const base = mk("g", {});
+    mk("rect", { x: 16, y: 56, width: 62, height: 28, rx: 14, style: "fill:var(--surface-2);stroke:var(--line-2);stroke-width:1.5" }, base);
+    txt("START", { x: 47, y: 75, "text-anchor": "middle", style: mono(11, 700, "var(--muted)") }, base);
+    line("M78,70 L98,70", "agent", base);
+    line("M212,70 L234,70", "agent", base);
+    chip("draft", 100, 112, "draft_email", "agent");
+    chip("review", 236, 172, "request_human_review", "human");
+
+    // step 1: functionCall to the client
+    const s1 = add(mk("g", {}), 1, 99, 4);
+    line("M322,90 L322,120", "human", s1);
+    box(196, 122, 252, "functionCall · interruptId: fc-1", "longRunningToolIds: ['fc-1']", "human", s1);
+    dots.push({ g: s1, d: "M322,90 L322,120", tone: "human" });
+
+    // step 2: WAITING
+    const s2 = add(mk("g", {}), 2, 3);
+    mk("circle", { cx: 408, cy: 50, r: 13, style: "fill:var(--bg);stroke:var(--human);stroke-width:2.5" }, s2);
+    mk("rect", { x: 402, y: 43, width: 4, height: 14, rx: 1.5, style: "fill:var(--human)" }, s2);
+    mk("rect", { x: 410, y: 43, width: 4, height: 14, rx: 1.5, style: "fill:var(--human)" }, s2);
+    txt("WAITING (4) · the invocation ends", { x: 322, y: 104, "text-anchor": "middle", style: mono(11.5, 700, "var(--human)") }, s2);
+
+    // step 3: human reply, functionResponse, handle node
+    const s3 = add(mk("g", {}), 3, 99);
+    line("M408,70 L468,70", "agent", s3);
+    bubble(470, 96, "shorter", s3);
+    txt("human types", { x: 462, y: 215, "text-anchor": "end", style: mono(11, 500, "var(--muted)") }, s3);
+    line("M518,194 L518,168", "human", s3);
+    dots.push({ g: s3, d: "M518,194 L518,168", tone: "human" });
+    const s3b = add(mk("g", {}), 3, 5, 4);
+    box(462, 122, 290, "functionResponse · adk_request_input", "id fc-1 · result: 'shorter'", "tool", s3b);
+    const s3c = add(mk("g", {}), 3, 99);
+    line("M560,122 L560,92", "tool", s3c);
+    dots.push({ g: s3c, d: "M560,122 L560,92", tone: "tool" });
+    chip("handle", 470, 160, "handle_human_review", "tool");
+    s3c.appendChild(chips.handle.g);
+
+    // step 4: revise back-edge and the second interrupt
+    const s4 = add(mk("g", {}), 4, 99);
+    line("M530,50 C530,8 156,8 156,48", "risk", s4, true);
+    mk("rect", { x: 306, y: 8, width: 64, height: 20, rx: 6, style: "fill:var(--bg);stroke:var(--risk);stroke-width:1.2" }, s4);
+    txt("revise", { x: 338, y: 22, "text-anchor": "middle", style: mono(11.5, 700, "var(--risk)") }, s4);
+    const s4b = add(mk("g", {}), 4, 5);
+    txt("@2 · new interrupt fc-2", { x: 322, y: 104, "text-anchor": "middle", style: mono(11.5, 700, "var(--human)") }, s4b);
+
+    // step 5: approve
+    const s5 = add(mk("g", {}), 5, 99);
+    line("M630,70 L654,70", "state", s5);
+    txt("approved", { x: 642, y: 44, "text-anchor": "middle", style: mono(11, 700, "var(--state)") }, s5);
+    const send = chip("send", 656, 98, "send_email", "state");
+    s5.appendChild(send);
+    bubble(642, 104, "approve", s5);
+    line("M694,194 L694,168", "human", s5);
+    box(600, 122, 154, "fc-2 → 'approve'", "same protocol", "human", s5);
+    line("M640,122 L600,92", "tool", s5);
+    txt("Show exact args and diffs · time out to deny · log the approver · add rejections to the eval set", { x: 380, y: 266, "text-anchor": "middle", style: "font:500 13px var(--f-body);fill:var(--ink-2)" }, s5);
+    items.forEach((it) => gsapSet(it.el, 0));
+  }
+  const gsapSet = (el, o) => gsap.set(el, { opacity: o });
+
+  function chipState(n) {
+    const r = chips.review.r;
+    const wait = n === 2 || n === 4, done = n === 3 || n >= 5;
+    r.style.stroke = done ? "var(--state)" : "var(--human)";
+    r.style.fill = wait ? "var(--human-soft)" : "var(--surface-2)";
+    r.style.strokeWidth = wait ? 3.5 : 2;
+    chips.draft.r.style.strokeWidth = n === 4 ? 3.5 : 2;
+    chips.lane.style.fill = wait ? "color-mix(in oklab, var(--human) 9%, transparent)" : "color-mix(in oklab, var(--agent) 5%, transparent)";
+  }
+
+  function render(n, animate) {
+    if (!svg) return;
+    items.forEach((it) => {
+      const vis = n >= it.from && n < it.until;
+      const op = vis ? (n >= it.dim ? 0.28 : 1) : 0;
+      const fresh = vis && !it.vis;
+      it.vis = vis;
+      gsap.to(it.el, { opacity: op, duration: animate ? 0.45 : 0, overwrite: "auto" });
+      if (fresh && animate) {
+        it.el.querySelectorAll(".c4h-draw").forEach((p, i) => {
+          const L = p.getTotalLength();
+          if (p.style.strokeDasharray) return;
+          gsap.fromTo(p, { strokeDasharray: L, strokeDashoffset: L }, { strokeDashoffset: 0, duration: 0.7, delay: 0.1 + i * 0.12, ease: "power2.inOut", onComplete: () => gsap.set(p, { clearProps: "strokeDasharray,strokeDashoffset" }) });
+        });
+        dots.filter((d) => d.g === it.el).forEach((d) => {
+          const p = mk("path", { d: d.d, style: "fill:none;stroke:none" }, d.g);
+          const c = mk("circle", { r: 5, style: `fill:var(--${d.tone})` }, d.g);
+          const L = p.getTotalLength(), o = { t: 0 };
+          gsap.to(o, { t: 1, duration: 0.9, delay: 0.3, ease: "power1.inOut", onUpdate: () => { const pt = p.getPointAtLength(o.t * L); c.setAttribute("cx", pt.x); c.setAttribute("cy", pt.y); }, onComplete: () => { c.remove(); p.remove(); } });
+        });
+      }
+    });
+    chipState(n);
+  }
+
+  Deck.register("adk-c04-hitl", {
+    enter(slide, step) { if (!svg) build(slide); render(step, false); },
+    step(slide, n, animate) { if (!svg) build(slide); render(n, animate); },
+    leave() { if (svg) gsap.killTweensOf(svg.querySelectorAll("*")); },
+  });
+})();
+</script>

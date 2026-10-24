@@ -1,0 +1,182 @@
+<section class="slide" id="adk-c07-router-parallel" data-tone="agent" data-title="Router and parallel fan-out">
+  <h2 class="title">Routing and parallel fan-out pay off when the split is cheap to decide</h2>
+  <div class="fill" style="display:grid;grid-template-columns:560px 1fr;gap:24px;min-height:0">
+    <div class="stack" style="gap:14px">
+      <div class="code-wrap" data-fx="up"><div class="code-head">budget_router.py · sketch from documented primitives</div>
+<pre class="code xs" data-lang="python" data-focus="1:5-8, 2:9-14"><code>
+import os
+from google.adk import Agent, Event, Workflow
+from google.adk.workflow import DEFAULT_ROUTE
+FAST_MODEL = os.environ["FAST_MODEL"]  # cheap model id
+classifier = Agent(name="complexity", model=FAST_MODEL,
+    instruction="Reply 'SIMPLE' or 'COMPLEX' only.")
+def pick(node_input: str):             # 0 LLM calls
+    return Event(route=node_input.strip())
+root_agent = Workflow(name="budget_router", edges=[
+    ("START", classifier, pick),
+    (pick, {"SIMPLE": flash_agent,
+            "COMPLEX": pro_agent,
+            DEFAULT_ROUTE: pro_agent}),  # unknown label
+])
+</code></pre></div>
+      <div style="position:relative;flex:1;min-height:0">
+        <div data-until="4" style="position:absolute;inset:0">
+          <div class="panel tight k-risk" data-step="2">
+            <h4>Router failure modes (Gulli ch. 16)</h4>
+            <ul class="clean" style="gap:4px;font-size:16px">
+              <li style="font-size:16px;line-height:1.38">A weak router sends hard queries to the cheap model.</li>
+              <li style="font-size:16px;line-height:1.38">Teams forget the cost of the router call itself.</li>
+              <li style="font-size:16px;line-height:1.38">Tone differs between the two models.</li>
+              <li style="font-size:16px;line-height:1.38">Evals pass on the big model and silently regress on the small one. Run the full suite per model.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="panel tight k-risk" data-step="4" style="position:absolute;inset:0;bottom:auto">
+          <h4>Parallel failure modes</h4>
+          <ul class="clean" style="gap:4px;font-size:16px">
+            <li style="font-size:16px;line-height:1.38">Cost multiplies with N branches. Rate limits hit sooner.</li>
+            <li style="font-size:16px;line-height:1.38">The merge cannot reconcile conflicting outputs.</li>
+            <li style="font-size:16px;line-height:1.38">Branches race on shared state. Give each branch its own key.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="stack" style="gap:16px">
+      <div style="position:relative;height:400px">
+        <div data-until="3" style="position:absolute;inset:0">
+          <div class="diagram" style="width:808px;height:400px" data-wires="in>cls:flow{human}; cls>pick:flow{model}; pick>flash@1:flow{agent} [SIMPLE]; pick>pro@1:flow{agent} [COMPLEX]; pick>pro@2:dash:bend70 [DEFAULT_ROUTE]">
+            <div class="node n-human pill" id="in" style="left:0;top:170px"><span class="nt">Request</span></div>
+            <div class="node n-model" id="cls" style="left:170px;top:156px;width:180px"><span class="nt">complexity</span><span class="ns">FAST_MODEL</span></div>
+            <div class="node n-tool" id="pick" style="left:420px;top:156px;width:130px"><span class="nt">pick()</span><span class="ns">function</span></div>
+            <div class="node n-agent" id="flash" style="left:628px;top:20px;width:180px" data-step="1" data-fx="pop"><span class="nt">flash_agent</span><span class="ns">cheap, fast</span></div>
+            <div class="node n-agent" id="pro" style="left:628px;top:300px;width:180px" data-step="1" data-fx="pop"><span class="nt">pro_agent</span><span class="ns">strong, slow</span></div>
+            <div data-step="1" data-fx="bar" style="position:absolute;left:628px;top:112px;width:180px">
+              <div class="tiny">cost per call</div><div class="bar" style="--aurora:var(--state)"><i style="--v:18%"></i></div>
+            </div>
+            <div data-step="1" data-fx="bar" style="position:absolute;left:628px;top:248px;width:180px">
+              <div class="tiny">cost per call</div><div class="bar" style="--aurora:var(--risk)"><i style="--v:85%"></i></div>
+            </div>
+          </div>
+        </div>
+        <svg id="c07-vote" data-step="3" data-fx="fade" viewBox="0 0 808 400" width="808" height="400" style="position:absolute;inset:0;overflow:visible" aria-label="Five candidates vote; the majority answer wins"></svg>
+      </div>
+      <div style="position:relative;flex:1;min-height:0">
+        <div data-until="5" style="position:absolute;inset:0">
+          <div class="callout tip" data-step="2" style="font-size:17px"><span><b>Code-first router.</b> The ambient expense recipe routes on the amount with a plain function: under $100 goes to <code>auto_approve</code> with zero LLM calls. Use a function when data decides (a field, a threshold, a status code). Use an LLM router only for unstructured intent.</span></div>
+        </div>
+        <div data-step="5" style="position:absolute;inset:0;display:grid;grid-template-columns:auto 1fr;gap:24px;align-items:start">
+          <div class="stat" style="--aurora:var(--state)"><span class="n" data-to="90" data-pre="up to " data-suf="%" style="font-size:52px">0</span><span class="l">less research time from parallel subagents and tool calls</span></div>
+          <div class="stack" style="gap:8px">
+            <p class="small"><b>Mitigations:</b> a <code>DEFAULT_ROUTE</code>, a log of the chosen route per request (BigQuery Agent Analytics plugin), a separate state key per branch.</p>
+            <div class="cites">
+              <a class="cite repo" href="https://github.com/google/adk-recipes/blob/main/core/python/ambient-expense-agent/expense_agent/agent.py" target="_blank" rel="noopener"><b>Repo</b>&nbsp;adk-recipes: ambient-expense-agent</a>
+              <a class="cite doc" href="https://www.anthropic.com/engineering/multi-agent-research-system" target="_blank" rel="noopener"><b>Anthropic</b>&nbsp;How we built our multi-agent research system</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    Two cheap splits. First the router: a fast model classifies, a plain function turns the label into a route, and only the matching edge fires. DEFAULT_ROUTE catches any label the model invents, and the safe side here is the strong model. Press on to see the code-first variant: when data decides, a function routes with zero LLM calls. Then parallel voting: five candidates answer the same prompt, a JoinNode collects the ballots, and the majority wins (self-consistency). The other parallel variant is sectioning, where each branch does a different subtask. Analogy: a hospital triage nurse is cheap and fast, and only the hard cases go to the specialist. Interview question: "When is a deterministic router better than an LLM router?" When the next step depends on data (a field, a threshold, a status code), on an irreversible action, or on an audit trail.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ANS = ["A", "A", "B", "A", "C"];
+  const CY = [40, 120, 200, 280, 360];
+  let built = false, lines = [], cands = [], ballots = [], tallyT = [], winner = null, tl = null;
+  const mk = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; };
+  const txt = (parent, x, y, s, font, fill, anchor = "middle") => { const t = mk("text", { x, y, "text-anchor": anchor, fill }, parent); t.style.font = font; t.textContent = s; return t; };
+
+  function build(slide) {
+    if (built) return;
+    built = true;
+    const svg = slide.querySelector("#c07-vote");
+    // prompt
+    const pg = mk("g", {}, svg);
+    mk("rect", { x: 0, y: 172, width: 130, height: 56, rx: 14, fill: "var(--human-soft)", stroke: "var(--human)", "stroke-width": 1.6 }, pg);
+    txt(pg, 65, 206, "prompt", "700 18px var(--f-body)", "var(--ink)");
+    // join + voter
+    const jg = mk("g", {}, svg);
+    mk("rect", { x: 470, y: 140, width: 130, height: 120, rx: 14, fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 1.6 }, jg);
+    txt(jg, 535, 166, "JoinNode", "700 18px var(--f-body)", "var(--ink)");
+    mk("path", { d: "M600,200 L650,200", stroke: "var(--line-2)", "stroke-width": 2.2, fill: "none" }, svg);
+    const vg = mk("g", {}, svg);
+    mk("rect", { x: 655, y: 130, width: 150, height: 140, rx: 14, fill: "var(--tool-soft)", stroke: "var(--tool)", "stroke-width": 1.6 }, vg);
+    txt(vg, 730, 158, "voter()", "700 18px var(--f-body)", "var(--ink)");
+    ["A", "B", "C"].forEach((k, i) => {
+      txt(vg, 690, 192 + i * 26, k, "700 17px var(--f-mono)", "var(--ink-2)");
+      tallyT.push(txt(vg, 760, 192 + i * 26, "0", "700 17px var(--f-mono)", "var(--ink)"));
+    });
+    CY.forEach((y, i) => {
+      lines.push(mk("path", { d: `M130,200 C200,200 200,${y} 250,${y}`, stroke: "var(--line-2)", "stroke-width": 2.2, fill: "none" }, svg));
+      const g = mk("g", {}, svg);
+      mk("rect", { x: 250, y: y - 24, width: 150, height: 48, rx: 12, fill: "var(--model-soft)", stroke: "var(--model)", "stroke-width": 1.6 }, g);
+      txt(g, 300, y + 6, "cand " + (i + 1), "600 15px var(--f-mono)", "var(--ink-2)");
+      cands.push(g);
+      const b = mk("g", {}, svg);
+      mk("rect", { x: -15, y: -15, width: 30, height: 30, rx: 7, fill: "var(--model)" }, b);
+      txt(b, 0, 6, ANS[i], "700 16px var(--f-mono)", "#fff");
+      ballots.push(b);
+    });
+    winner = mk("g", {}, svg);
+    mk("rect", { x: 655, y: 290, width: 150, height: 50, rx: 25, fill: "var(--state)" }, winner);
+    txt(winner, 730, 321, "answer: A", "700 17px var(--f-mono)", "#fff");
+  }
+
+  const home = (i) => ({ x: 372, y: CY[i] });
+  const inJoin = (i) => ({ x: 490 + (i % 3) * 30, y: i < 3 ? 200 : 234 });
+
+  function render(n, animate) {
+    if (tl) tl.kill();
+    tl = gsap.timeline();
+    const counts = { A: 0, B: 0, C: 0 };
+    if (n >= 4) ANS.forEach((a) => counts[a]++);
+    if (n < 3) {
+      gsap.set(ballots, { autoAlpha: 0 });
+      gsap.set(winner, { autoAlpha: 0 });
+      tallyT.forEach((t) => (t.textContent = "0"));
+      return;
+    }
+    if (animate && n === 3) {
+      lines.forEach((l) => { const L = l.getTotalLength(); tl.fromTo(l, { strokeDasharray: L, strokeDashoffset: L }, { strokeDashoffset: 0, duration: 0.5 }, 0.2); });
+      tl.fromTo(cands, { autoAlpha: 0, x: -20 }, { autoAlpha: 1, x: 0, duration: 0.35, stagger: 0.08 }, 0.4);
+      ballots.forEach((b, i) => {
+        tl.fromTo(b, { autoAlpha: 0, x: home(i).x, y: home(i).y, scale: 0.4 }, { autoAlpha: 1, scale: 1, duration: 0.3 }, 1.0 + i * 0.1);
+        tl.to(b, { x: inJoin(i).x, y: inJoin(i).y, duration: 0.6, ease: "power2.inOut" }, 1.5 + i * 0.12);
+      });
+    } else {
+      gsap.set(cands, { autoAlpha: 1, x: 0 });
+      lines.forEach((l) => gsap.set(l, { strokeDashoffset: 0 }));
+      ballots.forEach((b, i) => gsap.set(b, { autoAlpha: 1, scale: 1, x: inJoin(i).x, y: inJoin(i).y }));
+    }
+    if (n < 4) {
+      tallyT.forEach((t) => (t.textContent = "0"));
+      gsap.set(winner, { autoAlpha: 0 });
+      ballots.forEach((b) => gsap.set(b, { opacity: 1 }));
+      return;
+    }
+    const keys = ["A", "B", "C"];
+    if (animate && n === 4) {
+      keys.forEach((k, i) => {
+        const p = { v: 0 };
+        tl.to(p, { v: counts[k], duration: 0.9, ease: "power1.out", onUpdate: () => (tallyT[i].textContent = Math.round(p.v)) }, 0.1);
+      });
+      ballots.forEach((b, i) => { if (ANS[i] !== "A") tl.to(b, { opacity: 0.22, duration: 0.4 }, 1.0); });
+      tl.fromTo(winner, { autoAlpha: 0, y: 24 }, { autoAlpha: 1, y: 0, duration: 0.5, ease: "back.out(1.8)" }, 1.1);
+    } else {
+      keys.forEach((k, i) => (tallyT[i].textContent = counts[k]));
+      ballots.forEach((b, i) => gsap.set(b, { opacity: ANS[i] === "A" ? 1 : 0.22 }));
+      gsap.set(winner, { autoAlpha: 1, y: 0 });
+    }
+  }
+
+  Deck.register("adk-c07-router-parallel", {
+    enter(slide, n) { build(slide); render(n, false); },
+    step(slide, n, animate) { build(slide); render(n, animate); },
+    leave() { if (tl) tl.kill(); }
+  });
+})();
+</script>

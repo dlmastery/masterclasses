@@ -1,0 +1,134 @@
+<section class="slide" id="adk-c03-dynamic" data-tone="agent" data-title="Dynamic workflows: ctx.run_node">
+  <h2 class="title">Dynamic workflows use plain Python control flow and still checkpoint every child node</h2>
+  <div class="row fill" style="gap:24px">
+    <div class="stack" style="width:740px;flex:none">
+      <div class="code-wrap" data-fx="up"><div class="code-head">code_workflow · bounded verifier loop (verified APIs, sketch binding)</div>
+<pre class="code sm" data-lang="python" data-focus="1:6-6, 2:8-9, 3:11-12, 4:8-8, 5:4-4, 6:7-7"><code>
+from google.adk import Context
+from google.adk.workflow import node
+
+@node(rerun_on_resume=True)      # required for ctx.run_node
+async def code_workflow(ctx: Context, node_input: str):
+    code = await ctx.run_node(coder_agent, node_input=node_input)
+    for _ in range(3):           # bounded loop
+        check = await ctx.run_node(lint_and_test, node_input=code)
+        if not check.findings:
+            return code
+        code = await ctx.run_node(fixer_agent,
+            node_input={"code": code, "findings": check.findings})
+    raise RuntimeError("verification failed after 3 rounds")
+</code></pre></div>
+      <ul class="ticks small">
+        <li>Loops, recursion and <code>asyncio.gather</code> are ordinary Python. A parent that calls <code>ctx.run_node</code> <b>must</b> set <code>rerun_on_resume=True</code>.</li>
+        <li><b>Graph</b>: declarative, checked by 10 rules, drawn in <code>adk web</code>. <b>Dynamic</b>: data-dependent loops and recursion.</li>
+        <li>Codelab L4b: <code>@node(parallel_worker=True, rerun_on_resume=True)</code> spawns deeper research only while <code>depth &lt; MAX_DEPTH</code>.</li>
+        <li class="tiny">Go: <code>workflow.NewDynamicNode</code>, <code>workflow.RunNode</code>. TS: <code>node(fn, {rerunOnResume: true})</code>, <code>ctx.runNode()</code>.</li>
+      </ul>
+    </div>
+    <div class="stack" style="width:628px;flex:none">
+      <svg id="c36-svg" viewBox="0 0 628 250" width="628" height="250" aria-label="Checkpoint list of child runs; after a crash, resume skips the completed children and re-runs the failed one"></svg>
+      <div style="position:relative;height:270px">
+        <ul class="ticks small" style="position:absolute;inset:0" data-until="5">
+          <li>Each child run gets a <b>deterministic id</b>: the parent id plus a counter <code>"1"</code>, <code>"2"</code>, … These ids are the checkpoint keys.</li>
+          <li>A custom <code>run_id</code> must contain a non-numeric character. The docs discourage custom ids.</li>
+          <li>Always <code>await ctx.run_node</code> directly. In <code>asyncio.create_task()</code> “errors are silently swallowed”.</li>
+        </ul>
+        <div class="stack" style="position:absolute;inset:0" data-step="5" data-until="6">
+          <p class="quote" style="font-size:25px">“Successful sub-nodes are automatically skipped when resuming the workflow, making complex logic durable and resumable by default.”</p>
+          <p class="small">Since 2.9 a failed node runs again on resume. Make node side effects idempotent.</p>
+        </div>
+        <div class="stack" style="position:absolute;inset:0;gap:12px" data-step="6">
+          <div class="code-wrap"><div class="code-head">parallel children · adk.dev/graphs/dynamic</div>
+<pre class="code xs" data-lang="python"><code>
+tasks = [ctx.run_node(real_node, item) for item in node_input]
+return await asyncio.gather(*tasks)   # resume: failed ones only
+</code></pre></div>
+          <div class="callout pitfall"><div><b>Pitfall:</b> the adk.dev Python “Loop route” sample uses <code>while check_resp.findings:</code> with no cap. The TypeScript sample sets <code>MAX_FIX_ROUNDS = 3</code>. Always bound the loop.</div></div>
+        </div>
+      </div>
+      <div class="cites push">
+        <a class="cite doc" href="https://adk.dev/graphs/dynamic/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Dynamic agent workflows</a>
+        <a class="cite codelab" href="https://codelabs.developers.google.com/adk2/instructions" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;ADK 2 Orchestration (L4b)</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    A dynamic workflow is a node whose body is Python: here a for loop calls three child nodes through ctx.run_node. Steps 1 to 4 walk the code and fill the checkpoint list on the right: the coder runs, the test finds problems, the fixer runs, and then the second test run crashes. Step 5 is the key idea: on resume, ADK replays the event log, skips children 1 to 3 because their ids already have results, and re-runs only child 4. That works because the child ids are deterministic counters, so never generate ids from random values or timestamps. Step 6 shows the parallel form with asyncio.gather and the pitfall: the official Python sample has no round cap. Analogy: a video game save point. You restart at the last checkpoint, not at level one. Likely question: "Why must the parent set rerun_on_resume=True?" Because the parent body must run again to reach the interrupted child; the completed children return their stored results instantly.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const mk = (t, a, p) => { const e = document.createElementNS(NS, t); for (const k in a) e.setAttribute(k, a[k]); if (p) p.appendChild(e); return e; };
+  const txt = (p, x, y, s, st, anchor) => { const e = mk("text", { x, y, style: st, ...(anchor ? { "text-anchor": anchor } : {}) }, p); e.textContent = s; return e; };
+  const ROWS = [["coder_agent", "Agent"], ["lint_and_test", "function"], ["fixer_agent", "Agent"], ["lint_and_test", "function"]];
+  let S = null, tws = [];
+
+  function build(slide) {
+    const svg = slide.querySelector("#c36-svg");
+    svg.innerHTML = "";
+    S = { rows: [] };
+    mk("rect", { x: 1, y: 1, width: 626, height: 248, rx: 16, style: "fill:var(--surface);stroke:var(--line)" }, svg);
+    txt(svg, 22, 30, "child run id", "font:600 12.5px var(--f-mono);fill:var(--muted)");
+    txt(svg, 130, 30, "node", "font:600 12.5px var(--f-mono);fill:var(--muted)");
+    txt(svg, 420, 30, "status", "font:600 12.5px var(--f-mono);fill:var(--muted)");
+    S.resume = mk("g", { opacity: 0 }, svg);
+    mk("rect", { x: 500, y: 12, width: 110, height: 26, rx: 13, style: "fill:var(--human-soft);stroke:var(--human)" }, S.resume);
+    txt(S.resume, 555, 30, "resume ▸", "font:700 13px var(--f-mono);fill:var(--human)", "middle");
+    ROWS.forEach(([name, kind], i) => {
+      const y = 46 + i * 50;
+      const g = mk("g", { opacity: 0 }, svg);
+      const bg = mk("rect", { x: 12, y, width: 604, height: 42, rx: 10, style: "fill:var(--surface-2);stroke:var(--line)" }, g);
+      mk("circle", { cx: 44, cy: y + 21, r: 14, style: "fill:var(--agent-soft);stroke:var(--agent)" }, g);
+      txt(g, 44, y + 26, String(i + 1), "font:700 14px var(--f-mono);fill:var(--agent)", "middle");
+      txt(g, 130, y + 26, name, "font:700 15px var(--f-body);fill:var(--ink)");
+      txt(g, 270, y + 26, kind, "font:500 12.5px var(--f-mono);fill:var(--muted)");
+      const chip = mk("rect", { x: 412, y: y + 8, width: 190, height: 26, rx: 13, style: "fill:var(--state-soft);stroke:var(--state)" }, g);
+      const st = txt(g, 507, y + 26, "", "font:700 12.5px var(--f-mono);fill:var(--state)", "middle");
+      S.rows.push({ g, bg, chip, st });
+    });
+    S.crash = mk("g", { opacity: 0 }, svg);
+    mk("circle", { cx: 372, cy: 217, r: 13, style: "fill:var(--risk)" }, S.crash);
+    mk("path", { d: "M366,211 L378,223 M378,211 L366,223", style: "stroke:#fff;stroke-width:2.6;stroke-linecap:round" }, S.crash);
+  }
+  function setRow(r, label, tone) {
+    r.st.textContent = label;
+    r.chip.style.stroke = `var(--${tone})`; r.chip.style.fill = `var(--${tone}-soft)`; r.st.style.fill = `var(--${tone})`;
+  }
+  function render(n, anim) {
+    if (!S) return;
+    tws.forEach((t) => t.kill()); tws = [];
+    const base = [["done", "state"], ["findings", "tool"], ["done", "state"], ["crash", "risk"]];
+    S.rows.forEach((r, i) => {
+      const vis = n >= i + 1;
+      if (vis) setRow(r, base[i][0], base[i][1]);
+      if (anim && n === i + 1) tws.push(gsap.fromTo(r.g, { opacity: 0, x: -24 }, { opacity: 1, x: 0, duration: 0.5 }));
+      else gsap.set(r.g, { opacity: vis ? 1 : 0, x: 0 });
+      r.bg.style.stroke = "var(--line)";
+    });
+    gsap.set(S.crash, { opacity: n === 4 ? 1 : 0 });
+    if (anim && n === 4) tws.push(gsap.fromTo(S.crash, { scale: 0, transformOrigin: "372px 217px" }, { scale: 1, duration: 0.5, delay: 0.4, ease: "back.out(2.5)" }));
+    gsap.set(S.resume, { opacity: n >= 5 ? 1 : 0 });
+    if (n >= 5) {
+      const apply = () => {
+        S.rows.slice(0, 3).forEach((r) => setRow(r, "skipped · replayed", "state"));
+        setRow(S.rows[3], "re-runs", "tool");
+        S.rows[3].bg.style.stroke = "var(--tool)";
+      };
+      if (anim && n === 5) {
+        S.rows.forEach((r, i) => {
+          tws.push(gsap.delayedCall(0.4 + i * 0.35, () => {
+            if (i < 3) setRow(r, "skipped · replayed", "state"); else { setRow(r, "re-runs", "tool"); r.bg.style.stroke = "var(--tool)"; }
+          }));
+          tws.push(i < 3 ? gsap.fromTo(r.bg, { opacity: 1 }, { opacity: 0.35, duration: 0.3, delay: 0.4 + i * 0.35, yoyo: true, repeat: 1 }) : gsap.fromTo(r.bg, { opacity: 0.35 }, { opacity: 1, duration: 0.5, delay: 0.4 + i * 0.35 }));
+        });
+      } else apply();
+    }
+  }
+  Deck.register("adk-c03-dynamic", {
+    enter(slide, n) { build(slide); render(n, false); },
+    step(slide, n, animate) { render(n, animate); },
+    leave() { tws.forEach((t) => t.kill()); tws = []; S = null; }
+  });
+})();
+</script>

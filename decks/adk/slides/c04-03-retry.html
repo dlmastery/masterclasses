@@ -1,0 +1,149 @@
+<section class="slide" id="adk-c04-retry" data-tone="tool" data-title="RetryConfig and its pitfall">
+  <h2 class="title sm">RetryConfig handles transient faults, and a broad except silently disables it</h2>
+  <div class="grid fill" style="grid-template-columns:720px 640px;gap:32px;align-items:start">
+    <div class="stack" style="gap:16px">
+      <svg class="interactive" id="c4r-svg" viewBox="0 0 720 260" width="720" height="260" aria-label="Retry attempts on a time axis with exponential backoff and a 60 second cap"></svg>
+      <div class="vs" data-step="3" style="gap:16px">
+        <div class="panel tight k-tool">
+          <h4>RetryConfig: transient</h4>
+          <ul class="clean tiny" style="gap:5px">
+            <li>Fires on an exception. A verifier can raise to get a retry.</li>
+            <li>The failed node reruns in full, with its <code>ctx.run_node</code> children.</li>
+            <li>Completed children replay. They do not run again.</li>
+            <li>A failed sub-workflow retries as a whole. <code>parallel_worker</code> retries per item.</li>
+            <li><b>The model sees nothing.</b></li>
+          </ul>
+        </div>
+        <div class="mid">vs</div>
+        <div class="panel tight k-model">
+          <h4>ReflectAndRetryToolPlugin: semantic</h4>
+          <ul class="clean tiny" style="gap:5px">
+            <li><b>The error goes back to the model</b> as reflection guidance.</li>
+            <li><code>max_retries=3</code> gives 4 attempts in total.</li>
+            <li>Override <code>extract_error_from_result</code> to catch <code>{"status": "error"}</code>.</li>
+            <li>Register it once on <code>App(plugins=[...])</code>.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="stack" style="gap:16px">
+      <div class="code-wrap"><div class="code-head">samples/workflows/retry/agent.py</div>
+<pre class="code xs" data-lang="python" data-focus="1:2-3, 2:5-7, 3:4-4"><code>
+from google.adk.workflow import RetryConfig, node
+@node(retry_config=RetryConfig(max_attempts=5, initial_delay=1))
+def get_weather(ctx: Context) -> str:
+  yield Event(message=f"attempt {ctx.attempt_count}")
+  if random.random() < 0.7:
+    raise HTTPError(url="http://mock-api.example.com",
+                    code=500, msg="ISE", hdrs={}, fp=None)
+  yield "sunny"
+</code></pre></div>
+      <div class="code-wrap" data-step="2" style="--aurora:var(--risk)"><div class="code-head">pitfall.py</div>
+<pre class="code xs" data-lang="python" data-focus="2:3-4, 3:5-5"><code>
+try:
+    data = call_api()
+except Exception:          # masks the failure: retries never fire
+    return {"status": "error"}
+except BaseException: ...  # traps NodeInterruptedError: breaks HITL
+</code></pre></div>
+      <div class="callout tip" data-step="4" style="font-size:16px;line-height:1.4"><span><b>Other levers.</b> <code>@node(timeout=30.0)</code> raises <code>NodeTimeoutError</code>, which counts as retryable. <code>abort_signal</code> (an <code>asyncio.Event</code>) stops a <code>Runner</code>, <code>Workflow</code> or node (2.11). <code>/run_sse</code> cancels when the client disconnects. <code>FallbackModel</code> fails over to another model (2.9).</span></div>
+      <div class="cites" data-step="4">
+        <a class="cite doc" href="https://adk.dev/2.0/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Welcome to ADK 2.0 (breaking changes)</a>
+        <a class="cite repo" href="https://github.com/google/adk-python/tree/main/contributing/samples/workflows" target="_blank" rel="noopener"><b>Repo</b>&nbsp;adk-python workflow samples</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Step 1: with the defaults, attempt 1 runs at 0 s and the retries wait 1, 2, 4 and 8 s; max_attempts=5 counts the first try. The bar chart shows why max_delay exists: if you raise max_attempts, the delay doubles until it hits the 60 s cap. Step 2 is the bug that students meet in real code: a broad except Exception returns an error dict, so the node looks successful and RetryConfig never sees a failure. Catching BaseException is worse, because the HITL pause travels as NodeInterruptedError. Step 3 separates two kinds of retry: RetryConfig repeats the same call for a transient fault, and ReflectAndRetryToolPlugin tells the model what went wrong so it can change the arguments. Analogy: RetryConfig redials a busy phone line; reflect-and-retry tells the caller that the number is wrong. Likely question: "Why did your retries never fire?" Answer: an except block swallowed the exception; let it propagate, or re-raise after logging.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  let svg = null, dots = [], arcs = [], bars = [], notes = {};
+  const mk = (tag, a, p) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); (p || svg).appendChild(e); return e; };
+  const txt = (s, a, p) => { const t = mk("text", a, p); t.textContent = s; return t; };
+  const mono = (sz, w, c) => `font:${w} ${sz}px var(--f-mono);fill:${c}`;
+  const T = [0, 1, 3, 7, 15];            // attempt start times with defaults: delays 1, 2, 4, 8 s
+  const X = (t) => 40 + t * 40;
+  const AX = 98;
+
+  function build(slide) {
+    svg = slide.querySelector("#c4r-svg");
+    svg.innerHTML = ""; dots = []; arcs = []; bars = []; notes = {};
+    txt("max_attempts=5 (includes the first try) · initial_delay=1.0 · backoff_factor=2.0", { x: 0, y: 14, style: mono(12, 600, "var(--ink-2)") });
+    // axis
+    mk("line", { x1: 30, y1: AX, x2: 700, y2: AX, style: "stroke:var(--line-2);stroke-width:2" });
+    for (let t = 0; t <= 16; t++) mk("line", { x1: X(t), y1: AX - 4, x2: X(t), y2: AX + 4, style: "stroke:var(--line-2);stroke-width:1" });
+    T.forEach((t) => txt(t + " s", { x: X(t), y: AX + 24, "text-anchor": "middle", style: mono(11.5, 600, "var(--muted)") }));
+    // backoff arcs
+    for (let i = 1; i < T.length; i++) {
+      const a = X(T[i - 1]), b = X(T[i]), d = T[i] - T[i - 1], peak = AX - 22 - d * 4.5;
+      const g = mk("g", { opacity: 0 });
+      mk("path", { d: `M${a + 12},${AX - 8} Q${(a + b) / 2},${peak - 10} ${b - 12},${AX - 8}`, style: "fill:none;stroke:var(--tool);stroke-width:1.8;stroke-dasharray:4 5" }, g);
+      txt(d + " s", { x: (a + b) / 2, y: peak - 2, "text-anchor": "middle", style: mono(12, 700, "var(--tool)") }, g);
+      arcs.push(g);
+    }
+    // attempt dots
+    T.forEach((t, i) => {
+      const g = mk("g", { opacity: 0 });
+      const c = mk("circle", { cx: X(t), cy: AX, r: 12, style: "fill:var(--risk);stroke:var(--bg);stroke-width:2" }, g);
+      txt(String(i + 1), { x: X(t), y: AX + 4.5, "text-anchor": "middle", style: "font:700 12px var(--f-mono);fill:#fff" }, g);
+      dots.push({ g, c });
+    });
+    notes.ok = txt("4 transient 500s, then success on attempt 5", { x: 700, y: 142, "text-anchor": "end", style: mono(12, 700, "var(--state)"), opacity: 0 });
+    notes.bad = mk("g", { opacity: 0 });
+    txt("except Exception → {'status': 'error'} looks like success", { x: 26, y: 40, style: mono(12, 700, "var(--risk)") }, notes.bad);
+    txt("0 retries", { x: 700, y: 72, "text-anchor": "end", style: mono(16, 800, "var(--risk)") }, notes.bad);
+    notes.fix = txt("fix: let it propagate, retries fire again", { x: 700, y: 142, "text-anchor": "end", style: mono(12, 700, "var(--state)"), opacity: 0 });
+
+    // delay bars: delay(n) = min(1 * 2^(n-1), 60)
+    const base = 238, cap = 60, sc = 80 / cap;
+    txt("delay before retry n, capped by max_delay", { x: 0, y: 150, style: mono(12, 600, "var(--ink-2)") });
+    mk("line", { x1: 40, y1: base - cap * sc, x2: 520, y2: base - cap * sc, style: "stroke:var(--risk);stroke-width:1.6;stroke-dasharray:6 5" });
+    txt("max_delay = 60 s", { x: 530, y: base - cap * sc + 4, style: mono(12, 700, "var(--risk)") });
+    mk("line", { x1: 40, y1: base, x2: 520, y2: base, style: "stroke:var(--line-2);stroke-width:1.5" });
+    for (let n = 1; n <= 8; n++) {
+      const v = Math.min(Math.pow(2, n - 1), cap), h = Math.max(2, v * sc), x = 52 + (n - 1) * 58;
+      const g = mk("g", { opacity: n <= 4 ? 1 : 0.35 });
+      const r = mk("rect", { x, y: base - h, width: 34, height: h, rx: 3, style: "fill:var(--tool)" }, g);
+      txt(String(v), { x: x + 17, y: base - h - 5, "text-anchor": "middle", style: mono(11.5, 700, "var(--ink-2)") }, g);
+      txt("r" + n, { x: x + 17, y: base + 16, "text-anchor": "middle", style: mono(11, 500, "var(--muted)") }, g);
+      bars.push({ g, r, h, base });
+    }
+    txt("r5 to r8 only if", { x: 530, y: 206, style: mono(11, 500, "var(--muted)") });
+    txt("max_attempts > 5", { x: 530, y: 222, style: mono(11, 500, "var(--muted)") });
+    txt("jitter=1.0 · exceptions=None (all)", { x: 530, y: 254, style: mono(11, 500, "var(--muted)") });
+  }
+
+  function render(n, animate) {
+    if (!svg) return;
+    const d = animate ? 1 : 0;
+    gsap.killTweensOf(dots.map((x) => x.g).concat(arcs, [notes.ok, notes.bad, notes.fix]));
+    const retriesOn = n !== 2;
+    const showRun = n >= 1;
+    dots.forEach((x, i) => {
+      const last = i === dots.length - 1;
+      const vis = showRun && (retriesOn || i === 0);
+      x.c.style.fill = n === 2 && i === 0 ? "var(--faint)" : last ? "var(--state)" : "var(--risk)";
+      if (vis) gsap.to(x.g, { opacity: 1, duration: 0.35 * d, delay: animate && retriesOn ? i * 0.35 : 0 });
+      else gsap.to(x.g, { opacity: 0, duration: 0.3 * d, delay: animate ? (dots.length - i) * 0.12 : 0 });
+    });
+    arcs.forEach((g, i) => {
+      const vis = showRun && retriesOn;
+      gsap.to(g, { opacity: vis ? 1 : 0, duration: 0.35 * d, delay: animate && vis ? 0.2 + i * 0.35 : 0 });
+    });
+    gsap.to(notes.ok, { opacity: n === 1 ? 1 : 0, duration: 0.4 * d, delay: animate && n === 1 ? 1.6 : 0 });
+    gsap.to(notes.bad, { opacity: n === 2 ? 1 : 0, duration: 0.4 * d, delay: animate && n === 2 ? 0.5 : 0 });
+    gsap.to(notes.fix, { opacity: n >= 3 ? 1 : 0, duration: 0.4 * d });
+  }
+
+  Deck.register("adk-c04-retry", {
+    enter(slide, step) {
+      if (!svg) build(slide);
+      render(step, false);
+      bars.forEach((b, i) => gsap.fromTo(b.r, { attr: { y: b.base, height: 0 } }, { attr: { y: b.base - b.h, height: b.h }, duration: 0.7, delay: 0.3 + i * 0.07, ease: "power2.out" }));
+    },
+    step(slide, n, animate) { if (!svg) build(slide); render(n, animate); },
+    leave() { if (svg) gsap.killTweensOf(svg.querySelectorAll("*")); },
+  });
+})();
+</script>

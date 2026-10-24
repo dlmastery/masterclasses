@@ -1,0 +1,153 @@
+<section class="slide" id="adk-c05-skills" data-tone="state" data-title="Agent Skills and SkillToolset">
+  <h2 class="title">Agent Skills load know-how in three levels, so an unused skill costs almost no tokens</h2>
+  <div class="grid g-32 fill">
+    <div class="stack">
+      <svg id="c05-sk-svg" class="interactive" viewBox="0 0 820 200" width="820" height="200" data-on="1:s1 2:s2 3:s3 4:s4" aria-label="Progressive disclosure: skill names sit in context; one SKILL.md loads when relevant; scripts run in a sandbox and only their output enters the context"></svg>
+      <div class="code-wrap"><div class="code-head">copywriter agent · Creative Studio codelab (excerpt)</div>
+<pre class="code xs" data-lang="python" data-focus="1:4-5, 2:6-6"><code>
+from google.adk.skills import load_skill_from_dir
+from google.adk.tools import skill_toolset
+
+_instagram_skill = load_skill_from_dir(
+    pathlib.Path(__file__).parent / "skills" / "instagram-copywriting")
+_copywriting_skills = skill_toolset.SkillToolset(skills=[_instagram_skill])
+</code></pre></div>
+      <div class="cites">
+        <a class="cite codelab" href="https://codelabs.developers.google.com/next26/dev-keynote/building-agents-with-skills" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;Next 26 Developer Keynote: Building ADK Agents with Skills and Tools</a>
+        <a class="cite codelab" href="https://codelabs.developers.google.com/ai-creative-studio-adk-a2a" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;Build a Multi-Agent Creative Studio with Google's Agent Stack: ADK, A2A, MCP on Cloud Run &amp; Agent Runtime</a>
+        <a class="cite doc" href="https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills" target="_blank" rel="noopener"><b>Anthropic Engineering</b>&nbsp;Equipping agents for the real world with Agent Skills (2025-10-16)</a>
+      </div>
+    </div>
+    <div class="stack">
+      <div class="code-wrap"><div class="code-head">skills/pdf-forms/SKILL.md</div>
+<pre class="code xs" data-lang="markdown" data-focus="1:1-5, 2:6-9, 3:7-8"><code>---
+name: pdf-forms
+description: Fill and extract PDF form fields.
+  Use when the user mentions PDF forms.
+---
+# PDF forms
+1. Run `python scripts/extract_fields.py &lt;file&gt;`
+   to list fields.
+2. For complex forms, read `forms.md`.
+</code></pre></div>
+      <div class="tags" data-step="2" data-fx="stagger">
+        <span class="tag t-state">SkillToolset · 1.25</span>
+        <span class="tag t-state">Skill Registry · 1.34</span>
+        <span class="tag t-state">ADK_ENABLE_SKILL_LIFECYCLE=1 · 2.10</span>
+        <span class="tag t-tool">script output → artifact 2.12</span>
+        <span class="tag t-model">GEPARootAgentOptimizer</span>
+      </div>
+      <div class="callout pitfall" data-step="4">A vague description never triggers, or triggers on the wrong task. Too many skills bloat level 1. An untrusted skill bundles scripts, so it is a supply-chain and injection vector.</div>
+      <div class="cites push"><a class="cite doc" href="https://adk.dev/skills/" target="_blank" rel="noopener"><b>ADK docs</b>&nbsp;Skills (Experimental)</a></div>
+    </div>
+  </div>
+  <aside class="notes">
+    A skill is a folder of instructions, scripts and resources that the agent finds and loads only when it needs them (Anthropic, 2025-10-16; open standard 2025-12-18). Step 1: only the name and description of each skill sit in the context, at tens of tokens per skill; in ADK, load_skill_from_dir reads the folder and SkillToolset (since 1.25, still Experimental) exposes it. Step 2: the user asks for an Instagram caption, so the model calls load_skill and the SKILL.md body enters the context. Step 3: the body points to references and scripts; the script runs in the code executor (the Next 26 codelab passes code_executor to SkillToolset), and only its short output comes back, never the script source. Step 4: the same idea applied to tool definitions cut about 77K tokens to about 8.7K in Anthropic's Tool Search. The standard is spreading: Antigravity replaced its legacy workflows with SKILL.md skills (workflows stopped working on 2026-10-19), and uvx google-agents-cli setup installs ADK skills into coding agents. Analogy: a skill is a manual on a shelf; the agent reads the spine labels all day and opens a manual only for the job at hand. Likely question: "How is a skill different from a tool?" A tool is one callable function; a skill is a package of know-how that can tell the agent which tools and scripts to use.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  let svg = null, R = {}, cnt = [];
+  const mk = (tag, attrs, style, parent) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (style) e.setAttribute("style", style);
+    (parent || svg).appendChild(e);
+    return e;
+  };
+  const txt = (x, y, s, style, parent) => { const t = mk("text", { x, y }, style, parent); t.textContent = s; return t; };
+  const chip = (x, y, w, s, tone, parent) => {
+    const g = mk("g", {}, "", parent);
+    const r = mk("rect", { x, y, width: w, height: 26, rx: 13 }, `fill:var(--${tone}-soft);stroke:var(--${tone});stroke-width:1.4`, g);
+    txt(x + 10, y + 18, s, "font:600 12.5px var(--f-mono);fill:var(--ink)", g);
+    return { g, r };
+  };
+  const CHIPS = [[10, 178, "instagram-copywriting"], [196, 193, "gis-spatial-engineering"], [397, 73, "mapping"], [478, 118, "race-director"]];
+  const TOK = [0, 0.08, 0.36, 0.44, 0.44];
+
+  function build(slide) {
+    svg = slide.querySelector("#c05-sk-svg");
+    svg.innerHTML = "";
+    R = { chips: [] };
+    // context bar (two rows)
+    mk("rect", { x: 0, y: 0, width: 820, height: 90, rx: 14 }, "fill:var(--surface);stroke:var(--state);stroke-width:1.5");
+    txt(10, 16, "context · L1 metadata: name + description (tens of tokens per skill)", "font:600 12.5px var(--f-mono);fill:var(--state)");
+    CHIPS.forEach(([x, w, s]) => R.chips.push(chip(x, 24, w, s, "state")));
+    txt(624, 16, "tokens in context", "font:600 12px var(--f-mono);fill:var(--muted)");
+    mk("rect", { x: 624, y: 26, width: 186, height: 12, rx: 6 }, "fill:var(--surface-2);stroke:var(--line-2)");
+    R.tok = mk("rect", { x: 624, y: 26, width: 0, height: 12, rx: 6 }, "fill:var(--state)");
+    R.ask = chip(10, 56, 214, "Write an Instagram caption.", "human");
+    R.body = chip(232, 56, 120, "SKILL.md body", "state");
+    R.out = chip(360, 56, 120, "script output", "tool");
+    // L2 page
+    R.l2 = mk("g", {});
+    mk("path", { d: "M10,100 L218,100 L240,122 L240,198 L10,198 Z" }, "fill:var(--surface-2);stroke:var(--state);stroke-width:2", R.l2);
+    mk("path", { d: "M218,100 L218,122 L240,122" }, "fill:none;stroke:var(--state);stroke-width:1.5", R.l2);
+    txt(22, 120, "L2 · SKILL.md body", "font:700 13px var(--f-mono);fill:var(--ink)", R.l2);
+    [150, 120, 170, 96].forEach((w, i) => mk("rect", { x: 22, y: 132 + i * 12, width: w, height: 6, rx: 3 }, "fill:var(--state);opacity:.35", R.l2));
+    txt(22, 190, "loaded by the load_skill tool", "font:500 11.5px var(--f-mono);fill:var(--muted)", R.l2);
+    // L3 resources + sandbox
+    R.l3 = mk("g", {});
+    txt(280, 97, "L3 · on demand", "font:700 11.5px var(--f-mono);fill:var(--tool)", R.l3);
+    mk("path", { d: "M240,150 C260,150 260,121 278,121" }, "fill:none;stroke:var(--line-2);stroke-width:2;stroke-dasharray:5 5", R.l3);
+    mk("path", { d: "M240,170 C260,170 260,175 278,175" }, "fill:none;stroke:var(--line-2);stroke-width:2;stroke-dasharray:5 5", R.l3);
+    mk("rect", { x: 280, y: 102, width: 230, height: 40, rx: 10 }, "fill:var(--state-soft);stroke:var(--state);stroke-width:1.4", R.l3);
+    txt(292, 127, "references/ · read when needed", "font:600 12px var(--f-mono);fill:var(--ink)", R.l3);
+    mk("rect", { x: 280, y: 156, width: 230, height: 40, rx: 10 }, "fill:var(--tool-soft);stroke:var(--tool);stroke-width:1.4", R.l3);
+    txt(292, 181, "scripts/ · run, not read", "font:600 12px var(--f-mono);fill:var(--ink)", R.l3);
+    mk("path", { d: "M510,176 L556,170" }, "fill:none;stroke:var(--tool);stroke-width:2.2", R.l3);
+    mk("rect", { x: 560, y: 140, width: 260, height: 56, rx: 12 }, "fill:var(--tool-soft);stroke:var(--tool);stroke-width:1.8", R.l3);
+    txt(572, 162, "sandbox · code_executor", "font:700 13px var(--f-mono);fill:var(--ink)", R.l3);
+    txt(572, 182, "script source never enters context", "font:500 11.5px var(--f-mono);fill:var(--muted)", R.l3);
+    R.fly = chip(630, 112, 120, "script output", "tool");
+    // step 4: compare
+    R.cmp = mk("g", {});
+    txt(0, 114, "same idea for tool definitions (Anthropic Tool Search, 2025-11-24)", "font:600 12.5px var(--f-mono);fill:var(--muted)", R.cmp);
+    R.b1 = mk("rect", { x: 0, y: 122, width: 640, height: 22, rx: 6 }, "fill:var(--risk-soft);stroke:var(--risk);stroke-width:1.4", R.cmp);
+    txt(10, 138, "all up front", "font:600 12.5px var(--f-mono);fill:var(--ink)", R.cmp);
+    R.n1 = txt(652, 139, "~77K tokens", "font:700 14px var(--f-mono);fill:var(--risk)", R.cmp);
+    R.b2 = mk("rect", { x: 0, y: 152, width: 72, height: 22, rx: 6 }, "fill:var(--state-soft);stroke:var(--state);stroke-width:1.4", R.cmp);
+    txt(82, 168, "deferred, loaded on demand", "font:600 12.5px var(--f-mono);fill:var(--ink)", R.cmp);
+    R.n2 = txt(652, 169, "~8.7K tokens", "font:700 14px var(--f-mono);fill:var(--state)", R.cmp);
+    txt(0, 194, "SKILL.md also in: Antigravity (workflows ended 2026-10-19) · agents-cli · OpenAI Agents SDK · Deep Agents", "font:500 11.5px var(--f-mono);fill:var(--muted)", R.cmp);
+  }
+
+  function count(el, to, dec) {
+    const p = { v: 0 };
+    cnt.push(gsap.to(p, { v: to, duration: 1.2, ease: "power3.out", onUpdate: () => (el.textContent = "~" + p.v.toFixed(dec) + "K tokens") }));
+  }
+  function render(n, animate) {
+    if (!svg || !R.chips) return;
+    gsap.killTweensOf(svg.querySelectorAll("*"));
+    cnt.forEach((t) => t.kill()); cnt = [];
+    const d = animate ? 0.5 : 0;
+    gsap.to(R.chips.map((c) => c.g), { opacity: n >= 1 ? 1 : 0.25, duration: d, stagger: animate && n === 1 ? 0.08 : 0 });
+    R.chips[0].r.style.strokeWidth = n >= 2 ? "3" : "1.4";
+    gsap.to(R.tok, { attr: { width: 186 * TOK[Math.min(n, 4)] }, duration: animate ? 0.8 : 0 });
+    gsap.to(R.ask.g, { opacity: n >= 2 ? 1 : 0, duration: d });
+    gsap.to(R.body.g, { opacity: n >= 2 ? 1 : 0, duration: d, delay: animate && n === 2 ? 0.4 : 0 });
+    if (n === 2 && animate) gsap.fromTo(R.l2, { opacity: 0, scale: 0.4, svgOrigin: "100 37" }, { opacity: 1, scale: 1, svgOrigin: "100 37", duration: 0.7, delay: 0.3, ease: "back.out(1.4)" });
+    else gsap.to(R.l2, { opacity: n >= 2 && n < 4 ? 1 : 0, scale: 1, duration: d });
+    gsap.to(R.l3, { opacity: n === 3 ? 1 : 0, duration: d });
+    if (n === 3 && animate) {
+      gsap.set(R.out.g, { opacity: 0 });
+      gsap.fromTo(R.fly.g, { opacity: 0, x: 0, y: 0 }, { keyframes: [{ opacity: 1, duration: 0.3, delay: 0.7 }, { x: -270, y: -56, duration: 0.8, ease: "power2.inOut" }, { opacity: 0, duration: 0.15 }] });
+      gsap.to(R.out.g, { opacity: 1, duration: 0.3, delay: 1.8 });
+    } else {
+      gsap.set(R.fly.g, { opacity: 0, x: 0, y: 0 });
+      gsap.to(R.out.g, { opacity: n >= 3 ? 1 : 0, duration: d });
+    }
+    gsap.to(R.cmp, { opacity: n >= 4 ? 1 : 0, duration: d });
+    if (n >= 4 && animate) {
+      gsap.fromTo([R.b1, R.b2], { scaleX: 0, svgOrigin: "0 150" }, { scaleX: 1, svgOrigin: "0 150", duration: 1.1, ease: "power3.out", stagger: 0.15 });
+      count(R.n1, 77, 0); count(R.n2, 8.7, 1);
+    } else { gsap.set([R.b1, R.b2], { scaleX: 1 }); R.n1.textContent = "~77K tokens"; R.n2.textContent = "~8.7K tokens"; }
+  }
+  Deck.register("adk-c05-skills", {
+    enter(slide, n) { build(slide); render(n, n === 0); },
+    step(slide, n, animate) { render(n, animate); },
+    leave() { cnt.forEach((t) => t.kill()); cnt = []; if (svg) gsap.killTweensOf(svg.querySelectorAll("*")); }
+  });
+})();
+</script>

@@ -1,0 +1,161 @@
+<section class="slide" id="adk-c03-loops" data-tone="agent" data-title="Loops as back-edges">
+  <h2 class="title">A loop is a conditional back-edge, and you must bound it yourself</h2>
+  <div class="row fill" style="gap:24px">
+    <div class="stack" style="width:680px;flex:none">
+      <svg id="c35-svg" viewBox="0 0 680 300" width="680" height="300" aria-label="A generator-critic loop; a token circles the back-edge while an LLM-call counter rises, then exits to a human or to publish"></svg>
+      <div style="position:relative;height:236px">
+        <div class="stack" style="position:absolute;inset:0;gap:10px" data-until="1">
+          <p class="small">Sample <code>workflows/loop</code> (generator-critic): <code>(route_headline, {"unrelated": generate_headline})</code> is a conditional back-edge.</p>
+          <p class="small"><code>evaluate_headline</code> has <code>output_schema=Feedback</code> with <code>grade: Literal["tech-related", "unrelated"]</code>. The router returns <code>Event(route=node_input.grade)</code>.</p>
+          <p class="small">A self-loop also works: <code>(guess_number, {"guessed_wrong": guess_number})</code>.</p>
+        </div>
+        <div class="stack" style="position:absolute;inset:0;gap:10px" data-step="1" data-until="2">
+          <p class="quote" style="font-size:26px">“A graph cycle is not bounded automatically.”</p>
+          <div class="callout pitfall"><div>Construction rejects only <b>unconditional</b> cycles. A conditional cycle has <b>no <code>max_iterations</code></b>. Each pass re-activates the node “with a fresh lifecycle”, and <code>node_info.path</code> shows the pass, e.g. <code>request_input@1/request_human_review@2</code>.</div></div>
+        </div>
+        <div class="stack" style="position:absolute;inset:0;gap:10px" data-step="2" data-until="3">
+          <h4>Lever 1: a round counter in the router</h4>
+          <p class="small">The router reads <code>rounds</code> from <code>ctx.state</code>, adds one, and writes it back through <code>Event(state=...)</code>. The counter survives a pause and a resume, because the session stores it.</p>
+        </div>
+        <div class="stack" style="position:absolute;inset:0;gap:10px" data-step="3" data-until="4">
+          <h4>Lever 2: escalate on the last round</h4>
+          <p class="small">On round 3 the router emits <code>give_up</code>. The edge goes to <code>human_review</code>, which yields a <code>RequestInput</code>.</p>
+          <p class="small"><b>Backstop:</b> <code>RunConfig.max_llm_calls</code> (default <b>500</b>) raises <code>LlmCallsLimitExceededError</code>. Since 2.8 you can set <code>ADK_MAX_LLM_CALLS</code>.</p>
+        </div>
+        <div class="stack" style="position:absolute;inset:0;gap:10px" data-step="4">
+          <h4>1.x loop vs 2.0 loop</h4>
+          <p class="small">The Next '26 codelab uses <code>LoopAgent(sub_agents=[researcher, judge, escalation_checker], max_iterations=3)</code>. The checker yields <code>EventActions(escalate=True)</code> on <code>"pass"</code>.</p>
+          <p class="small">In 2.0 the judge feeds a router, and the back-edge is the loop. Since 2.5, ADK rejects old orchestrators inside <code>Workflow</code> graphs.</p>
+        </div>
+      </div>
+      <div class="cites push">
+        <a class="cite doc" href="https://adk.dev/graphs/routes/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;adk.dev/graphs/routes</a>
+        <a class="cite codelab" href="https://codelabs.developers.google.com/next26/multi-agent-system" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;Building a Multi-Agent System using Gemini and Gemma models</a>
+      </div>
+    </div>
+    <div class="stack" style="width:688px;flex:none">
+      <div class="code-wrap" data-fx="up"><div class="code-head">bounded_critic.py · pattern composed from verified APIs</div>
+<pre class="code sm" data-lang="python" data-focus="1:16-16, 2:6-6, 3:9-10, 4:7-8"><code>
+from google.adk import Context, Event, Workflow
+
+MAX_ROUNDS = 3
+
+def route_headline(node_input: Feedback, ctx: Context):
+    rounds = ctx.state.get("rounds", 0) + 1
+    if node_input.grade == "tech-related":
+        return Event(route="pass", state={"rounds": rounds})
+    if rounds &gt;= MAX_ROUNDS:
+        return Event(route="give_up", state={"rounds": rounds})
+    return Event(route="revise", state={"rounds": rounds})
+
+root_agent = Workflow(name="bounded_critic", edges=[
+    ("START", process_input, generate_headline,
+     evaluate_headline, route_headline),
+    (route_headline, {"revise": generate_headline,
+                      "pass": publish,
+                      "give_up": human_review}),
+])
+</code></pre></div>
+    </div>
+  </div>
+  <aside class="notes">
+    Step 1 shows the danger: the critic keeps saying "unrelated", the token circles the back-edge, and the LLM-call counter climbs by two per lap, one call for the generator and one for the critic. Nothing in the engine stops it except the global max_llm_calls backstop of 500. Step 2 adds the fix inside the router: a round counter in state. Step 3: on round three the router routes give_up to a human instead of looping. Step 4 is the happy path: the grade flips to tech-related and the token exits to publish. The code is a pattern composed from verified APIs, not a copy of a sample. Analogy: a code review with a rule: after three rounds of comments, the lead decides. Likely interview question: "Why can a graph loop forever?" Because only unconditional cycles are rejected at construction; a conditional cycle has no iteration cap, so the developer owns the exit.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const mk = (t, a, p) => { const e = document.createElementNS(NS, t); for (const k in a) e.setAttribute(k, a[k]); if (p) p.appendChild(e); return e; };
+  const txt = (p, x, y, s, st, anchor) => { const e = mk("text", { x, y, style: st, ...(anchor ? { "text-anchor": anchor } : {}) }, p); e.textContent = s; return e; };
+  const boxN = (p, x, y, w, h, tone, t, s) => {
+    const g = mk("g", {}, p);
+    const r = mk("rect", { x, y, width: w, height: h, rx: 12, style: `fill:var(--surface-2);stroke:var(--${tone});stroke-width:1.8` }, g);
+    txt(g, x + 14, y + 24, t, "font:700 15px var(--f-body);fill:var(--ink)");
+    if (s) txt(g, x + 14, y + 42, s, "font:500 12px var(--f-mono);fill:var(--muted)");
+    return { g, r };
+  };
+  let S = null, tl = null;
+
+  function build(slide) {
+    const svg = slide.querySelector("#c35-svg");
+    svg.innerHTML = "";
+    S = {};
+    const st = "fill:none;stroke:var(--line-2);stroke-width:2.4";
+    mk("path", { d: "M190,148 L246,148", style: st }, svg);
+    mk("path", { d: "M420,148 L476,148", style: st }, svg);
+    S.back = mk("path", { d: "M565,120 C565,22 105,22 105,120", style: "fill:none;stroke:var(--risk);stroke-width:2.6;stroke-dasharray:8 7" }, svg);
+    txt(svg, 335, 42, "revise (unrelated)", "font:600 12.5px var(--f-mono);fill:var(--risk)", "middle");
+    S.passE = mk("path", { d: "M600,176 L600,234", style: st }, svg);
+    txt(svg, 608, 212, "pass", "font:600 12.5px var(--f-mono);fill:var(--muted)");
+    S.giveE = mk("path", { d: "M520,176 C520,230 470,261 424,261", style: st }, svg);
+    txt(svg, 470, 226, "give_up", "font:600 12.5px var(--f-mono);fill:var(--muted)");
+    boxN(svg, 20, 120, 170, 56, "agent", "generate_headline", "Agent");
+    S.ev = boxN(svg, 250, 120, 170, 56, "agent", "evaluate_headline", "output_schema");
+    S.rt = boxN(svg, 480, 120, 170, 56, "tool", "route_headline", "function");
+    S.hu = boxN(svg, 250, 236, 170, 50, "human", "human_review", "RequestInput");
+    S.pu = boxN(svg, 520, 236, 150, 50, "tool", "publish", "function");
+    S.grade = mk("g", {}, svg);
+    S.gradeR = mk("rect", { x: 270, y: 92, width: 130, height: 22, rx: 6, style: "fill:var(--risk-soft);stroke:var(--risk);stroke-width:1.2" }, S.grade);
+    S.gradeT = txt(S.grade, 335, 107, "grade: unrelated", "font:700 12px var(--f-mono);fill:var(--risk)", "middle");
+    S.badge = mk("g", { opacity: 0 }, svg);
+    mk("rect", { x: 560, y: 92, width: 110, height: 22, rx: 6, style: "fill:var(--tool-soft);stroke:var(--tool);stroke-width:1.2" }, S.badge);
+    S.badgeT = txt(S.badge, 615, 107, "rounds: 0/3", "font:700 12px var(--f-mono);fill:var(--tool)", "middle");
+    S.calls = txt(svg, 676, 290, "LLM calls: 0", "font:700 14px var(--f-mono);fill:var(--model)", "end");
+    S.cap = txt(svg, 12, 290, "graph cycle: no max_iterations", "font:600 12.5px var(--f-mono);fill:var(--risk)");
+    S.fwd = mk("path", { d: "M105,148 L565,148", style: "fill:none;stroke:none" }, svg);
+    S.loop = mk("path", { d: "M565,148 L565,120 C565,22 105,22 105,120 L105,148", style: "fill:none;stroke:none" }, svg);
+    S.toH = mk("path", { d: "M565,148 L520,176 C520,230 470,261 335,261", style: "fill:none;stroke:none" }, svg);
+    S.toP = mk("path", { d: "M565,148 L600,176 L600,261", style: "fill:none;stroke:none" }, svg);
+    S.tok = mk("circle", { r: 9, cx: 105, cy: 148, style: "fill:var(--agent);filter:drop-shadow(0 0 6px var(--agent))" }, svg);
+  }
+  const at = (path, t) => { const p = path.getPointAtLength(t * path.getTotalLength()); S.tok.setAttribute("cx", p.x); S.tok.setAttribute("cy", p.y); };
+  const move = (path, dur) => { const p = { t: 0 }; return gsap.to(p, { t: 1, duration: dur, ease: "power1.inOut", onUpdate: () => at(path, p.t) }); };
+  function setGrade(ok) {
+    S.gradeT.textContent = ok ? "grade: tech-related" : "grade: unrelated";
+    const c = ok ? "state" : "risk";
+    S.gradeR.style.stroke = `var(--${c})`; S.gradeR.style.fill = `var(--${c}-soft)`; S.gradeT.style.fill = `var(--${c})`;
+    S.gradeR.setAttribute("x", ok ? 256 : 270); S.gradeR.setAttribute("width", ok ? 158 : 130);
+  }
+  const hl = (b, on) => { b.r.style.strokeWidth = on ? 4 : 1.8; };
+
+  function render(n, anim) {
+    if (!S) return;
+    if (tl) { tl.kill(); tl = null; }
+    setGrade(false); hl(S.hu, false); hl(S.pu, false);
+    gsap.set(S.badge, { opacity: n >= 2 ? 1 : 0 });
+    S.cap.style.opacity = n === 1 ? 1 : n >= 2 ? 0 : 0.6;
+    const fin = { 0: [0, 0, "fwd0"], 1: [0, 0, "gen"], 2: [2, 4, "gen"], 3: [3, 6, "hum"], 4: [2, 4, "pub"] }[Math.min(n, 4)];
+    const setEnd = () => {
+      S.badgeT.textContent = `rounds: ${fin[0]}/3`;
+      S.calls.textContent = n === 1 ? "LLM calls: +2 per lap, no cap" : `LLM calls: ${fin[1]}`;
+      if (fin[2] === "hum") { at(S.toH, 1); hl(S.hu, true); }
+      else if (fin[2] === "pub") { at(S.toP, 1); hl(S.pu, true); setGrade(true); }
+      else at(S.fwd, 0);
+    };
+    if (!anim || n === 0) { setEnd(); return; }
+    let r = 0, c = 0;
+    const tick = () => { r += 1; c += 2; S.badgeT.textContent = `rounds: ${r}/3`; S.calls.textContent = `LLM calls: ${c}`; };
+    tl = gsap.timeline();
+    at(S.fwd, 0); S.badgeT.textContent = "rounds: 0/3"; S.calls.textContent = "LLM calls: 0";
+    if (n === 1) {
+      tl = gsap.timeline({ repeat: -1 });
+      tl.add(move(S.fwd, 1.2)).call(() => { c += 2; S.calls.textContent = `LLM calls: ${c}`; }).add(move(S.loop, 1.3));
+      return;
+    }
+    if (n === 2) { tl.add(move(S.fwd, 1.0)).call(tick).add(move(S.loop, 1.1)).add(move(S.fwd, 1.0)).call(tick).add(move(S.loop, 1.1)); }
+    if (n === 3) {
+      r = 2; c = 4; S.badgeT.textContent = "rounds: 2/3"; S.calls.textContent = "LLM calls: 4";
+      tl.add(move(S.fwd, 1.0)).call(tick).add(move(S.toH, 1.0)).call(() => hl(S.hu, true));
+    }
+    if (n === 4) {
+      tl.add(move(S.fwd, 1.0)).call(tick).add(move(S.loop, 1.1)).call(() => setGrade(true)).add(move(S.fwd, 1.0)).call(tick).add(move(S.toP, 0.9)).call(() => hl(S.pu, true));
+    }
+  }
+
+  Deck.register("adk-c03-loops", {
+    enter(slide, n) { build(slide); render(n, n === 1); },
+    step(slide, n, animate) { render(n, animate || n === 1); },
+    leave() { if (tl) tl.kill(); tl = null; S = null; }
+  });
+})();
+</script>

@@ -1,0 +1,180 @@
+<section class="slide" id="adk-c07-orchestrator-subagents" data-tone="agent" data-title="Orchestrator-workers and subagents">
+  <h2 class="title">Orchestrator-workers wins on parallel reads, so keep the writes in one thread</h2>
+  <div class="fill" style="display:grid;grid-template-columns:720px 1fr;gap:24px;min-height:0">
+    <div class="stack" style="gap:16px">
+      <svg id="c07-iso" viewBox="0 0 720 400" width="720" height="400" style="overflow:visible" aria-label="A lead agent fans out to three workers; each worker uses a large context and returns a small summary"></svg>
+      <div style="position:relative;flex:1;min-height:0">
+        <div data-until="4" style="position:absolute;inset:0">
+          <div class="panel tight k-state" data-step="2">
+            <p class="small" style="font-size:17px">Subagents for context isolation are the dominant 2026 pattern. A child gets a fresh window and returns "a condensed, distilled summary of its work (often 1,000-2,000 tokens)". LangChain (2025-06-10): supervisors lose accuracy when they paraphrase; a <code>forward_message</code> tool and cleaner handoffs gave nearly 50% better performance.</p>
+          </div>
+        </div>
+        <div class="panel tight k-agent" data-step="4" style="position:absolute;inset:0;bottom:auto">
+          <p class="small" style="font-size:17px"><b>ADK 2.0:</b> wrap workers as <code>AgentTool</code> or as <code>single_turn</code> sub-agents. Each one runs in its own session branch and cannot see its peers. For recursion, call <code>ctx.run_node</code> and stop at <code>MAX_DEPTH</code> in code.</p>
+          <div class="cites"><a class="cite codelab" href="https://codelabs.developers.google.com/adk2/instructions" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;ADK 2 Orchestration: Graph, Collaborative &amp; Dynamic Workflows (L4b)</a></div>
+        </div>
+      </div>
+    </div>
+    <div class="stack" style="gap:16px">
+      <div class="code-wrap" data-fx="up"><div class="code-head">research.py · sketch from documented primitives</div>
+<pre class="code sm" data-lang="python" data-focus="1:3-4, 2:5-7, 3:8-9, 4:11-11"><code>
+@node(rerun_on_resume=True)
+async def research(ctx: Context, question: str):
+    # planner_agent has output_schema=Plan(steps)
+    plan = await ctx.run_node(planner_agent, question)
+    findings = await asyncio.gather(*[
+        ctx.run_node(worker_agent, step)
+        for step in plan.steps])
+    return await ctx.run_node(synthesizer_agent,
+        {"question": question, "findings": findings})
+
+# worker_agent: include_contents="none", short output_schema
+</code></pre></div>
+      <div style="position:relative;flex:1;min-height:0">
+        <div data-until="3" style="position:absolute;inset:0">
+          <div data-step="1" class="stack" style="gap:10px">
+            <div class="grid g3" style="gap:12px">
+              <div class="stat" style="--aurora:var(--agent)"><span class="n" data-to="90.2" data-dec="1" data-pre="+" data-suf="%" style="font-size:46px">0</span><span class="l" style="font-size:15px">vs single-agent Opus 4 on an internal research eval</span></div>
+              <div class="stat" style="--aurora:var(--risk)"><span class="n" data-to="15" data-pre="~" data-suf="×" style="font-size:46px">0</span><span class="l" style="font-size:15px">tokens of a chat</span></div>
+              <div class="stat" style="--aurora:var(--state)"><span class="n" data-to="80" data-suf="%" style="font-size:46px">0</span><span class="l" style="font-size:15px">of BrowseComp variance from tokens alone</span></div>
+            </div>
+            <p class="tiny">Anthropic, 2025-06-13: an Opus 4 lead, 3-5 parallel Sonnet 4 workers, a CitationAgent. Effort rules: fact = 1 agent, 3-10 calls; comparison = 2-4 subagents; complex = more than 10. Failures: 50 subagents for a simple query, duplicated work, endless search.</p>
+          </div>
+        </div>
+        <div data-until="4" style="position:absolute;inset:0">
+          <div data-step="3" class="stack" style="gap:10px">
+            <p class="quote" style="font-size:24px">"multi-agent systems work best today when writes stay single-threaded"</p>
+            <p class="tiny">Cognition 2025-06-12 ("Don't Build Multi-Agents"): in the Flappy Bird example, two sub-agents make conflicting implicit decisions. Cognition 2026-04-22: map-reduce-and-manage; Devin Review with a clean context finds about 2 bugs per PR.</p>
+            <div class="cites"><a class="cite doc" href="https://cognition.com/blog/multi-agents-working" target="_blank" rel="noopener"><b>Cognition</b>&nbsp;Multi-Agents: What's Actually Working</a></div>
+          </div>
+        </div>
+        <div data-step="4" style="position:absolute;inset:0">
+          <table class="t" style="font-size:16px">
+            <tr><th>Question</th><th>2026 consensus</th></tr>
+            <tr><td>Parallel reads?</td><td>Yes. Fan out readers, compress results.</td></tr>
+            <tr><td>Parallel writes?</td><td>No, unless partitioned with a hard verifier.</td></tr>
+            <tr><td>Context passing</td><td>Detailed brief in, short summary out.</td></tr>
+            <tr><td>Topology</td><td>One writer, many advisors.</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    Watch the context bars. Step one: the lead plans and fans out; each worker burns its own large window (about 50k tokens) on search. Step two: each worker returns only a small summary, so the lead's bar stays thin. That is context isolation, and in 2026 it is the main reason to use subagents. Step three: only the lead writes the artifact; parallel writes by workers are the Flappy Bird failure, where two children make conflicting hidden decisions. Analogy: many researchers read in the library, one editor writes the book. Interview question: "When does multi-agent pay off?" For high-value, parallel, read-heavy tasks with a strong verifier, and only if the task can pay about 15 times the tokens of a chat.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const WX = [20, 260, 500];
+  let built = false, E = {}, tl = null;
+  const mk = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; };
+  const txt = (parent, x, y, s, font, fill, anchor = "middle") => { const t = mk("text", { x, y, "text-anchor": anchor, fill }, parent); t.style.font = font; t.textContent = s; return t; };
+  const nodeBox = (parent, x, y, w, tone, title, sub) => {
+    const g = mk("g", {}, parent);
+    mk("rect", { x, y, width: w, height: 64, rx: 14, fill: `var(--${tone}-soft)`, stroke: `var(--${tone})`, "stroke-width": 1.8 }, g);
+    txt(g, x + w / 2, y + 28, title, "700 19px var(--f-body)", "var(--ink)");
+    txt(g, x + w / 2, y + 50, sub, "500 14px var(--f-mono)", "var(--muted)");
+    return g;
+  };
+
+  function build(slide) {
+    if (built) return;
+    built = true;
+    const svg = slide.querySelector("#c07-iso");
+    const wires = mk("g", {}, svg);
+    E.fan = WX.map((x) => mk("path", { d: `M150,124 C150,190 ${x + 100},190 ${x + 100},250`, fill: "none", stroke: "var(--agent)", "stroke-width": 2.2 }, wires));
+    E.writes = WX.map((x) => mk("path", { d: `M${x + 100},250 C${x + 100},170 580,170 580,90`, fill: "none", stroke: "var(--risk)", "stroke-width": 2, "stroke-dasharray": "6 7", opacity: 0.7 }, wires));
+    E.xs = WX.map((x) => {
+      const cx = (x + 100 + 580) / 2 + (x === 500 ? 0 : 0), cy = 172;
+      const g = mk("g", {}, svg);
+      mk("circle", { cx, cy, r: 13, fill: "var(--bg)", stroke: "var(--risk)", "stroke-width": 2 }, g);
+      mk("path", { d: `M${cx - 6},${cy - 6} L${cx + 6},${cy + 6} M${cx + 6},${cy - 6} L${cx - 6},${cy + 6}`, stroke: "var(--risk)", "stroke-width": 2.6, "stroke-linecap": "round" }, g);
+      return g;
+    });
+    E.write = mk("path", { d: "M262,52 L462,52", fill: "none", stroke: "var(--risk)", "stroke-width": 3.2 }, wires);
+    E.writeHead = mk("path", { d: "M470,52 L458,45 L458,59 Z", fill: "var(--risk)" }, wires);
+    E.writeLbl = txt(wires, 362, 42, "the only write", "600 14px var(--f-mono)", "var(--risk)");
+    E.lead = nodeBox(svg, 40, 20, 220, "agent", "lead", "plans · synthesizes");
+    mk("rect", { x: 40, y: 96, width: 220, height: 14, rx: 7, fill: "var(--surface-2)", stroke: "var(--line-2)" }, svg);
+    E.leadFill = mk("rect", { x: 40, y: 96, width: 22, height: 14, rx: 7, fill: "var(--agent)" }, svg);
+    E.leadLbl = txt(svg, 270, 108, "lead context", "500 13px var(--f-mono)", "var(--muted)", "start");
+    E.art = nodeBox(svg, 470, 20, 220, "state", "artifact", "report · repo");
+    E.workers = WX.map((x, i) => {
+      const g = mk("g", {}, svg);
+      g.appendChild(nodeBox(g, x, 250, 200, "agent", "worker " + (i + 1), "fresh context"));
+      mk("rect", { x, y: 326, width: 200, height: 24, rx: 8, fill: "var(--surface-2)", stroke: "var(--line-2)" }, g);
+      const f = mk("rect", { x, y: 326, width: 0, height: 24, rx: 8, fill: "var(--model)", opacity: 0.75 }, g);
+      const l = txt(g, x + 100, 375, "50k tokens", "600 15px var(--f-mono)", "var(--model)");
+      return { g, f, l };
+    });
+    E.chips = WX.map((x) => {
+      const g = mk("g", {}, svg);
+      mk("rect", { x: -32, y: -12, width: 64, height: 24, rx: 12, fill: "var(--state)" }, g);
+      txt(g, 0, 5, "1.5k", "700 13px var(--f-mono)", "#fff");
+      return g;
+    });
+  }
+
+  function lenSet(p, on, animate, at) {
+    const L = p.getTotalLength();
+    if (!on) { gsap.set(p, { autoAlpha: 0 }); return; }
+    if (animate) tl.fromTo(p, { autoAlpha: 1, strokeDasharray: L, strokeDashoffset: L }, { strokeDashoffset: 0, duration: 0.7, ease: "power2.out" }, at);
+    else gsap.set(p, { autoAlpha: 1, strokeDasharray: "none", strokeDashoffset: 0 });
+  }
+
+  function render(n, animate) {
+    if (tl) tl.kill();
+    tl = gsap.timeline();
+    // step 1: fan out + workers fill their own windows
+    E.fan.forEach((p, i) => lenSet(p, n >= 1, animate && n === 1, 0.1 + i * 0.12));
+    E.workers.forEach((w, i) => {
+      if (n < 1) { gsap.set(w.g, { autoAlpha: 0 }); gsap.set(w.f, { attr: { width: 0 } }); gsap.set(w.l, { autoAlpha: 0 }); return; }
+      if (animate && n === 1) {
+        tl.fromTo(w.g, { autoAlpha: 0, y: 16 }, { autoAlpha: 1, y: 0, duration: 0.4 }, 0.4 + i * 0.12);
+        tl.fromTo(w.f, { attr: { width: 0 } }, { attr: { width: 200 }, duration: 1.3, ease: "power1.inOut" }, 0.9 + i * 0.1);
+        tl.fromTo(w.l, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.3 }, 2.1);
+      } else { gsap.set(w.g, { autoAlpha: 1, y: 0 }); gsap.set(w.f, { attr: { width: 200 } }); gsap.set(w.l, { autoAlpha: 1 }); }
+    });
+    // step 2: small summaries go back; the lead bar stays thin
+    const leadW = n >= 2 ? 22 + 3 * 14 : 22;
+    E.chips.forEach((c, i) => {
+      const sx = WX[i] + 100, sy = 238, ex = 62 + 22 + i * 14, ey = 103;
+      if (n < 2) { gsap.set(c, { autoAlpha: 0, x: sx, y: sy }); return; }
+      if (animate && n === 2) {
+        tl.fromTo(c, { autoAlpha: 0, x: sx, y: sy, scale: 0.6 }, { autoAlpha: 1, scale: 1, duration: 0.3 }, 0.1 + i * 0.15);
+        tl.to(c, { x: ex, y: ey, scale: 0.35, duration: 0.8, ease: "power2.inOut" }, 0.5 + i * 0.2);
+        tl.to(c, { autoAlpha: 0, duration: 0.2 }, 1.25 + i * 0.2);
+        tl.to(E.leadFill, { attr: { width: 22 + (i + 1) * 14 }, duration: 0.25 }, 1.25 + i * 0.2);
+      } else gsap.set(c, { autoAlpha: 0 });
+    });
+    if (!(animate && n === 2)) gsap.set(E.leadFill, { attr: { width: leadW } });
+    // step 3: one write path; worker writes are crossed out
+    if (n >= 3) {
+      if (animate && n === 3) {
+        tl.fromTo(E.writes, { autoAlpha: 0 }, { autoAlpha: 0.7, duration: 0.4, stagger: 0.1 }, 0.1);
+        tl.fromTo(E.xs, { autoAlpha: 0, scale: 0.3, transformOrigin: "50% 50%" }, { autoAlpha: 1, scale: 1, duration: 0.35, ease: "back.out(2.2)", stagger: 0.12 }, 0.6);
+        tl.fromTo(E.write, { strokeDasharray: 210, strokeDashoffset: 210 }, { strokeDashoffset: 0, duration: 0.6 }, 1.1);
+        tl.fromTo([E.writeHead, E.writeLbl], { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.3 }, 1.6);
+      } else {
+        gsap.set(E.writes, { autoAlpha: 0.7 });
+        gsap.set(E.xs, { autoAlpha: 1, scale: 1 });
+        gsap.set(E.write, { strokeDasharray: "none", strokeDashoffset: 0, autoAlpha: 1 });
+        gsap.set([E.writeHead, E.writeLbl], { autoAlpha: 1 });
+      }
+    } else {
+      gsap.set(E.writes, { autoAlpha: 0 });
+      gsap.set(E.xs, { autoAlpha: 0 });
+      gsap.set([E.write, E.writeHead, E.writeLbl], { autoAlpha: 0 });
+    }
+    gsap.set(E.art, { autoAlpha: n >= 3 ? 1 : 0.25 });
+  }
+
+  Deck.register("adk-c07-orchestrator-subagents", {
+    enter(slide, n) { build(slide); if (n) render(n, false); },
+    step(slide, n, animate) { build(slide); render(n, animate); },
+    leave() { if (tl) tl.kill(); }
+  });
+})();
+</script>

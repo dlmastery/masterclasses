@@ -1,0 +1,188 @@
+<section class="slide tight" id="adk-c01-workflow-vs-agent" data-tone="model" data-title="Workflow or agent">
+  <h2 class="title">Climb from workflow to agent only when an eval shows the lower rung fails</h2>
+  <div class="grid fill" style="grid-template-columns:720px 648px;gap:24px">
+    <div class="stack" style="gap:12px">
+      <div class="grid g2" style="gap:12px">
+        <div class="panel tight"><h4>Workflow</h4><p class="tiny">“systems where LLMs and tools are orchestrated through predefined code paths”</p></div>
+        <div class="panel tight k-agent"><h4 class="c-agent">Agent</h4><p class="tiny">“systems where LLMs dynamically direct their own processes and tool usage”</p></div>
+      </div>
+      <svg id="c13-traj" viewBox="0 0 720 176" width="720" height="176" aria-label="A 20-step run: end-to-end success falls from 100% to 36% at 95% per step">
+        <text x="0" y="16" style="font:600 15px var(--f-mono)" fill="var(--muted)">one 20-step run · 95% reliable per step</text>
+        <text id="c13-vlab" x="0" y="44" style="font:600 13px var(--f-mono)" fill="var(--risk)" opacity="0">◆ verify each step · assume a perfect check + 1 retry: 1 − 0.05² per step</text>
+        <text id="c13-pct" x="720" y="48" text-anchor="end" style="font:700 44px var(--f-display)" fill="var(--model)">100%</text>
+        <text id="c13-sub" x="720" y="66" text-anchor="end" style="font:500 13px var(--f-mono)" fill="var(--muted)">end-to-end success</text>
+        <g id="c13-dyn"></g>
+        <rect x="0" y="136" width="655" height="9" rx="4.5" fill="var(--line)"/>
+        <rect id="c13-pbar" x="0" y="136" width="655" height="9" rx="4.5" fill="var(--model)"/>
+        <text x="0" y="166" style="font:500 13px var(--f-mono)" fill="var(--muted)">step 1</text>
+        <text x="655" y="166" text-anchor="end" style="font:500 13px var(--f-mono)" fill="var(--muted)">step 20 · bar = P(all steps so far succeed)</text>
+      </svg>
+      <div class="grid g3" data-step="4" style="gap:16px">
+        <div class="stat"><span class="n" style="font-size:46px;color:var(--faint)" data-to="5152">0</span><span class="l tiny">tokens per run, vanilla tool-calling agent</span></div>
+        <div class="stat"><span class="n" style="font-size:46px" data-to="2265">0</span><span class="l tiny">tokens per run, ADK 2.0 workflow</span></div>
+        <div class="stat"><span class="n" style="font-size:46px" data-to="5.7" data-dec="1" data-suf=" s">0</span><span class="l tiny">latency per run, was 7.2 s</span></div>
+      </div>
+      <p class="tiny" data-step="4">Google: <b>“If you can clearly map the workflow, use determinism.”</b> The numbers are illustrative: refund task, gemini-3.5-flash, mock APIs.</p>
+      <div class="callout pitfall" data-step="5" style="font-size:17px">Pitfall: you start with a multi-agent design before one agent with tools has failed an eval. You pay for the tokens and get no measured gain.</div>
+      <div class="cites">
+        <a class="cite doc" href="https://www.anthropic.com/engineering/building-effective-agents" target="_blank" rel="noopener"><b>Doc</b>&nbsp;Building effective agents, 2024-12-19</a>
+        <a class="cite doc" data-step="3" href="https://www.anthropic.com/engineering/multi-agent-research-system" target="_blank" rel="noopener"><b>Doc</b>&nbsp;Multi-agent research system</a>
+        <a class="cite doc" data-step="4" href="https://developers.googleblog.com/en/why-we-built-adk-20/" target="_blank" rel="noopener"><b>Doc</b>&nbsp;Why we built ADK 2.0</a>
+      </div>
+    </div>
+    <div class="stack" style="gap:14px">
+      <svg id="c13-ladder" data-step="3" data-fx="right" viewBox="0 0 648 250" width="648" height="250" aria-label="Five-rung complexity ladder with a token meter: 1x chat, 4x agent, 15x multi-agent">
+        <text x="648" y="14" text-anchor="end" style="font:600 13px var(--f-mono)" fill="var(--muted)">tokens vs chat (Anthropic)</text>
+        <path d="M126,158 h-8 v76 h8" fill="none" stroke="var(--line-2)" stroke-width="2"/>
+        <text x="110" y="200" text-anchor="end" style="font:600 14px var(--f-mono)" fill="var(--muted)">workflows</text>
+        <path d="M126,24 h-8 v122 h8" fill="none" stroke="var(--agent)" stroke-width="2"/>
+        <text x="110" y="90" text-anchor="end" style="font:600 14px var(--f-mono)" fill="var(--agent)">agents</text>
+        <g id="c13-ldyn"></g>
+        <rect x="600" y="24" width="14" height="210" rx="7" fill="var(--line)"/>
+        <rect id="c13-meter" x="600" y="234" width="14" height="0" rx="7" fill="var(--agent)"/>
+        <g style="font:700 14px var(--f-mono)" fill="var(--ink-2)" text-anchor="end">
+          <text x="594" y="225">1×</text><text x="594" y="183">4×</text><text x="594" y="34">15×</text>
+        </g>
+        <circle id="c13-climber" cx="420" cy="217" r="9" fill="var(--agent)" stroke="var(--bg)" stroke-width="3" opacity="0"/>
+      </svg>
+      <div class="code-wrap" data-step="4"><div class="code-head">refund workflow · Why we built ADK 2.0 (verbatim)</div>
+<pre class="code xs" data-lang="python" data-focus="4:4-4, 5:5-6"><code>
+workflow = Workflow(
+    name="Refund_Workflow",
+    edges=[
+        (START, fetch_purchase_history, analyze_complaint_agent),
+        (analyze_complaint_agent, route_complaint,
+            {True: issue_refund, False: close_ticket}),
+        (issue_refund, draft_email_agent, close_ticket),
+    ]
+)
+</code></pre></div>
+      <div class="cites" data-step="4"><a class="cite codelab" href="https://codelabs.developers.google.com/adk2/instructions" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;ADK 2 Orchestration: Graph, Collaborative &amp; Dynamic Workflows</a></div>
+    </div>
+  </div>
+  <aside class="notes">
+    Start with the two definitions from Anthropic: in a workflow the code fixes the path; in an agent the model picks the path. Step 1 is the compounding-error argument: at 95% per step, a 20-step run succeeds only 0.95 to the power 20, about 36% of the time. Step 2 shows the idea of a per-step verifier: if a perfect check catches each failure and allows one retry, each step fails only 0.05 squared, and the run climbs back to about 95%. That is arithmetic under an assumption, not a benchmark. Step 3 is the ladder: climb one rung only when the eval of the lower rung fails; agents cost about 4 times the tokens of chat and multi-agent systems about 15 times. Step 4 is Google's own refund example: line 4 has one function node and one LLM node for the unstructured complaint; step 5 shows that lines 5 and 6 let code, not the model, pick the money edge. Analogy: you do not hire a project manager to run a vending machine. Likely question: "When would you not build an agent?" When the path is data-determined, has irreversible side effects or needs an audit trail.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const N = 20, P = 0.95, PV = 1 - 0.05 * 0.05;
+  const P20 = Math.pow(P, N), PV20 = Math.pow(PV, N);
+  const LABELS = ["single call + retrieval", "prompt chain · router (workflow)", "single agent + tools", "orchestrator-workers", "multi-agent · handoffs · A2A"];
+  const RY = (i) => 200 - i * 44;
+  let built = false, last = 0, tw = [];
+  let cells = [], dias = [], rungs = [], stamps = [];
+  let pct, sub, vlab, pbar, climber, meter;
+  const T = (t) => (tw.push(t), t);
+  function mk(tag, attrs, parent) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function build(slide) {
+    const g = slide.querySelector("#c13-dyn");
+    g.innerHTML = ""; cells = []; dias = [];
+    for (let i = 0; i < N; i++) cells.push(mk("rect", { x: i * 33, y: 92, width: 28, height: 34, rx: 5, fill: "var(--surface)", stroke: "var(--line-2)", "stroke-width": 1.5 }, g));
+    for (let i = 0; i < N; i++) {
+      const cx = i * 33 + 14, cy = 81;
+      dias.push(mk("path", { d: `M${cx},${cy - 6} L${cx + 6},${cy} L${cx},${cy + 6} L${cx - 6},${cy} Z`, fill: "var(--risk)", opacity: 0 }, g));
+    }
+    pct = slide.querySelector("#c13-pct"); sub = slide.querySelector("#c13-sub");
+    vlab = slide.querySelector("#c13-vlab"); pbar = slide.querySelector("#c13-pbar");
+    const lg = slide.querySelector("#c13-ldyn");
+    lg.innerHTML = ""; rungs = []; stamps = [];
+    LABELS.forEach((t, i) => {
+      const y = RY(i), ag = i >= 2;
+      const rg = mk("g", {}, lg);
+      mk("rect", { x: 136, y, width: 300, height: 34, rx: 8, fill: ag ? "var(--agent-soft)" : "var(--surface)", stroke: ag ? "var(--agent)" : "var(--line-2)", "stroke-width": 1.6 }, rg);
+      mk("text", { x: 150, y: y + 22, style: "font:600 15px var(--f-body)", fill: "var(--ink)" }, rg).textContent = t;
+      rungs.push(rg);
+      if (i <= 2) {
+        const pass = i === 2, col = pass ? "var(--state)" : "var(--risk)";
+        const outer = mk("g", { transform: `rotate(-6 504 ${y + 17})` }, lg);
+        const inner = mk("g", { opacity: 0 }, outer);
+        mk("rect", { x: 452, y: y + 4, width: 104, height: 26, rx: 5, fill: "var(--bg)", stroke: col, "stroke-width": 2 }, inner);
+        mk("text", { x: 504, y: y + 22, "text-anchor": "middle", style: "font:700 13px var(--f-mono)", fill: col }, inner).textContent = pass ? "eval: passes" : "eval: fails";
+        stamps.push(inner);
+      }
+    });
+    climber = slide.querySelector("#c13-climber");
+    meter = slide.querySelector("#c13-meter");
+    built = true;
+  }
+  function traj(k, f) {
+    // k: cells filled (0..20); f: verifier blend (0..1)
+    const kk = Math.floor(k + 1e-6);
+    cells.forEach((c, i) => {
+      const on = i < kk, green = f > 0 && i < Math.round(f * N);
+      c.setAttribute("fill", on ? (green ? "var(--state)" : "var(--model)") : "var(--surface)");
+      c.setAttribute("opacity", on ? 0.85 : 1);
+    });
+    const p = f > 0 ? P20 + (PV20 - P20) * f : Math.pow(P, k);
+    pct.textContent = Math.round(p * 100) + "%";
+    pct.setAttribute("fill", f >= 1 ? "var(--state)" : p < 0.5 ? "var(--risk)" : "var(--model)");
+    pbar.setAttribute("width", (655 * p).toFixed(1));
+    pbar.setAttribute("fill", f > 0 ? "var(--state)" : "var(--model)");
+  }
+  function ladder(stage) {
+    // stage 0: hidden state; 3: climber on rung 3 (single agent + tools)
+    const r = Math.min(stage, 3) - 1;
+    gsap.set(climber, { attr: { cy: RY(Math.max(r, 0)) + 17 }, opacity: stage > 0 ? 1 : 0 });
+    stamps.forEach((s, i) => gsap.set(s, { opacity: i < stage ? 1 : 0, scale: 1 }));
+    const h = stage >= 3 ? 56 : stage >= 1 ? 14 : 0;
+    gsap.set(meter, { attr: { y: 234 - h, height: h } });
+    rungs.forEach((g, i) => gsap.set(g, { opacity: stage >= 3 && i >= 3 ? 0.45 : 1 }));
+  }
+  function render(slide, n, animate) {
+    if (!built) build(slide);
+    tw.forEach((t) => t.kill()); tw = [];
+    // trajectory: steps 1 and 2
+    if (n >= 2) {
+      sub.textContent = "0.9975^20 ≈ 0.95 end-to-end";
+      gsap.set(vlab, { opacity: 1 });
+      if (animate && last === 1) {
+        traj(N, 0);
+        T(gsap.fromTo(dias, { opacity: 0, y: -26 }, { opacity: 1, y: 0, duration: 0.45, ease: "bounce.out", stagger: 0.04 }));
+        const p = { f: 0 };
+        T(gsap.to(p, { f: 1, duration: 1.6, delay: 0.5, ease: "power2.inOut", onUpdate: () => traj(N, p.f) }));
+      } else { gsap.set(dias, { opacity: 1, y: 0 }); traj(N, 1); }
+    } else {
+      gsap.set(dias, { opacity: 0, y: 0 });
+      gsap.set(vlab, { opacity: 0 });
+      if (n >= 1) {
+        sub.textContent = "0.95^20 ≈ 0.36 end-to-end";
+        if (animate && last < 1) {
+          traj(0, 0);
+          const p = { k: 0 };
+          T(gsap.to(p, { k: N, duration: 2.6, ease: "none", onUpdate: () => traj(p.k, 0) }));
+        } else traj(N, 0);
+      } else { sub.textContent = "end-to-end success"; traj(0, 0); }
+    }
+    // ladder: step 3
+    if (n >= 3) {
+      if (animate && last === 2) {
+        ladder(0);
+        const tl = gsap.timeline({ delay: 0.5 });
+        tl.to(climber, { opacity: 1, duration: 0.3 }, 0)
+          .fromTo(stamps[0], { opacity: 0, scale: 1.6, transformOrigin: "50% 50%" }, { opacity: 1, scale: 1, duration: 0.35, ease: "back.out(2)" }, 0.4)
+          .to(meter, { attr: { y: 220, height: 14 }, duration: 0.4 }, 0.4)
+          .to(climber, { attr: { cy: RY(1) + 17 }, duration: 0.5, ease: "power2.inOut" }, 1.0)
+          .fromTo(stamps[1], { opacity: 0, scale: 1.6, transformOrigin: "50% 50%" }, { opacity: 1, scale: 1, duration: 0.35, ease: "back.out(2)" }, 1.4)
+          .to(climber, { attr: { cy: RY(2) + 17 }, duration: 0.5, ease: "power2.inOut" }, 2.0)
+          .to(meter, { attr: { y: 178, height: 56 }, duration: 0.5 }, 2.0)
+          .fromTo(stamps[2], { opacity: 0, scale: 1.6, transformOrigin: "50% 50%" }, { opacity: 1, scale: 1, duration: 0.35, ease: "back.out(2)" }, 2.4)
+          .to(rungs.slice(3), { opacity: 0.45, duration: 0.4 }, 2.7);
+        T(tl);
+      } else ladder(3);
+    } else ladder(0);
+    last = n;
+  }
+  Deck.register("adk-c01-workflow-vs-agent", {
+    enter(slide, n) { if (!built) render(slide, n, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { tw.forEach((t) => t.kill()); tw = []; last = 0; }
+  });
+})();
+</script>

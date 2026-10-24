@@ -1,0 +1,28 @@
+<section class="slide" id="adk-c03-qa" data-tone="human" data-title="Interview drill: graphs">
+  <h2 class="title">Interview drill: design and debug an ADK 2.0 graph</h2>
+  <div class="grid g2 fill" style="gap:36px;align-content:start">
+    <div class="stack lg">
+      <div class="qa">
+        <div class="q">How do you branch, and what happens to a route with no matching edge?</div>
+        <div class="a" data-step="1">Yield <code>Event(route=...)</code> and map routes in a dict. An unmatched route <b>ends the branch silently</b>, with only a log warning. Add <code>DEFAULT_ROUTE</code> (<code>"__DEFAULT__"</code>). Constrain LLM routers with a <code>Literal</code> output schema, or use a <code>ClassifierNode</code> with a <code>threshold</code>.</div>
+      </div>
+      <div class="qa">
+        <div class="q">Why can a graph cycle run forever, and how do you bound it?</div>
+        <div class="a" data-step="2">Construction rejects only unconditional cycles. A conditional cycle has <b>no <code>max_iterations</code></b>. Keep a round counter in <code>ctx.state</code> with a <code>give_up</code> route, or use a dynamic <code>@node</code> with a <code>for</code> bound. Backstop: <code>max_llm_calls</code> (default <b>500</b>).</div>
+      </div>
+    </div>
+    <div class="stack lg">
+      <div class="qa">
+        <div class="q">Graph workflow or dynamic workflow?</div>
+        <div class="a" data-step="3"><b>Graph</b> for declarative flows: 10 construction rules check it, and <code>adk web</code> draws it. <b>Dynamic</b> (<code>ctx.run_node</code>, <code>while</code>, <code>gather</code>) for recursion and data-dependent loops. The parent needs <code>rerun_on_resume=True</code>. Deterministic child run ids are the checkpoint keys.</div>
+      </div>
+      <div class="qa">
+        <div class="q">Two terminal nodes both produce output. What happens?</div>
+        <div class="a" data-step="4">The run fails with <code>WorkflowConfigurationError</code> (“multiple terminal nodes produced output”), because the engine cannot choose the workflow output. Join them with a <code>JoinNode</code>. It emits <b>one dict keyed by predecessor node name</b>.</div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    Give students thirty seconds per question before you reveal the answer. Question 1 tests the silent-stop failure and the three router grades. Question 2 is the most common graph bug in production: a critic that never approves, so the loop burns LLM calls until the 500-call backstop. Question 3 tests judgment: start with a graph because the engine checks it and adk web can draw it; move to a dynamic node only when the shape depends on data. Question 4 is a precise detail that shows real hands-on use. Analogy for the whole drill: a graph is a contract with the engine; every rule you break at design time is a rule the engine checks for you. Likely follow-up: "How would you test a router?" Put each route label in an eval set and assert the trajectory, which chapter 8 covers.
+  </aside>
+</section>

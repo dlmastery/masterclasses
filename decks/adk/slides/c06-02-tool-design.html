@@ -1,0 +1,156 @@
+<section class="slide" id="adk-c06-tool-design" data-tone="tool" data-title="Tool design (ACI)">
+  <style>
+    #adk-c06-tool-design .c62-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    #adk-c06-tool-design .c62-card { border: 1.5px solid var(--line-2); border-radius: var(--r-m); background: var(--surface); padding: 10px 14px 12px; display: flex; flex-direction: column; gap: 7px; height: 150px; box-sizing: border-box; overflow: hidden; }
+    #adk-c06-tool-design .c62-card.bad { border-color: color-mix(in oklab, var(--risk) 45%, transparent); }
+    #adk-c06-tool-design .c62-card.good { border-color: color-mix(in oklab, var(--state) 55%, transparent); }
+    #adk-c06-tool-design .c62-h { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font: 600 14px/1.2 var(--f-mono); color: var(--ink); white-space: nowrap; }
+    #adk-c06-tool-design .c62-tok { font: 700 14px/1 var(--f-mono); color: var(--muted); }
+    #adk-c06-tool-design .bad .c62-tok b { color: var(--risk); }
+    #adk-c06-tool-design .good .c62-tok b { color: var(--state); }
+    #adk-c06-tool-design .c62-rows { flex: 1; display: flex; flex-direction: column; gap: 3px; overflow: hidden; }
+    #adk-c06-tool-design .c62-row { font: 500 11px/1.25 var(--f-mono); color: var(--muted); white-space: nowrap; overflow: hidden; }
+    #adk-c06-tool-design .good .c62-row { font: 500 14px/1.3 var(--f-mono); color: var(--ink-2); }
+    #adk-c06-tool-design .c62-meter { height: 10px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); overflow: hidden; }
+    #adk-c06-tool-design .c62-meter i { display: block; height: 100%; width: 0%; border-radius: inherit; }
+    #adk-c06-tool-design .bad .c62-meter i { background: var(--risk); }
+    #adk-c06-tool-design .good .c62-meter i { background: var(--state); }
+    #adk-c06-tool-design .c62-err { position: relative; height: 62px; border-radius: var(--r-m); }
+    #adk-c06-tool-design .c62-err > div { position: absolute; inset: 0; padding: 9px 14px; border-radius: var(--r-m); font: 500 14px/1.4 var(--f-mono); box-sizing: border-box; }
+    #adk-c06-tool-design .c62-trace { background: color-mix(in oklab, var(--risk) 8%, transparent); border: 1px solid color-mix(in oklab, var(--risk) 40%, transparent); color: var(--risk); }
+    #adk-c06-tool-design .c62-fix { background: color-mix(in oklab, var(--state) 8%, transparent); border: 1px solid color-mix(in oklab, var(--state) 45%, transparent); color: var(--ink); }
+    #adk-c06-tool-design .c62-fix b { color: var(--state); }
+    #adk-c06-tool-design ul.ticks.small { gap: 6px; }
+    #adk-c06-tool-design .c62-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    #adk-c06-tool-design .c62-stats .n { font-size: 40px; }
+    #adk-c06-tool-design .c62-stats .l { font-size: 15px; line-height: 1.3; }
+  </style>
+  <h2 class="title">Design tools as an interface for the model: few, built for workflows and hard to misuse</h2>
+  <div class="grid fill" style="grid-template-columns:1fr 616px;gap:28px">
+    <div class="stack" style="gap:12px">
+      <div class="c62-cards">
+        <div class="c62-card bad">
+          <div class="c62-h"><span>list_contacts()</span><span class="c62-tok"><b class="c62-n">0</b>% tokens</span></div>
+          <div class="c62-rows">
+            <div class="c62-row">{"id":"8f3a9c2e-41d7-4b0e-9a6f-02c1","org":"5b1e…</div>
+            <div class="c62-row">{"id":"d27c0a11-9e4f-4c3b-8d5a-77e0","org":"5b1e…</div>
+            <div class="c62-row">{"id":"0b9e6f3d-2a18-4f7c-b1d4-c93a","org":"a04f…</div>
+            <div class="c62-row">{"id":"e61f8b20-73cd-41a9-90e2-5d6b","org":"5b1e…</div>
+            <div class="c62-row">{"id":"4a7d2c9b-0f61-4e8a-a3c5-18f9","org":"c7d2…</div>
+            <div class="c62-row">{"id":"91c3e5a7-6b2d-4d0f-8e14-a2b8","org":"5b1e…</div>
+          </div>
+          <div class="c62-meter"><i></i></div>
+        </div>
+        <div class="c62-card good">
+          <div class="c62-h"><span>search_contacts(name="Silva", response_format="concise")</span></div>
+          <div class="c62-rows">
+            <div class="c62-row">Ana Silva · Sales · Lisbon</div>
+            <div class="c62-row">Rui Silva · Legal · Porto</div>
+            <div class="c62-row">Eva Silva · Ops · Madrid</div>
+          </div>
+          <div class="c62-h"><span></span><span class="c62-tok"><b class="c62-n">0</b>% tokens</span></div>
+          <div class="c62-meter"><i></i></div>
+        </div>
+      </div>
+      <div class="c62-err" data-step="2" data-fx="fade">
+        <div class="c62-trace">Traceback (most recent call last): … KeyError: 'Ana K'<br>contacts_api.py, line 212, in _lookup</div>
+        <div class="c62-fix"><b>{"status": "error"}</b> No contact named Ana K. Try <b>search_contacts</b> with a partial name.</div>
+      </div>
+      <ul class="ticks small">
+        <li data-step="1">Namespace by service and resource: <code>asana_projects_search</code>.</li>
+        <li data-step="1">Paginate and truncate. Claude Code caps one tool result at 25,000 tokens.</li>
+        <li data-step="2">Make wrong arguments hard to send (poka-yoke): ask for absolute paths. Keep the tool set small and without overlap.</li>
+        <li data-step="5" class="c-risk">Take the user identity from trusted state, never from a model argument (<code>validate_tool_params</code>).</li>
+      </ul>
+      <p class="small" data-step="3"><b>ADK tool families:</b> plain functions (auto-wrapped as <code>FunctionTool</code>) · <code>AgentTool</code> · <code>LongRunningFunctionTool</code> · <code>google_search</code> · <code>url_context</code> · code execution · <code>OpenAPIToolset</code> · <code>BigQueryToolset</code></p>
+      <div class="c62-stats" data-step="6" data-fx="stagger">
+        <div class="stat" style="--aurora:var(--tool)"><span class="n" data-to="40" data-suf="%">0</span><span class="l">less task time after an agent rewrote one bad tool description</span></div>
+        <div class="stat" style="--aurora:var(--state)"><span class="n" data-to="85" data-pre="−" data-suf="%">0</span><span class="l">tool-definition tokens: Tool Search + <code>defer_loading</code>, 77K → 8.7K</span></div>
+        <div class="stat" style="--aurora:var(--state)"><span class="n" data-to="98.7" data-dec="1" data-pre="−" data-suf="%">0</span><span class="l">tokens with code execution over MCP, 150K → 2K (needs a sandbox)</span></div>
+      </div>
+    </div>
+    <div class="stack" style="gap:12px">
+      <div class="code-wrap"><div class="code-head">tools.py · ADK 2.x</div>
+<pre class="code xs" data-lang="python" data-focus="3:3-4, 4:5-9, 5:11-16"><code>
+from google.adk.tools import FunctionTool, ToolContext
+
+def add_to_cart(item: str, tool_context: ToolContext) -&gt; dict:
+    """Adds an item to the user's cart."""
+    cart = tool_context.state.get("user:cart", [])
+    cart.append(item)
+    tool_context.state["user:cart"] = cart      # all sessions
+    tool_context.state["temp:last_op"] = "add"  # this call only
+    return {"status": "success", "cart_size": len(cart)}
+
+async def confirmation_threshold(amount: int,
+                                 tool_context: ToolContext) -&gt; bool:
+    return amount &gt; 1000
+tools = [FunctionTool(reimburse, require_confirmation=True),
+         FunctionTool(reimburse_big,
+                      require_confirmation=confirmation_threshold)]
+</code></pre></div>
+      <div class="callout pitfall" data-step="4"><div><b>Pitfall: the tool raises on a business error.</b> Return <code>{"status": "error", ...}</code> instead. The model reads the dict and can try again.</div></div>
+      <div class="cites push">
+        <a class="cite doc" href="https://www.anthropic.com/engineering/writing-tools-for-agents" target="_blank" rel="noopener"><b>Blog</b>&nbsp;Writing effective tools for agents — with agents</a>
+        <a class="cite doc" href="https://adk.dev/tools-custom/confirmation/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;ADK tool confirmation</a>
+        <a class="cite doc" href="https://adk.dev/safety/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;ADK safety</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    A tool is an interface for a model, so design it with the same care as a user interface; Anthropic calls this the agent-computer interface. Step 1: the endpoint-style tool returns UUID rows that the model cannot use, and it fills the window; the workflow-style search returns three names, and the concise format uses about one third of the tokens. Step 2: the error morphs from a stack trace into a hint that tells the model what to do next. Steps 3 to 5 walk the ADK code: the docstring is the description, ToolContext is found by its type annotation and is hidden from the model, state prefixes set the scope, and require_confirmation takes a boolean or an async predicate. Analogy: a good tool is a vending machine with labelled buttons, not a warehouse key. Likely student question: "How many tools is too many?" There is no fixed number; overlap is the failure, and with hundreds of tools you defer-load them with Tool Search, which cut definition tokens by 85 percent.
+  </aside>
+</section>
+<script>
+(() => {
+  let S = null;
+  function build(slide) {
+    const bad = slide.querySelector(".c62-card.bad"), good = slide.querySelector(".c62-card.good");
+    S = {
+      badRows: [...bad.querySelectorAll(".c62-row")], goodRows: [...good.querySelectorAll(".c62-row")],
+      badBar: bad.querySelector(".c62-meter i"), goodBar: good.querySelector(".c62-meter i"),
+      badN: bad.querySelector(".c62-n"), goodN: good.querySelector(".c62-n"),
+      trace: slide.querySelector(".c62-trace"), fix: slide.querySelector(".c62-fix"),
+      tw: [], shown1: false, shown2: false,
+    };
+  }
+  function kill() { if (S) { S.tw.forEach((t) => t.kill()); S.tw = []; } }
+  function render(n, animate) {
+    if (!S) return;
+    kill();
+    const on1 = n >= 1, on2 = n >= 2;
+    if (on1 && animate && !S.shown1) {
+      gsap.set(S.badRows.concat(S.goodRows), { autoAlpha: 0, x: -10 });
+      S.tw.push(gsap.to(S.badRows, { autoAlpha: 1, x: 0, duration: 0.25, stagger: 0.12, ease: "power2.out" }));
+      S.tw.push(gsap.to(S.goodRows, { autoAlpha: 1, x: 0, duration: 0.35, stagger: 0.2, delay: 0.3, ease: "power2.out" }));
+      S.tw.push(gsap.fromTo(S.badBar, { width: "0%" }, { width: "100%", duration: 1.3, ease: "power2.inOut" }));
+      S.tw.push(gsap.fromTo(S.goodBar, { width: "0%" }, { width: "33%", duration: 1.0, delay: 0.3, ease: "power2.inOut" }));
+      const pb = { v: 0 }, pg = { v: 0 };
+      S.tw.push(gsap.to(pb, { v: 100, duration: 1.3, ease: "power2.inOut", onUpdate: () => (S.badN.textContent = Math.round(pb.v)) }));
+      S.tw.push(gsap.to(pg, { v: 33, duration: 1.0, delay: 0.3, ease: "power2.inOut", onUpdate: () => (S.goodN.textContent = Math.round(pg.v)) }));
+    } else {
+      gsap.set(S.badRows.concat(S.goodRows), { autoAlpha: on1 ? 1 : 0, x: 0 });
+      gsap.set(S.badBar, { width: on1 ? "100%" : "0%" });
+      gsap.set(S.goodBar, { width: on1 ? "33%" : "0%" });
+      S.badN.textContent = on1 ? "100" : "0";
+      S.goodN.textContent = on1 ? "33" : "0";
+    }
+    S.shown1 = on1;
+    if (on2 && animate && !S.shown2) {
+      gsap.set(S.trace, { autoAlpha: 1, filter: "blur(0px)" });
+      gsap.set(S.fix, { autoAlpha: 0, y: 6 });
+      S.tw.push(gsap.to(S.trace, { autoAlpha: 0, filter: "blur(4px)", duration: 0.5, delay: 1.1 }));
+      S.tw.push(gsap.to(S.fix, { autoAlpha: 1, y: 0, duration: 0.6, delay: 1.25, ease: "power3.out" }));
+    } else {
+      gsap.set(S.trace, { autoAlpha: on2 ? 0 : 1, filter: "blur(0px)" });
+      gsap.set(S.fix, { autoAlpha: on2 ? 1 : 0, y: 0 });
+    }
+    S.shown2 = on2;
+  }
+  Deck.register("adk-c06-tool-design", {
+    enter(slide, n) { build(slide); render(n, false); },
+    step(slide, n, animate) { if (!S) build(slide); render(n, animate); },
+    leave() { kill(); },
+  });
+})();
+</script>

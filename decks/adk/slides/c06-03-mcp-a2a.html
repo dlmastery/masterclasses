@@ -1,0 +1,167 @@
+<section class="slide" id="adk-c06-mcp-a2a" data-tone="tool" data-title="MCP and A2A">
+  <style>
+    #adk-c06-mcp-a2a table.t { font-size: 15.5px; line-height: 1.3; }
+    #adk-c06-mcp-a2a table.t th { font-size: 14px; padding: 6px 10px; }
+    #adk-c06-mcp-a2a table.t td { padding: 6px 10px; }
+    #adk-c06-mcp-a2a table.t td code { font-size: 0.88em; }
+  </style>
+  <h2 class="title">MCP connects an agent to tools, and A2A connects it to other agents</h2>
+  <div class="grid fill" style="grid-template-columns:1fr 630px;gap:28px">
+    <div class="stack" style="gap:14px">
+      <svg id="c63-seq" class="interactive" viewBox="0 0 734 336" width="734" height="336" aria-label="Sequence diagram of the codelab: user, travel agent, weather sub-agent, currency agent over A2A, currency MCP server and Frankfurter API"></svg>
+      <table class="t">
+        <tr><th></th><th>MCP · agent → tools</th><th>A2A · agent → agent</th></tr>
+        <tr data-on="3:hot"><td>Peer</td><td>Transparent, schema-typed functions</td><td>Opaque agent: own model, memory, policy</td></tr>
+        <tr data-on="1:hot"><td>Discovery</td><td><code>list_tools</code>; <code>server/discover</code> (2026-07-28)</td><td>Agent Card at <code>/.well-known/agent-card.json</code></td></tr>
+        <tr data-on="2:hot"><td>Unit</td><td>One tool call</td><td>Task → Message → Part → Artifact</td></tr>
+        <tr><td>Wire</td><td>stdio · Streamable HTTP</td><td>JSON-RPC · gRPC · HTTP+JSON</td></tr>
+        <tr><td>ADK</td><td><code>McpToolset</code> · <code>to_mcp_server</code></td><td><code>RemoteA2aAgent</code> · <code>to_a2a</code> (Experimental)</td></tr>
+        <tr data-on="4:hot"><td>Spec</td><td>2026-07-28: stateless, MRTR. In AAIF since 2025-12-09</td><td>v1.0.0 (2026-03-12): JWS-signed cards; 150+ orgs</td></tr>
+      </table>
+    </div>
+    <div class="stack" style="gap:12px">
+      <div class="code-wrap"><div class="code-head">Codelab: currency_agent + travel_agent</div>
+<pre class="code xs" data-lang="python" data-focus="1:12-15, 2:8-10, 3:1-6"><code>
+from google.adk.tools.mcp_tool import (
+    McpToolset, StreamableHTTPConnectionParams)
+root_agent = LlmAgent(
+    model=MODEL, name="currency_agent",
+    tools=[McpToolset(connection_params=
+        StreamableHTTPConnectionParams(url=MCP_SERVER_URL))])
+
+from google.adk.a2a.utils.agent_to_a2a import to_a2a
+a2a_app = to_a2a(root_agent, host=host, port=port,
+                 protocol=protocol)   # ASGI app + Agent Card
+
+from google.adk.agents.remote_a2a_agent import (
+    RemoteA2aAgent, AGENT_CARD_WELL_KNOWN_PATH)
+currency_remote_agent = RemoteA2aAgent(name="currency_agent",
+    agent_card=f"{CURRENCY_AGENT_URL}{AGENT_CARD_WELL_KNOWN_PATH}")
+</code></pre></div>
+      <div class="callout pitfall" data-step="3"><div><b>Pitfall: no <code>tool_filter</code>.</b> Then the model gets every tool on the server. The ADK docs say: "Always supply <code>tool_filter=[...]</code>". For databases, MCP Toolbox (v1.15.0, 40+ sources) keeps the SQL in <code>tools.yaml</code>. The model only picks a named query.</div></div>
+      <div class="cites push">
+        <a class="cite codelab" href="https://codelabs.developers.google.com/getting-started-mcp-a2a-adk" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;Getting Started with MCP &amp; A2A with ADK</a>
+        <a class="cite doc" href="https://adk.dev/tools-custom/mcp-tools/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;ADK MCP tools</a>
+        <a class="cite doc" href="https://adk.dev/a2a/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;ADK A2A</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    This is the codelab "Getting Started with MCP and A2A with ADK": three services on Cloud Run. The travel agent keeps a local weather sub-agent and calls a remote currency agent over A2A; the currency agent calls a FastMCP server that reads the Frankfurter API. Step 1: the client fetches the Agent Card from the well-known path; RemoteA2aAgent does this for you. Step 2: SendMessage creates a Task, and the task moves from submitted to working. Step 3: inside the remote agent, McpToolset sends call_tool over Streamable HTTP, and the task completes. Step 4: the remote agent returns an Artifact made of Parts, and ADK turns it into events in the root session. Analogy: MCP is a power socket with a known shape; A2A is a contractor who takes a job and returns a deliverable. Likely question: "Gemini Enterprise and A2A v1.0?" Gemini Enterprise registers A2A v0.3 agents, so v1.0 servers use the compatibility packages.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const L = [
+    { x: 58, name: "User", sub: "browser", tone: "human" },
+    { x: 182, name: "Travel Agent", sub: "Cloud Run", tone: "agent" },
+    { x: 306, name: "Weather", sub: "AgentTool", tone: "agent" },
+    { x: 430, name: "Currency Agent", sub: "to_a2a", tone: "agent" },
+    { x: 554, name: "MCP Server", sub: "FastMCP", tone: "tool" },
+    { x: 678, name: "Frankfurter", sub: "HTTP API", tone: "tool" },
+  ];
+  // messages: from lifeline, to lifeline, y, label, step, dashed, tone
+  const M = [
+    { a: 0, b: 1, y: 82, t: "convert 100 USD", s: 0, tone: "human" },
+    { a: 1, b: 2, y: 108, t: "weather (local)", s: 0, d: 1, tone: "agent" },
+    { a: 1, b: 3, y: 140, t: "GET /.well-known/agent-card.json", s: 1, tone: "agent" },
+    { a: 3, b: 1, y: 164, t: "Agent Card (skills, url)", s: 1, d: 1, tone: "agent" },
+    { a: 1, b: 3, y: 194, t: "SendMessage", s: 2, tone: "agent" },
+    { a: 3, b: 4, y: 232, t: "call_tool", s: 3, tone: "tool" },
+    { a: 4, b: 5, y: 252, t: "GET rates", s: 3, tone: "tool" },
+    { a: 5, b: 4, y: 270, t: "JSON", s: 3, d: 1, tone: "tool" },
+    { a: 4, b: 3, y: 288, t: "result", s: 3, d: 1, tone: "tool" },
+    { a: 3, b: 1, y: 310, t: "Artifact (Parts)", s: 4, tone: "state" },
+    { a: 1, b: 0, y: 328, t: "events → reply", s: 4, tone: "state" },
+  ];
+  const STATES = [["submitted", "var(--muted)"], ["working", "var(--tool)"], ["completed", "var(--state)"]];
+  let S = null;
+  const el = (tag, attrs, style) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (style) e.setAttribute("style", style); return e; };
+
+  function build(slide) {
+    const svg = slide.querySelector("#c63-seq");
+    svg.innerHTML = "";
+    const defs = el("defs", {});
+    ["human", "agent", "tool", "state"].forEach((t) => {
+      const m = el("marker", { id: "c63-ar-" + t, viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto-start-reverse" });
+      m.appendChild(el("path", { d: "M0,0 L10,5 L0,10 z" }, `fill:var(--${t})`));
+      defs.appendChild(m);
+    });
+    svg.appendChild(defs);
+    L.forEach((l) => {
+      svg.appendChild(el("line", { x1: l.x, y1: 46, x2: l.x, y2: 336 }, "stroke:var(--line-2);stroke-width:1.5;stroke-dasharray:4 5"));
+      svg.appendChild(el("rect", { x: l.x - 56, y: 2, width: 112, height: 42, rx: 9 }, `fill:var(--${l.tone}-soft);stroke:var(--${l.tone});stroke-width:1.5`));
+      const t = el("text", { x: l.x, y: 20, "text-anchor": "middle" }, "font:700 13.5px var(--f-body);fill:var(--ink)"); t.textContent = l.name; svg.appendChild(t);
+      const s = el("text", { x: l.x, y: 36, "text-anchor": "middle" }, "font:500 11px var(--f-mono);fill:var(--muted)"); s.textContent = l.sub; svg.appendChild(s);
+    });
+    const msgs = M.map((m) => {
+      const x1 = L[m.a].x, x2 = L[m.b].x, dir = x2 > x1 ? 1 : -1;
+      const g = el("g", {});
+      const ln = el("line", { x1: x1 + dir * 4, y1: m.y, x2: x2 - dir * 4, y2: m.y, "marker-end": `url(#c63-ar-${m.tone})` },
+        `stroke:var(--${m.tone});stroke-width:2;${m.d ? "stroke-dasharray:5 4;" : ""}`);
+      const tx = el("text", { x: (x1 + x2) / 2, y: m.y - 5, "text-anchor": "middle" },
+        "font:600 11.5px var(--f-mono);fill:var(--ink-2);paint-order:stroke;stroke:var(--bg);stroke-width:5px;stroke-linejoin:round");
+      tx.textContent = m.t;
+      g.append(ln, tx);
+      const dot = el("circle", { cx: x1, cy: m.y, r: 6 }, `fill:var(--${m.tone});filter:drop-shadow(0 0 5px var(--${m.tone}))`);
+      g.appendChild(dot);
+      svg.appendChild(g);
+      return { m, g, dot, x1, x2 };
+    });
+    // task state chip on the currency lifeline
+    const chip = el("g", {});
+    const cr = el("rect", { x: 448, y: 198, width: 102, height: 22, rx: 11 }, "fill:var(--bg);stroke:var(--muted);stroke-width:1.5");
+    const ct = el("text", { x: 499, y: 213, "text-anchor": "middle" }, "font:700 11.5px var(--f-mono);fill:var(--muted)");
+    const lab = el("text", { x: 556, y: 213 }, "font:500 11px var(--f-mono);fill:var(--muted)"); lab.textContent = "Task";
+    chip.append(cr, ct, lab);
+    svg.appendChild(chip);
+    // highlight ring for the card fetch
+    const ring = el("rect", { x: 186, y: 124, width: 240, height: 48, rx: 10 }, "fill:none;stroke:var(--agent);stroke-width:2;stroke-dasharray:6 5");
+    svg.appendChild(ring);
+    S = { svg, msgs, chip, cr, ct, ring, tw: [], last: -1 };
+  }
+  function setChip(i) { const [txt, c] = STATES[i]; S.ct.textContent = txt; S.ct.style.fill = c; S.cr.style.stroke = c; }
+  function kill() { if (S) { S.tw.forEach((t) => t.kill()); S.tw = []; } }
+  function render(n, animate) {
+    if (!S) return;
+    kill();
+    const fresh = animate && n > S.last;
+    S.msgs.forEach((o, i) => {
+      const vis = o.m.s <= n;
+      const isNew = fresh && o.m.s === n && n > 0;
+      if (isNew) {
+        const order = S.msgs.filter((q) => q.m.s === n).indexOf(o);
+        const delay = order * 0.55;
+        gsap.set(o.g, { autoAlpha: 1 });
+        const ln = o.g.querySelector("line"), tx = o.g.querySelector("text");
+        gsap.set([ln, tx], { autoAlpha: 0 });
+        gsap.set(o.dot, { autoAlpha: 0, attr: { cx: o.x1 } });
+        S.tw.push(gsap.to(ln, { autoAlpha: 1, duration: 0.25, delay }));
+        S.tw.push(gsap.to(tx, { autoAlpha: 1, duration: 0.3, delay: delay + 0.1 }));
+        S.tw.push(gsap.timeline({ delay }).to(o.dot, { autoAlpha: 1, duration: 0.1 }).to(o.dot, { attr: { cx: o.x2 }, duration: 0.5, ease: "power1.inOut" }).to(o.dot, { autoAlpha: 0, duration: 0.2 }));
+      } else {
+        gsap.set(o.g, { autoAlpha: vis ? 1 : 0 });
+        gsap.set(o.g.querySelectorAll("line, text"), { autoAlpha: 1 });
+        gsap.set(o.dot, { autoAlpha: 0 });
+      }
+      if (vis && o.m.s < n) gsap.set(o.g, { autoAlpha: 0.45 });
+    });
+    // ring on the card fetch at step 1
+    gsap.set(S.ring, { autoAlpha: n === 1 ? 1 : 0 });
+    // task chip
+    gsap.set(S.chip, { autoAlpha: n >= 2 ? 1 : 0 });
+    if (n >= 2) {
+      if (fresh && n === 2) { setChip(0); S.tw.push(gsap.delayedCall(1.0, () => setChip(1))); }
+      else if (fresh && n === 3) { setChip(1); S.tw.push(gsap.delayedCall(2.4, () => setChip(2))); }
+      else setChip(n >= 3 ? 2 : 1);
+    }
+    S.last = n;
+  }
+  Deck.register("adk-c06-mcp-a2a", {
+    enter(slide, n) { build(slide); render(n, false); },
+    step(slide, n, animate) { if (!S) build(slide); render(n, animate); },
+    leave() { kill(); },
+  });
+})();
+</script>

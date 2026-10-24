@@ -1,0 +1,200 @@
+<section class="slide" id="adk-c06-live" data-tone="tool" data-title="Live bidi streaming">
+  <style>
+    #adk-c06-live table.t { font-size: 15px; line-height: 1.3; }
+    #adk-c06-live table.t td { padding: 6px 10px; }
+    #adk-c06-live table.t td:first-child { width: 72px; }
+    #adk-c06-live table.t td code { font-size: 0.86em; white-space: normal; }
+    #adk-c06-live .c65-right { position: relative; }
+    #adk-c06-live .c65-right .code-wrap { position: absolute; left: 0; right: 0; top: 0; }
+  </style>
+  <h2 class="title">Live agents stream audio and video both ways and must handle barge-in</h2>
+  <div class="grid fill" style="grid-template-columns:1fr 664px;gap:28px">
+    <div class="stack" style="gap:12px">
+      <svg id="c65-svg" viewBox="0 0 700 366" width="700" height="366" aria-label="Two lanes of audio packets between browser, FastAPI, Runner.run_live and the Live API, and a timeline of connection and session limits"></svg>
+      <p class="tiny" style="color:var(--ink-2)"><b>Voice budget:</b> a cascaded STT → LLM → TTS pipeline takes ~1.3 s voice-to-voice. Target 1.5 s, and measure mic-to-speaker, not model TTFB.</p>
+      <div class="callout pitfall" data-step="2"><div><b>Pitfall: the client ignores <code>interrupted</code>.</b> Then buffered audio plays over the user. Flush the player. Also call <code>close()</code> in <code>finally</code>, or zombie sessions stay on your quota.</div></div>
+      <div class="cites push">
+        <a class="cite codelab" href="https://codelabs.developers.google.com/way-back-home-level-3/instructions" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;Way Back Home - Building an ADK Bi-Directional Streaming Agent</a>
+        <a class="cite doc" href="https://adk.dev/live/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;ADK Live and voice agents</a>
+      </div>
+    </div>
+    <div class="c65-right">
+      <table class="t" data-until="4">
+        <tr data-on="1:hot"><td>Input</td><td>16-bit PCM, 16 kHz mono, 50–100 ms chunks (100 ms = 3,200 bytes). ADK does no transcoding.</td></tr>
+        <tr data-on="1:hot"><td>Output</td><td>PCM 24 kHz. Live models answer in audio only: <code>response_modalities=["AUDIO"]</code>. Text comes from transcription.</td></tr>
+        <tr><td>Video</td><td>JPEG frames, ~1 fps, 768×768. "There is no video codec: a video stream is a sequence of still frames."</td></tr>
+        <tr><td>Queue</td><td><code>send_content</code> (one text turn) · <code>send_realtime</code> (audio, frames) · <code>send_activity_start/end</code> (manual VAD only) · <code>close()</code></td></tr>
+        <tr data-on="2:hot"><td>Events</td><td><code>partial</code> · <code>turn_complete</code> · <code>interrupted</code> · <code>input/output_transcription</code> · <code>usage_metadata</code></td></tr>
+        <tr data-on="3:hot"><td>Limits</td><td>Connection ~10 min (GoAway with timeLeft). Without compression: audio 15 min, audio + video 2 min.</td></tr>
+        <tr><td>Cost</td><td><code>max_llm_calls</code> (default 500) does not apply to <code>run_live</code>. Set your own budget.</td></tr>
+        <tr><td>Graphs</td><td>A whole <code>Workflow</code> runs in one live connection. Speaking nodes use <code>mode="task"</code>.</td></tr>
+        <tr><td>Phone</td><td>LiveKit runner (2.9). <code>CascadeLive</code> STT → LLM → TTS with barge-in (2.12/2.13).</td></tr>
+        <tr><td>Model</td><td>ADK docs: <code>gemini-live-2.5-flash-native-audio</code> is <code>DEFAULT_LIVE_MODEL</code>. Gemini catalog: <code>gemini-3.8-live</code>. Read it from an env var.</td></tr>
+      </table>
+      <div class="code-wrap" data-step="4"><div class="code-head">server.py · adk.dev/live/custom-server (fragments)</div>
+<pre class="code xs" data-lang="python" data-focus="4:1-6, 5:7-18, 6:19-23"><code>
+run_config = RunConfig(
+    response_modalities=["AUDIO"],
+    input_audio_transcription=types.AudioTranscriptionConfig(),
+    output_audio_transcription=types.AudioTranscriptionConfig(),
+    session_resumption=types.SessionResumptionConfig())
+live_request_queue = LiveRequestQueue()     # fresh per session
+async def upstream():                       # browser -&gt; model
+    while True:
+        audio_data = await websocket.receive_bytes()
+        live_request_queue.send_realtime(types.Blob(
+            mime_type="audio/pcm;rate=16000", data=audio_data))
+async def downstream():                     # model -&gt; browser
+    async for event in runner.run_live(
+            user_id=user_id, session_id=session_id,
+            live_request_queue=live_request_queue,
+            run_config=run_config):
+        await websocket.send_text(
+            event.model_dump_json(exclude_none=True, by_alias=True))
+try:
+    await asyncio.gather(upstream(), downstream(),
+                         return_exceptions=True)
+finally:
+    live_request_queue.close()              # always, even on error
+</code></pre></div>
+    </div>
+  </div>
+  <aside class="notes">
+    A live agent keeps one two-way connection open, so the user can talk while the agent talks. Step 1: two lanes run at the same time; upstream carries 16 kHz PCM mic chunks through send_realtime, downstream carries 24 kHz audio and events out of run_live. Step 2: the user speaks over the agent; the Live API sends interrupted, and the client must flush its playback buffer, or the old answer keeps playing. Step 3: the WebSocket closes after about 10 minutes; session resumption reconnects with a handle that stays valid for 2 hours, and context window compression removes the 15-minute audio and 2-minute audio-plus-video caps. Steps 4 to 6 walk the server code: run upstream and downstream as concurrent tasks, because sequential code loses interruption, and always close the queue in finally. Analogy: a phone call, not an exchange of letters. Likely question: "Why can my Live agent not return text?" Native-audio Live models answer in audio only, so you read the text from output transcription.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const N = [
+    { x: 0, w: 150, name: "Browser", sub: "mic · cam · speaker", tone: "human" },
+    { x: 183, w: 150, name: "FastAPI", sub: "WebSocket", tone: "tool" },
+    { x: 366, w: 150, name: "Runner.run_live", sub: "LiveRequestQueue", tone: "agent" },
+    { x: 550, w: 150, name: "Live API", sub: "Gemini Live", tone: "model" },
+  ];
+  const UY = 92, DY = 136, X0 = 75, X1 = 625;
+  const T0 = 120, TPX = 19;            // timeline: x of minute 0, px per minute
+  const ROWS = [{ y: 238, name: "connection" }, { y: 280, name: "audio only" }, { y: 322, name: "audio + video" }];
+  let S = null;
+  const el = (tag, attrs, style) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (style) e.setAttribute("style", style); return e; };
+  const txt = (p, x, y, s, style, anchor) => { const t = el("text", { x, y, "text-anchor": anchor || "start" }, style); t.textContent = s; p.appendChild(t); return t; };
+  const mx = (m) => T0 + m * TPX;
+
+  function build(slide) {
+    const svg = slide.querySelector("#c65-svg");
+    svg.innerHTML = "";
+    const lanes = el("g", {}); svg.appendChild(lanes);
+    N.forEach((n) => {
+      lanes.appendChild(el("line", { x1: n.x + n.w / 2, y1: 52, x2: n.x + n.w / 2, y2: DY + 8 }, "stroke:var(--line-2);stroke-width:1.5;stroke-dasharray:3 4"));
+      lanes.appendChild(el("rect", { x: n.x, y: 2, width: n.w, height: 50, rx: 10 }, `fill:var(--${n.tone}-soft);stroke:var(--${n.tone});stroke-width:1.5`));
+      txt(lanes, n.x + n.w / 2, 23, n.name, "font:700 14px var(--f-body);fill:var(--ink)", "middle");
+      txt(lanes, n.x + n.w / 2, 41, n.sub, "font:500 11px var(--f-mono);fill:var(--muted)", "middle");
+    });
+    lanes.appendChild(el("line", { x1: X0, y1: UY, x2: X1, y2: UY }, "stroke:var(--human);stroke-width:2;opacity:.5"));
+    lanes.appendChild(el("path", { d: `M${X1 + 8},${UY} l-10,-5 v10 z` }, "fill:var(--human)"));
+    lanes.appendChild(el("line", { x1: X0, y1: DY, x2: X1, y2: DY }, "stroke:var(--model);stroke-width:2;opacity:.5"));
+    lanes.appendChild(el("path", { d: `M${X0 - 8},${DY} l10,-5 v10 z` }, "fill:var(--model)"));
+    const lab = "font:600 11px var(--f-mono);fill:var(--ink-2);paint-order:stroke;stroke:var(--bg);stroke-width:4px";
+    txt(lanes, 350, UY - 8, "upstream · send_realtime · audio/pcm;rate=16000", lab, "middle");
+    txt(lanes, 350, DY + 17, "downstream · run_live events · audio/pcm;rate=24000", lab, "middle");
+    // dots
+    const up = [], down = [];
+    for (let i = 0; i < 7; i++) { const c = el("circle", { cx: X0, cy: UY, r: 4.5 }, "fill:var(--human)"); lanes.appendChild(c); up.push(c); }
+    for (let i = 0; i < 7; i++) { const c = el("circle", { cx: X1, cy: DY, r: 4.5 }, "fill:var(--model)"); lanes.appendChild(c); down.push(c); }
+    // playback buffer under the browser
+    lanes.appendChild(el("rect", { x: 0, y: 164, width: 150, height: 12, rx: 6 }, "fill:var(--surface-2);stroke:var(--line-2)"));
+    const buf = el("rect", { x: 0, y: 164, width: 105, height: 12, rx: 6 }, "fill:var(--model)"); lanes.appendChild(buf);
+    const bufL = txt(lanes, 160, 174, "playback buffer", "font:500 11px var(--f-mono);fill:var(--muted)");
+    // interrupted pulse
+    const ip = el("g", {});
+    ip.appendChild(el("circle", { cx: 0, cy: 0, r: 8 }, "fill:var(--risk);filter:drop-shadow(0 0 8px var(--risk))"));
+    txt(ip, 0, -14, "interrupted", "font:700 12px var(--f-mono);fill:var(--risk);paint-order:stroke;stroke:var(--bg);stroke-width:4px", "middle");
+    gsap.set(ip, { x: X1, y: DY, autoAlpha: 0 });
+    lanes.appendChild(ip);
+    const flush = txt(lanes, 160, 174, "interrupted → buffer flushed", "font:700 11.5px var(--f-mono);fill:var(--risk)");
+    const talk = txt(lanes, 4, 72, "user talks over the agent", "font:700 11px var(--f-mono);fill:var(--human)");
+
+    // timeline
+    const tl = el("g", {}); svg.appendChild(tl);
+    tl.appendChild(el("line", { x1: 0, y1: 200, x2: 700, y2: 200 }, "stroke:var(--line);stroke-width:1"));
+    [0, 10, 20, 30].forEach((m) => {
+      tl.appendChild(el("line", { x1: mx(m), y1: 214, x2: mx(m), y2: 340 }, "stroke:var(--line);stroke-width:1"));
+      txt(tl, mx(m), 224, m === 0 ? "0" : m + " min", "font:500 11px var(--f-mono);fill:var(--muted)", "middle");
+    });
+    ROWS.forEach((r) => txt(tl, 0, r.y + 5, r.name, "font:600 12.5px var(--f-mono);fill:var(--ink)"));
+    const segs = [[0, 10], [10, 20], [20, 30]].map(([a, b]) => { const s = el("rect", { x: mx(a) + (a ? 3 : 0), y: ROWS[0].y - 7, width: (b - a) * TPX - (a ? 3 : 0) - 3, height: 14, rx: 4 }, "fill:var(--agent);opacity:.8"); tl.appendChild(s); return s; });
+    const badges = [10, 20].map((m) => { const g = el("g", {}); g.appendChild(el("rect", { x: mx(m) - 44, y: ROWS[0].y - 27, width: 88, height: 16, rx: 8 }, "fill:var(--bg);stroke:var(--state);stroke-width:1.2")); txt(g, mx(m), ROWS[0].y - 15, "resume handle", "font:700 10px var(--f-mono);fill:var(--state)", "middle"); tl.appendChild(g); return g; });
+    const caps = [{ r: 1, m: 15 }, { r: 2, m: 2 }].map((c) => {
+      const y = ROWS[c.r].y;
+      const short = el("rect", { x: mx(0), y: y - 7, width: c.m * TPX, height: 14, rx: 4 }, "fill:var(--state);opacity:.8");
+      const full = el("rect", { x: mx(0), y: y - 7, width: 30 * TPX, height: 14, rx: 4 }, "fill:var(--state);opacity:.8");
+      const cap = el("line", { x1: mx(c.m), y1: y - 12, x2: mx(c.m), y2: y + 12 }, "stroke:var(--risk);stroke-width:3");
+      const capT = txt(tl, mx(c.m) + 6, y - 12, c.m + "-min cap", "font:700 10.5px var(--f-mono);fill:var(--risk)");
+      tl.append(full, short, cap);
+      tl.appendChild(capT);
+      return { short, full, cap, capT };
+    });
+    const foot = txt(tl, 0, 362, "session_resumption: handle valid 2 h, up to 5 retries · context_window_compression: caps removed", "font:500 11px var(--f-mono);fill:var(--muted)");
+    const head = el("line", { x1: mx(0), y1: 210, x2: mx(0), y2: 344 }, "stroke:var(--ink);stroke-width:2"); tl.appendChild(head);
+    S = { svg, tl, up, down, buf, bufL, ip, flush, talk, segs, badges, caps, foot, head, loops: [], tw: [], last: -1 };
+    startLoops();
+  }
+  function startLoops() {
+    S.loops.forEach((t) => t.kill()); S.loops = [];
+    S.up.forEach((c, i) => S.loops.push(gsap.fromTo(c, { attr: { cx: X0 } }, { attr: { cx: X1 }, duration: 2.8, ease: "none", repeat: -1, delay: -i * 0.4 })));
+    S.down.forEach((c, i) => S.loops.push(gsap.fromTo(c, { attr: { cx: X1 } }, { attr: { cx: X0 }, duration: 2.8, ease: "none", repeat: -1, delay: -i * 0.4 })));
+  }
+  function kill() { if (!S) return; S.tw.forEach((t) => t.kill()); S.tw = []; }
+  function render(n, animate) {
+    if (!S) return;
+    kill();
+    const fresh = animate && n > S.last;
+    // lanes visible from step 0; dots dimmed before step 1
+    gsap.set(S.up.concat(S.down), { autoAlpha: n >= 1 ? 1 : 0.25 });
+    // step 2: barge-in
+    if (n >= 2 && fresh && S.last < 2) {
+      gsap.set([S.flush], { autoAlpha: 0 });
+      gsap.set(S.talk, { autoAlpha: 1 });
+      S.tw.push(gsap.fromTo(S.ip, { x: X1, y: DY, autoAlpha: 1 }, { x: X0, duration: 1.4, ease: "power1.in" }));
+      S.tw.push(gsap.to(S.ip, { autoAlpha: 0, duration: 0.3, delay: 1.45 }));
+      S.tw.push(gsap.to(S.buf, { attr: { width: 0 }, duration: 0.35, delay: 1.4 }));
+      S.tw.push(gsap.to(S.bufL, { autoAlpha: 0, duration: 0.2, delay: 1.4 }));
+      S.tw.push(gsap.to(S.flush, { autoAlpha: 1, duration: 0.3, delay: 1.5 }));
+      S.tw.push(gsap.fromTo(S.down, { autoAlpha: 1 }, { autoAlpha: 0.15, duration: 0.3, delay: 1.0, yoyo: true, repeat: 1, repeatDelay: 1.2 }));
+    } else {
+      const on = n >= 2;
+      gsap.set(S.ip, { autoAlpha: 0 });
+      gsap.set(S.buf, { attr: { width: on ? 0 : 105 } });
+      gsap.set(S.bufL, { autoAlpha: on ? 0 : 1 });
+      gsap.set(S.flush, { autoAlpha: on ? 1 : 0 });
+      gsap.set(S.talk, { autoAlpha: on ? 1 : 0 });
+    }
+    // step 3: timeline
+    const on3 = n >= 3;
+    gsap.set(S.tl, { autoAlpha: on3 ? 1 : 0 });
+    if (on3 && fresh && S.last < 3) {
+      gsap.set(S.segs, { autoAlpha: 0 }); gsap.set(S.badges, { autoAlpha: 0 });
+      S.caps.forEach((c) => { gsap.set(c.full, { autoAlpha: 0 }); gsap.set([c.short, c.cap, c.capT], { autoAlpha: 1 }); });
+      gsap.set(S.foot, { autoAlpha: 0 });
+      const tlm = gsap.timeline();
+      tlm.fromTo(S.head, { attr: { x1: mx(0), x2: mx(0) } }, { attr: { x1: mx(30), x2: mx(30) }, duration: 3.6, ease: "none" }, 0);
+      S.segs.forEach((s, i) => tlm.to(s, { autoAlpha: 1, duration: 0.2 }, i * 1.2));
+      S.badges.forEach((b, i) => tlm.fromTo(b, { autoAlpha: 0, scale: 0.6, svgOrigin: `${mx(10 * (i + 1))} ${ROWS[0].y - 19}` }, { autoAlpha: 1, scale: 1, svgOrigin: `${mx(10 * (i + 1))} ${ROWS[0].y - 19}`, duration: 0.35, ease: "back.out(2)" }, 1.2 * (i + 1)));
+      S.caps.forEach((c, i) => tlm.to(c.full, { autoAlpha: 1, duration: 0.5 }, 3.8 + i * 0.3).to(c.cap, { autoAlpha: 0.35, duration: 0.4 }, 3.8 + i * 0.3).to(c.capT, { autoAlpha: 0.5, duration: 0.4 }, 3.8 + i * 0.3));
+      tlm.to(S.foot, { autoAlpha: 1, duration: 0.4 }, 4.3);
+      S.tw.push(tlm);
+    } else if (on3) {
+      gsap.set(S.head, { attr: { x1: mx(30), x2: mx(30) } });
+      gsap.set(S.segs.concat(S.badges), { autoAlpha: 1, scale: 1 });
+      S.caps.forEach((c) => { gsap.set(c.full, { autoAlpha: 1 }); gsap.set(c.cap, { autoAlpha: 0.35 }); gsap.set(c.capT, { autoAlpha: 0.5 }); });
+      gsap.set(S.foot, { autoAlpha: 1 });
+    }
+    S.last = n;
+  }
+  Deck.register("adk-c06-live", {
+    enter(slide, n) { build(slide); render(n, false); },
+    step(slide, n, animate) { if (!S) build(slide); render(n, animate); },
+    leave() { if (!S) return; kill(); S.loops.forEach((t) => t.kill()); S.loops = []; },
+  });
+})();
+</script>

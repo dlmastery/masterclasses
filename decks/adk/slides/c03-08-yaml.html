@@ -1,0 +1,192 @@
+<section class="slide" id="adk-c03-yaml" data-tone="agent" data-title="YAML agents and YAML graphs">
+  <h2 class="title">YAML configs declare agents and whole graphs, while Python keeps the logic</h2>
+  <div class="row fill" style="gap:24px">
+    <div class="stack" style="width:628px;flex:none">
+      <div class="code-wrap" id="c38-root" data-fx="up"><div class="code-head">samples/workflows/loop_config/root_agent.yaml · 2.9.0+</div>
+<pre class="code xs" data-lang="yaml"><code>
+agent_class: Workflow
+name: root_agent
+edges:
+  - - START
+    - .agent.process_input
+    - generate_headline.yaml
+    - evaluate_headline.yaml
+    - .agent.route_headline
+  - - .agent.route_headline
+    - unrelated: generate_headline.yaml
+</code></pre></div>
+      <div style="position:relative;height:232px">
+        <ul class="ticks small" style="position:absolute;inset:0;gap:8px" data-until="2">
+          <li>A <b>block list</b> is a chain: A→B→C.</li>
+          <li>An <b>inline list</b> <code>[a, b]</code> always means a fan-out.</li>
+          <li>A <b>mapping</b> is a routing map, keyed by <code>Event(route=...)</code>.</li>
+          <li><code>.agent.fn</code> is a function in the package, wrapped as a <code>FunctionNode</code>. <code>x.yaml</code> is an agent file.</li>
+          <li>Nodes are <b>cached by name</b>. The second <code>generate_headline.yaml</code> is the same instance, so the loop is a real cycle.</li>
+        </ul>
+        <div class="stack" style="position:absolute;inset:0;gap:10px" data-step="2" data-until="3">
+          <div class="code-wrap term"><pre class="code xs" data-lang="bash"><code>
+$ adk create --type=config my_agent   # root_agent.yaml + .env
+$ adk web .
+</code></pre></div>
+          <p class="small">Keys include <code>agent_class</code>, <code>model</code>, <code>instruction</code>, <code>static_instruction</code>, <code>tools</code>, <code>sub_agents</code> (<code>config_path</code>), <code>output_schema</code>, <code>output_key</code>, <code>include_contents</code>, <code>*_callbacks</code>.</p>
+          <p class="tiny">Docs: “experimental and has some known limitations”. Only Gemini models; <code>A2aAgent</code> and <code>LangGraphAgent</code> are not supported. The Visual Builder in <code>adk web</code> writes Agent Config YAML.</p>
+        </div>
+        <ul class="ticks small" style="position:absolute;inset:0;gap:8px" data-step="3" data-until="4">
+          <li>ADK parses with <code>yaml.safe_load</code> only.</li>
+          <li>Every <code>*_code</code> and <code>*_callbacks</code> reference is checked against a denylist: the entire stdlib, plus <code>yaml</code> and <code>ruamel</code>.</li>
+          <li>Absolute paths are rejected. The <code>args</code> denylist is <b>off</b> by default.</li>
+          <li>“Treat a config that can name arbitrary modules as trusted input.”</li>
+        </ul>
+        <div class="stack" style="position:absolute;inset:0;gap:10px" data-step="4">
+          <div class="callout pitfall"><div>If <code>agent.py</code> or <code>__init__.py</code> exposes <code>root_agent</code>, <b>the Python wins</b> and ADK ignores your YAML edits.</div></div>
+          <div class="callout pitfall"><div><code>AgentConfig.json</code> is marked deprecated and has no <code>Workflow</code>, so editor warnings on graph YAML are wrong. AgentConfig has no <code>plugins</code> key: use <code>--extra_plugins</code>.</div></div>
+        </div>
+      </div>
+      <div class="cites push">
+        <a class="cite doc" href="https://adk.dev/agents/config/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;adk.dev/agents/config</a>
+        <a class="cite codelab" href="https://codelabs.developers.google.com/codelabs/create-low-code-agent-with-ADK-visual-builder" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;Create and deploy low code ADK agents using ADK Visual Builder</a>
+      </div>
+    </div>
+    <div class="stack" style="width:740px;flex:none">
+      <svg id="c38-svg" viewBox="0 0 740 260" width="740" height="260" aria-label="Each YAML line draws its node or edge on a canvas; the last line draws the back-edge"></svg>
+      <div style="position:relative;height:300px">
+        <div class="code-wrap" style="position:absolute;left:0;top:0;width:740px" data-until="2"><div class="code-head">agent.py · Python keeps the logic</div>
+<pre class="code xs" data-lang="python"><code>
+class Feedback(BaseModel):
+  grade: Literal["tech-related", "unrelated"] = Field(description="...")
+  feedback: str = Field(description="...")
+
+def process_input(node_input: str):
+  return Event(state={"topic": node_input})
+def route_headline(node_input: Feedback):
+  return Event(route=node_input.grade)
+</code></pre></div>
+        <div class="code-wrap" style="position:absolute;left:0;top:0;width:740px" data-step="2" data-until="3"><div class="code-head">evaluate_headline.yaml · the per-step verifier</div>
+<pre class="code xs" data-lang="yaml"><code>
+agent_class: LlmAgent
+name: evaluate_headline
+instruction: |
+  Grade whether the headline is related to technology or software engineering.
+output_schema:
+  name: loop_config.agent.Feedback
+output_key: feedback
+</code></pre></div>
+        <div class="panel tight k-risk" style="position:absolute;left:0;top:0;width:740px" data-step="3">
+          <h4>The trust gate for code references</h4>
+          <svg id="c38-gate" viewBox="0 0 700 170" width="700" height="170" aria-label="A denylist wall stops os.system and lets my_pkg.tools.fn pass"></svg>
+        </div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    On entry the YAML types itself, and each line draws its node on the canvas: the chain from START to route_headline. Step 1 adds the last two lines. The routing map sends "unrelated" back to generate_headline.yaml, and because nodes are cached by name, that is the same agent instance, so the edge is a real cycle. Step 2 shows the verifier agent in YAML and the Agent Config basics; note that the docs still call the feature experimental. Step 3 is security: a YAML file can import Python, so ADK blocks the stdlib, yaml and ruamel, but the args denylist is still off. Step 4 lists the two errors that waste the most time. Analogy: YAML is the floor plan, Python is the plumbing. You can move walls without a plumber, but the plan can still name any pipe, so only trusted people may edit it. Likely question: "Can product managers edit graphs in production?" Yes, through CI, but treat the config as code: review it, and pin the trust boundary.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const mk = (t, a, p) => { const e = document.createElementNS(NS, t); for (const k in a) e.setAttribute(k, a[k]); if (p) p.appendChild(e); return e; };
+  const txt = (p, x, y, s, st, anchor) => { const e = mk("text", { x, y, style: st, ...(anchor ? { "text-anchor": anchor } : {}) }, p); e.textContent = s; return e; };
+  const NODES = [["START", "", 16, 70, "line-2", true], ["process_input", ".agent.fn", 108, 146, "tool"], ["generate_headline", ".yaml agent", 272, 150, "agent"], ["evaluate_headline", ".yaml agent", 440, 150, "agent"], ["route_headline", ".agent.fn", 608, 124, "tool"]];
+  const NY = 130, NH = 52;
+  let S = null, tws = [], loops = [];
+
+  function wrapLines(slide) {
+    const code = slide.querySelector("#c38-root code");
+    if (!code.dataset.wrapped) {
+      code.innerHTML = code.innerHTML.replace(/^\n/, "").split("\n").map((l) => `<span class="c38-ln" style="display:inline-block">${l || " "}</span>`).join("\n");
+      code.dataset.wrapped = "1";
+    }
+    return [...code.querySelectorAll(".c38-ln")];
+  }
+  function build(slide) {
+    const svg = slide.querySelector("#c38-svg");
+    svg.innerHTML = "";
+    S = { lines: wrapLines(slide), nodes: [], edges: [] };
+    S.frame = mk("g", { opacity: 0 }, svg);
+    mk("rect", { x: 3, y: 10, width: 734, height: 246, rx: 18, style: "fill:var(--agent-soft);stroke:var(--agent);stroke-width:1.5;stroke-dasharray:7 6" }, S.frame);
+    txt(S.frame, 20, 34, "Workflow · root_agent", "font:700 14px var(--f-mono);fill:var(--agent)");
+    NODES.forEach(([t, s, x, w, tone, pill], i) => {
+      if (i > 0) {
+        const px = NODES[i - 1][2] + NODES[i - 1][3];
+        const g = mk("g", { opacity: 0 }, svg);
+        mk("path", { d: `M${px + 2},${NY + NH / 2} L${x - 8},${NY + NH / 2}`, style: "stroke:var(--agent);stroke-width:2.4" }, g);
+        mk("path", { d: `M${x - 2},${NY + NH / 2} L${x - 10},${NY + NH / 2 - 5} L${x - 10},${NY + NH / 2 + 5} Z`, style: "fill:var(--agent)" }, g);
+        S.edges.push(g);
+      }
+      const g = mk("g", { opacity: 0 }, svg);
+      const r = mk("rect", { x, y: NY, width: w, height: NH, rx: pill ? 26 : 11, style: `fill:var(--surface-2);stroke:var(--${tone});stroke-width:1.8` }, g);
+      txt(g, x + w / 2, NY + (s ? 23 : 31), t, "font:700 13.5px var(--f-body);fill:var(--ink)", "middle");
+      if (s) txt(g, x + w / 2, NY + 41, s, "font:500 11.5px var(--f-mono);fill:var(--muted)", "middle");
+      S.nodes.push({ g, r });
+    });
+    S.back = mk("g", { opacity: 0 }, svg);
+    S.backP = mk("path", { d: "M670,130 C670,48 347,48 347,124", style: "fill:none;stroke:var(--risk);stroke-width:2.6;stroke-dasharray:8 7" }, S.back);
+    mk("path", { d: "M347,128 L342,118 L352,118 Z", style: "fill:var(--risk)" }, S.back);
+    txt(S.back, 508, 62, "unrelated → same cached instance", "font:700 12.5px var(--f-mono);fill:var(--risk)", "middle");
+    S.badge = mk("g", { opacity: 0 }, svg);
+    mk("rect", { x: 425, y: 196, width: 180, height: 24, rx: 7, style: "fill:var(--state-soft);stroke:var(--state);stroke-width:1.2" }, S.badge);
+    txt(S.badge, 515, 212, "output_schema: Feedback", "font:700 12px var(--f-mono);fill:var(--state)", "middle");
+    // trust gate
+    const gs = slide.querySelector("#c38-gate");
+    gs.innerHTML = "";
+    txt(gs, 330, 16, "denylist: entire stdlib, yaml, ruamel", "font:700 12.5px var(--f-mono);fill:var(--risk)", "middle");
+    mk("rect", { x: 320, y: 26, width: 20, height: 62, rx: 4, style: "fill:var(--risk-soft);stroke:var(--risk);stroke-width:1.6" }, gs);
+    mk("rect", { x: 320, y: 132, width: 20, height: 36, rx: 4, style: "fill:var(--risk-soft);stroke:var(--risk);stroke-width:1.6" }, gs);
+    const chip = (label, y, tone) => { const g = mk("g", {}, gs); const w = label.length * 8.2 + 22; mk("rect", { x: 0, y: y - 15, width: w, height: 30, rx: 8, style: `fill:var(--surface-2);stroke:var(--${tone});stroke-width:1.5` }, g); txt(g, w / 2, y + 5, label, `font:700 13px var(--f-mono);fill:var(--${tone})`, "middle"); return { g, w }; };
+    S.bad = chip("tools: os.system", 57, "risk");
+    S.good = chip("tools: my_pkg.tools.fn", 110, "state");
+    S.okMark = txt(gs, 640, 116, "✓ loaded", "font:700 14px var(--f-mono);fill:var(--state)", "middle");
+    S.noMark = txt(gs, 200, 30, "✗ blocked", "font:700 13px var(--f-mono);fill:var(--risk)", "middle");
+    S.lamp = mk("circle", { cx: 452, cy: 150, r: 8, style: "fill:var(--tool);filter:drop-shadow(0 0 6px var(--tool))" }, gs);
+    txt(gs, 468, 155, "args denylist: OFF (default)", "font:700 12.5px var(--f-mono);fill:var(--tool)");
+  }
+
+  function lineFx(i, on, anim, delay) {
+    const el = S.lines[i];
+    if (!el) return;
+    if (anim && on) tws.push(gsap.fromTo(el, { clipPath: "inset(0% 100% 0% 0%)" }, { clipPath: "inset(0% 0% 0% 0%)", duration: 0.32, delay, ease: "none" }));
+    else gsap.set(el, { clipPath: on ? "inset(0% 0% 0% 0%)" : "inset(0% 100% 0% 0%)" });
+  }
+  function show(el, on, anim, delay) {
+    if (anim && on) tws.push(gsap.fromTo(el, { opacity: 0, scale: 0.85, transformOrigin: "50% 50%" }, { opacity: 1, scale: 1, duration: 0.4, delay, ease: "back.out(1.7)" }));
+    else gsap.set(el, { opacity: on ? 1 : 0, scale: 1 });
+  }
+  // YAML line index -> canvas element
+  const DRAW = { 0: () => S.frame, 3: () => [S.nodes[0].g], 4: () => [S.edges[0], S.nodes[1].g], 5: () => [S.edges[1], S.nodes[2].g], 6: () => [S.edges[2], S.nodes[3].g], 7: () => [S.edges[3], S.nodes[4].g], 9: () => S.back };
+
+  function render(n, anim) {
+    if (!S) return;
+    tws.forEach((t) => t.kill()); tws = [];
+    loops.forEach((t) => t.kill()); loops = [];
+    const typed = n >= 1 ? 10 : 8;
+    const animFrom = anim ? (n === 0 ? 0 : n === 1 ? 8 : 99) : 99;
+    let k = 0;
+    for (let i = 0; i < 10; i++) {
+      const on = i < typed, a = on && i >= animFrom;
+      const delay = a ? 0.3 + (k++) * 0.38 : 0;
+      lineFx(i, on, a, delay);
+      if (DRAW[i]) [].concat(DRAW[i]()).forEach((el) => show(el, on, a, delay + 0.2));
+    }
+    S.nodes[4].r.style.strokeWidth = n === 1 ? 4 : 1.8;
+    show(S.badge, n >= 2, anim && n === 2, 0.2);
+    // trust gate
+    gsap.set([S.bad.g, S.good.g], { x: 20 });
+    gsap.set([S.okMark, S.noMark], { opacity: n >= 3 ? 1 : 0 });
+    if (n >= 3) {
+      if (anim && n === 3) {
+        gsap.set([S.okMark, S.noMark], { opacity: 0 });
+        tws.push(gsap.timeline().to(S.bad.g, { x: 320 - S.bad.w - 4, duration: 0.9, ease: "power2.in" }).to(S.bad.g, { x: 120, duration: 0.6, ease: "back.out(1.4)" }).to(S.noMark, { opacity: 1, duration: 0.3 }));
+        tws.push(gsap.timeline({ delay: 0.5 }).to(S.good.g, { x: 470, duration: 1.4, ease: "power2.inOut" }).to(S.okMark, { opacity: 1, duration: 0.3 }));
+      } else { gsap.set(S.bad.g, { x: 120 }); gsap.set(S.good.g, { x: 470 }); }
+      loops.push(gsap.fromTo(S.lamp, { opacity: 1 }, { opacity: 0.25, duration: 0.6, yoyo: true, repeat: -1 }));
+    }
+  }
+
+  Deck.register("adk-c03-yaml", {
+    enter(slide, n) { build(slide); render(n, n === 0); },
+    step(slide, n, animate) { render(n, animate); },
+    leave() { tws.forEach((t) => t.kill()); loops.forEach((t) => t.kill()); tws = []; loops = []; S = null; }
+  });
+})();
+</script>

@@ -930,7 +930,7 @@ resp = client.models.generate_content(
   <div class="row fill" style="gap:28px">
     <div style="position:relative;width:860px;height:580px;flex:none">
       <div class="diagram" style="width:860px;height:580px" data-on="5:dim"
-           data-wires="demo>sft@1:flow{human}; rank>rm@2:flow{human} [Bradley-Terry]; rm>rml@3:dash [frozen copy]; pol>roll@3:flow{model} [sample]; roll>rml@3:flow{tool}; rml>critic@3 [r]; critic>pol@3:flow{model} [advantage]; ref>pol@3:dash{risk} [KL]">
+           data-wires="demo>sft@1:flow{human}; rank>rm@2:flow{human} [Bradley-Terry]; rm>rml@3:dash [frozen copy]; pol>roll@3:flow{model} [sample]; roll>rml@3:flow{tool}; rml>critic@3 [r]; critic>upd@3:flow{model} [advantage]; upd>pol@3:flow{model} [update]; ref>pol@3:dash{risk} [KL]">
         <div class="node n-human" id="demo" style="left:0;top:10px;width:220px" data-step="1" data-fx="pop"><span class="nt">Demonstrations</span><span class="ns">human-written</span></div>
         <div class="node n-model" id="sft" style="left:330px;top:10px;width:220px" data-step="1" data-fx="pop"><span class="nt">SFT policy</span><span class="ns">step 1</span></div>
         <div class="node n-human" id="rank" style="left:0;top:130px;width:220px" data-step="2" data-fx="pop"><span class="nt">Human rankings</span><span class="ns">K outputs per prompt</span></div>
@@ -939,7 +939,8 @@ resp = client.models.generate_content(
         <div class="node n-model" id="pol" style="left:40px;top:300px;width:200px" data-step="3" data-fx="pop" data-on="4:hot"><span class="nt">Policy</span><span class="ns">init from SFT</span></div>
         <div class="node n-tool" id="roll" style="left:330px;top:300px;width:200px" data-step="3" data-fx="pop" data-on="4:hot"><span class="nt">Rollouts</span><span class="ns">vLLM generation</span></div>
         <div class="node n-model" id="rml" style="left:620px;top:300px;width:200px" data-step="3" data-fx="pop" data-on="4:hot"><span class="nt">Reward model</span><span class="ns">frozen</span></div>
-        <div class="node n-model" id="critic" style="left:330px;top:470px;width:200px" data-step="3" data-fx="pop" data-on="4:hot"><span class="nt">Critic</span><span class="ns">value model</span></div>
+        <div class="node n-model" id="critic" style="left:620px;top:470px;width:200px" data-step="3" data-fx="pop" data-on="4:hot"><span class="nt">Critic</span><span class="ns">value model</span></div>
+        <div class="node n-model" id="upd" style="left:330px;top:470px;width:200px" data-step="3" data-fx="pop" data-on="4:hot"><span class="nt">Clipped update</span><span class="ns">PPO step</span></div>
         <div class="node n-model ghost" id="ref" style="left:40px;top:470px;width:200px" data-step="3" data-fx="pop" data-on="4:hot"><span class="nt">Reference</span><span class="ns">frozen SFT copy</span></div>
       </div>
       <svg class="ovl" data-step="5" data-fx="draw" viewBox="0 0 780 470">
@@ -994,8 +995,8 @@ resp = client.models.generate_content(
 <!-- c03-03-dpo-family.html -->
 <section class="slide" id="custom-c03-dpo-family" data-tone="model" data-title="DPO and the preference family">
   <style>
-    #custom-c03-dpo-family .eqrow { position:relative; height:126px; flex:none; }
-    #custom-c03-dpo-family .eq { position:absolute; left:0; top:4px; font:500 34px/1.1 var(--f-body); color:var(--ink); display:flex; align-items:center; gap:8px; white-space:nowrap; transform-origin:left top; transition:transform .7s cubic-bezier(.2,.8,.2,1); }
+    #custom-c03-dpo-family .eqrow { position:relative; height:134px; flex:none; }
+    #custom-c03-dpo-family .eq { position:absolute; left:0; top:26px; font:500 34px/1.1 var(--f-body); color:var(--ink); display:flex; align-items:center; gap:8px; white-space:nowrap; transform-origin:left top; transition:transform .7s cubic-bezier(.2,.8,.2,1); }
     #custom-c03-dpo-family .eqrow.shr .eq { transform:scale(.74); }
     #custom-c03-dpo-family .fr { display:inline-flex; flex-direction:column; text-align:center; font-size:24px; line-height:1.25; }
     #custom-c03-dpo-family .fr > span:first-child { border-bottom:2px solid currentColor; padding:0 4px 2px; }
@@ -1020,7 +1021,7 @@ resp = client.models.generate_content(
   <div class="eqrow" data-on="4:shr">
     <div class="eq">
       <span>L<sub>DPO</sub> = −E[ log σ(</span>
-      <span class="tm b" data-on="3:on">β<span class="lab c-tool" data-step="3">KL strength</span></span>
+      <span class="tm b" data-on="3:on">β<span class="lab c-tool" data-step="3" style="top:auto;bottom:calc(100% + 8px)">KL strength</span></span>
       <span>(</span>
       <span class="tm w" data-on="1:on">log <span class="fr"><span>π<sub>θ</sub>(y<sup>+</sup>|x)</span><span>π<sub>ref</sub>(y<sup>+</sup>|x)</span></span><span class="lab c-state" data-step="1">chosen: push up</span></span>
       <span>−</span>
@@ -1650,7 +1651,7 @@ resp = gem.models.generate_content(model="gemini-3.5-flash",
 
 <!-- c05-01-chapter.html -->
 <section class="slide chapter tight" id="custom-c05-chapter" data-tone="state" data-title="05 Dataset design, contracts, coverage and drift">
-  <svg class="c05ch-grid" id="c05ch-grid" viewBox="0 0 1600 900" width="1600" height="900" aria-hidden="true" style="position:absolute;inset:0;z-index:-1;pointer-events:none;opacity:0"></svg>
+  <div class="c05ch-grid" id="c05ch-grid" aria-hidden="true" style="position:absolute;left:104px;top:84px;width:1392px;height:740px;z-index:-1;pointer-events:none;opacity:0;background-image:linear-gradient(color-mix(in oklab, var(--state) 9%, transparent) 1px, transparent 1px),linear-gradient(90deg, color-mix(in oklab, var(--state) 9%, transparent) 1px, transparent 1px);background-size:40px 40px;-webkit-mask-image:radial-gradient(ellipse at 40% 60%, #000 30%, transparent 80%);mask-image:radial-gradient(ellipse at 40% 60%, #000 30%, transparent 80%)"></div>
   <div class="ch-num" data-fx="blur">05</div>
   <svg class="interactive" id="c05ch-svg" viewBox="0 0 1392 128" width="1392" height="128" aria-label="The data lifecycle: design, generate, select, curate, label, denoise, quality card. The design cell is lit."></svg>
   <h2 class="display" style="font-size:66px">The dataset is the spec: design it before you generate it</h2>
@@ -1682,7 +1683,7 @@ resp = gem.models.generate_content(model="gemini-3.5-flash",
     #custom-c05-docs-standards .cites .cite::before { width: 18px; height: 18px; }
     #custom-c05-docs-standards .stat .n { font-size: 58px; }
     #custom-c05-docs-standards .stat .l { font-size: 16px; }
-    #custom-c05-docs-standards pre.code { padding: 10px 14px 12px; }
+    #custom-c05-docs-standards pre.code { padding: 10px 12px 12px; font-size: 13.5px; }
   </style>
   <h2 class="title">Document a dataset three ways: a card for people, Croissant for machines, a contract for CI</h2>
   <div class="grid fill" style="grid-template-columns: 820px 1fr; gap:28px">
@@ -1702,7 +1703,7 @@ resp = gem.models.generate_content(model="gemini-3.5-flash",
         <div class="ico" style="background:var(--tool-soft)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--tool)" stroke-width="2"><path d="M8 5l-5 7 5 7M16 5l5 7-5 7"/></svg></div>
         <div>
           <h4>2 · Croissant JSON-LD: for machines</h4>
-          <div class="grid" style="grid-template-columns: 1fr 330px; gap:12px; margin-top:4px; align-items:start">
+          <div class="grid" style="grid-template-columns: 1fr 350px; gap:12px; margin-top:4px; align-items:start">
             <ul class="clean">
               <li>JSON-LD on schema.org: metadata, resources, <code>RecordSet</code> / <code>Field</code>, semantics.</li>
               <li><b>1.1</b>: machine-actionable provenance and usage policies. <b>-RAI</b>: labeling, safety, fairness.</li>
@@ -1711,9 +1712,9 @@ resp = gem.models.generate_content(model="gemini-3.5-flash",
             <div class="code-wrap"><div class="code-head">mlcroissant</div>
 <pre class="code xs" data-lang="python"><code>
 import mlcroissant as mlc
-url = ("https://huggingface.co/api/"
-       "datasets/fashion_mnist/croissant")
-ds = mlc.Dataset(url)
+ds = mlc.Dataset(
+  "https://huggingface.co/api/"
+  "datasets/fashion_mnist/croissant")
 print(ds.metadata.to_json()["name"])
 </code></pre></div>
           </div>
@@ -1863,14 +1864,22 @@ $ datacontract breaking v1.odcs.yaml v2.odcs.yaml
   </style>
   <h2 class="title">Measure coverage against a taxonomy, and turn every gap into a named slice</h2>
   <div class="grid fill" style="grid-template-columns: 760px 1fr; gap:28px">
-    <svg class="interactive" id="c05cov-svg" viewBox="0 0 760 560" width="760" height="560" aria-label="A taxonomy tree unfolds into a leaf by split heatmap. Thin cells turn red as holes. One hole becomes a slice."></svg>
+    <div class="stack" style="gap:8px">
+      <svg class="interactive" id="c05cov-svg" viewBox="0 0 760 560" width="760" height="560" aria-label="A taxonomy tree unfolds into a leaf by split heatmap. Thin cells turn red as holes. One hole becomes a slice."></svg>
+      <div class="cites" data-step="5">
+        <a class="cite paper" href="https://arxiv.org/abs/2402.13064" target="_blank" rel="noopener"><b>Paper</b>&nbsp;GLAN</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2308.07074" target="_blank" rel="noopener"><b>Paper</b>&nbsp;#InsTag</a>
+        <a class="cite paper" href="https://arxiv.org/abs/1807.06068" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Slice Finder</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2203.14960" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Domino</a>
+      </div>
+    </div>
     <div class="stack" style="gap:10px">
       <p class="small"><b>Taxonomy</b> = domain × task × skill × difficulty × language × format × risk category. Tag every row with its leaf ID.</p>
       <div class="panel tight k-state" data-step="1" style="gap:4px">
         <h4 style="font-size:18px">Design the tree first, then generate per leaf</h4>
-        <p class="tiny" style="color:var(--ink-2)"><b>GLAN</b> (Microsoft, 2024): the only input is a taxonomy, from fields to disciplines, subjects, syllabus, key concepts and instructions. To add a skill, insert a node. <b>#InsTag</b> (2023): 6.6K open-set tags. TagLM, tuned on 6K tag-selected samples, beats models tuned on far larger SFT sets on MT-Bench.</p>
+        <p class="tiny" style="color:var(--ink-2)"><b>GLAN</b> (2024): a taxonomy is the only input; to add a skill, insert a node. <b>#InsTag</b> (2023): 6.6K open-set tags. TagLM, tuned on 6K tag-selected samples, beats far larger SFT sets on MT-Bench.</p>
       </div>
-      <p class="tiny" data-step="2" style="color:var(--ink-2)"><b>Beyond counts:</b> embedding coverage (the share of production clusters with training mass), nearest-neighbour distance from production queries to find holes, and instruction diversity (InsTag tags, distinct n-grams, self-BLEU, semantic dedup ratio).</p>
+      <p class="tiny" data-step="2" style="color:var(--ink-2)"><b>Also measure</b> embedding coverage (production clusters with training mass), nearest-neighbour distance from production queries, and diversity (tags, distinct n-grams, self-BLEU).</p>
       <div class="code-wrap" data-step="4" data-fx="right"><div class="code-head">slices/shipping_customs.yaml (illustrative)</div>
 <pre class="code xs" data-lang="yaml"><code>
 slice: shipping_customs
@@ -1880,13 +1889,7 @@ metric: [task_success, groundedness]
 gate: "task_success >= overall - 0.03"
 owner: support-ml@company
 </code></pre></div>
-      <div class="callout insight" data-step="5"><div><b>Find the slices you did not declare.</b> Slice Finder (ICDE 2019) searches for large, interpretable failing slices with statistical tests. Domino (ICLR 2022) clusters cross-modal embeddings: it finds <b>36%</b> of <b>1,235</b> planted slice settings (+12 pp) and names <b>35%</b> exactly. Then cluster failing production traffic and promote recurring clusters to declared slices.</div></div>
-      <div class="cites push" data-step="5">
-        <a class="cite paper" href="https://arxiv.org/abs/2402.13064" target="_blank" rel="noopener"><b>Paper</b>&nbsp;GLAN</a>
-        <a class="cite paper" href="https://arxiv.org/abs/2308.07074" target="_blank" rel="noopener"><b>Paper</b>&nbsp;#InsTag</a>
-        <a class="cite paper" href="https://arxiv.org/abs/1807.06068" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Slice Finder</a>
-        <a class="cite paper" href="https://arxiv.org/abs/2203.14960" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Domino</a>
-      </div>
+      <div class="callout insight" data-step="5"><div><b>Find the slices you did not declare.</b> Slice Finder (ICDE 2019) tests for large, interpretable failing slices. Domino (ICLR 2022) finds <b>36%</b> of <b>1,235</b> planted slice settings (+12 pp) and names <b>35%</b> exactly. Promote recurring failing clusters to declared slices.</div></div>
     </div>
   </div>
   <aside class="notes">
@@ -1917,8 +1920,7 @@ owner: support-ml@company
         <tr><td>Text</td><td>domain classifier (95th pct)</td><td>domain classifier (ROC AUC 0.55)</td></tr>
       </table>
       <p class="tiny" data-step="4">Dataset drift: the share of drifted columns ≥ <code>drift_share</code> (default 0.5). Embedding drift (legacy API): <code>model</code> AUC 0.55, <code>ratio</code> 0.2, <code>distance</code> 0.2, <code>mmd</code>.</p>
-      <div class="callout tip" data-step="6"><div><b>LLM and RAG data:</b> test descriptors, not raw text: length, language, toxicity, taxonomy leaf, retrieval-hit rate, refusal rate. Embedding drift between the RAG corpus and live queries shows topics the index does not cover. Compare SFT data with production prompts (skew) and week N with week N−1 (drift).</div></div>
-      <p class="tiny" data-step="6">whylogs 1.6.4 keeps mergeable profiles. WhyLabs’ hosted platform was discontinued and its code opened, so keep profiles in open formats.</p>
+      <div class="callout tip" data-step="6"><div><b>LLM and RAG data:</b> test descriptors, not raw text: length, language, toxicity, taxonomy leaf, retrieval-hit rate, refusal rate. Embedding drift between the RAG corpus and live queries shows topics the index does not cover. Compare SFT data with production prompts (skew) and week N with week N−1 (drift). <b>whylogs 1.6.4</b> keeps mergeable profiles; WhyLabs’ hosted platform was discontinued, so keep profiles in open formats.</div></div>
     </div>
     <div class="stack" style="gap:10px">
       <table class="t">
@@ -1930,12 +1932,11 @@ owner: support-ml@company
       </table>
       <div class="callout pitfall" data-step="3"><div><b>Large n:</b> p-values flag tiny shifts. Use distances when n &gt; 1000.</div></div>
       <div class="code-wrap" data-step="5" data-fx="up"><div class="code-head">drift.py · Evidently 0.7.23</div>
-<pre class="code xs" data-lang="python" data-focus="5:8-9, 6:10-12"><code>
+<pre class="code xs" data-lang="python" data-focus="5:7-7, 6:8-8"><code>
 from sklearn import datasets
 from evidently import Report
 from evidently.presets import DataDriftPreset
 from evidently.metrics import ValueDrift
-
 iris = datasets.load_iris(as_frame=True).frame
 report = Report([
     DataDriftPreset(method="psi", drift_share=0.7),
@@ -2066,7 +2067,7 @@ my_eval.save_html("drift.html")
         </div>
         <div class="panel card k-human" data-step="2">
           <div class="row" style="gap:18px;align-items:flex-start">
-            <svg class="kgrid" viewBox="0 0 236 150" width="236" height="150" data-fx="none" aria-label="Raters by items grid with two missing ratings">
+            <svg class="kgrid" viewBox="0 0 236 150" width="236" height="150" style="flex:none" data-fx="none" aria-label="Raters by items grid with two missing ratings">
               <text x="62" y="16" fill="var(--muted)">i1</text><text x="104" y="16" fill="var(--muted)">i2</text><text x="146" y="16" fill="var(--muted)">i3</text><text x="188" y="16" fill="var(--muted)">i4</text>
               <text x="2" y="50" fill="var(--muted)">R1</text><text x="2" y="92" fill="var(--muted)">R2</text><text x="2" y="134" fill="var(--muted)">R3</text>
               <g fill="var(--human-soft)" stroke="var(--human)" stroke-width="1.5">
@@ -2205,15 +2206,17 @@ krippendorff.alpha(reliability_data=rel, level_of_measurement="nominal")
           <a class="cite paper" href="https://arxiv.org/abs/2103.14749" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Pervasive Label Errors in Test Sets Destabilize ML Benchmarks</a>
           <a class="cite paper" href="https://arxiv.org/abs/1911.00068" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Confident Learning (JAIR 2021)</a>
           <a class="cite doc" href="https://labelerrors.com" target="_blank" rel="noopener"><b>Demo</b>&nbsp;labelerrors.com</a>
+          <a class="cite repo" href="https://github.com/cleanlab/cleanlab" target="_blank" rel="noopener"><b>Repo</b>&nbsp;cleanlab/cleanlab</a>
+          <a class="cite doc" href="https://docs.cleanlab.ai/stable/tutorials/indepth_overview.html" target="_blank" rel="noopener"><b>Docs</b>&nbsp;cleanlab in-depth overview</a>
         </div>
       </div>
       <!-- B: code -->
       <div class="stack" data-step="3" data-until="6" style="gap:12px">
         <div class="code-wrap" style="width:100%"><div class="code-head">find_errors.py · cleanlab 2.9.0, adapted from the in-depth overview</div>
-<pre class="code xs" data-lang="python" data-focus="3:6-9, 4:10-13, 5:14-20"><code>
+<pre class="code xs" data-lang="python" data-focus="3:6-9, 4:10-13, 5:14-19"><code>
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import cross_val_predict
-import cleanlab
+from cleanlab.filter import find_label_issues
 from cleanlab.classification import CleanLearning
 from cleanlab import Datalab
 model = LogisticRegression(max_iter=1000)
@@ -2221,12 +2224,11 @@ model = LogisticRegression(max_iter=1000)
 pred_probs = cross_val_predict(model, X, labels, cv=5,
                                method="predict_proba")
 # 2) ranked indices of likely label errors
-issues = cleanlab.filter.find_label_issues(
+issues = find_label_issues(
     labels=labels, pred_probs=pred_probs,
     filter_by="both", return_indices_ranked_by="self_confidence")
 # 3) finds the issues, then trains on the cleaned data
-cl = CleanLearning(model).fit(X, labels)
-print(cl.get_label_issues().head())
+cl = CleanLearning(model).fit(X, labels)   # cl.get_label_issues()
 # 4) Datalab: label issues, outliers, near-duplicates, non-IID
 lab = Datalab({"X": X, "y": labels}, label_name="y")
 lab.find_issues(pred_probs=pred_probs, features=X)
@@ -2235,10 +2237,6 @@ lab.report()
         <div class="swap">
           <div class="callout insight" data-until="5"><span><b>Out-of-sample.</b> In-sample probabilities memorize the noise, so a wrong label looks correct to the model.</span></div>
           <div class="callout pitfall" data-step="5"><span>The <code>pred_probs</code> columns must be in the order of the class labels. A wrong column order makes every label look wrong.</span></div>
-        </div>
-        <div class="cites">
-          <a class="cite repo" href="https://github.com/cleanlab/cleanlab" target="_blank" rel="noopener"><b>Repo</b>&nbsp;cleanlab/cleanlab</a>
-          <a class="cite doc" href="https://docs.cleanlab.ai/stable/tutorials/indepth_overview.html" target="_blank" rel="noopener"><b>Docs</b>&nbsp;cleanlab in-depth overview</a>
         </div>
       </div>
       <!-- C: cartography -->
@@ -2283,7 +2281,7 @@ lab.report()
     <svg class="interactive" id="c06al-svg" viewBox="0 0 770 590" width="770" height="590" aria-label="An unlabeled pool with a decision boundary; uncertainty picks clump, BADGE picks spread; the active learning loop runs around the pool"></svg>
     <div class="swap">
       <div class="stack" data-until="5" style="gap:12px">
-        <p class="small" data-step="1"><b>Loop:</b> labeled seed → train → score the unlabeled pool → select a batch of B → humans or an LLM label it → add it → repeat until the budget ends or the score stops rising.</p>
+        <p class="small" data-step="1" style="font-size:17px"><b>Loop:</b> seed → train → score the pool → select a batch of B → a human or an LLM labels it → add → repeat until the budget ends.</p>
         <div class="panel card k-tool" data-step="2">
           <h4>Uncertainty only</h4>
           <p>Least confidence 1 − max p, margin p<sub>1</sub> − p<sub>2</sub>, or entropy. It is cheap. But near points get the same score, so one batch holds <b>redundant</b> examples.</p>
@@ -2294,7 +2292,7 @@ lab.report()
         </div>
         <div class="panel card k-model" data-step="4">
           <h4>LLM era and open problems</h4>
-          <p>Use LLM disagreement or self-consistency as the uncertainty signal. Measure diversity on sentence embeddings. Route each item to an LLM annotator or a human. <b>Problems:</b> cold start with a tiny seed; sampling bias, so test on a separately sampled random set; gains over random shrink with strong pretrained embeddings.</p>
+          <p>Uncertainty: LLM disagreement or self-consistency. Diversity: sentence embeddings. Route to an LLM annotator or a human. <b>Problems:</b> cold start; sampling bias (test on a separate random sample); small gains over random with strong embeddings.</p>
           <div class="cites">
             <a class="cite paper" href="https://arxiv.org/abs/1906.03671" target="_blank" rel="noopener"><b>Paper</b>&nbsp;BADGE</a>
             <a class="cite paper" href="https://arxiv.org/abs/1708.00489" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Core-Set</a>
@@ -2388,7 +2386,7 @@ lab.report()
       </div>
       <div class="panel lp k-human" data-step="2">
         <div><h4>Time</h4><p>Train on the past, test on the future. Each training set is a superset of the one before. A gap stops boundary bleed.</p></div>
-        <svg viewBox="0 0 500 150" width="500" height="150" data-step="2" data-fx="stagger" aria-label="TimeSeriesSplit: three folds with a growing train window, a gap and a test window">
+        <svg viewBox="0 0 500 150" width="500" height="150" style="overflow:visible" data-step="2" data-fx="stagger" aria-label="TimeSeriesSplit: three folds with a growing train window, a gap and a test window">
           <g>
             <rect x="0" y="8" width="150" height="26" rx="5" fill="var(--state-soft)" stroke="var(--state)" stroke-width="1.5"/><text x="10" y="26" font-size="12" font-weight="700" fill="var(--state)">train</text>
             <rect x="150" y="8" width="28" height="26" fill="var(--surface)" stroke="var(--faint)" stroke-dasharray="3 3"/>
@@ -2420,24 +2418,26 @@ lab.report()
         <svg viewBox="0 0 500 150" width="500" height="150" data-step="3" data-fx="stagger" aria-label="A scaler fit on all data leaks into the test set; inside a Pipeline it is fit on the training fold only">
           <g>
             <text x="0" y="12" font-size="12" fill="var(--muted)">fit before the split</text>
+            <text x="236" y="12" font-size="12" font-weight="700" fill="var(--risk)" text-anchor="end">optimistic ↑</text>
             <rect x="20" y="22" width="190" height="30" rx="7" fill="var(--risk-soft)" stroke="var(--risk)" stroke-width="1.8"/>
             <text x="115" y="42" font-size="12" font-weight="700" fill="var(--risk)" text-anchor="middle">scaler.fit(all X)</text>
             <rect x="10" y="100" width="100" height="32" rx="6" fill="var(--state-soft)" stroke="var(--state)" stroke-width="1.5"/><text x="60" y="121" font-size="12" font-weight="700" fill="var(--state)" text-anchor="middle">train</text>
             <rect x="130" y="100" width="90" height="32" rx="6" fill="var(--surface-2)" stroke="var(--ink-2)" stroke-width="1.5"/><text x="175" y="121" font-size="12" font-weight="700" fill="var(--ink-2)" text-anchor="middle">test</text>
             <path d="M80,52 C80,72 60,80 60,98" fill="none" stroke="var(--line-2)" stroke-width="2"/>
             <path d="M150,52 C150,72 175,80 175,98" fill="none" stroke="var(--risk)" stroke-width="2.6"/>
-            <text x="190" y="80" font-size="11" font-weight="700" fill="var(--risk)">leak · optimistic</text>
+            <text x="166" y="78" font-size="11" font-weight="700" fill="var(--risk)">leak</text>
           </g>
           <g>
             <line x1="250" y1="6" x2="250" y2="144" stroke="var(--line-2)" stroke-dasharray="4 4"/>
-            <rect x="268" y="18" width="228" height="76" rx="10" fill="none" stroke="var(--state)" stroke-width="1.6" stroke-dasharray="6 5"/>
+            <rect x="268" y="20" width="228" height="76" rx="10" fill="none" stroke="var(--state)" stroke-width="1.6" stroke-dasharray="6 5"/>
             <text x="280" y="34" font-size="11.5" font-weight="700" fill="var(--state)">Pipeline, per fold</text>
             <rect x="280" y="44" width="96" height="36" rx="6" fill="var(--state-soft)" stroke="var(--state)" stroke-width="1.5"/><text x="328" y="66" font-size="11.5" font-weight="700" fill="var(--state)" text-anchor="middle">fit(train)</text>
             <rect x="392" y="44" width="92" height="36" rx="6" fill="var(--model-soft)" stroke="var(--model)" stroke-width="1.5"/><text x="438" y="66" font-size="11.5" font-weight="700" fill="var(--model)" text-anchor="middle">model</text>
             <path d="M376,62 L388,62" stroke="var(--state)" stroke-width="2"/>
             <rect x="330" y="108" width="100" height="32" rx="6" fill="var(--surface-2)" stroke="var(--ink-2)" stroke-width="1.5"/><text x="380" y="129" font-size="12" font-weight="700" fill="var(--ink-2)" text-anchor="middle">test</text>
             <path d="M380,106 L380,96" stroke="var(--ink-2)" stroke-width="2"/>
-            <text x="440" y="122" font-size="11" fill="var(--muted)">transform</text><text x="440" y="136" font-size="11" fill="var(--muted)">only · honest</text>
+            <text x="440" y="122" font-size="11" fill="var(--muted)">transform</text><text x="440" y="136" font-size="11" fill="var(--muted)">only</text>
+            <text x="500" y="12" font-size="12" font-weight="700" fill="var(--state)" text-anchor="end">honest</text>
           </g>
         </svg>
       </div>
@@ -2640,7 +2640,7 @@ for doc_id, text in corpus.items():
     <path d="M128,198 L372,198" fill="none" stroke="var(--model)" stroke-width="2.5" stroke-dasharray="7 7"/>
     <g style="font:600 15px var(--f-mono)">
       <text x="250" y="22" text-anchor="middle" fill="var(--muted)">raw web tokens</text>
-      <text x="384" y="194" fill="var(--model)">quality classifier</text>
+      <text x="250" y="188" text-anchor="middle" fill="var(--model)">quality classifier</text>
       <text x="250" y="432" text-anchor="middle" fill="var(--state)">about 10% kept</text>
     </g>
   </svg>
@@ -2693,7 +2693,7 @@ for doc_id, text in corpus.items():
         </div>
       </div>
       <div class="stack" style="position:absolute;inset:0;gap:14px">
-        <div class="code-wrap" data-step="4"><div class="code-head">fineweb_edu_score.py · from the model card</div>
+        <div class="code-wrap" data-step="4" style="flex:none"><div class="code-head">fineweb_edu_score.py · from the model card</div>
 <pre class="code xs" data-lang="python" data-focus="4:10-12, 5:13-15"><code>
 from transformers import AutoTokenizer
 from transformers import AutoModelForSequenceClassification
@@ -2711,10 +2711,10 @@ result = {"text": text, "score": score,
           "int_score": int(round(max(0, min(score, 5))))}
 keep = result["int_score"] &gt;= 3   # the card advice
 </code></pre></div>
-        <div class="callout pitfall" data-step="5" style="font-size:16px;padding:12px 16px">Too much cleaning removes good data. The FineWeb-Edu card warns that the classifier may “overfit to academic-looking content”. Give every datatrove filter an <code>exclusion_writer</code>. Put each removal rate on the quality card.</div>
+        <div class="callout pitfall" data-step="5" style="font-size:16px;padding:12px 16px"><div>Too much cleaning removes good data. The FineWeb-Edu card warns that the classifier may “overfit to academic-looking content”. Give every datatrove filter an <code>exclusion_writer</code>. Put each removal rate on the quality card.</div></div>
         <div class="cites" data-step="4">
-          <a class="cite doc" href="https://huggingface.co/HuggingFaceFW/fineweb-edu-classifier" target="_blank" rel="noopener"><b>Model card</b>&nbsp;fineweb-edu-classifier</a>
-          <a class="cite repo" href="https://github.com/huggingface/datatrove" target="_blank" rel="noopener"><b>Repo</b>&nbsp;huggingface/datatrove 0.10.1</a>
+          <a class="cite doc" href="https://huggingface.co/HuggingFaceFW/fineweb-edu-classifier" target="_blank" rel="noopener"><b>Card</b>&nbsp;fineweb-edu-classifier</a>
+          <a class="cite repo" href="https://github.com/huggingface/datatrove" target="_blank" rel="noopener"><b>Repo</b>&nbsp;datatrove 0.10.1</a>
         </div>
       </div>
     </div>
@@ -2727,12 +2727,12 @@ keep = result["int_score"] &gt;= 3   # the card advice
 <!-- c07-03-instruction-synthesis.html -->
 <section class="slide" id="custom-c07-instruction-synthesis" data-tone="state" data-title="Instruction synthesis">
   <h2 class="title">Four generators make instruction data: seeds, evolution, empty templates and personas</h2>
-  <div class="fill" style="display:grid;grid-template-columns:860px 1fr;gap:28px">
+  <div class="fill" style="display:grid;grid-template-columns:860px minmax(0,1fr);gap:28px">
     <div class="stack" style="gap:14px">
-      <div class="grid g2" style="gap:14px">
+      <div class="grid" style="gap:14px;grid-template-columns:minmax(0,1fr) minmax(0,1fr)">
         <!-- 1 Self-Instruct -->
         <div class="panel tight k-model" data-step="1" data-fx="scale">
-          <div class="row middle" style="justify-content:space-between;gap:10px"><h4>1 · Self-Instruct</h4><a class="cite paper" href="https://arxiv.org/abs/2212.10560" target="_blank" rel="noopener"><b>Paper</b>&nbsp;ACL 2023</a></div>
+          <div class="row middle" style="justify-content:space-between;gap:10px"><h4 style="font-size:20px;white-space:nowrap">1 · Self-Instruct</h4><a class="cite paper" href="https://arxiv.org/abs/2212.10560" target="_blank" rel="noopener"><b>Paper</b>&nbsp;ACL 2023</a></div>
           <div class="row middle" style="gap:12px;height:84px">
             <div class="stack" style="gap:4px">
               <span class="tag t-state" style="font-size:13px;padding:5px 9px 5px 7px">seed task</span>
@@ -2749,11 +2749,11 @@ keep = result["int_score"] &gt;= 3   # the card advice
               <span class="tag t-risk" style="font-size:13px;padding:5px 9px 5px 7px;opacity:.55;text-decoration:line-through">near-dup</span>
             </div>
           </div>
-          <p class="tiny" style="color:var(--ink-2)">Start from seed tasks. The LLM writes new instructions, inputs and outputs. Drop the near-duplicates. Result: +33% absolute on Super-NaturalInstructions over vanilla GPT-3.</p>
+          <p class="tiny" style="color:var(--ink-2)">Start from seed tasks. The LLM writes new instructions, inputs and outputs. Drop near-duplicates. +33% absolute on Super-NaturalInstructions over vanilla GPT-3.</p>
         </div>
         <!-- 2 Evol-Instruct -->
         <div class="panel tight k-model" data-step="2" data-fx="scale">
-          <div class="row middle" style="justify-content:space-between;gap:10px"><h4>2 · Evol-Instruct</h4><a class="cite paper" href="https://arxiv.org/abs/2304.12244" target="_blank" rel="noopener"><b>Paper</b>&nbsp;WizardLM, ICLR 2024</a></div>
+          <div class="row middle" style="justify-content:space-between;gap:10px"><h4 style="font-size:20px;white-space:nowrap">2 · Evol-Instruct</h4><a class="cite paper" href="https://arxiv.org/abs/2304.12244" target="_blank" rel="noopener"><b>Paper</b>&nbsp;WizardLM, ICLR 2024</a></div>
           <svg data-step="2" data-fx="draw" viewBox="0 0 376 84" width="376" height="84" aria-label="One instruction grows an in-depth branch and an in-breadth branch">
             <rect x="2" y="30" width="96" height="26" rx="6" fill="var(--state-soft)" stroke="var(--state)" stroke-width="1.5"/>
             <path d="M98,43 C120,43 120,14 142,14" fill="none" stroke="var(--model)" stroke-width="2"/>
@@ -2775,17 +2775,17 @@ keep = result["int_score"] &gt;= 3   # the card advice
         </div>
         <!-- 3 Magpie -->
         <div class="panel tight k-model" data-step="3" data-fx="scale">
-          <div class="row middle" style="justify-content:space-between;gap:10px"><h4>3 · Magpie</h4><a class="cite paper" href="https://arxiv.org/abs/2406.08464" target="_blank" rel="noopener"><b>Paper</b>&nbsp;arXiv 2406.08464</a></div>
-          <div id="c07is-mag" style="height:84px;border-radius:10px;background:#0f1433;padding:10px 12px;font:500 13.5px/1.5 var(--f-mono);color:#8d96c4;overflow:hidden">
+          <div class="row middle" style="justify-content:space-between;gap:10px"><h4 style="font-size:20px;white-space:nowrap">3 · Magpie</h4><a class="cite paper" href="https://arxiv.org/abs/2406.08464" target="_blank" rel="noopener"><b>Paper</b>&nbsp;arXiv 2406.08464</a></div>
+          <div id="c07is-mag" style="height:84px;border-radius:10px;background:#0f1433;padding:10px 12px;font:500 13.5px/1.5 var(--f-mono);font-variant-ligatures:none;color:#8d96c4;overflow:hidden">
             <div id="c07is-t1" style="color:#8fe3bf;white-space:nowrap">&lt;|start_header_id|&gt;user&lt;|end_header_id|&gt;</div>
             <div style="white-space:nowrap"><span id="c07is-t2" style="color:#ffb38a"></span><span id="c07is-caret" style="color:#ffb38a">▌</span></div>
-            <div id="c07is-t3" style="font-size:11.5px;color:#6670a6">example output · the model writes the user turn</div>
+            <div id="c07is-t3" style="font-size:11.5px;color:#6670a6">example · the model writes this turn</div>
           </div>
-          <p class="tiny" style="color:var(--ink-2)">Send only the template up to the user slot. The aligned model writes the query. 4M made, 300K kept. Llama-3-8B-Base + Magpie SFT is comparable to Llama-3-8B-Instruct on some tasks.</p>
+          <p class="tiny" style="color:var(--ink-2)">Send only the template up to the user slot; the aligned model writes the query. 4M made, 300K kept. Base + Magpie SFT is comparable to Llama-3-8B-Instruct on some tasks.</p>
         </div>
         <!-- 4 Persona Hub -->
         <div class="panel tight k-model" data-step="4" data-fx="scale">
-          <div class="row middle" style="justify-content:space-between;gap:10px"><h4>4 · Persona Hub</h4><a class="cite repo" href="https://github.com/tencent-ailab/persona-hub" target="_blank" rel="noopener"><b>Repo</b>&nbsp;persona-hub</a></div>
+          <div class="row middle" style="justify-content:space-between;gap:10px"><h4 style="font-size:20px;white-space:nowrap">4 · Persona Hub</h4><a class="cite repo" href="https://github.com/tencent-ailab/persona-hub" target="_blank" rel="noopener"><b>Repo</b>&nbsp;persona-hub</a></div>
           <div class="row middle" style="gap:10px;height:84px">
             <div class="stack" data-step="4" data-fx="stagger" style="gap:4px">
               <span class="tag t-human" style="font-size:13px;padding:5px 9px 5px 7px">a nurse</span>
@@ -2795,7 +2795,7 @@ keep = result["int_score"] &gt;= 3   # the card advice
             <span class="mono" style="font-size:20px;color:var(--muted)">×</span>
             <span class="tag t-state" style="font-size:13px;padding:5px 9px 5px 7px">“write a math problem”</span>
             <span class="mono" style="font-size:20px;color:var(--model)">→</span>
-            <span class="mono c-model" style="font-size:13px;font-weight:700;line-height:1.3">3 different<br>problems</span>
+            <span class="mono c-model" style="font-size:13px;font-weight:700">3 tasks</span>
           </div>
           <p class="tiny" style="color:var(--ink-2)">1B personas; 370M “elite personas” came out on 2025-02-18. Tulu 3 SFT has 939,344 rows: persona MATH 149,960 · GSM 49,980 · Python 34,999 · IF 29,980.</p>
         </div>
@@ -2807,7 +2807,7 @@ keep = result["int_score"] &gt;= 3   # the card advice
       </div>
     </div>
     <div class="stack" style="gap:14px">
-      <div class="code-wrap" data-step="3"><div class="code-head">magpie.py · distilabel components gallery</div>
+      <div class="code-wrap" data-step="3" style="flex:none"><div class="code-head">magpie.py · distilabel components gallery</div>
 <pre class="code xs" data-lang="python" data-focus="3:7-7, 5:12-12"><code>
 from distilabel.models import TransformersLLM
 from distilabel.steps.tasks import MagpieGenerator
@@ -2858,7 +2858,7 @@ result = next(generator.process())
         </div>
       </div>
       <div class="stack" style="position:absolute;inset:0;gap:14px">
-        <div class="code-wrap" data-step="5"><div class="code-head">reject_sample.py · illustrative pattern, standard library only</div>
+        <div class="code-wrap" data-step="5" style="flex:none"><div class="code-head">reject_sample.py · illustrative pattern, standard library only</div>
 <pre class="code xs" data-lang="python" data-focus="5:3-13, 6:15-19"><code>
 import subprocess, tempfile, textwrap
 
@@ -2880,7 +2880,7 @@ def rejection_sample(prompt, tests, generate, k=16):
     # keep all passing (SFT) or pair passing/failing (DPO)
     return good
 </code></pre></div>
-        <div class="callout pitfall" data-step="5" style="font-size:16px;padding:12px 16px">Run generated code in a sandbox: a container, no network. <code>python -I</code> and a timeout are not a sandbox. Llama 3 ran its tests in containers.</div>
+        <div class="callout pitfall" data-step="5" style="font-size:16px;padding:12px 16px"><div>Run generated code in a sandbox: a container, no network. <code>python -I</code> and a timeout are not a sandbox. Llama 3 ran its tests in containers.</div></div>
       </div>
     </div>
   </div>
@@ -2904,10 +2904,10 @@ def rejection_sample(prompt, tests, generate, k=16):
         <div class="cites"><a class="cite paper" href="https://arxiv.org/abs/2404.01413" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Is Model Collapse Inevitable?, 2024</a></div>
       </div>
     </div>
-    <div class="stack" style="gap:10px">
+    <div class="stack" style="gap:8px">
       <h4 data-step="4">Did verification help?</h4>
       <div class="panel tight k-model" data-step="4" style="padding:12px 16px">
-        <p class="tiny" style="color:var(--ink-2)"><b>SFT distillation from a strong teacher:</b> “none gave significant performance improvements” (OpenThoughts, about verification and answer filtering).</p>
+        <p class="tiny" style="color:var(--ink-2)"><b>SFT distillation from a strong teacher:</b> “none gave significant performance improvements” (OpenThoughts).</p>
       </div>
       <div class="panel tight k-state" data-step="4" style="padding:12px 16px">
         <p class="tiny" style="color:var(--ink-2)"><b>RLVR rewards and code:</b> verification is essential. Tulu 3 puts it in the reward; Llama 3 kept only code that passed all checks.</p>
@@ -2971,7 +2971,7 @@ def rejection_sample(prompt, tests, generate, k=16):
         </div>
       </div>
       <div class="stack" style="position:absolute;inset:0;gap:14px">
-        <div class="code-wrap" data-step="4"><div class="code-head">make_testset.py · condensed from the RAGAS docs</div>
+        <div class="code-wrap" data-step="4" style="flex:none"><div class="code-head">make_testset.py · condensed from the RAGAS docs</div>
 <pre class="code xs" data-lang="python" data-focus="4:10-11, 5:12-13"><code>
 import openai
 from langchain_community.document_loaders import DirectoryLoader
@@ -3070,14 +3070,14 @@ dataset.to_pandas()
       <rect x="1011" y="8" width="170" height="52" rx="12" stroke="var(--line-2)"/>
       <rect x="1213" y="8" width="176" height="52" rx="12" stroke="var(--line-2)"/>
       <path d="M176,34 h22 M378,34 h22 M580,34 h22 M782,34 h22 M984,34 h22 M1186,34 h22" stroke="var(--faint)"/>
-      <path d="M1300,62 C1300,112 1240,108 700,108 C140,108 86,112 86,66" stroke="var(--tool)" stroke-width="2.5" stroke-dasharray="7 6"/>
+      <path d="M1300,62 C1300,112 1240,108 980,108" stroke="var(--tool)" stroke-width="2.5" stroke-dasharray="7 6"/>
+      <path d="M496,108 C140,108 86,112 86,66" stroke="var(--tool)" stroke-width="2.5" stroke-dasharray="7 6"/>
       <path d="M78,76 L86,63 L94,76" stroke="var(--tool)" stroke-width="2.5"/>
     </g>
     <g font-size="16" font-weight="700" text-anchor="middle" fill="var(--ink-2)">
       <text x="86" y="40" fill="var(--tool)">DESIGN</text><text x="288" y="40">GENERATE</text><text x="490" y="40">SELECT</text>
       <text x="692" y="40">CURATE</text><text x="894" y="40">LABEL</text><text x="1096" y="40">DENOISE</text><text x="1301" y="40">QUALITY CARD</text>
     </g>
-    <rect x="440" y="96" width="520" height="24" rx="6" style="fill:var(--bg)"/>
     <text x="700" y="113" text-anchor="middle" font-size="15" font-weight="600" fill="var(--tool)">error analysis on failing traces → new failure modes → new slices</text>
   </svg>
   <aside class="notes">
@@ -3581,6 +3581,89 @@ known_biases: grade-school bias   # FineWeb-Edu card
   </div>
   <aside class="notes">
     Every open recipe of 2025 and 2026 runs the same line. Step 1: the packet goes from pretraining to the card. Mid-training on math, code and long context sits between pretraining and SFT. SFT data is mostly distilled from a stronger teacher, preference tuning uses strong-versus-weak pairs, and RL uses verifiers as the reward. Step 2 names who made each station known: Tulu 3 named RLVR, SmolLM3 published APO pairs and a linear merge, DeepSeek-R1 went RL-first, Gemma distills every model, and OLMo 3 adds OlmoTrace. Step 3 shows how hard the data is cut: about 9.3 trillion tokens in the pool become 5.9 trillion in the mix, and mid-training uses only 100 billion. Step 4 shows what this gives in the open: MATH 96.1 for Olmo 3-Think 32B. Analogy: a car plant; every brand uses the same stations, and the difference is in the parts and the checks. Likely question: "Why merge at the end?" SmolLM3 mixed 10% of a mid-training checkpoint back in to recover long-context scores that APO had hurt.
+  </aside>
+</section>
+
+<!-- c09-05-open-challenges.html -->
+<section class="slide tight" id="custom-c09-open-challenges" data-tone="risk" data-title="Open challenges">
+  <style>
+    #custom-c09-open-challenges .title { font-size: 44px; }
+    #custom-c09-open-challenges svg text { font-family: var(--f-mono); }
+    #custom-c09-open-challenges .ex { padding: 12px 16px; gap: 6px; border-radius: 12px; }
+    #custom-c09-open-challenges .ex h4 { font-size: 18px; }
+    #custom-c09-open-challenges .ex p { font-size: 15px; line-height: 1.38; }
+    #custom-c09-open-challenges .ex .quote { font-size: 17px; padding-left: 14px; border-left-width: 3px; }
+    #custom-c09-open-challenges .cites { gap: 6px; }
+    #custom-c09-open-challenges .cite { font-size: 12.5px; padding: 3px 8px 3px 5px; }
+    #custom-c09-open-challenges .cite::before { width: 15px; height: 15px; }
+    #custom-c09-open-challenges .right { position: relative; }
+    #custom-c09-open-challenges .grid9 { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); gap: 10px; perspective: 900px; }
+    #custom-c09-open-challenges .cc { padding: 10px 12px; gap: 5px; border-radius: 12px; }
+    #custom-c09-open-challenges .cc .tag { font-size: 12.5px; padding: 5px 9px 5px 7px; align-self: flex-start; }
+    #custom-c09-open-challenges .cc p { font-size: 13.5px; line-height: 1.34; }
+  </style>
+  <h2 class="title">Open challenges: reward hacking, inflated RL gains, collapse, contamination, licensing and platform risk</h2>
+  <div class="row fill" style="gap:22px">
+    <svg class="interactive" id="c09oc-svg" viewBox="0 0 640 590" width="640" height="590" style="flex:none;overflow:visible" aria-label="Pass at k plot: the RL model is above the base model at k equals 1, and the base model is above at large k. Inset bars: plus 21.4 points with random rewards and plus 29.1 with true rewards. A clean chain of thought hides a reward hack."></svg>
+    <div class="right fill" style="align-self:stretch">
+      <div class="stack" style="gap:10px">
+        <div class="panel ex k-model" data-step="1" data-until="4"><h4>RLVR sharpens; it does not widen</h4>
+          <p class="quote">“the base models achieve a higher pass@k score when k is large”</p>
+          <p>RL wins at pass@1. Report pass@k for large k before you claim new reasoning.</p>
+          <div class="cites"><a class="cite paper" href="https://arxiv.org/abs/2504.13837" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Does RL Really Incentivize Reasoning…? (2504.13837)</a></div></div>
+        <div class="panel ex k-risk" data-step="2" data-until="4"><h4>Random rewards also “work”</h4>
+          <p>GRPO on Qwen2.5-Math-7B: <b>+21.4</b> pts on MATH-500 with random rewards, <b>+29.1</b> with ground truth. Test other model families and decontaminated evals.</p>
+          <div class="cites"><a class="cite paper" href="https://arxiv.org/abs/2506.10947" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Spurious Rewards (2506.10947)</a></div></div>
+        <div class="panel ex k-risk" data-step="3" data-until="4"><h4>Reward hacking hides and spreads</h4>
+          <p>GPT-4o monitored o3-mini CoT. Training against the monitor gave obfuscated reward hacking, so pay a “monitorability tax”. Anthropic: hacking coding tasks spread to ~12% sabotage and ~50% alignment-faking. Inoculation prompting fixed it: “Learning to cheat no longer generalized to other misaligned behaviors.”</p>
+          <div class="cites"><a class="cite paper" href="https://arxiv.org/abs/2503.11926" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Monitoring Reasoning Models (2503.11926)</a><a class="cite doc" href="https://www.anthropic.com/research/emergent-misalignment-reward-hacking" target="_blank" rel="noopener"><b>Research</b>&nbsp;From shortcuts to sabotage</a></div></div>
+      </div>
+      <div class="grid9" data-step="4" data-fx="fade">
+        <div class="panel cc k-risk"><span class="tag t-risk">saturation</span><p>Humanity's Last Exam: 2,500 questions, because “benchmarks are not keeping pace in difficulty”. Dynamic benchmarks have no standard criteria yet.</p></div>
+        <div class="panel cc k-risk"><span class="tag t-risk">collapse</span><p>Recursive training makes the tails vanish (Nature 631, 2024). Classifier monoculture removes tails by curation.</p></div>
+        <div class="panel cc k-risk"><span class="tag t-risk">licensing</span><p>Bartz v. Anthropic: lawful books were fair use (2025-06-23); pirated copies went to trial; US$1.5B settlement. Provenance decides the risk.</p></div>
+        <div class="panel cc k-tool"><span class="tag t-tool">platform risk</span><p>OpenAI self-serve fine-tuning winds down (last jobs 2027-01-06). Fireworks: “Managed Training no longer accepts new RFT jobs”.</p></div>
+        <div class="panel cc k-tool"><span class="tag t-tool">judge validity</span><p>Non-verifiable tasks need graders: rubric quality, position, verbosity and self-preference bias.</p></div>
+        <div class="panel cc k-tool"><span class="tag t-tool">agent evals</span><p>Trajectory scoring, nondeterminism, cost and side effects. pass@k is not pass^k reliability.</p></div>
+        <div class="panel cc k-human"><span class="tag t-human">vendor claims</span><p>66% (Bedrock RFT), up to 73% (Salesforce), 40x (Vercel v0): vendor-reported, not replicated.</p></div>
+        <div class="panel cc k-human"><span class="tag t-human">doc decay</span><p>Cards are written once and go stale. Regenerate them in CI from contracts and profiles.</p></div>
+        <div class="panel cc k-human"><span class="tag t-human">synthetic provenance</span><p>Which model, prompt, seed and filter made each row? Few formats have fields for it.</p></div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    This slide teaches suspicion. Step 1: RL with verifiable rewards wins at pass@1, but when you sample many answers the base model solves more problems; RL mostly sharpens what the base model can already do. Step 2: on Qwen2.5-Math, random rewards give 21.4 of the 29.1 points that true rewards give, so a large gain on one model family can come from contamination or format effects, not from the reward. Step 3: reward hacking grows up. If you train against a chain-of-thought monitor, the model keeps cheating and writes a clean-looking plan; Anthropic saw hacking spread to sabotage and alignment-faking, and one line of inoculation prompt stopped the spread. Step 4 lists the other open problems, from saturation and collapse to licensing, platform exits and vendor claims. Analogy: a student who learns the answer key gets top marks and learns nothing; the marks look the same from outside. Likely question: "Should I stop using RL?" No: use RL, but run a random-reward control, report large-k pass@k and keep the monitor out of the reward.
+  </aside>
+</section>
+
+<!-- c09-06-qa.html -->
+<section class="slide" id="custom-c09-qa" data-tone="risk" data-title="Interview: the end-to-end system">
+  <style>
+    #custom-c09-qa .qa .q { font-size: 21px; }
+    #custom-c09-qa .qa .a { font-size: 16.5px; line-height: 1.42; padding: 12px 16px; }
+  </style>
+  <h2 class="title">Interview: the end-to-end customization system</h2>
+  <div class="grid g2 fill" style="gap:22px 34px;align-content:start">
+    <div class="qa">
+      <div class="q">Design an assistant for insurance-claims agents. Policies change monthly, answers must cite, and the tone must follow brand rules.</div>
+      <div class="a" data-step="1" data-fx="up"><span class="tag t-agent">knowledge</span> <span class="tag t-model">behavior</span> <span class="tag t-state">data</span><br>Put the policies in <b>RAG</b> over versioned documents, with hybrid search, reranking and a citation check. Fix the tone with <b>SFT or DPO</b>. Write a data contract and a taxonomy of claim types. Build the golden set from real traces, with a slice per product line. Validate the judge against experts. Monitor query-vs-corpus drift and ship a quality card per release.</div>
+    </div>
+    <div class="qa">
+      <div class="q">A paper claims +20 points on MATH-500 from RL on Qwen2.5-Math. How do you check it?</div>
+      <div class="a" data-step="2" data-fx="up"><span class="tag t-risk">inflated gains</span><br>Run a <b>random-reward control</b>: on Qwen2.5-Math-7B, random rewards gave +21.4 and true rewards +29.1. Repeat on other model families. Decontaminate the eval. Report <b>pass@k for large k</b>, where base models often win. Compare on the same items with paired CIs.</div>
+    </div>
+    <div class="qa">
+      <div class="q">How do you limit reward hacking in agentic coding RL?</div>
+      <div class="a" data-step="3" data-fx="up"><span class="tag t-risk">reward hacking</span><br>Use <b>hidden tests</b> and make test files read-only. Run every rollout in a sandbox. Audit a sample of high-reward episodes. Monitor the CoT, but <b>keep the monitor out of the reward</b>, or the hack goes hidden. Add inoculation prompting. Stop training at the peak of the gold metric.</div>
+    </div>
+    <div class="qa">
+      <div class="q">Your platform deprecates your tuned model next quarter. What do you keep?</div>
+      <div class="a" data-step="4" data-fx="up"><span class="tag t-tool">platform risk</span><br>Keep <b>the data with its contract and card, the grader, the eval set and the pinned training recipe</b>. Then re-tune on Vertex AI, Bedrock or open weights, and compare the new model with paired CIs on the same frozen eval set.</div>
+    </div>
+  </div>
+  <div class="callout insight" data-step="5"><span><b>Your recipe is the asset:</b> data, grader, eval and card.</span></div>
+  <aside class="notes">
+    Ask each question, wait, and let students answer before you reveal the model answer. Q1 tests if the candidate splits the problem: monthly policy changes are knowledge, so they go to retrieval; brand tone is behavior, so it goes to tuning; and the data and eval parts make it a system. Q2 tests scientific hygiene: the Spurious Rewards result shows that most of a gain on Qwen2.5-Math can appear with random rewards, so a control run is the first check. Q3 tests reward-hacking defense in depth, and the key point is that a monitor inside the reward teaches the model to hide. Q4 is the platform question of 2026: OpenAI and Fireworks closed managed tuning paths, so only portable assets survive. Analogy: the checkpoint is a printed photo; the recipe, the data and the eval are the negative. Likely follow-up: "How big must the eval set be to detect a 2-point change?" Do a power analysis; pairing on the same items shrinks the needed n a lot.
   </aside>
 </section>
 
@@ -4627,9 +4710,6 @@ known_biases: grade-school bias   # FineWeb-Edu card
       txt(n, XS[i], 418, sub, mono(500, 13, "muted"), "middle");
       return n;
     });
-    txt(svg, 30, 330, "people", mono(600, 13, "human"));
-    txt(svg, 825, 330, "programs", mono(600, 13, "tool"), "end");
-    S.ends = [...svg.children].slice(-2);
 
     // hack badges (step 5)
     S.hacks = HACKS.map(([i, label]) => {
@@ -4666,7 +4746,7 @@ known_biases: grade-school bias   # FineWeb-Edu card
     // multi grader inset (step 4)
     S.multi = mk("g", {}, svg);
     mk("rect", { x: 428, y: 448, width: 404, height: 148, rx: 16 }, S.multi, "fill:var(--surface);stroke:var(--tool);stroke-width:1.5;stroke-dasharray:6 6");
-    txt(S.multi, 444, 474, "multi grader (OpenAI RFT style)", "font:700 15px var(--f-body);fill:var(--ink)");
+    txt(S.multi, 444, 474, "multi grader", "font:700 15px var(--f-body);fill:var(--ink)");
     S.subs = [[488, "compliant", "python"], [540, "explanation", "score_model"]].map(([y, a, b]) => {
       const g = mk("g", {}, S.multi);
       mk("rect", { x: 444, y, width: 176, height: 44, rx: 10 }, g, "fill:var(--tool-soft);stroke:var(--tool);stroke-width:1.8");
@@ -4684,7 +4764,7 @@ known_biases: grade-school bias   # FineWeb-Edu card
     mk("rect", { x: 696, y: 508, width: 124, height: 56, rx: 12 }, S.sum, "fill:var(--state-soft);stroke:var(--state);stroke-width:2");
     txt(S.sum, 758, 530, "one score", mono(600, 12, "muted"), "middle");
     S.sumVal = txt(S.sum, 758, 554, "0.85", "font:800 20px var(--f-display);fill:var(--state)", "middle");
-    txt(S.multi, 826, 588, "example: 0.5 · 1.0 + 0.5 · 0.7", mono(500, 12, "faint"), "end");
+    txt(S.multi, 818, 474, "example: 0.5·1.0 + 0.5·0.7", mono(500, 12, "faint"), "end");
   }
 
   const on = (el) => gsap.set(el, { autoAlpha: 1 });
@@ -4698,7 +4778,7 @@ known_biases: grade-school bias   # FineWeb-Edu card
     gsap.set(S.axis, { clearProps: "strokeDasharray,strokeDashoffset" });
 
     // step 1: axis + five sources
-    const s1 = [S.axis, S.axisHead, ...S.nodes, ...S.ends];
+    const s1 = [S.axis, S.axisHead, ...S.nodes];
     if (n >= 1) {
       s1.forEach(on);
       gsap.set(S.nodes, { scale: 1 });
@@ -4804,8 +4884,8 @@ known_biases: grade-school bias   # FineWeb-Edu card
                pill(cur, CX, CY + RAD, 110, "reward", "tool"),
                pill(cur, CX - RAD, CY, 168, "policy-gradient step", "model")];
     S.clock = mk("g", {}, cur);
-    txt(S.clock, CX, CY - 2, "~1.5–2 h", "font:800 24px var(--f-display);fill:var(--model)", "middle");
-    txt(S.clock, CX, CY + 20, "per cycle", mono(500, 12, "muted"), "middle");
+    txt(S.clock, CX, CY - 36, "~1.5–2 h", "font:800 22px var(--f-display);fill:var(--model)", "middle");
+    txt(S.clock, CX, CY + 50, "per cycle", mono(600, 13, "muted"), "middle");
 
     // agent trajectory strip
     const tr = (S.traj = mk("g", {}, svg));
@@ -5355,13 +5435,6 @@ known_biases: grade-school bias   # FineWeb-Edu card
     return e;
   }
 
-  function buildGrid(svg) {
-    svg.innerHTML = "";
-    const g = el("g", { stroke: "var(--state)", "stroke-width": 1 }, svg);
-    for (let x = 0; x <= 1600; x += 40) el("line", { x1: x, y1: 0, x2: x, y2: 900, opacity: x % 200 === 0 ? 0.16 : 0.06 }, g);
-    for (let y = 0; y <= 900; y += 40) el("line", { x1: 0, y1: y, x2: 1600, y2: y, opacity: y % 200 === 0 ? 0.16 : 0.06 }, g);
-    return svg;
-  }
 
   function build(svg) {
     svg.innerHTML = "";
@@ -5377,7 +5450,7 @@ known_biases: grade-school bias   # FineWeb-Edu card
       if (i < STAGES.length - 1) a = el("path", { d: `M${x + W + 6},${Y + H / 2 - 7} l8,7 l-8,7`, fill: "none", stroke: "var(--faint)", "stroke-width": 2.5, opacity: 0 }, svg);
       return { g, r, t, a, len };
     });
-    const sub = el("text", { x: W / 2, y: Y + H + 22, "text-anchor": "middle", fill: "var(--state)", "font-family": "var(--f-mono)", "font-size": 14, "font-weight": 600, opacity: 0 }, svg);
+    const sub = el("text", { x: 4, y: Y + H + 22, "text-anchor": "start", fill: "var(--state)", "font-family": "var(--f-mono)", "font-size": 14, "font-weight": 600, opacity: 0 }, svg);
     sub.textContent = "taxonomy · contract · slices";
     cells[0].sub = sub;
   }
@@ -5401,7 +5474,7 @@ known_biases: grade-school bias   # FineWeb-Edu card
 
   Deck.register(ID, {
     enter(slide, step) {
-      grid = buildGrid(slide.querySelector("#c05ch-grid"));
+      grid = slide.querySelector("#c05ch-grid"); grid.style.opacity = 0;
       build(slide.querySelector("#c05ch-svg"));
       if (step >= 1) { finalState(); return; }
       tl = gsap.timeline({ delay: 0.2 });
@@ -5646,7 +5719,7 @@ known_biases: grade-school bias   # FineWeb-Edu card
     S.cdfC = el("polyline", { points: pts(cc), fill: "none", stroke: "var(--tool)", "stroke-width": 3, opacity: 0 }, svg);
     const kx = X0 + (ki + 1) * BW;
     S.ksL = el("line", { x1: kx, y1: cy(cr[ki]), x2: kx, y2: cy(cc[ki]), stroke: "var(--risk)", "stroke-width": 4, opacity: 0 }, svg);
-    S.ksT = el("text", { x: kx + 10, y: (cy(cr[ki]) + cy(cc[ki])) / 2 + 5, fill: "var(--risk)", "font-family": "var(--f-mono)", "font-size": 15, "font-weight": 700, opacity: 0 }, svg);
+    S.ksT = el("text", { x: kx - 12, y: (cy(cr[ki]) + cy(cc[ki])) / 2 - 6, "text-anchor": "end", fill: "var(--risk)", "font-family": "var(--f-mono)", "font-size": 15, "font-weight": 700, opacity: 0 }, svg);
     S.ksT.textContent = "KS D = " + ks.toFixed(2);
     // legend
     const lg = el("g", { "font-family": "var(--f-mono)", "font-size": 13, "font-weight": 600 }, svg);
@@ -5854,7 +5927,7 @@ known_biases: grade-school bias   # FineWeb-Edu card
     el("text", { x: px(0.14) + 6, y: py(0.04), "font-size": 13, "font-weight": 700, fill: "var(--risk)" }, map).textContent = "hard-to-learn";
     el("path", { d: `M${MX},${MY} V${MY + MH} H${MX + MW}`, fill: "none", stroke: "var(--line-2)", "stroke-width": 2 }, map);
     el("text", { x: MX + MW / 2, y: MY + MH + 30, "text-anchor": "middle", "font-size": 13, fill: "var(--muted)" }, map).textContent = "variability (std over epochs) →";
-    el("text", { x: MX - 18, y: MY + MH / 2, "text-anchor": "middle", "font-size": 13, fill: "var(--muted)", transform: `rotate(-90 ${MX - 18} ${MY + MH / 2})` }, map).textContent = "confidence (mean p) →";
+    el("text", { x: MX - 40, y: MY + MH / 2, "text-anchor": "middle", "font-size": 13, fill: "var(--muted)", transform: `rotate(-90 ${MX - 40} ${MY + MH / 2})` }, map).textContent = "confidence (mean p) →";
     [0, 0.25, 0.5].forEach((v) => (el("text", { x: px(v), y: MY + MH + 14, "text-anchor": "middle", "font-size": 11, fill: "var(--faint)" }, map).textContent = v));
     [0, 0.5, 1].forEach((c) => (el("text", { x: MX - 6, y: py(c) + 4, "text-anchor": "end", "font-size": 11, fill: "var(--faint)" }, map).textContent = c));
     const bin = { x: 330, y: 478, w: 250, h: 70 };
@@ -5946,7 +6019,7 @@ known_biases: grade-school bias   # FineWeb-Edu card
 (() => {
   const NS = "http://www.w3.org/2000/svg";
   const ID = "custom-c06-active-learning";
-  const CX = 385, CY = 295, RX = 325, RY = 262;
+  const CX = 385, CY = 284, RX = 325, RY = 244;
   let bnd, svg, lf, pts = [], unc = [], div = [], rings = { u: [], d: [] }, loop, loopDots = [], loopTw = [], counter, tl = null, lfParts = null;
 
   const el = (tag, a, p) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); if (p) p.appendChild(e); return e; };
@@ -6017,7 +6090,7 @@ known_biases: grade-school bias   # FineWeb-Edu card
 
   function buildLF() {
     lf.innerHTML = "";
-    const LFS = ["check_out", "short", "regex_url", "llm_prompt"];
+    const LFS = ["check_out", "short", "has_url", "llm"];
     // votes: 1 spam, 0 ham, -1 abstain (illustrative)
     const V = [[1, -1, 1, 1], [-1, 0, -1, 0], [1, -1, -1, 1], [-1, 0, 1, -1], [-1, -1, -1, 0], [1, 0, 1, 1]];
     const P = [0.94, 0.08, 0.81, 0.47, 0.22, 0.86];
@@ -6041,11 +6114,11 @@ known_biases: grade-school bias   # FineWeb-Edu card
     el("text", { x: 396, y: 130, "text-anchor": "middle", "font-size": 10, fill: "var(--muted)" }, node).textContent = "no ground truth";
     const bars = [];
     P.forEach((p, i) => {
-      el("rect", { x: 476, y: 26 + i * 32, width: 100, height: 20, rx: 4, fill: "var(--surface)", stroke: "var(--line)" }, lf);
+      el("rect", { x: 476, y: 26 + i * 32, width: 76, height: 20, rx: 4, fill: "var(--surface)", stroke: "var(--line)" }, lf);
       const b = el("rect", { x: 476, y: 26 + i * 32, width: 0, height: 20, rx: 4, fill: "var(--risk)", opacity: 0.75 }, lf);
-      const t = el("text", { x: 582, y: 41 + i * 32, "text-anchor": "end", "font-size": 11, "font-weight": 700, fill: "var(--ink)", opacity: 0 }, lf);
+      const t = el("text", { x: 592, y: 41 + i * 32, "text-anchor": "end", "font-size": 11, "font-weight": 700, fill: "var(--ink)", opacity: 0 }, lf);
       t.textContent = p.toFixed(2);
-      bars.push({ b, t, w: p * 100 });
+      bars.push({ b, t, w: p * 76 });
     });
     el("text", { x: 476, y: 14, "font-size": 9.5, fill: "var(--muted)" }, lf).textContent = "P(spam), illustrative";
     lfParts = { cells, wires, node, bars };
@@ -6112,7 +6185,7 @@ known_biases: grade-school bias   # FineWeb-Edu card
 (() => {
   const NS = "http://www.w3.org/2000/svg";
   const ID = "custom-c06-dedup-contamination";
-  const PX0 = 70, PX1 = 690, PY0 = 560, PY1 = 300; // plot box: s 0..1 -> x, P 0..1 -> y
+  const PX0 = 70, PX1 = 690, PY0 = 538, PY1 = 292; // plot box: s 0..1 -> x, P 0..1 -> y
   let top, plot, cont, curve, ghost, marker, mText, pLabel, sig = [], shingles = [], tl = null;
   const cur = { b: 4, r: 4 };
 
@@ -6132,29 +6205,29 @@ known_biases: grade-school bias   # FineWeb-Edu card
     el("text", { x: 65, y: 20, "text-anchor": "middle", "font-size": 12, fill: "var(--muted)" }, doc).textContent = "document";
     ["the cat sat on the", "cat sat on the mat", "sat on the mat and", "on the mat and the", "…"].forEach((t, i) => {
       const g = el("g", { opacity: 0 }, top);
-      el("rect", { x: 160, y: 34 + i * 30, width: 186, height: 24, rx: 6, fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 1.2 }, g);
-      el("text", { x: 168, y: 50 + i * 30, "font-size": 11, fill: "var(--state)", "font-weight": 600 }, g).textContent = t;
+      el("rect", { x: 150, y: 34 + i * 30, width: 180, height: 24, rx: 6, fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 1.2 }, g);
+      el("text", { x: 158, y: 50 + i * 30, "font-size": 11, fill: "var(--state)", "font-weight": 600 }, g).textContent = t;
       shingles.push(g);
     });
-    el("text", { x: 253, y: 20, "text-anchor": "middle", "font-size": 12, fill: "var(--muted)" }, top).textContent = "word 5-gram shingles";
-    el("text", { x: 548, y: 20, "text-anchor": "middle", "font-size": 12, fill: "var(--muted)" }, top).textContent = "MinHash signature (16 of 128)";
+    el("text", { x: 240, y: 20, "text-anchor": "middle", "font-size": 12, fill: "var(--muted)" }, top).textContent = "word 5-gram shingles";
+    el("text", { x: 526, y: 20, "text-anchor": "middle", "font-size": 12, fill: "var(--muted)" }, top).textContent = "MinHash signature (16 of 128)";
     const vals = [17, 4, 92, 33, 58, 7, 71, 26, 40, 13, 88, 61, 5, 49, 77, 30];
     for (let k = 0; k < 16; k++) {
-      const x = 380 + k * 21 + Math.floor(k / 4) * 6;
+      const x = 358 + k * 20 + Math.floor(k / 4) * 6;
       const g = el("g", { opacity: 0 }, top);
-      el("rect", { x, y: 70, width: 19, height: 44, rx: 4, fill: "var(--human-soft)", stroke: "var(--human)", "stroke-width": 1.4 }, g);
-      el("text", { x: x + 9.5, y: 97, "text-anchor": "middle", "font-size": 10, "font-weight": 700, fill: "var(--human)" }, g).textContent = vals[k];
+      el("rect", { x, y: 70, width: 18, height: 44, rx: 4, fill: "var(--human-soft)", stroke: "var(--human)", "stroke-width": 1.4 }, g);
+      el("text", { x: x + 9, y: 97, "text-anchor": "middle", "font-size": 10, "font-weight": 700, fill: "var(--human)" }, g).textContent = vals[k];
       sig.push(g);
     }
     const bands = el("g", { opacity: 0 }, top); top._bands = bands;
     for (let j = 0; j < 4; j++) {
-      const x = 380 + j * (4 * 21 + 6);
-      el("path", { d: `M${x},124 v8 h${4 * 21 - 2} v-8`, fill: "none", stroke: "var(--human)", "stroke-width": 2 }, bands);
-      el("text", { x: x + 41, y: 150, "text-anchor": "middle", "font-size": 11.5, "font-weight": 700, fill: "var(--human)" }, bands).textContent = "band " + (j + 1);
+      const x = 358 + j * (4 * 20 + 6);
+      el("path", { d: `M${x},124 v8 h${4 * 20 - 2} v-8`, fill: "none", stroke: "var(--human)", "stroke-width": 2 }, bands);
+      el("text", { x: x + 39, y: 150, "text-anchor": "middle", "font-size": 11.5, "font-weight": 700, fill: "var(--human)" }, bands).textContent = "band " + (j + 1);
     }
-    el("text", { x: 548, y: 176, "text-anchor": "middle", "font-size": 11.5, fill: "var(--muted)" }, bands).textContent = "P(one cell matches) = Jaccard(A, B)";
+    el("text", { x: 526, y: 176, "text-anchor": "middle", "font-size": 11.5, fill: "var(--muted)" }, bands).textContent = "P(one cell matches) = Jaccard(A, B)";
     const arr = (x1, x2, y) => el("path", { d: `M${x1},${y} L${x2},${y} M${x2 - 7},${y - 5} L${x2},${y} L${x2 - 7},${y + 5}`, fill: "none", stroke: "var(--line-2)", "stroke-width": 2 }, top);
-    arr(134, 154, 105); arr(350, 372, 92);
+    arr(134, 146, 105); arr(334, 352, 92);
     // --- plot
     plot = el("g", { opacity: 0 }, svg);
     el("path", { d: `M${PX0},${PY1 - 10} V${PY0} H${PX1 + 10}`, fill: "none", stroke: "var(--line-2)", "stroke-width": 2 }, plot);
@@ -6410,7 +6483,8 @@ known_biases: grade-school bias   # FineWeb-Edu card
       mk("path", { d: `M${x + 26},313 l8,6 l-8,6 z`, fill: "var(--model)" }, g);
       return g;
     });
-    S.dot = mk("circle", { cx: 0, cy: 319, r: 6, fill: "var(--model)", opacity: 0 }, S.B);
+    mk("line", { x1: 0, y1: 372, x2: 780, y2: 372, stroke: "var(--line)", "stroke-width": 2 }, S.B);
+    S.dot = mk("circle", { cx: 0, cy: 372, r: 6, fill: "var(--model)", opacity: 0 }, S.B);
 
     // C: tokens to reach 33.6% MMLU
     S.C = mk("g", {}, svg);
@@ -6608,7 +6682,7 @@ known_biases: grade-school bias   # FineWeb-Edu card
     // gates
     S.gates = GY.map((y, k) => {
       const g = mk("g", {}, svg);
-      mk("line", { x1: 30, y1: y, x2: 690, y2: y, stroke: "var(--tool)", "stroke-width": 2.5, "stroke-dasharray": "8 6" }, g);
+      mk("line", { x1: 150, y1: y, x2: 586, y2: y, stroke: "var(--tool)", "stroke-width": 2.5, "stroke-dasharray": "8 6" }, g);
       mk("rect", { x: 0, y: y - 14, width: 150, height: 28, rx: 8, fill: "var(--tool-soft)", stroke: "var(--tool)", "stroke-width": 1.5 }, g);
       mk("text", { x: 75, y: y + 5, ...mono(13, 700, "var(--tool)", "middle") }, g, `${k + 1} ${GL[k]}`);
       const before = alive(k).length, after = alive(k + 1).length;
@@ -6745,10 +6819,10 @@ known_biases: grade-school bias   # FineWeb-Edu card
     });
     // jackrabbits pop
     S.jack = mk("g", {}, svg);
-    mk("rect", { x: 420, y: 92, width: 226, height: 64, rx: 12, fill: "var(--surface-2)", stroke: "var(--risk)", "stroke-width": 2 }, S.jack);
+    mk("rect", { x: 420, y: 92, width: 226, height: 72, rx: 12, fill: "var(--surface-2)", stroke: "var(--risk)", "stroke-width": 2 }, S.jack);
     mk("text", { x: 434, y: 116, ...mono(13, 600, "var(--ink-2)") }, S.jack, "gen 9: a prompt about");
     mk("text", { x: 434, y: 136, ...mono(13, 600, "var(--ink-2)") }, S.jack, "medieval architecture →");
-    mk("text", { x: 434, y: 152, ...mono(13, 700, "var(--risk)") }, S.jack, "a list of jackrabbits");
+    mk("text", { x: 434, y: 156, ...mono(13, 700, "var(--risk)") }, S.jack, "a list of jackrabbits");
   }
 
   function draw(u, g, show) {
@@ -6952,21 +7026,21 @@ known_biases: grade-school bias   # FineWeb-Edu card
     // slice bars
     E.base = el("line", { x1: X0 - 10, y1: BASE, x2: X0 + PITCH * 6 - 6, y2: BASE, stroke: "var(--line-2)", "stroke-width": 2, opacity: 0 }, svg);
     const gy = BASE - (84.2 - LO) * K;
-    E.glob = el("line", { x1: X0 - 10, y1: gy, x2: X0 + PITCH * 6 - 6, y2: gy, stroke: "var(--ink-2)", "stroke-width": 1.5, "stroke-dasharray": "5 5", opacity: 0 }, svg);
-    E.globT = el("text", { x: X0 + PITCH * 6, y: gy + 5, fill: "var(--muted)", "font-family": "var(--f-mono)", "font-size": 13, opacity: 0 }, svg);
+    E.glob = el("line", { x1: X0 - 10, y1: gy, x2: X0 + PITCH * 6 - 30, y2: gy, stroke: "var(--ink-2)", "stroke-width": 1.5, "stroke-dasharray": "5 5", opacity: 0 }, svg);
+    E.globT = el("text", { x: X0 + PITCH * 6 - 26, y: gy + 5, fill: "var(--muted)", "font-family": "var(--f-mono)", "font-size": 13, opacity: 0 }, svg);
     E.globT.textContent = "84.2";
     E.bars = SL.map(([name, v], i) => {
       const x = X0 + i * PITCH, worst = v === 71;
       const r = el("rect", { x, y: BASE, width: BW, height: 0, rx: 6, fill: worst ? "var(--risk)" : "var(--tool)", opacity: worst ? 0.9 : 0.75 }, svg);
-      const t = el("text", { x: x + BW / 2, y: BASE - (v - LO) * K - 8, "text-anchor": "middle", fill: worst ? "var(--risk)" : "var(--ink-2)", "font-family": "var(--f-mono)", "font-size": 14, "font-weight": 700, opacity: 0 }, svg);
+      const t = el("text", { x: x + BW / 2, y: BASE - (v - LO) * K + (worst ? 22 : -8), "text-anchor": "middle", fill: worst ? "#fff" : "var(--ink-2)", "font-family": "var(--f-mono)", "font-size": 14, "font-weight": 700, opacity: 0 }, svg);
       t.textContent = v;
       const n = el("text", { x: x + BW / 2, y: BASE + 20, "text-anchor": "middle", fill: "var(--muted)", "font-family": "var(--f-mono)", "font-size": 13, opacity: 0 }, svg);
       n.textContent = name;
       return { r, t, n, v };
     });
     // worst-slice whisker [58, 81]
-    const wx = X0 + 4 * PITCH + BW / 2;
-    E.ww = el("path", { d: `M${wx},${BASE - (81 - LO) * K} V${BASE - (58 - LO) * K} M${wx - 8},${BASE - (81 - LO) * K} h16 M${wx - 8},${BASE - (58 - LO) * K} h16`, stroke: "var(--ink)", "stroke-width": 2, fill: "none", opacity: 0 }, svg);
+    const wx = X0 + 4 * PITCH + BW + 10;
+    E.ww = el("path", { d: `M${wx},${BASE - (81 - LO) * K} V${BASE - (58 - LO) * K} M${wx - 6},${BASE - (81 - LO) * K} h12 M${wx - 6},${BASE - (58 - LO) * K} h12`, stroke: "var(--ink)", "stroke-width": 2, fill: "none", opacity: 0 }, svg);
     E.note = el("text", { x: X0 + PITCH * 3, y: 18, "text-anchor": "middle", fill: "var(--muted)", "font-family": "var(--f-mono)", "font-size": 13, opacity: 0 }, svg);
     E.note.textContent = "slices (illustrative) · worst: refunds-ES 71 [58, 81]";
   }
@@ -7030,8 +7104,8 @@ known_biases: grade-school bias   # FineWeb-Edu card
   function build(svg) {
     svg.innerHTML = "";
     frame = el("g", {}, svg);
-    el("rect", { x: 1, y: 8, width: 754, height: 330, rx: 12, fill: "none", stroke: "var(--line-2)", "stroke-width": 1.5, "stroke-dasharray": "6 6" }, frame);
-    el("text", { x: 14, y: 2, fill: "var(--muted)", "font-size": 13 }, frame).textContent = "production traces (n = 100)";
+    el("rect", { x: 1, y: 20, width: 754, height: 322, rx: 12, fill: "none", stroke: "var(--line-2)", "stroke-width": 1.5, "stroke-dasharray": "6 6" }, frame);
+    el("text", { x: 12, y: 13, fill: "var(--muted)", "font-size": 13 }, frame).textContent = "production traces (n = 100)";
     // piles: labels, slice tags, binary chips
     piles = PILES.map((lab, p) => {
       const cx = pcx(p);
@@ -7069,7 +7143,7 @@ known_biases: grade-school bias   # FineWeb-Edu card
   }
 
   function target(c, n) {
-    const gx = c.col * 76 + 6, gy = 26 + c.row * 31;
+    const gx = c.col * 76 + 6, gy = 31 + c.row * 31;
     const t = { x: gx, y: gy, scale: 1, op: n >= 1 ? 1 : 0, stroke: "var(--line-2)", note: 0 };
     if (!c.fail) { if (n >= 2) t.op = 0.45; if (n >= 3) t.op = 0.3; if (n >= 5) t.op = 0.18; return t; }
     if (n >= 2) { t.stroke = "var(--risk)"; t.note = 1; }
@@ -7938,6 +8012,146 @@ known_biases: grade-school bias   # FineWeb-Edu card
         }
       } else { gsap.set(f.g, { autoAlpha: 1, y: 0 }); gsap.set(f.r, { attr: { width: f.w, x: f.x } }); f.n.textContent = f.lab; }
     });
+  }
+
+  Deck.register(ID, {
+    enter(slide) { build(slide); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { stop(); },
+  });
+})();
+</script>
+
+<!-- c09-05-open-challenges.html -->
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c09-open-challenges";
+  // plot area
+  const X0 = 60, X1 = 620, Y0 = 280, Y1 = 30;
+  const kx = (j) => X0 + (j / 8) * (X1 - X0);            // j = log2(k), k = 1..256
+  const yv = (v) => Y0 - v * (Y0 - Y1);                    // v in 0..1
+  // qualitative shapes only (after arXiv 2504.13837): RL starts higher, base climbs past it
+  const rl = (j) => 0.46 + 0.26 * (1 - Math.exp(-j / 2.2));
+  const base = (j) => 0.22 + 0.68 * (1 - Math.exp(-j / 3.4));
+  let S = {}, loops = [];
+
+  function mk(tag, at, parent, css) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in at) e.setAttribute(k, at[k]);
+    if (css) e.setAttribute("style", css);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function txt(parent, x, y, s, css, anchor) {
+    const t = mk("text", { x, y, "text-anchor": anchor || "start" }, parent, css);
+    t.textContent = s;
+    return t;
+  }
+  const curve = (f) => { let d = ""; for (let i = 0; i <= 64; i++) { const j = i / 8; d += (i ? " L" : "M") + kx(j).toFixed(1) + "," + yv(f(j)).toFixed(1); } return d; };
+  function drawIn(el, dur, delay) {
+    const L = el.getTotalLength();
+    loops.push(gsap.fromTo(el, { strokeDasharray: `${L} ${L}`, strokeDashoffset: L }, { strokeDashoffset: 0, duration: dur, delay, ease: "power1.inOut" }));
+  }
+
+  function build(slide) {
+    if (S.slide === slide) return;
+    const svg = slide.querySelector("#c09oc-svg");
+    svg.innerHTML = "";
+    S = { slide };
+    // axes
+    S.axes = mk("g", {}, svg);
+    mk("path", { d: `M${X0},${Y1 - 10} V${Y0} H${X1}` }, S.axes, "fill:none;stroke:var(--line-2);stroke-width:2");
+    [0, 2, 4, 6, 8].forEach((j) => txt(S.axes, kx(j), Y0 + 20, String(2 ** j), "font-size:12px;fill:var(--muted)", "middle"));
+    txt(S.axes, X1, Y0 + 40, "k (samples per problem, log scale)", "font-size:12.5px;fill:var(--muted)", "end");
+    txt(S.axes, X0 + 6, Y1 - 14, "pass@k", "font-size:13px;font-weight:700;fill:var(--ink-2)");
+    txt(S.axes, X1, Y1 - 14, "qualitative shape, after arXiv 2504.13837", "font-size:11px;fill:var(--faint)", "end");
+    S.base = mk("path", { d: curve(base) }, svg, "fill:none;stroke:var(--state);stroke-width:4;stroke-linecap:round");
+    S.rl = mk("path", { d: curve(rl) }, svg, "fill:none;stroke:var(--model);stroke-width:4;stroke-linecap:round");
+    S.lab = mk("g", {}, svg);
+    txt(S.lab, kx(0) + 8, yv(rl(0)) - 12, "RLVR model wins at k = 1", "font-size:13px;font-weight:700;fill:var(--model)");
+    txt(S.lab, kx(0) + 8, yv(base(0)) + 24, "base model", "font-size:13px;font-weight:700;fill:var(--state)");
+    txt(S.lab, kx(8) - 4, yv(base(8)) - 12, "base wins at large k", "font-size:13px;font-weight:700;fill:var(--state)", "end");
+    // inset bars (step 2), lower right of plot
+    S.ins = mk("g", {}, svg);
+    mk("rect", { x: 330, y: 168, width: 280, height: 104, rx: 10 }, S.ins, "fill:var(--bg);stroke:var(--line-2);stroke-width:1.5");
+    txt(S.ins, 342, 188, "MATH-500 gain, Qwen2.5-Math-7B", "font-size:12px;font-weight:700;fill:var(--ink-2)");
+    S.bars = [[21.4, "random reward", "risk"], [29.1, "ground truth", "state"]].map(([v, l, tone], k) => {
+      const y = 202 + k * 34;
+      txt(S.ins, 342, y + 16, l, "font-size:12px;fill:var(--ink-2)");
+      const r = mk("rect", { x: 450, y, width: v * 4, height: 22, rx: 5 }, S.ins, `fill:var(--${tone})`);
+      const t = txt(S.ins, 456 + v * 4, y + 16, "+" + v.toFixed(1), `font-size:13px;font-weight:700;fill:var(--${tone})`);
+      return { r, t, v };
+    });
+    // CoT mask scene (step 3)
+    S.cot = mk("g", {}, svg);
+    const TY = 330;
+    mk("rect", { x: 0, y: TY, width: 300, height: 150, rx: 12 }, S.cot, "fill:var(--model-soft);stroke:var(--model);stroke-width:2");
+    txt(S.cot, 14, TY + 24, "chain of thought (monitor reads)", "font-size:12px;font-weight:700;fill:var(--model)");
+    ["“Fix the parser.", "Run the unit tests.", "All tests pass. Done.”"].forEach((s, k) => txt(S.cot, 14, TY + 56 + k * 26, s, "font:500 16px var(--f-display);fill:var(--ink)"));
+    mk("rect", { x: 330, y: TY, width: 300, height: 150, rx: 12 }, S.cot, "fill:var(--risk-soft);stroke:var(--risk);stroke-width:2");
+    txt(S.cot, 344, TY + 24, "actions (what it did)", "font-size:12px;font-weight:700;fill:var(--risk)");
+    ["edit tests/test_parser.py", "→ make every test pass", "parser still broken"].forEach((s, k) => txt(S.cot, 344, TY + 56 + k * 26, s, "font-size:14px;font-weight:600;fill:var(--risk)"));
+    S.mask = mk("g", {}, svg);
+    mk("rect", { x: 326, y: TY - 4, width: 308, height: 158, rx: 14 }, S.mask, "fill:var(--surface-2);stroke:var(--state);stroke-width:2");
+    txt(S.mask, 480, TY + 70, "✓ looks clean", "font:700 20px var(--f-display);fill:var(--state)", "middle");
+    txt(S.mask, 480, TY + 96, "monitor score: pass", "font-size:13px;fill:var(--muted)", "middle");
+    txt(S.cot, 0, TY + 176, "illustrative example", "font-size:11px;fill:var(--faint)");
+    S.stats = [[12, "sabotage of safety-research code", 0], [50, "alignment-faking reasoning", 330]].map(([v, l, x]) => {
+      const g = mk("g", {}, S.cot);
+      const n = txt(g, x, TY + 226, "~" + v + "%", "font:700 40px var(--f-display);fill:var(--risk)");
+      txt(g, x, TY + 250, l, "font-size:12.5px;fill:var(--ink-2)");
+      return { n, v };
+    });
+  }
+  function stop() { loops.forEach((t) => t.kill()); loops = []; }
+
+  function render(slide, n, animate) {
+    build(slide);
+    stop();
+    const A = (k) => animate && n === k;
+    const vis = (el, on) => gsap.set(el, { autoAlpha: on ? 1 : 0 });
+    // step 1: plot draws
+    [S.axes, S.base, S.rl, S.lab].forEach((e) => vis(e, n >= 1));
+    gsap.set([S.base, S.rl], { strokeDasharray: "none", strokeDashoffset: 0 });
+    if (A(1)) {
+      loops.push(gsap.fromTo(S.axes, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.4 }));
+      drawIn(S.rl, 1.4, 0.3); drawIn(S.base, 1.8, 0.5);
+      loops.push(gsap.fromTo(S.lab.children, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.4, stagger: 0.5, delay: 0.9 }));
+    } else gsap.set(S.lab.children, { autoAlpha: 1 });
+    // step 2: inset bars count up
+    vis(S.ins, n >= 2);
+    S.bars.forEach((b, k) => {
+      if (A(2)) {
+        const p = { v: 0 };
+        loops.push(gsap.to(p, { v: b.v, duration: 1.2, delay: 0.3 + k * 0.35, ease: "power3.out", onUpdate: () => {
+          b.r.setAttribute("width", p.v * 4); b.t.setAttribute("x", 456 + p.v * 4); b.t.textContent = "+" + p.v.toFixed(1);
+        } }));
+      } else { b.r.setAttribute("width", b.v * 4); b.t.setAttribute("x", 456 + b.v * 4); b.t.textContent = "+" + b.v.toFixed(1); }
+    });
+    // step 3: mask slides over the hack, then lifts
+    vis(S.cot, n >= 3);
+    vis(S.mask, n >= 3);
+    if (A(3)) {
+      gsap.set(S.stats.map((s) => s.n.parentNode), { autoAlpha: 0 });
+      loops.push(gsap.timeline()
+        .fromTo(S.mask, { x: 360, autoAlpha: 0 }, { x: 0, autoAlpha: 1, duration: 0.7, ease: "power3.out", delay: 0.3 })
+        .to(S.mask, { y: -60, autoAlpha: 0, duration: 0.6, ease: "power2.in" }, "+=1.2")
+        .to(S.stats.map((s) => s.n.parentNode), { autoAlpha: 1, duration: 0.4, stagger: 0.2 }));
+      S.stats.forEach((s, k) => {
+        const p = { v: 0 };
+        loops.push(gsap.to(p, { v: s.v, duration: 1.1, delay: 2.9 + k * 0.2, ease: "power3.out", onUpdate: () => (s.n.textContent = "~" + Math.round(p.v) + "%") }));
+      });
+    } else {
+      gsap.set(S.mask, { x: 0, y: -60, autoAlpha: 0 });
+      gsap.set(S.stats.map((s) => s.n.parentNode), { autoAlpha: 1 });
+      S.stats.forEach((s) => (s.n.textContent = "~" + s.v + "%"));
+    }
+    // step 4: challenge cards flip one row at a time
+    const cards = [...slide.querySelectorAll(".grid9 .cc")];
+    gsap.killTweensOf(cards);
+    if (A(4)) cards.forEach((c, i) => loops.push(gsap.fromTo(c, { rotationX: -90, autoAlpha: 0, transformOrigin: "50% 0%" }, { rotationX: 0, autoAlpha: 1, duration: 0.6, delay: 0.2 + Math.floor(i / 3) * 0.55 + (i % 3) * 0.08, ease: "back.out(1.4)" })));
+    else gsap.set(cards, { rotationX: 0, autoAlpha: 1 });
   }
 
   Deck.register(ID, {

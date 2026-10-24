@@ -1,0 +1,53 @@
+<section class="slide" id="adk-c03-collaborative" data-tone="agent" data-title="Collaborative modes: chat, task, single_turn">
+  <h2 class="title">In collaborative mode a coordinator delegates through tools that ADK generates for each sub-agent</h2>
+  <div class="row fill" style="gap:24px">
+    <div class="stack" style="width:720px;flex:none">
+      <div class="diagram" style="width:720px;height:380px" aria-label="A travel planner coordinator with chat, task and single_turn sub-agents"
+           data-wires="c37-user<>c37-planner{human}; c37-planner>c37-chat@1{agent} [transfer_to_agent]; c37-user<>c37-chat@1:dash{human} [talks directly]; c37-planner>c37-flight@2:bend-24{agent} [flight_booker()]; c37-flight>c37-user@2:lb:dash{human} [clarify]; c37-flight>c37-planner@2:bend24{state} [finish_task]; c37-planner<>c37-weather@3:flow{agent} [parallel]">
+        <div class="node n-human pill" id="c37-user" style="left:236px;top:0;width:130px"><span class="nt">User</span></div>
+        <div class="node n-agent" id="c37-planner" style="left:150px;top:200px;width:240px"><span class="nt">travel_planner</span><span class="ns">coordinator · no mode</span></div>
+        <div class="node n-agent ghost" id="c37-chat" style="left:500px;top:0;width:220px" data-step="1" data-fx="pop" data-on="1:hot 2:dim"><span class="nt">chat sub-agent</span><span class="ns">mode='chat' (default)</span></div>
+        <div class="node n-agent" id="c37-flight" style="left:500px;top:140px;width:220px" data-on="2:hot 3:dim"><span class="nt">flight_booker</span><span class="ns">mode='task'</span></div>
+        <div class="node n-agent ghost" style="left:512px;top:302px;width:220px;height:76px" data-step="3" data-fx="pop"></div>
+        <div class="node n-agent" id="c37-weather" style="left:500px;top:290px;width:220px" data-on="3:hot"><span class="nt">weather_checker</span><span class="ns">mode='single_turn'</span></div>
+      </div>
+      <div style="position:relative;height:118px">
+        <p class="small" style="position:absolute;inset:0" data-until="1">ADK injects <b>one delegation tool per sub-agent</b>, named after it. Do not set <code>mode</code> on the root agent.</p>
+        <p class="small" style="position:absolute;inset:0" data-step="1" data-until="2"><b>chat</b> (default, the 1.x behaviour): the sub-agent takes the user thread. It returns only by a manual <code>transfer_to_agent</code>. This is a <b>handoff</b> (OpenAI Agents SDK: <code>handoffs=</code>).</p>
+        <p class="small" style="position:absolute;inset:0" data-step="2" data-until="3"><b>task</b>: the sub-agent may ask the user a clarifying question, then returns automatically through <code>finish_task</code>. A task agent must be a leaf. Codelab level L3b shows the pause and the resume.</p>
+        <p class="small" style="position:absolute;inset:0" data-step="3" data-until="4"><b>single_turn</b>: no user turns, automatic return, can run in parallel. Each parallel sub-agent runs in its own session branch and cannot see its peers' events. This is <b>agent-as-tool</b> (<code>Agent.as_tool()</code>, ADK <code>AgentTool</code>).</p>
+        <div class="callout pitfall" style="position:absolute;inset:0;height:max-content" data-step="4"><div>The collaboration docs say task mode is disabled in graph workflows in Python 2.0.0. The codelab notes that a static task-mode node works on 2.5.0, and 2.5 and 2.12 add task-mode resume. Test on your version.</div></div>
+      </div>
+      <div class="cites push">
+        <a class="cite doc" href="https://adk.dev/workflows/collaboration/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Build collaborative agent teams</a>
+        <a class="cite codelab" href="https://codelabs.developers.google.com/adk2/instructions" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;ADK 2 Orchestration (L3a, L3b)</a>
+      </div>
+    </div>
+    <div class="stack" style="width:648px;flex:none">
+      <div class="code-wrap" data-fx="up"><div class="code-head">travel_planner · adk.dev/workflows/collaboration</div>
+<pre class="code xs" data-lang="python" data-focus="2:6-9, 3:3-5, 4:10-11"><code>
+from google.adk import Agent
+
+weather_agent = Agent(
+    name="weather_checker", mode="single_turn",
+    tools=[get_weather, user_info, geocode_address])
+flight_agent = Agent(
+    name="flight_booker", mode="task",
+    input_schema=FlightInput, output_schema=FlightResult,
+    tools=[search_flights, book_flight])
+root = Agent(name="travel_planner",
+             sub_agents=[weather_agent, flight_agent])
+# Auto-injects delegation tools named after each subagent
+</code></pre></div>
+      <table class="t" data-step="4" data-fx="up">
+        <tr><th></th><th>chat (default)</th><th>task</th><th>single_turn</th></tr>
+        <tr><td>User turns</td><td>full</td><td>clarification only</td><td>none</td></tr>
+        <tr><td>Return</td><td>manual <code>transfer_to_agent</code></td><td>automatic <code>finish_task</code></td><td>automatic, with result</td></tr>
+        <tr><td>Parallel</td><td>no</td><td>no</td><td>yes</td></tr>
+      </table>
+    </div>
+  </div>
+  <aside class="notes">
+    Collaborative workflows keep the 1.x idea of a coordinator with sub-agents, but every sub-agent now declares how it talks to the user. Step 1, chat: the default. The coordinator transfers control, and the user then talks to the sub-agent directly; control comes back only by another transfer. Step 2, task: the flight booker asks one clarifying question, for example a date, and then returns a typed FlightResult through finish_task. Step 3, single_turn: the weather checker never talks to the user, so the coordinator can call two copies in parallel. Step 4 is the summary table and the version caveat. Analogy: chat is passing the phone to a colleague; task is asking a colleague to call the customer once and report back; single_turn is sending a colleague an email and waiting for the answer. Interview question: "Handoff or agent-as-tool?" Ask who owns the user-facing thread. Use a handoff when routing itself is the job; use agent-as-tool when the coordinator must keep control and context.
+  </aside>
+</section>

@@ -1,0 +1,203 @@
+<section class="slide" id="adk-c04-resume" data-tone="state" data-title="Resume by replay">
+  <h2 class="title sm">Resume replays the event log: finished nodes fast-forward and failed nodes run again</h2>
+  <div class="grid fill" style="grid-template-columns:760px 600px;gap:32px;align-items:start">
+    <div class="stack" style="gap:16px">
+      <svg class="interactive" id="c4s-svg" viewBox="0 0 760 310" width="760" height="310" aria-label="An event log and a five-node graph: a crash, a replay that skips finished nodes, a double charge, and an idempotency key that stops it"></svg>
+      <div class="grid g2" style="gap:16px">
+        <div class="panel tight k-state" data-step="2">
+          <h4>Always on, inside one invocation</h4>
+          <p class="tiny">The <code>Workflow</code> scans the session events (<code>ReplayManager.scan_workflow_events</code>). It rebuilds the completed nodes, their outputs and the pending interrupts. Completed nodes fast-forward. The interrupted node runs again.</p>
+          <p class="tiny"><b>Limit:</b> node checkpoints are written but not read yet (TODO). Resume cost grows with history length.</p>
+        </div>
+        <div class="panel tight k-human" data-step="5">
+          <h4><code>is_resumable=True</code> adds durability</h4>
+          <ul class="clean tiny" style="gap:5px">
+            <li>Resume across separate runner calls, with no new message.</li>
+            <li><code>agent_state</code> / <code>end_of_agent</code> checkpoint events in the log.</li>
+            <li>Function responses route to their originating invocation.</li>
+            <li>Resume from the ADK Web UI or CLI: not supported.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="stack" style="gap:16px">
+      <div class="code-wrap"><div class="code-head">adk.dev/runtime/resume</div>
+<pre class="code xs" data-lang="python" data-focus="2:4-6, 5:1-2"><code>
+app = App(name="my_resumable_agent", root_agent=root_agent,
+    resumability_config=ResumabilityConfig(is_resumable=True))
+# resume: the same user, session and invocation id
+async for event in runner.run_async(user_id="u_123",
+        session_id="s_abc", invocation_id="invocation-123"):
+    print(event)
+</code></pre></div>
+      <div class="code-wrap term" data-step="2"><div class="code-head">or over HTTP</div>
+<pre class="code xs" data-lang="bash"><code>
+$ adk api_server my_resumable_agent/
+$ curl -X POST http://localhost:8000/run_sse \
+    -H "Content-Type: application/json" \
+    -d '{"app_name": "my_resumable_agent", "user_id": "u_123",
+         "session_id": "s_abc", "invocation_id": "invocation-123"}'
+</code></pre></div>
+      <div class="callout pitfall" data-step="5" style="font-size:17px;line-height:1.4"><span>Upgrade every reader of a shared session DB before you write 2.0 events. The new <code>node_info</code> and <code>output</code> fields break rigid schemas. Use <code>adk migrate session</code>.</span></div>
+      <p class="tiny" data-step="5"><b>Peers:</b> Temporal activities · Restate <code>ctx.run()</code> · DBOS steps · LangGraph checkpointers keyed by <code>thread_id</code> · Anthropic Managed Agents <code>wake(sessionId)</code> over an append-only log.</p>
+    </div>
+  </div>
+  <aside class="notes">Step 1: the run completes fetch and analyze, then charge_card sends the payment and the process crashes before the node completes. Step 2: we resume with the same invocation id; ADK reads the log, skips the two finished nodes and runs charge_card again. Step 3 is the trap: execution is at-least-once, and since 2.9.0 a failed node runs again on resume, so the card is charged twice. Step 4: an idempotency key derived from the order makes the payment API refuse the repeat. Step 5: is_resumable adds checkpoint events and resume across separate runner calls. Analogy: a cashier who restarts a shift from the receipt roll; without receipt numbers, the cashier rings up the same sale twice. Likely question: "Can I change the graph while a run is paused?" Answer: no; a paused run can outlive a deploy, and checkpoint versioning is still an open item, so drain or finish paused runs before you change the graph.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  let svg = null, nodes = {}, rows = [], ff = [], stamps = [], coin2, cross, key, msg, toggle;
+  const mk = (tag, a, p) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); (p || svg).appendChild(e); return e; };
+  const txt = (s, a, p) => { const t = mk("text", a, p); t.textContent = s; return t; };
+  const mono = (sz, w, c) => `font:${w} ${sz}px var(--f-mono);fill:${c}`;
+  const ST = { 0: ["INACTIVE", "faint"], 2: ["RUNNING", "tool"], 3: ["COMPLETED", "state"], 5: ["FAILED", "risk"] };
+  // node status per step (index = step 0..5)
+  const PLAN = {
+    fetch:   [0, 3, 3, 3, 3, 3],
+    analyze: [0, 3, 3, 3, 3, 3],
+    charge:  [0, 5, 2, 2, 3, 3],
+    email:   [0, 0, 0, 0, 3, 3],
+    close:   [0, 0, 0, 0, 3, 3],
+  };
+  const LOG = [
+    // [step, text, tone]
+    [1, "e1  fetch        COMPLETED 3", "state"],
+    [1, "e2  analyze      COMPLETED 3", "state"],
+    [1, "e3  charge_card  RUNNING 2", "tool"],
+    [1, "e4  charge_card  FAILED 5  (crash)", "risk"],
+    [2, "--  resume invocation-123  --", "muted"],
+    [2, "e5  fetch        » replayed", "state"],
+    [2, "e6  analyze      » replayed", "state"],
+    [2, "e7  charge_card  RUNNING 2", "tool"],
+    [4, "e8  charge_card  COMPLETED 3", "state"],
+    [4, "e9  email        COMPLETED 3", "state"],
+    [4, "e10 close        COMPLETED 3", "state"],
+  ];
+  const MSG = ["", "charge_card raised → FAILED. The payment was already sent.", "replay: 2 nodes fast-forward, charge_card runs again", "at-least-once: the card is charged a second time", "same idempotency key: the API refuses the repeat", "is_resumable: checkpoint events + resume across calls"];
+  const MSGT = ["muted", "risk", "state", "risk", "state", "human"];
+
+  function node(id, x, y, w, label) {
+    const g = mk("g", {});
+    const r = mk("rect", { x, y, width: w, height: 46, rx: 10, style: "fill:var(--surface-2);stroke:var(--faint);stroke-width:2;transition:stroke .35s, fill .35s" }, g);
+    txt(label, { x: x + w / 2, y: y + 20, "text-anchor": "middle", style: mono(13, 700, "var(--ink)") }, g);
+    const s = txt("INACTIVE 0", { x: x + w / 2, y: y + 37, "text-anchor": "middle", style: mono(10.5, 600, "var(--muted)") }, g);
+    nodes[id] = { g, r, s, x, y, w };
+  }
+  const arrow = (d) => mk("path", { d, style: "fill:none;stroke:var(--line-2);stroke-width:2", "marker-end": "url(#c4s-ar)" });
+
+  function build(slide) {
+    svg = slide.querySelector("#c4s-svg");
+    svg.innerHTML = ""; nodes = {}; rows = []; ff = []; stamps = [];
+    const defs = mk("defs", {});
+    const m = mk("marker", { id: "c4s-ar", viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto" }, defs);
+    mk("path", { d: "M0,0 L10,5 L0,10 Z", style: "fill:var(--line-2)" }, m);
+    // log panel
+    mk("rect", { x: 0, y: 0, width: 244, height: 262, rx: 12, style: "fill:var(--surface);stroke:var(--line);stroke-width:1" });
+    txt("session.events", { x: 12, y: 20, style: mono(12, 700, "var(--state)") });
+    toggle = mk("g", {});
+    mk("text", { x: 150, y: 20, "text-anchor": "end", style: mono(10, 600, "var(--muted)") }, toggle).textContent = "is_resumable";
+    const tr = mk("rect", { x: 156, y: 9, width: 30, height: 15, rx: 7.5, style: "fill:var(--surface-2);stroke:var(--line-2);stroke-width:1;transition:fill .35s" }, toggle);
+    const tk = mk("circle", { cx: 164, cy: 16.5, r: 5.5, style: "fill:var(--muted)" }, toggle);
+    toggle._r = tr; toggle._k = tk;
+    LOG.forEach(([s, t, tone], i) => {
+      const y = 44 + i * 20;
+      const e = txt(t, { x: 12, y, style: mono(11, 600, `var(--${tone})`), opacity: 0 });
+      rows.push({ e, s });
+    });
+    [1, 7, 10].forEach((i) => {
+      const y = 44 + i * 20 - 11;
+      const g = mk("g", { opacity: 0 });
+      mk("rect", { x: 196, y, width: 42, height: 14, rx: 4, style: "fill:var(--human-soft);stroke:var(--human);stroke-width:1" }, g);
+      txt("ckpt", { x: 217, y: y + 10.5, "text-anchor": "middle", style: mono(9.5, 700, "var(--human)") }, g);
+      stamps.push(g);
+    });
+    // graph
+    node("fetch", 262, 34, 112, "fetch");
+    node("analyze", 400, 34, 112, "analyze");
+    node("charge", 538, 34, 134, "charge_card");
+    node("email", 538, 140, 134, "email");
+    node("close", 400, 140, 112, "close");
+    arrow("M374,57 L398,57"); arrow("M512,57 L536,57"); arrow("M605,80 L605,138"); arrow("M538,163 L514,163");
+    // fast-forward glyphs
+    ["fetch", "analyze"].forEach((id) => {
+      const n = nodes[id], g = mk("g", { opacity: 0 });
+      const x = n.x + n.w - 8, y = n.y - 2;
+      mk("circle", { cx: x, cy: y, r: 11, style: "fill:var(--state)" }, g);
+      mk("path", { d: `M${x - 6},${y - 5} L${x},${y} L${x - 6},${y + 5} Z M${x},${y - 5} L${x + 6},${y} L${x},${y + 5} Z`, style: "fill:#fff" }, g);
+      ff.push(g);
+    });
+    // payments column
+    txt("payments", { x: 718, y: 26, "text-anchor": "middle", style: mono(10.5, 700, "var(--tool)") });
+    mk("path", { d: "M672,57 L700,57", style: "fill:none;stroke:var(--tool);stroke-width:1.6;stroke-dasharray:4 4" });
+    const coin = (cy) => { const g = mk("g", { opacity: 0 }); const c = mk("circle", { cx: 718, cy, r: 15, style: "fill:var(--tool);stroke:var(--bg);stroke-width:2" }, g); txt("$", { x: 718, y: cy + 5.5, "text-anchor": "middle", style: "font:800 16px var(--f-mono);fill:#fff" }, g); g._c = c; return g; };
+    nodes.coin1 = coin(56);
+    coin2 = coin(96);
+    cross = mk("g", { opacity: 0 });
+    mk("path", { d: "M704,82 L732,110 M732,82 L704,110", style: "stroke:var(--risk);stroke-width:3;stroke-linecap:round" }, cross);
+    txt("double charge", { x: 718, y: 128, "text-anchor": "middle", style: mono(10.5, 700, "var(--risk)") }, coin2);
+    key = mk("g", { opacity: 0 });
+    mk("rect", { x: 538, y: 6, width: 134, height: 20, rx: 6, style: "fill:var(--state-soft);stroke:var(--state);stroke-width:1.4" }, key);
+    txt("key: order-42", { x: 605, y: 20, "text-anchor": "middle", style: mono(11, 700, "var(--state)") }, key);
+    msg = txt("", { x: 262, y: 232, style: mono(12.5, 700, "var(--muted)") });
+    // status legend
+    const LEG = [["0 INACTIVE", "faint"], ["1 PENDING", "muted"], ["2 RUNNING", "tool"], ["3 COMPLETED", "state"], ["4 WAITING", "human"], ["5 FAILED", "risk"], ["6 CANCELLED", "ink-2"]];
+    LEG.forEach(([l, t], i) => {
+      const x = i * 108 + 2;
+      mk("rect", { x, y: 282, width: 10, height: 10, rx: 3, style: `fill:var(--${t})` });
+      txt(l, { x: x + 15, y: 291.5, style: mono(10.5, 600, "var(--ink-2)") });
+    });
+  }
+
+  function setNode(id, st) {
+    const n = nodes[id], [label, tone] = ST[st];
+    n.r.style.stroke = `var(--${tone})`;
+    n.r.style.fill = st === 0 ? "var(--surface-2)" : `color-mix(in oklab, var(--${tone}) 12%, var(--surface-2))`;
+    n.s.textContent = `${label} ${st}`;
+    n.s.style.fill = `var(--${tone === "faint" ? "muted" : tone})`;
+  }
+
+  function render(n, animate) {
+    if (!svg) return;
+    const d = animate ? 1 : 0;
+    Object.keys(PLAN).forEach((id) => setNode(id, PLAN[id][Math.min(n, 5)]));
+    let k = 0;
+    rows.forEach((r) => {
+      const vis = n >= r.s;
+      const fresh = vis && !r.vis && animate;
+      r.vis = vis;
+      gsap.to(r.e, { opacity: vis ? 1 : 0, duration: 0.3 * d, delay: fresh ? 0.15 * k++ : 0 });
+    });
+    ff.forEach((g, i) => {
+      gsap.to(g, { opacity: n >= 2 ? 1 : 0, duration: 0.3 * d, delay: animate && n === 2 ? 0.2 + i * 0.25 : 0 });
+      if (animate && n === 2) gsap.fromTo(nodes[i ? "analyze" : "fetch"].r, { opacity: 0.25 }, { opacity: 1, duration: 0.35, repeat: 1, delay: 0.2 + i * 0.25 });
+    });
+    gsap.to(nodes.coin1, { opacity: n >= 1 ? 1 : 0, duration: 0.3 * d });
+    if (animate && n === 1) gsap.fromTo(nodes.coin1, { y: -30 }, { y: 0, duration: 0.6, ease: "bounce.out" });
+    gsap.to(coin2, { opacity: n >= 3 ? (n >= 4 ? 0.35 : 1) : 0, duration: 0.35 * d });
+    if (animate && n === 3) gsap.fromTo(coin2, { y: -40 }, { y: 0, duration: 0.7, ease: "bounce.out" });
+    coin2._c.style.stroke = n === 3 ? "var(--risk)" : "var(--bg)";
+    gsap.to(cross, { opacity: n >= 4 ? 1 : 0, duration: 0.3 * d, delay: animate && n === 4 ? 0.4 : 0 });
+    coin2.lastChild.textContent = n >= 4 ? "refused" : "double charge";
+    coin2.lastChild.style.fill = n >= 4 ? "var(--state)" : "var(--risk)";
+    gsap.to(key, { opacity: n >= 4 ? 1 : 0, duration: 0.3 * d });
+    if (animate && n === 4) gsap.fromTo(key, { scale: 1.6, transformOrigin: "50% 50%" }, { scale: 1, duration: 0.45, ease: "back.out(2)" });
+    stamps.forEach((g, i) => {
+      gsap.to(g, { opacity: n >= 5 ? 1 : 0, duration: 0.3 * d, delay: animate && n === 5 ? 0.4 + i * 0.2 : 0 });
+      if (animate && n === 5) gsap.fromTo(g, { scale: 1.8, transformOrigin: "50% 50%" }, { scale: 1, duration: 0.4, delay: 0.4 + i * 0.2, ease: "back.out(2)" });
+    });
+    toggle._r.style.fill = n >= 5 ? "var(--human)" : "var(--surface-2)";
+    gsap.to(toggle._k, { attr: { cx: n >= 5 ? 178 : 164 }, duration: 0.3 * d });
+    toggle._k.style.fill = n >= 5 ? "#fff" : "var(--muted)";
+    msg.textContent = MSG[Math.min(n, 5)];
+    msg.style.fill = `var(--${MSGT[Math.min(n, 5)]})`;
+    if (animate) gsap.fromTo(msg, { opacity: 0 }, { opacity: 1, duration: 0.4 });
+  }
+
+  Deck.register("adk-c04-resume", {
+    enter(slide, step) { if (!svg) build(slide); render(step, false); },
+    step(slide, n, animate) { if (!svg) build(slide); render(n, animate); },
+    leave() { if (svg) gsap.killTweensOf(svg.querySelectorAll("*")); },
+  });
+})();
+</script>

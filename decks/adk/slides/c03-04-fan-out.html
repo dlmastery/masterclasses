@@ -1,0 +1,164 @@
+<section class="slide" id="adk-c03-fan-out" data-tone="agent" data-title="Fan-out, JoinNode, parallel_worker">
+  <h2 class="title">Fan-out runs branches in parallel, and a JoinNode waits for every one of them</h2>
+  <div class="row fill" style="gap:24px">
+    <div class="stack" style="width:680px;flex:none">
+      <svg id="c34-svg" viewBox="0 0 680 300" width="680" height="300" aria-label="Three branches finish at different times; a JoinNode gate opens only when all three outputs arrive"></svg>
+      <div style="position:relative;height:236px">
+        <ul class="ticks small" style="position:absolute;inset:0" data-until="3">
+          <li>A <b>tuple of nodes</b> inside a chain is a parallel fan-out.</li>
+          <li><code>JoinNode</code> sets <code>_requires_all_predecessors → True</code>. It emits <b>one dict keyed by predecessor node name</b>.</li>
+          <li>Compact form: <code>(START, (word_count, shout), join, report)</code>. Then <code>report</code> reads <code>node_input['shout']</code> and <code>node_input['word_count']</code>.</li>
+          <li>Without a join, the successor runs <b>once per predecessor</b> (sample <code>multi_triggers</code>).</li>
+        </ul>
+        <ul class="ticks small" style="position:absolute;inset:0" data-step="3" data-until="4">
+          <li><b>Map over a runtime list:</b> <code>@node(parallel_worker=True)</code> or <code>Agent(..., parallel_worker=True)</code>. One run per item. The next node gets a list.</li>
+          <li><code>max_parallel_workers</code> caps the per-item concurrency. Here it is 2: two run, two wait.</li>
+          <li>Codelab level L4a sizes the fan-out at runtime. Level L2a uses a fixed tuple and a <code>JoinNode</code>.</li>
+        </ul>
+        <div class="stack" style="position:absolute;inset:0;gap:12px" data-step="4">
+          <p class="small"><code>Workflow(max_concurrency=2)</code> caps graph-scheduled nodes only. <code>ctx.run_node</code> children are exempt: “throttling them would cause deadlock”.</p>
+          <div class="row" style="gap:36px">
+            <div class="stat"><span class="n" style="font-size:46px" data-to="1" data-pre="0–">0–1</span><span class="l small">model calls per level, codelab L0–L2b</span></div>
+            <div class="stat"><span class="n" style="font-size:46px;color:var(--model)" data-to="30" data-pre="5–">5–30</span><span class="l small">model calls per run, L4b fan-out</span></div>
+          </div>
+          <p class="tiny">Fixes: 2.8 counts <code>START</code> as a satisfied join predecessor. 2.13 makes a <code>JoinNode</code> in a loop wait for each iteration's predecessors.</p>
+        </div>
+      </div>
+      <div class="cites push">
+        <a class="cite codelab" href="https://codelabs.developers.google.com/adk2/instructions" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;ADK 2 Orchestration (L2a, L4a)</a>
+        <a class="cite repo" href="https://github.com/google/adk-python/tree/main/contributing/samples/workflows" target="_blank" rel="noopener"><b>Repo</b>&nbsp;samples/workflows: fan_out_fan_in, parallel_worker</a>
+      </div>
+    </div>
+    <div class="stack" style="width:688px;flex:none">
+      <div class="code-wrap" data-fx="up"><div class="code-head">samples/workflows/fan_out_fan_in + parallel_worker</div>
+<pre class="code xs" data-lang="python" data-focus="1:12-14, 2:6-10, 3:16-18"><code>
+from google.adk import Event, Workflow
+from google.adk.workflow import JoinNode, node
+def make_uppercase(node_input: str): return node_input.upper()
+def count_characters(node_input: str): return len(node_input)
+def reverse_string(node_input: str): return node_input[::-1]
+join_node = JoinNode(name="join_for_results")
+async def aggregate(node_input: dict):
+    yield Event(message=f"Upper: {node_input['make_uppercase']} | "
+                        f"Len: {node_input['count_characters']} | "
+                        f"Rev: {node_input['reverse_string']}")
+
+root_agent = Workflow(name="root_agent", edges=[(
+    "START", (make_uppercase, count_characters, reverse_string),
+    join_node, aggregate)])
+
+@node(parallel_worker=True)          # map: one run per list item
+def make_upper_case(node_input: str):
+    yield node_input.upper()
+</code></pre></div>
+      <div class="callout pitfall" data-step="4"><div><b>Pitfall:</b> two parallel branches that write the <b>same state key</b> race. Give each branch its own key, or pass data through node outputs into the join. Interview angle: parallelism multiplies token cost, so justify it with latency or with independent sources.</div></div>
+    </div>
+  </div>
+  <aside class="notes">
+    Step 1 is the barrier. The three functions start together and finish at different times: 1.0, 1.8 and 2.6 seconds in the animation. Each output waits at the JoinNode gate, and the gate opens only when the last one arrives. Step 2: the gate emits one dict keyed by predecessor node name, and aggregate reads the three keys. Step 3 is the other parallel tool, parallel_worker: the list size is known only at run time, and a cap of two workers makes two items wait. Step 4 covers the concurrency caps and the cost: the codelab's simple levels make 0 to 1 model calls, the recursive fan-out makes 5 to 30. Analogy: a restaurant pass. The waiter takes the table's plates only when every dish of the order is ready. Likely question: "What happens if one branch fails?" The failure shows up downstream at the join, away from its cause, so the docs say to put a RetryConfig on any branch node that can fail.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const mk = (t, a, p) => { const e = document.createElementNS(NS, t); for (const k in a) e.setAttribute(k, a[k]); if (p) p.appendChild(e); return e; };
+  const txt = (p, x, y, s, st, anchor) => { const e = mk("text", { x, y, style: st, ...(anchor ? { "text-anchor": anchor } : {}) }, p); e.textContent = s; return e; };
+  const B = ["make_uppercase", "count_characters", "reverse_string"], BY = [26, 121, 216], DUR = [1.0, 1.8, 2.6], SHORT = ["upper", "len", "rev"];
+  const WY = [14, 86, 158, 230];
+  let S = null, tw = [];
+
+  function build(slide) {
+    const svg = slide.querySelector("#c34-svg");
+    svg.innerHTML = "";
+    S = { bars: [], cards: [], wbars: [], wlabel: [] };
+    // barrier view
+    const b = S.bv = mk("g", {}, svg);
+    BY.forEach((y) => mk("path", { d: `M52,150 C90,150 80,${y + 29} 118,${y + 29}`, style: "fill:none;stroke:var(--line-2);stroke-width:2.2" }, b));
+    BY.forEach((y) => mk("path", { d: `M322,${y + 29} C360,${y + 29} 360,160 398,160`, style: "fill:none;stroke:var(--line-2);stroke-width:2.2" }, b));
+    mk("path", { d: "M522,160 L566,160", style: "fill:none;stroke:var(--state);stroke-width:2.6" }, b);
+    mk("circle", { cx: 30, cy: 150, r: 24, style: "fill:var(--surface-2);stroke:var(--line-2);stroke-width:1.6" }, b);
+    txt(b, 30, 154, "START", "font:700 10.5px var(--f-mono);fill:var(--ink-2)", "middle");
+    BY.forEach((y, i) => {
+      mk("rect", { x: 120, y, width: 202, height: 58, rx: 11, style: "fill:var(--surface-2);stroke:var(--tool);stroke-width:1.7" }, b);
+      txt(b, 134, y + 24, B[i], "font:700 15px var(--f-body);fill:var(--ink)");
+      mk("rect", { x: 134, y: y + 38, width: 174, height: 8, rx: 4, style: "fill:var(--surface)" }, b);
+      S.bars.push(mk("rect", { x: 134, y: y + 38, width: 0, height: 8, rx: 4, style: "fill:var(--tool)" }, b));
+    });
+    S.gate = mk("rect", { x: 400, y: 92, width: 122, height: 136, rx: 12, style: "fill:var(--state-soft);stroke:var(--state);stroke-width:2;stroke-dasharray:6 5" }, b);
+    txt(b, 461, 114, "JoinNode", "font:700 15px var(--f-body);fill:var(--ink)", "middle");
+    S.gateS = txt(b, 461, 218, "waiting 0/3", "font:600 11.5px var(--f-mono);fill:var(--muted)", "middle");
+    SHORT.forEach((s, i) => {
+      const g = mk("g", { opacity: 0 }, b);
+      mk("rect", { x: 414, y: 126 + i * 28, width: 94, height: 22, rx: 6, style: "fill:var(--surface-2);stroke:var(--tool);stroke-width:1.3" }, g);
+      txt(g, 461, 141 + i * 28, s, "font:600 12px var(--f-mono);fill:var(--tool)", "middle");
+      S.cards.push(g);
+    });
+    mk("rect", { x: 568, y: 134, width: 108, height: 52, rx: 11, style: "fill:var(--surface-2);stroke:var(--tool);stroke-width:1.7" }, b);
+    txt(b, 622, 165, "aggregate", "font:700 15px var(--f-body);fill:var(--ink)", "middle");
+    S.dict = mk("g", { opacity: 0 }, b);
+    mk("rect", { x: 330, y: 250, width: 346, height: 36, rx: 8, style: "fill:var(--state-soft);stroke:var(--state);stroke-width:1.4" }, S.dict);
+    txt(S.dict, 503, 273, "{make_uppercase, count_characters, reverse_string}", "font:600 12px var(--f-mono);fill:var(--ink)", "middle");
+    // parallel_worker view
+    const p = S.pv = mk("g", { opacity: 0 }, svg);
+    mk("rect", { x: 6, y: 126, width: 150, height: 52, rx: 11, style: "fill:var(--surface-2);stroke:var(--state);stroke-width:1.7" }, p);
+    txt(p, 81, 148, "list[str]", "font:700 15px var(--f-body);fill:var(--ink)", "middle");
+    txt(p, 81, 166, "[a, b, c, d]", "font:500 12px var(--f-mono);fill:var(--muted)", "middle");
+    WY.forEach((y, i) => {
+      mk("path", { d: `M156,152 C190,152 180,${y + 26} 214,${y + 26}`, style: "fill:none;stroke:var(--line-2);stroke-width:2" }, p);
+      mk("path", { d: `M426,${y + 26} C470,${y + 26} 470,152 520,152`, style: "fill:none;stroke:var(--line-2);stroke-width:2" }, p);
+      mk("rect", { x: 216, y, width: 210, height: 52, rx: 11, style: "fill:var(--surface-2);stroke:var(--tool);stroke-width:1.7" }, p);
+      txt(p, 230, y + 21, `make_upper_case #${i + 1}`, "font:700 14px var(--f-body);fill:var(--ink)");
+      mk("rect", { x: 230, y: y + 33, width: 140, height: 7, rx: 3.5, style: "fill:var(--surface)" }, p);
+      S.wbars.push(mk("rect", { x: 230, y: y + 33, width: 0, height: 7, rx: 3.5, style: "fill:var(--tool)" }, p));
+      S.wlabel.push(txt(p, 380, y + 40, "", "font:600 11px var(--f-mono);fill:var(--muted)"));
+    });
+    mk("rect", { x: 522, y: 126, width: 154, height: 52, rx: 11, style: "fill:var(--surface-2);stroke:var(--tool);stroke-width:1.7" }, p);
+    txt(p, 599, 148, "aggregate", "font:700 15px var(--f-body);fill:var(--ink)", "middle");
+    S.agg = txt(p, 599, 166, "list[...]", "font:500 12px var(--f-mono);fill:var(--muted)", "middle");
+    txt(p, 600, 210, "max_parallel_workers=2", "font:700 12.5px var(--f-mono);fill:var(--tool)", "middle");
+  }
+
+  function render(n, anim) {
+    if (!S) return;
+    tw.forEach((t) => t.kill()); tw = [];
+    const pv = n >= 3;
+    gsap.set(S.bv, { opacity: pv ? 0 : 1 }); gsap.set(S.pv, { opacity: pv ? 1 : 0 });
+    if (!pv) {
+      const run = n >= 1;
+      if (n === 1 && anim) {
+        S.bars.forEach((b) => b.setAttribute("width", 0));
+        S.cards.forEach((c) => gsap.set(c, { opacity: 0 }));
+        gsap.set(S.dict, { opacity: 0 }); S.gate.style.strokeDasharray = "6 5"; S.gateS.textContent = "waiting 0/3";
+        DUR.forEach((d, i) => {
+          tw.push(gsap.to(S.bars[i], { attr: { width: 174 }, duration: d, delay: 0.3, ease: "none" }));
+          tw.push(gsap.fromTo(S.cards[i], { opacity: 0, x: -70 }, { opacity: 1, x: 0, duration: 0.4, delay: 0.3 + d, onStart: () => (S.gateS.textContent = `waiting ${i + 1}/3`) }));
+        });
+        tw.push(gsap.delayedCall(3.4, () => { S.gate.style.strokeDasharray = "none"; S.gateS.textContent = "open → dict"; }));
+        tw.push(gsap.fromTo(S.dict, { opacity: 0, y: -20 }, { opacity: 1, y: 0, duration: 0.5, delay: 3.5 }));
+      } else {
+        S.bars.forEach((b) => b.setAttribute("width", run ? 174 : 0));
+        S.cards.forEach((c) => gsap.set(c, { opacity: run ? 1 : 0, x: 0 }));
+        S.gate.style.strokeDasharray = run ? "none" : "6 5";
+        S.gateS.textContent = run ? "open → dict" : "waiting 0/3";
+        gsap.set(S.dict, { opacity: run ? 1 : 0, y: 0 });
+        if (n === 2 && anim) tw.push(gsap.fromTo(S.dict, { scale: 1 }, { scale: 1.04, transformOrigin: "50% 50%", duration: 0.5, yoyo: true, repeat: 3 }));
+      }
+    } else {
+      const fin = () => { S.wbars.forEach((b) => b.setAttribute("width", 140)); S.wlabel.forEach((l) => (l.textContent = "done")); S.agg.textContent = "[A, B, C, D]"; };
+      if (n === 3 && anim) {
+        S.wbars.forEach((b) => b.setAttribute("width", 0)); S.agg.textContent = "list[...]";
+        S.wlabel.forEach((l, i) => (l.textContent = i < 2 ? "running" : "waiting"));
+        [0, 1].forEach((i) => tw.push(gsap.to(S.wbars[i], { attr: { width: 140 }, duration: 1.2, delay: 0.4, ease: "none", onComplete: () => (S.wlabel[i].textContent = "done") })));
+        [2, 3].forEach((i) => tw.push(gsap.to(S.wbars[i], { attr: { width: 140 }, duration: 1.2, delay: 1.7, ease: "none", onStart: () => (S.wlabel[i].textContent = "running"), onComplete: () => (S.wlabel[i].textContent = "done") })));
+        tw.push(gsap.delayedCall(3.0, () => (S.agg.textContent = "[A, B, C, D]")));
+      } else fin();
+    }
+  }
+
+  Deck.register("adk-c03-fan-out", {
+    enter(slide, n) { build(slide); render(n, false); },
+    step(slide, n, animate) { render(n, animate); },
+    leave() { tw.forEach((t) => t.kill()); tw = []; S = null; }
+  });
+})();
+</script>
