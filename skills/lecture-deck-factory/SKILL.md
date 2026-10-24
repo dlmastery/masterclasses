@@ -108,3 +108,16 @@ For a brand-new repo instead: `gh repo create <owner>/<name> --public --source=.
 - **The served stylesheet failed** once because the tiny server reset connections. `serve.mjs` now uses `no-store` and simple file reads.
 - **Several briefs in a row** marked "slideshow1": treat each as its own deck on the shared engine, and ask the user once whether one replaces another.
 - **Commit early.** Push the engine and research before writing starts so nothing is lost. Push again after each deck's QA phase.
+
+## Version 2 (hands-on rewrite, 2026-10-23 evening)
+
+The user rejected v1 (60 slides) as "too much theory, no actual examples", with quiz slides mixed in and weak animation. What changed:
+
+- **Engine:** wire labels are placed on their curve where they hit no node or other label, with a background pill on a top SVG layer. Titles are 42 px and at most 70 characters. New components: `.kicker`, `.lab-head`, `.code-wrap.out` output pane, `.gotcha`, `.paper`, `.code-wrap.bad/.good`, `.steps-rail`, `ul.checks`, `.delta`. Reference slides: `decks/_demo/slides/06-handson.html`, `07-buildup.html`.
+- **Contract:** `engine/AUTHORING.md` section 9 sets the slide types (lab, build-up, gotcha, paper, industry, practices, concept, chapter) and the mix per 100 slides: ≥60 with code, ≥30 lab slides in 6–10 scenario labs, ≥12 gotcha, ≥10 papers from the last 3 months, ≥8 industry, ≥6 practices, no quiz slides.
+- **QA additions** in `qa.mjs`: `sparse` (content ends above y=620), `long-title`, `wordy` (>110 words of prose), `qa-in-main-deck`.
+- **Interview Q&A** moved to its own deck per topic (`<key>-interview`): Q&A, whiteboard and debug-this slides.
+- **Research v2** (`research-v2/<key>/`): per deck, 3 arXiv sweeps (last 3 months, via the arXiv API sorted by submittedDate), 4 lab researchers (complete code, verified against the library source on GitHub), 1 gotchas, 1 industry, then a verifier that writes `00-VERIFIED.md`. One workflow per deck, run as 3 workflows at once, because each workflow caps at 16 concurrent agents.
+- **Generation v2:** `templates/generate-v2.workflow.js`. The deck architect and the interview architect run in parallel, then one writer per 2 slides, a stitcher per chapter, QA per chapter, and a final mix audit. Run one workflow per deck.
+- **PyPI is blocked by Avast HTTPS scanning** (certificate UnknownIssuer for uv and pip). Do not bypass it. Verify APIs against GitHub source through WebFetch instead. If local execution is needed, ask the user to allow PyPI in Avast.
+- Archive the old version before regenerating (`git tag`, then `git mv decks/<key>/slides archive/v1/<key>/`). Don't push `docs/` until the new deck passes QA, so the public site keeps showing the old version.
