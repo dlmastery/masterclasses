@@ -148,6 +148,7 @@
     svg.innerHTML = "";
     const NS = "http://www.w3.org/2000/svg";
     d._wireEls = [];
+    const labels = [];
     d._wires.forEach((w) => {
       const a = d.querySelector("#" + CSS.escape(w.from));
       const b = d.querySelector("#" + CSS.escape(w.to));
@@ -190,19 +191,45 @@
       if (w.arrow) g.appendChild(mkArrow(x2 + ux2 * 2, y2 + uy2 * 2, ux2, uy2));
       if (w.both) g.appendChild(mkArrow(x1 + ux1 * 2, y1 + uy1 * 2, ux1, uy1));
 
-      if (w.label) {
-        const t = document.createElementNS(NS, "text");
-        const mx = 0.125 * sx + 0.375 * c1x + 0.375 * c2x + 0.125 * ex;
-        const my = 0.125 * sy + 0.375 * c1y + 0.375 * c2y + 0.125 * ey;
-        t.setAttribute("x", mx); t.setAttribute("y", my - 8);
-        t.setAttribute("text-anchor", "middle");
-        t.setAttribute("class", "wl");
-        t.textContent = w.label;
-        g.appendChild(t);
-      }
+      if (w.label) labels.push({ g, text: w.label, P: [sx, sy, c1x, c1y, c2x, c2y, ex, ey] });
       svg.appendChild(g);
       d._wireEls.push({ w, g, p });
       G.set(g, { autoAlpha: 0 });
+    });
+    placeLabels(d, svg, labels);
+  }
+
+  // Place wire labels on their curve where they hit no node and no other label.
+  function placeLabels(d, svg, labels) {
+    const NS = "http://www.w3.org/2000/svg";
+    const pad = 5;
+    const taken = [...d.querySelectorAll(".node")].map((n) => { const b = box(n, d); return { x: b.x - pad, y: b.y - pad, r: b.x + b.w + pad, b: b.y + b.h + pad }; });
+    const hit = (q) => taken.some((o) => q.x < o.r && q.r > o.x && q.y < o.b && q.b > o.y);
+    const at = (P, t) => { const u = 1 - t, a = u * u * u, b = 3 * u * u * t, c = 3 * u * t * t, e = t * t * t; return [a * P[0] + b * P[2] + c * P[4] + e * P[6], a * P[1] + b * P[3] + c * P[5] + e * P[7]]; };
+    const TS = [0.5, 0.38, 0.62, 0.28, 0.72, 0.2, 0.8, 0.14, 0.86];
+    labels.forEach((L) => {
+      const w = L.text.length * 8.6 + 14, h = 22;
+      let best = null;
+      for (const t of TS) {
+        const [x, y] = at(L.P, t);
+        const q = { x: x - w / 2, y: y - h / 2, r: x + w / 2, b: y + h / 2 };
+        if (!hit(q)) { best = q; break; }
+      }
+      if (!best) { const [x, y] = at(L.P, 0.5); best = { x: x - w / 2, y: y - h / 2, r: x + w / 2, b: y + h / 2 }; }
+      taken.push(best);
+      const bg = document.createElementNS(NS, "rect");
+      bg.setAttribute("x", best.x); bg.setAttribute("y", best.y); bg.setAttribute("width", w); bg.setAttribute("height", h);
+      bg.setAttribute("rx", 6); bg.setAttribute("class", "wlb");
+      const t = document.createElementNS(NS, "text");
+      t.setAttribute("x", best.x + w / 2); t.setAttribute("y", best.y + h / 2 + 5);
+      t.setAttribute("text-anchor", "middle"); t.setAttribute("class", "wl");
+      t.textContent = L.text;
+      const lg = document.createElementNS(NS, "g");
+      lg.setAttribute("class", "wlg");
+      lg.appendChild(bg); lg.appendChild(t);
+      svg.appendChild(lg); // top layer: no later wire draws over a label
+      L.g._label = lg;
+      G.set(lg, { autoAlpha: 0 });
     });
   }
 
@@ -211,12 +238,13 @@
     we.shown = true;
     const len = we.p.getTotalLength();
     G.set(we.g, { autoAlpha: 1 });
+    if (we.g._label) { G.set(we.g._label, { autoAlpha: 1 }); if (animate && !reduce) G.from(we.g._label, { autoAlpha: 0, duration: 0.4, delay: 0.7 }); }
     if (animate && !reduce) {
       const dashed = we.w.dash;
       if (!dashed) {
         G.fromTo(we.p, { strokeDasharray: len, strokeDashoffset: len }, { strokeDashoffset: 0, duration: 0.9, ease: "power2.inOut", onComplete: () => G.set(we.p, { clearProps: "strokeDasharray,strokeDashoffset" }) });
       } else G.from(we.p, { autoAlpha: 0, duration: 0.6 });
-      G.from(we.g.querySelectorAll(".arrow, text"), { autoAlpha: 0, duration: 0.4, delay: 0.7 });
+      G.from(we.g.querySelectorAll(".arrow, text, .wlb"), { autoAlpha: 0, duration: 0.4, delay: 0.7 });
     }
     if (we.w.flow && !reduce) startPulse(slide, we, len);
   }
@@ -224,6 +252,7 @@
     if (!we.shown) return;
     we.shown = false;
     G.to(we.g, { autoAlpha: 0, duration: D(0.25) });
+    if (we.g._label) G.to(we.g._label, { autoAlpha: 0, duration: D(0.25) });
     if (we.pulses) { we.pulses.forEach((t) => t.kill()); we.pulses = null; we.g.querySelectorAll(".pulse").forEach((c) => c.remove()); }
   }
   function startPulse(slide, we, len) {

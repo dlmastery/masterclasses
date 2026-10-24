@@ -100,6 +100,94 @@ root_agent = Agent(
   <div class="bar" data-step="2" data-fx="bar" style="--v:72%"><i></i></div>
 </section>
 
+<!-- 06-handson.html -->
+<section class="slide" id="handson" data-tone="tool" data-title="Hands-on components">
+  <div class="kicker"><span class="pill">Lab 2</span> Hybrid search · step 3 of 5</div>
+  <h2 class="title">Fuse BM25 and dense results with reciprocal rank fusion</h2>
+  <div class="grid g-21 fill" style="gap:28px">
+    <div class="stack">
+      <div class="lab-head"><span class="run">python hybrid.py "refund window for EU orders"</span></div>
+      <div class="code-wrap">
+        <div class="code-head">hybrid.py</div>
+        <pre class="code sm" data-lang="python" data-focus="1:4-6, 2:8-11, 3:13-14"><code>from rank_bm25 import BM25Okapi
+import numpy as np
+
+def rrf(rankings, k=60):
+    scores = {}
+    for ranking in rankings:
+        for rank, doc_id in enumerate(ranking):
+            scores[doc_id] = scores.get(doc_id, 0) + 1 / (k + rank + 1)
+    return sorted(scores, key=scores.get, reverse=True)
+
+bm25 = BM25Okapi([d.split() for d in docs])
+sparse = np.argsort(-bm25.get_scores(q.split()))[:50]
+dense = np.argsort(-(emb @ q_emb))[:50]
+
+top = rrf([sparse.tolist(), dense.tolist()])[:5]
+print(top)</code></pre>
+      </div>
+      <div class="code-wrap out" data-step="3">
+        <div class="code-head">output</div>
+        <pre class="code xs" data-lang="bash"><code><span class="ok">[12, 4, 31, 7, 18]</span>   <span class="dim"># doc 12 is rank 3 in BM25, rank 1 in dense</span></code></pre>
+      </div>
+    </div>
+    <div class="stack">
+      <div class="diagram" style="width:440px;height:250px" data-wires="q>bm@1 [tokens]; q>de@1 [embedding]; bm>f@2 [top 50]; de>f@2 [top 50]">
+        <div class="node n-human pill" id="q" style="left:0;top:100px;width:110px"><span class="nt">Query</span></div>
+        <div class="node n-tool" id="bm" style="left:170px;top:0;width:130px" data-step="1"><span class="nt">BM25</span></div>
+        <div class="node n-state" id="de" style="left:170px;top:180px;width:130px" data-step="1"><span class="nt">Dense</span></div>
+        <div class="node n-agent" id="f" style="left:340px;top:90px;width:100px" data-step="2"><span class="nt">RRF</span></div>
+      </div>
+      <div class="gotcha" data-step="4">
+        <b>Symptom</b><span>Hybrid is worse than dense alone.</span>
+        <b class="why">Cause</b><span>Raw scores were summed. BM25 and cosine use different scales.</span>
+        <b class="fix">Fix</b><span>Fuse <i>ranks</i> with RRF (<code>k=60</code>), not scores.</span>
+      </div>
+      <div class="paper" data-step="5">
+        <div class="pid">arXiv:0000.00000 <span>demo card</span></div>
+        <div class="find">Paper card: the id, the finding with its <b>+4.1 nDCG</b> number, and the action.</div>
+        <div class="so">What to change in your system</div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Demo of the v2 components: kicker, lab-head, code + output pane, gotcha card, paper card, wire labels with background pills.</aside>
+</section>
+
+<!-- 07-buildup.html -->
+<section class="slide" id="buildup" data-tone="risk" data-title="Before / after + checklist">
+  <div class="kicker"><span class="pill">Gotcha</span> Retrieval scoring</div>
+  <h2 class="title">Normalise before you fuse, or one retriever silently wins</h2>
+  <div class="grid g2 fill" style="gap:28px">
+    <div class="stack">
+      <div class="code-wrap bad" data-step="1">
+        <div class="code-head">fuse.py</div>
+        <pre class="code sm" data-lang="python"><code>score = bm25_score + cosine_score   # 0..40 + 0..1
+ranked = sorted(docs, key=score, reverse=True)</code></pre>
+      </div>
+      <div class="code-wrap good" data-step="2">
+        <div class="code-head">fuse.py</div>
+        <pre class="code sm" data-lang="python"><code>def rrf(rankings, k=60):
+    s = {}
+    for r in rankings:
+        for i, d in enumerate(r):
+            s[d] = s.get(d, 0) + 1 / (k + i + 1)
+    return sorted(s, key=s.get, reverse=True)</code></pre>
+      </div>
+      <div class="row" data-step="3" style="gap:12px"><span class="delta up">+6.2 recall@10</span><span class="small">demo number</span></div>
+    </div>
+    <div class="stack">
+      <h3 data-step="4">Best practices</h3>
+      <ul class="checks" data-step="4" data-fx="stagger">
+        <li>Fuse ranks (RRF, k=60) when score scales differ.</li>
+        <li>Measure recall@k on a labelled set before and after.</li>
+        <li class="no">Do not add raw BM25 and cosine scores.</li>
+        <li class="no">Do not tune k on the test set.</li>
+      </ul>
+    </div>
+  </div>
+  <aside class="notes">Demo of .code-wrap.bad / .good, .delta and ul.checks.</aside>
+</section>
+
 </div>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.13.0/gsap.min.js"></script>

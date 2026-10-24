@@ -25,7 +25,7 @@ The background is white. Code blocks are dark. Accents are semantic. **Colour al
 | human (violet) | user, human-in-the-loop, annotator | `n-human` | `k-human` | `t-human` | `c-human` |
 | risk (red) | failure mode, attack, anti-pattern | `n-risk` | `k-risk` | `t-risk` | `c-risk` |
 
-Type: `.display` (chapter/opening only), `.title` (one per slide, ≤ 2 lines, sentence case, states the point — "Parallel branches share one session state", not "Parallel agents"), `h3`, `h4`, `.lede`, `p`, `.small`, `.tiny`.
+Type: `.display` (chapter/opening only), `.title` (one per slide, ≤ 70 characters, one line preferred, never 3 lines, sentence case, states the point — "Parallel branches share one session state", not "Parallel agents"), `h3`, `h4`, `.lede`, `p`, `.small`, `.tiny`.
 
 Layout: `.row`, `.grid.g2|g3|g4|g5|g-12|g-21|g-32|g-23`, `.stack`, `.stack.lg`, `.fill` (take remaining height), `.push` (push to bottom), `.vs` (left / mid / right comparison).
 
@@ -92,12 +92,13 @@ Titles animate automatically. Do not put `data-step` on the title.
 - Use **real numbers** (versions, dates, benchmark scores, token costs, latency, dataset sizes) from the research files. Never invent numbers, APIs, URLs, or quotes. If the research marks something `[UNVERIFIED]`, leave it out.
 - Use **current APIs and current practice (Oct 2026)**. Present older techniques (e.g. classic ReAct prompting) only as one line of history or as a contrast, then show what replaced them.
 - **Codelabs, repos, docs, papers**: every technical section cites the real sources with `.cite` links (exact titles). Quote codelabs where useful with a `.quote` + `.cite.codelab`.
-- **Interview lens**: every chapter ends with one interview slide: 3–4 `.qa` pairs (question visible, each answer revealed by its own step). Questions are the kind asked at Google, Anthropic, OpenAI, Meta and top startups for AI engineer / ML engineer roles: design trade-offs, failure modes, "how would you…", numbers to know.
+- **No interview / quiz slides in the main decks.** Interview Q&A lives in its own deck (`<key>-interview`). See section 9.
 - Put a `.callout.pitfall` on slides where engineers make a common mistake.
 - Real-world examples: name the company/product and the outcome when the research supports it.
 
 ## 7. Quality checklist (check each slide before you finish)
 
+- [ ] Matches the v2 slide types and mix in section 9.
 - [ ] Fits 1392 × 740. No text below y = 824. No overlaps between nodes.
 - [ ] One clear title that states the point.
 - [ ] 2–6 steps of progressive disclosure, or a bespoke animation, or both.
@@ -148,3 +149,53 @@ Titles animate automatically. Do not put `data-step` on the title.
 ```
 
 Rules for hooks: deterministic (no `Math.random()` — use index-based maths so the slide looks the same every time); `step()` must render the correct state for any `n` (the presenter can go backward); use CSS variables (`var(--state)`) for colour so the theme works; keep each loop in `gsap` so `leave()` can kill it.
+
+
+## 9. Version 2 rules (Oct 2026 rewrite) — these override anything above
+
+The first version was rejected: "too much theory, no actual examples". Every deck is now **hands-on first**. Theory appears only as the short mechanism that explains the code on the same slide.
+
+### 9.1 Slide types (use the `.kicker` line above the title to name the type)
+
+| Type | Kicker | Must contain |
+|---|---|---|
+| **Lab** | `<span class="pill">Lab N</span> scenario · step k of m` | `.lab-head` with the run command, a complete code block with `data-focus` walk-through (2–4 focus steps), an `.code-wrap.out` output pane, a `.steps-rail` or short panel that explains the focused lines. |
+| **Build-up** | `Build` | One feature added to the running scenario: a `.code-wrap.bad` / `.code-wrap.good` before/after pair, or a diff-like walk-through, and the measured effect (`.delta`). |
+| **Gotcha** | `<span class="pill">Gotcha</span> area` | 1–3 `.gotcha` cards (Symptom / Cause / Fix, exact error text when the research has it) and the fix in code. |
+| **Paper** | `<span class="pill">arXiv</span> Mon 2026` | 1–3 `.paper` cards for papers from **2026-07-23 .. 2026-10-23** only (id, title, finding with the exact number, "what to change on Monday"), plus an animated diagram of the method. |
+| **Industry** | `<span class="pill">In production</span> Company` | Named company/product, its architecture as an animated diagram, scale/cost/quality numbers, the lesson, `.cite`. |
+| **Practices** | `Best practices` | `ul.checks` (✓ do / ✕ don't) with 6–10 specific, testable items, each with a short reason; optionally a config/code snippet. |
+| **Concept** | (none) | Only when a mechanism must be seen: a large bespoke animation (`Deck.register`) that shows the mechanism moving, plus ≤ 3 short lines. |
+| **Chapter opener** | — | `class="slide chapter"`, the chapter number, a `.display` title, one lede line, and a self-animating mini-diagram of what the chapter builds. |
+
+### 9.2 Mix per 100-slide deck (the architect plans to these numbers)
+
+- ≥ 60 slides show real code (Lab + Build-up + Gotcha fixes + Practices with config).
+- ≥ 30 Lab slides, organised as 6–10 labs. Each lab is a sequence of 3–6 slides on ONE named business scenario (e.g. "Acme refunds agent", "HR policy search", "support-ticket triage") that grows step by step.
+- ≥ 12 Gotcha slides, ≥ 10 Paper slides (last 3 months), ≥ 8 Industry slides, ≥ 6 Practices slides.
+- ≤ 12 Concept slides. ≤ 11 chapter openers. 0 interview slides.
+
+### 9.3 Code rules
+
+- Code is complete: real imports, real names, no `...` in the visible lines unless you mark an omitted block with a comment. 12–28 lines per block (`.sm`/`.xs` sizes). Show the pinned versions in `.lab-head` (e.g. `google-adk==2.13.0`).
+- Use only code that the research marks VERIFIED (`research-v2/<key>/00-VERIFIED.md`) or that comes from an official codelab/quickstart/sample with its URL. Never put "check the exact kwarg names" on a slide: if you are not sure, do not show it.
+- Every lab slide has an output pane. Label illustrative output in its head (`output · illustrative`).
+- Use `.ok`, `.err`, `.dim` spans in output panes. Show the real error text on gotcha slides.
+
+### 9.4 Animation and visuals (more motion, bigger visuals)
+
+- Every slide has ≥ 3 build steps or a bespoke animation, usually both.
+- ≥ 1 in every 3 slides has a bespoke `Deck.register` gsap/SVG animation: tokens moving through a graph, state keys updating, a vector finding neighbours, chunks splitting, a loss/reward curve drawing, a confusion matrix filling, a request trace waterfall, a retry/backoff timeline, a cache hit/miss counter, a judge score distribution, etc.
+- Diagrams are large: when a slide has a diagram, it takes ≥ 40% of the canvas. Leave ≥ 80 px between nodes. ≤ 7 labelled wires per diagram. Labels ≤ 16 characters. Route wires with `:lr`/`:tb` and `:bendN` so they do not cross nodes.
+- Code walk-throughs move with the explanation: each `data-focus` step reveals the matching `.steps-rail` item (same step number).
+- Text budget: ≤ 45 words of prose per slide outside code, tables and cards.
+
+### 9.5 Sources
+
+- Research for v2: `research-v2/<key>/*.md` (labs, recent arXiv, gotchas, industry) and `00-VERIFIED.md` (overrides everything). The older research folders are background.
+- Cite every lab (codelab/quickstart/repo), every paper (arXiv id) and every case (company post) with `.cite` links.
+
+### 9.6 Interview deck (`<key>-interview`)
+
+- 20–30 slides. Chapter openers per topic area, then `.qa` slides with 3 Q&A pairs each (each answer is its own step), plus "whiteboard" slides: a system-design prompt and an animated reference architecture, and "debug this" slides: a code block with a bug, the answer step highlights it with `data-focus`.
+- Questions match what Google, Anthropic, OpenAI, Meta and top startups ask AI/ML engineers in 2026: trade-offs, failure modes, numbers to know, "how would you build…".

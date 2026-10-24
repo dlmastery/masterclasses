@@ -88,6 +88,15 @@ for (let i = 0; i < n; i++) {
         [m[1], m[3]].forEach((nid) => { if (!d.querySelector("#" + CSS.escape(nid))) out.push({ type: "wire-missing-node", id: nid }); });
       });
     });
+    // 4b. v2 layout checks: sparse slide, long title, too much prose, qa slide in a main deck
+    let maxB = 0;
+    s.querySelectorAll("*").forEach((el) => { if (el.closest(".notes") || !visible(el)) return; const r = el.getBoundingClientRect(); if (r.width && r.height) maxB = Math.max(maxB, rel(r).b); });
+    if (!s.classList.contains("chapter") && maxB < 620) out.push({ type: "sparse", note: `content ends at y=${Math.round(maxB)} (use the space: bigger diagram/code)` });
+    const t = s.querySelector(".title");
+    if (t && t.getBoundingClientRect().height / sc > 110) out.push({ type: "long-title", note: "title wraps to 3+ lines" });
+    const prose = [...s.querySelectorAll("p, li, .lede, .callout, .panel > span")].filter((e) => !e.closest("pre, table, .gotcha, .paper, .notes")).map((e) => e.textContent).join(" ").split(/\s+/).filter(Boolean).length;
+    if (prose > 110) out.push({ type: "wordy", note: `${prose} words of prose` });
+    if (!/-interview$/.test(document.location.pathname.replace(/\/$/, "")) && s.querySelector(".qa")) out.push({ type: "qa-in-main-deck" });
     // 5. slide hygiene
     if (!s.querySelector(".title, .display")) out.push({ type: "no-title" });
     if (!s.dataset.tone) out.push({ type: "no-tone" });
