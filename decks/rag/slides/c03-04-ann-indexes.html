@@ -1,0 +1,167 @@
+<section class="slide" id="rag-c03-ann-indexes" data-tone="state" data-title="ANN indexes: HNSW, IVF-PQ, DiskANN, ScaNN">
+  <h2 class="title">HNSW descends from long links to short links, while IVF-PQ, DiskANN and ScaNN trade memory for recall</h2>
+  <div class="grid g-32 fill">
+    <div class="stack">
+      <svg class="interactive" id="rag-c03-ann-svg" viewBox="0 0 821 290" width="821" height="222" aria-label="HNSW greedy search through three graph layers, then IVF cells with nprobe equal to 3"></svg>
+      <p class="tiny">Every index is a point on the recall / latency / memory / build-time surface. HNSW (Malkov &amp; Yashunin, IEEE TPAMI 2018) is the default in pgvector, Qdrant, Weaviate, Milvus, Elasticsearch/OpenSearch and FAISS.</p>
+      <div class="grid g3" data-step="4" data-fx="stagger">
+        <div class="panel tight k-state"><h4>PQ</h4><p class="small">Split a vector into M sub-vectors; code each with 2<sup>nbits</sup> centroids. 768-d float32: 3,072 B → PQ96x8: 96 B.</p></div>
+        <div class="panel tight k-state"><h4>DiskANN / Vamana</h4><p class="small">PQ codes in RAM; graph and full vectors on SSD. SIFT1B on a 64 GB box: &gt;5,000 QPS, &lt;3 ms, 95%+ 1-recall@1.</p></div>
+        <div class="panel tight k-state"><h4>ScaNN + SOAR</h4><p class="small">Anisotropic quantization. SOAR spills each vector to a second, near-orthogonal cluster. Runs Vertex AI Vector Search and AlloyDB.</p></div>
+      </div>
+      <div class="cites">
+        <a class="cite paper" href="https://arxiv.org/abs/1603.09320" target="_blank" rel="noopener"><b>Paper</b>&nbsp;HNSW, arXiv 1603.09320</a>
+        <a class="cite doc" href="https://github.com/facebookresearch/faiss/wiki/Faiss-indexes" target="_blank" rel="noopener"><b>Wiki</b>&nbsp;Faiss indexes</a>
+        <a class="cite doc" href="https://research.google/blog/soar-new-algorithms-for-even-faster-vector-search-with-scann/" target="_blank" rel="noopener"><b>Blog</b>&nbsp;SOAR with ScaNN</a>
+      </div>
+    </div>
+    <div class="stack">
+      <div class="code-wrap"><div class="code-head">index.py · FAISS</div>
+<pre class="code xs" data-lang="python" data-focus="4:3-6, 5:7-8, 6:10-11"><code>
+import faiss, numpy as np
+d, nlist, m = 768, 4096, 96      # 96 x 8 bits = 96 B
+quantizer = faiss.IndexFlatL2(d)
+index = faiss.IndexIVFPQ(quantizer, d, nlist, m, 8)
+index.train(xt)                  # representative sample
+index.add(xb)
+index.nprobe = 16                # query-time knob
+D, I = index.search(xq, 10)
+
+# graph index instead of IVF-PQ
+hnsw = faiss.IndexHNSWFlat(d, 32)  # M = 32 neighbours
+hnsw.hnsw.efSearch = 64
+</code></pre></div>
+      <div class="panel tight k-agent" data-step="6">
+        <h4>HNSW knobs and bytes per vector</h4>
+        <ul class="clean small">
+          <li><code>M</code>: graph degree → memory and recall</li>
+          <li><code>efConstruction</code>: build quality → build time</li>
+          <li><code>efSearch</code>: beam width → latency vs recall</li>
+          <li>Flat 4·d · IVFPQ ⌈M·nbits/8⌉+8 · HNSWFlat 4·d + M·2·4</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    HNSW works like a road network: the top layer is the highway with a few long links, and layer 0 is the street level with every vector. The search enters at the top, moves greedily to the neighbour nearest the query until it cannot improve, drops one layer, and repeats; on layer 0 it runs a beam search of width efSearch and returns the top k. Step 4 shows the other family: IVF cuts the space into nlist k-means cells and searches only the nprobe nearest cells, and PQ compresses each vector to 96 bytes. DiskANN keeps only PQ codes in RAM, which is how one workstation serves a billion vectors. Likely question: "HNSW or IVF-PQ?" Answer: HNSW for the best recall and latency when the vectors fit in RAM; IVF-PQ or DiskANN when memory is the limit, and always measure recall@k against exact k-NN.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "rag-c03-ann-indexes";
+  const X = (i) => 70 + i * 31;
+  const LY = [246, 148, 50];                 // layer 0 (bottom), 1, 2 (top)
+  const OFF = (i) => (((i * 37) % 5) - 2) * 6;
+  const L = [Array.from({ length: 22 }, (_, i) => i), [1, 4, 6, 9, 12, 14, 17, 19, 21], [1, 9, 17]];
+  const QX = X(18.6);
+  const SEG = { 1: [[2, 1], [2, 9], [2, 17]], 2: [[1, 17], [1, 19]], 3: [[0, 19]] };
+  const RES = [17, 18, 19, 20], BEAM = [16, 21];
+  const CENT = Array.from({ length: 12 }, (_, k) => [40 + (k * 263) % 740, 25 + (k * 97) % 240]);
+  const Q2 = [520, 140];
+  let built = false, gH, gI, tok, nodes = {}, tl, all = [];
+  const mk = (tag, attrs, parent) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    parent.appendChild(e); return e;
+  };
+  const xy = (l, i) => [X(i), LY[l] + OFF(i)];
+  function build(slide) {
+    const svg = slide.querySelector("#rag-c03-ann-svg");
+    svg.innerHTML = "";
+    nodes = {};
+    gH = mk("g", {}, svg);
+    gI = mk("g", { opacity: 0 }, svg);
+    // HNSW layers
+    [2, 1, 0].forEach((l) => {
+      const y = LY[l];
+      mk("polygon", { points: `56,${y - 30} 806,${y - 30} 776,${y + 30} 26,${y + 30}`, fill: "var(--surface-2)", stroke: "var(--line-2)", "stroke-width": 1.5, opacity: 0.8 }, gH);
+      const t = mk("text", { x: 30, y: y - 34 + (l === 2 ? 2 : 0), fill: "var(--muted)", style: "font: 600 13px var(--f-mono)" }, gH);
+      t.textContent = ["layer 0 · every vector", "layer 1", "layer 2 · long links"][l];
+    });
+    [1, 2].forEach((l) => L[l].forEach((i) => {
+      const [x, y] = xy(l, i), [, y2] = xy(l - 1, i);
+      mk("line", { x1: x, y1: y, x2: x, y2: y2, stroke: "var(--muted)", "stroke-width": 1, "stroke-dasharray": "3 4", opacity: 0.4 }, gH);
+    }));
+    [0, 1, 2].forEach((l) => {
+      const ids = L[l];
+      const pairs = ids.slice(1).map((v, k) => [ids[k], v]);
+      if (l === 0) for (let i = 0; i + 2 < 22; i += 2) pairs.push([i, i + 2]);
+      pairs.forEach(([a, b]) => { const [x1, y1] = xy(l, a), [x2, y2] = xy(l, b); mk("line", { x1, y1, x2, y2, stroke: "var(--muted)", "stroke-width": l ? 2 : 1.3, opacity: 0.45 }, gH); });
+    });
+    [0, 1, 2].forEach((l) => {
+      const y = LY[l];
+      mk("circle", { cx: QX, cy: y, r: 13, fill: "none", stroke: "var(--agent)", "stroke-width": 2, "stroke-dasharray": "4 3" }, gH);
+    });
+    const qt = mk("text", { x: QX + 16, y: LY[0] + 26, fill: "var(--agent)", style: "font: 700 14px var(--f-mono)" }, gH); qt.textContent = "q";
+    [0, 1, 2].forEach((l) => L[l].forEach((i) => {
+      const [x, y] = xy(l, i);
+      nodes[l + ":" + i] = mk("circle", { cx: x, cy: y, r: l ? 7 : 6, fill: "var(--surface)", stroke: "var(--state)", "stroke-width": 2 }, gH);
+    }));
+    const rl = mk("text", { x: 470, y: LY[0] + 26, fill: "var(--state)", "text-anchor": "end", style: "font: 700 14px var(--f-mono)", opacity: 0 }, gH);
+    rl.textContent = "beam (efSearch) → top-k"; nodes.rl = rl;
+    tok = mk("circle", { cx: X(1), cy: LY[2] - 40, r: 9, fill: "var(--agent)", opacity: 0 }, gH);
+    // IVF view: Voronoi cells by nearest centroid on a 10 px raster
+    const near = (x, y) => { let b = 0, bd = 1e9; CENT.forEach(([cx, cy], k) => { const d = (x - cx) ** 2 + (y - cy) ** 2; if (d < bd) { bd = d; b = k; } }); return b; };
+    const probe = CENT.map((c, k) => [(c[0] - Q2[0]) ** 2 + (c[1] - Q2[1]) ** 2, k]).sort((a, b) => a[0] - b[0]).slice(0, 3).map((v) => v[1]);
+    const S = 10, CX = 82, CY = 29, A = [];
+    for (let r = 0; r < CY; r++) { A.push([]); for (let c = 0; c < CX; c++) A[r].push(near(c * S + 5, r * S + 5)); }
+    const gP = mk("g", {}, gI), gB = mk("g", {}, gI);
+    for (let r = 0; r < CY; r++) for (let c = 0; c < CX; c++) {
+      const k = A[r][c];
+      if (probe.includes(k)) mk("rect", { x: c * S, y: r * S, width: S + 0.5, height: S + 0.5, fill: "var(--agent)", opacity: 0.16 }, gP);
+      if (c + 1 < CX && A[r][c + 1] !== k) mk("line", { x1: (c + 1) * S, y1: r * S, x2: (c + 1) * S, y2: (r + 1) * S, stroke: "var(--state)", "stroke-width": 1.5, opacity: 0.7 }, gB);
+      if (r + 1 < CY && A[r + 1][c] !== k) mk("line", { x1: c * S, y1: (r + 1) * S, x2: (c + 1) * S, y2: (r + 1) * S, stroke: "var(--state)", "stroke-width": 1.5, opacity: 0.7 }, gB);
+    }
+    for (let i = 0; i < 90; i++) mk("circle", { cx: 12 + (i * 149) % 796, cy: 10 + (i * 61) % 270, r: 3.5, fill: "var(--muted)", opacity: 0.55 }, gI);
+    CENT.forEach(([x, y]) => mk("path", { d: `M${x - 7} ${y}H${x + 7}M${x} ${y - 7}V${y + 7}`, stroke: "var(--state)", "stroke-width": 3 }, gI));
+    mk("circle", { cx: Q2[0], cy: Q2[1], r: 10, fill: "var(--agent)", stroke: "var(--surface)", "stroke-width": 3 }, gI);
+    mk("rect", { x: 8, y: 8, width: 300, height: 30, rx: 8, fill: "var(--surface)", opacity: 0.92 }, gI);
+    const it = mk("text", { x: 20, y: 29, fill: "var(--ink)", style: "font: 700 15px var(--f-mono)" }, gI);
+    it.textContent = "IVF: search nprobe = 3 cells";
+    all = [gH, gI, tok, ...Object.values(nodes)];
+    built = true;
+  }
+  const lit = (n) => {
+    const s = new Set();
+    for (let k = 1; k <= Math.min(n, 3); k++) SEG[k].forEach(([l, i]) => s.add(l + ":" + i));
+    return s;
+  };
+  function paint(n) {
+    const s = lit(n);
+    Object.entries(nodes).forEach(([key, c]) => {
+      if (key === "rl") return;
+      const [l, i] = key.split(":").map(Number);
+      const res = n >= 3 && l === 0 && RES.includes(i), beam = n >= 3 && l === 0 && BEAM.includes(i);
+      c.setAttribute("fill", res ? "var(--state)" : s.has(key) || beam ? "var(--agent)" : "var(--surface)");
+      c.setAttribute("r", res ? 9 : l ? 7 : 6);
+      c.setAttribute("opacity", beam ? 0.5 : 1);
+    });
+    nodes.rl.setAttribute("opacity", n >= 3 ? 1 : 0);
+  }
+  function render(n, animate) {
+    if (tl) tl.kill();
+    gsap.to(gH, { opacity: n >= 4 ? 0 : 1, duration: animate ? 0.5 : 0, overwrite: "auto" });
+    gsap.to(gI, { opacity: n >= 4 ? 1 : 0, duration: animate ? 0.6 : 0, delay: animate && n >= 4 ? 0.2 : 0, overwrite: "auto" });
+    if (n >= 1 && n <= 3 && animate) {
+      paint(n - 1);
+      tl = gsap.timeline({ onComplete: () => paint(n) });
+      if (n === 1) { tl.set(tok, { attr: { cx: X(1), cy: LY[2] - 40 }, opacity: 1 }).to(tok, { attr: { cy: xy(2, 1)[1] }, duration: 0.4 }); }
+      SEG[n].forEach(([l, i]) => {
+        const [x, y] = xy(l, i);
+        tl.to(tok, { attr: { cx: x, cy: y }, opacity: 1, duration: 0.55, ease: "power2.inOut" }).call(() => nodes[l + ":" + i].setAttribute("fill", "var(--agent)"));
+      });
+      return;
+    }
+    paint(n);
+    const last = n >= 1 ? SEG[Math.min(n, 3)].slice(-1)[0] : null;
+    if (last) { const [x, y] = xy(last[0], last[1]); gsap.set(tok, { attr: { cx: x, cy: y }, opacity: 1 }); }
+    else gsap.set(tok, { opacity: 0 });
+  }
+  Deck.register(ID, {
+    enter(slide, step) { build(slide); render(step, false); },
+    step(slide, n, animate) { if (built) render(n, animate); },
+    leave() { if (tl) tl.kill(); gsap.killTweensOf(all); built = false; }
+  });
+})();
+</script>

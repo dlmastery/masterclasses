@@ -1,0 +1,137 @@
+<section class="slide" id="rag-c04-rerankers" data-tone="agent" data-title="Rerankers">
+  <h2 class="title">Rerank about 150 candidates with a cross-encoder or LLM, then keep the best 20</h2>
+  <div class="grid g2 fill" style="gap:24px">
+    <div class="stack" style="gap:14px">
+      <svg id="c04k-svg" class="interactive" viewBox="0 0 684 240" width="684" height="240" aria-label="Interaction spectrum: bi-encoder, late interaction, cross-encoder"></svg>
+      <ul class="clean tiny" style="gap:7px" data-step="4" data-fx="stagger">
+        <li><b>Late interaction:</b> ColBERTv2 (NAACL 2022) keeps one vector per token. Residual compression makes the index 6–10× smaller than v1. sentence-transformers v6.0.0 (18 Aug 2026) adds <code>MultiVectorEncoder</code>.</li>
+        <li><b>Cohere</b> <code>rerank-v5.0-pro</code> / <code>-fast</code>: 32k context, 100+ languages, adds <code>relevant_spans</code>. <code>rerank-v3.5</code>: 4k. <b>Voyage</b> <code>rerank-3</code> / <code>rerank-3-lite</code>: 32K.</li>
+        <li><b>Open:</b> <code>BAAI/bge-reranker-v2-m3</code> (0.6B, multilingual). <code>jina-reranker-v3</code> (0.6B on Qwen3, listwise over 64 docs in one 131K context, BEIR nDCG@10 61.94, CC BY-NC 4.0).</li>
+        <li><b>LLM rerankers:</b> RankGPT (EMNLP 2023) outputs a permutation with a sliding window: "a distilled 440M model outperforms a 3B supervised model on BEIR".</li>
+        <li><b>Reasoning rerankers:</b> Rank1 (COLM 2025, 600K+ reasoning traces). ReasonIR-8B on BRIGHT: nDCG@10 29.9 → 36.9 with a reranker.</li>
+      </ul>
+    </div>
+    <div class="stack" style="gap:14px">
+      <div class="row" style="gap:20px;align-items:flex-end" data-step="4">
+        <div class="stat"><span class="n" data-to="150">0</span><span class="l">candidates in</span></div>
+        <div class="stat" style="--aurora:var(--faint)"><span class="n">→</span><span class="l">&nbsp;</span></div>
+        <div class="stat"><span class="n" data-to="20">0</span><span class="l">kept for the prompt</span></div>
+        <p class="tiny" style="flex:1">Anthropic: retrieve 150, rerank, keep 20. Cost is one API round-trip or one GPU pass per pair. Cap the candidates. Keep docs ≤ <code>max_tokens_per_doc</code> (Cohere default 4096).</p>
+      </div>
+      <div class="code-wrap" style="width:684px"><div class="code-head">rerank.py</div>
+<pre class="code xs" data-lang="python" data-focus="5:4-4, 6:9-11"><code>
+import cohere
+co = cohere.ClientV2()
+resp = co.rerank(
+    model="rerank-v5.0-pro",        # or rerank-v5.0-fast, rerank-v3.5
+    query="What is the capital of the United States?",
+    documents=["Carson City is the capital city of Nevada.",
+               "Washington, D.C. is the capital of the United States.",
+               "Capital gains are profits from the sale of an asset."],
+    top_n=2,
+    relevant_spans={"mode": "enabled", "threshold": 0.1,
+                    "max_spans": 3},   # v5+ only: spans behind the score
+)
+for r in resp.results:
+    print(r.index, r.relevance_score)
+</code></pre></div>
+      <div class="cites push">
+        <a class="cite doc" href="https://docs.cohere.com/docs/rerank" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Cohere Rerank</a>
+        <a class="cite repo" href="https://huggingface.co/BAAI/bge-reranker-v2-m3" target="_blank" rel="noopener"><b>Model</b>&nbsp;bge-reranker-v2-m3</a>
+        <a class="cite codelab" href="https://codelabs.developers.google.com/codelabs/production-ready-ai-with-gc/8-advanced-rag-methods/advanced-rag-methods" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;Advanced RAG Techniques (VertexAIRank: fetch 10, keep 3)</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    Show the interaction spectrum one grid at a time. A bi-encoder makes one vector for the query and one for the document, so the only interaction is one cosine; it is fast because documents are encoded offline, but it loses detail. Late interaction keeps a vector per token: each query token takes its best match in the document (MaxSim) and the maxima add up. A cross-encoder reads the query and the document together with full attention, so it is the most accurate and also needs one forward pass per pair, which is why we only run it on about 150 candidates and keep 20. Analogy: the bi-encoder reads the book titles, ColBERT reads the index at the back, and the cross-encoder reads the chapter with your question in mind. Likely question: "Why not use a cross-encoder for the first stage?" Because you cannot precompute anything, so a million documents means a million forward passes per query.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "rag-c04-rerankers";
+  const R = 4, C = 6, CW = 26, CH = 22, Y0 = 34;
+  const CX = [100, 342, 584];
+  const TITLES = ["Bi-encoder", "Late interaction", "Cross-encoder"];
+  const CAP1 = ["1 vector per text", "1 vector per token", "query + doc, one pass"];
+  const CAP2 = ["one cosine, precomputed", "MaxSim per row, then Σ", "full attention, O(N)"];
+  const TONE = ["--state", "--agent", "--model"];
+  const val = (i, j) => 0.12 + 0.85 * Math.abs(Math.sin(i * 1.3 + j * 0.9 + 0.5));
+  let svg = null, grids = [];
+  const mk = (tag, a, p) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); p.appendChild(e); return e; };
+  function build(slide) {
+    svg = slide.querySelector("#c04k-svg");
+    if (svg._built) return;
+    svg._built = true;
+    svg.innerHTML = "";
+    grids = CX.map((cx, g) => {
+      const x0 = cx - (C * CW) / 2, grp = mk("g", {}, svg);
+      const t = mk("text", { x: cx, y: 18, "text-anchor": "middle", style: `font:700 16px var(--f-body);fill:var(${TONE[g]})` }, grp); t.textContent = TITLES[g];
+      const cells = [];
+      for (let i = 0; i < R; i++) for (let j = 0; j < C; j++) {
+        cells.push(mk("rect", { x: x0 + j * CW + 1, y: Y0 + i * CH + 1, width: CW - 2, height: CH - 2, rx: 3, style: "fill:var(--line);stroke:none" }, grp));
+      }
+      const c1 = mk("text", { x: cx, y: 144, "text-anchor": "middle", style: "font:600 13px var(--f-mono);fill:var(--ink-2)" }, grp); c1.textContent = CAP1[g];
+      const c2 = mk("text", { x: cx, y: 162, "text-anchor": "middle", style: "font:500 13px var(--f-mono);fill:var(--muted)" }, grp); c2.textContent = CAP2[g];
+      const extra = mk("g", {}, grp);
+      if (g === 0) {
+        mk("circle", { cx, cy: Y0 + 44, r: 22, style: "fill:var(--surface-2);stroke:var(--state);stroke-width:2.5" }, extra);
+        const tt = mk("text", { x: cx, y: Y0 + 49, "text-anchor": "middle", style: "font:700 14px var(--f-mono);fill:var(--state)" }, extra); tt.textContent = "cos";
+      } else if (g === 1) {
+        const tt = mk("text", { x: x0 + C * CW + 8, y: Y0 + 50, style: "font:700 22px var(--f-body);fill:var(--agent)" }, extra); tt.textContent = "Σ";
+      }
+      gsap.set(extra, { autoAlpha: 0 });
+      return { cells, extra };
+    });
+    mk("line", { x1: 30, y1: 196, x2: 650, y2: 196, style: "stroke:var(--ink-2);stroke-width:2", "marker-end": "url(#c04k-ar)" }, svg);
+    const defs = mk("defs", {}, svg), m = mk("marker", { id: "c04k-ar", viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 8, markerHeight: 8, orient: "auto" }, defs);
+    mk("path", { d: "M0,0 L10,5 L0,10 z", style: "fill:var(--ink-2)" }, m);
+    const l = mk("text", { x: 30, y: 224, style: "font:500 14px var(--f-mono);fill:var(--muted)" }, svg); l.textContent = "fast, lossy";
+    const mid = mk("text", { x: 342, y: 224, "text-anchor": "middle", style: "font:600 14px var(--f-mono);fill:var(--ink-2)" }, svg); mid.textContent = "cost per query ↑   quality ↑";
+    const r = mk("text", { x: 654, y: 224, "text-anchor": "end", style: "font:500 14px var(--f-mono);fill:var(--muted)" }, svg); r.textContent = "slow, accurate";
+  }
+  function light(g, on, animate) {
+    const { cells, extra } = grids[g];
+    const d = animate ? 1 : 0;
+    gsap.killTweensOf(cells);
+    if (!on) { gsap.set(cells, { attr: { style: "fill:var(--line);stroke:none" } }); gsap.set(extra, { autoAlpha: 0 }); return; }
+    if (g === 0) {
+      gsap.set(cells, { attr: { style: "fill:var(--line);stroke:none;opacity:.5" } });
+      gsap.to(extra, { autoAlpha: 1, duration: 0.5 * d });
+    } else if (g === 1) {
+      for (let i = 0; i < R; i++) {
+        let best = 0;
+        for (let j = 0; j < C; j++) if (val(i, j) > val(i, best)) best = j;
+        for (let j = 0; j < C; j++) {
+          const c = cells[i * C + j], isMax = j === best;
+          gsap.set(c, { attr: { style: `fill:var(--agent);fill-opacity:${isMax ? 0.95 : (val(i, j) * 0.25).toFixed(2)}` } });
+          if (animate) gsap.fromTo(c, { opacity: 0 }, { opacity: 1, duration: 0.3, delay: i * 0.25 + (isMax ? 0.15 : 0) });
+          else gsap.set(c, { opacity: 1 });
+        }
+      }
+      gsap.to(extra, { autoAlpha: 1, duration: 0.4 * d, delay: 1.1 * d });
+    } else {
+      cells.forEach((c, k) => {
+        const i = Math.floor(k / C), j = k % C;
+        gsap.set(c, { attr: { style: `fill:var(--model);fill-opacity:${(0.25 + 0.7 * val(j, i)).toFixed(2)}` } });
+        if (animate) gsap.fromTo(c, { opacity: 0 }, { opacity: 1, duration: 0.25, delay: k * 0.025 });
+        else gsap.set(c, { opacity: 1 });
+      });
+    }
+  }
+  function render(slide, n, animate) {
+    build(slide);
+    grids.forEach((_, g) => {
+      const on = n >= g + 1;
+      if (svg["_on" + g] === on) return;
+      svg["_on" + g] = on;
+      light(g, on, animate && on);
+    });
+  }
+  Deck.register(ID, {
+    enter(slide, n) { build(slide); [0, 1, 2].forEach((g) => (svg["_on" + g] = undefined)); render(slide, n, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { grids.forEach((g) => gsap.killTweensOf([...g.cells, g.extra])); },
+  });
+})();
+</script>

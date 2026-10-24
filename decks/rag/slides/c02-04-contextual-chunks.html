@@ -1,0 +1,167 @@
+<section class="slide" id="rag-c02-contextual-chunks" data-tone="state" data-title="Late chunking and Contextual Retrieval">
+  <h2 class="title">Chunks lose their context, and late chunking or Contextual Retrieval puts it back</h2>
+  <div class="grid fill" style="grid-template-columns:1fr 720px;gap:24px">
+    <div class="stack" style="gap:16px">
+      <div class="panel tight k-model" style="gap:6px">
+        <div class="row" style="justify-content:space-between;align-items:center"><h4>Fix A · Late chunking <span class="tiny">Jina</span></h4>
+          <a class="cite paper" href="https://arxiv.org/abs/2409.04701" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Late Chunking (arXiv 2409.04701)</a></div>
+        <svg class="interactive" id="c02x-late" viewBox="0 0 620 140" width="620" height="140" aria-label="Late chunking: embed the whole document, then pool each chunk span"></svg>
+        <div class="row" data-step="1" data-fx="up" style="gap:18px;align-items:center">
+          <div class="stat" style="gap:2px;flex:none"><span class="n" style="font-size:40px" data-to="0.825" data-dec="3">0</span><span class="l tiny">“Its…” to “Berlin”, naive 0.708</span></div>
+          <p class="tiny" style="margin:0">BEIR nDCG@10: NFCorpus 23.46 → 29.98, SciFact 64.20 → 66.10. No extra training. Needs token-level access to a long-context embedder.</p>
+        </div>
+      </div>
+      <div class="panel tight k-model" style="gap:6px">
+        <div class="row" style="justify-content:space-between;align-items:center"><h4>Fix B · Contextual Retrieval <span class="tiny">Anthropic</span></h4>
+          <a class="cite repo" href="https://github.com/anthropics/anthropic-cookbook" target="_blank" rel="noopener"><b>Repo</b>&nbsp;anthropic-cookbook · contextual-embeddings</a></div>
+        <svg class="interactive" id="c02x-ctx" viewBox="0 0 620 140" width="620" height="140" aria-label="An LLM writes context and prepends it to the chunk before dense and BM25 indexing"></svg>
+        <p class="tiny" data-step="2" data-fx="up" style="margin:0">The LLM reads the full document plus one chunk and writes 50–100 tokens of context. Prepend it before <b>both</b> embedding and BM25.</p>
+      </div>
+    </div>
+    <div class="stack" style="gap:16px">
+      <div class="panel tight k-risk" style="gap:6px">
+        <h4>The problem chunk</h4>
+        <p class="mono" style="font-size:16px;color:var(--ink)">“The company's revenue grew by 3% over the previous quarter.”</p>
+        <p class="tiny" style="margin:0">Which company? Which quarter? “traditional RAG solutions remove context when encoding information.”</p>
+        <a class="cite doc" href="https://www.anthropic.com/news/contextual-retrieval" target="_blank" rel="noopener" style="align-self:flex-start"><b>Blog</b>&nbsp;Introducing Contextual Retrieval (19 Sep 2024)</a>
+      </div>
+      <div class="fill" style="position:relative">
+        <div data-until="4">
+          <div class="panel tight k-state" data-step="3" data-fx="bar" style="gap:10px">
+            <h4>Top-20 retrieval failure rate</h4>
+            <div style="display:grid;grid-template-columns:250px 1fr 54px 54px;gap:10px 12px;align-items:center;font-size:16px">
+              <span>Baseline chunks</span><div class="bar" style="--aurora:var(--risk)"><i style="--v:95%"></i></div><b>5.7%</b><span class="tiny">—</span>
+              <span>+ contextual embeddings</span><div class="bar"><i style="--v:62%"></i></div><b>3.7%</b><span class="tiny">−35%</span>
+              <span>+ contextual BM25</span><div class="bar"><i style="--v:48%"></i></div><b>2.9%</b><span class="tiny">−49%</span>
+              <span>+ reranking (150 → 20)</span><div class="bar" style="--aurora:var(--agent)"><i style="--v:32%"></i></div><b>1.9%</b><span class="tiny">−67%</span>
+            </div>
+            <div class="row" style="gap:24px;align-items:center">
+              <div class="stat" style="gap:2px;flex:none"><span class="n" style="font-size:44px" data-to="1.02" data-dec="2" data-pre="$">0</span><span class="l tiny">per million document tokens, one time</span></div>
+              <p class="small" style="margin:0">Prompt caching stores the document once. Every chunk call reads it from the cache. “All these benefits stack.”</p>
+            </div>
+          </div>
+        </div>
+        <div class="code-wrap" data-step="4" data-fx="up" style="position:absolute;top:0;left:0;right:0"><div class="code-head">situate.py · adapted from the blog prompt</div>
+<pre class="code xs" data-lang="python" data-focus="4:7-8, 5:16"><code>
+import anthropic
+client = anthropic.Anthropic()
+def situate(doc: str, chunk: str) -> str:
+    msg = client.messages.create(
+        model="claude-haiku-4-5",  # illustrative; blog used Claude 3 Haiku
+        max_tokens=150,
+        system=[{"type": "text", "text": f"&lt;document>\n{doc}\n&lt;/document>",
+                 "cache_control": {"type": "ephemeral"}}],  # cached once
+        messages=[{"role": "user", "content":
+            f"Here is the chunk we want to situate within the whole document\n"
+            f"&lt;chunk>\n{chunk}\n&lt;/chunk>\n"
+            "Please give a short succinct context to situate this chunk within "
+            "the overall document for the purposes of improving search "
+            "retrieval of the chunk. Answer only with the succinct context "
+            "and nothing else."}])
+    return msg.content[0].text + "\n\n" + chunk  # index for dense AND BM25
+</code></pre></div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Start with the problem chunk: alone, it does not say which company or which quarter, so neither the embedder nor BM25 can match a query that names them. Step 1, late chunking: run the long-context embedder over the whole document first, then mean-pool each chunk's token span; the token "Its" now carries attention from "Berlin", so the cosine rises from 0.708 to 0.825. Step 2, Contextual Retrieval: an LLM writes a short context note for each chunk, and you index note plus chunk in both the dense and the BM25 index. Step 3: the gains stack, from 5.7% to 1.9% failures with reranking. Steps 4 and 5: the cache_control block is the reason this is cheap, about $1.02 per million document tokens, because the document is written to the cache once and read for every chunk. Analogy: late chunking reads the whole book before it summarizes a page; Contextual Retrieval writes a header on each index card. Likely question: "Which fix do I choose?" Answer: late chunking needs an open long-context embedder with token outputs; Contextual Retrieval works with any embedder and also fixes BM25, but costs one LLM call per chunk.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const mk = (svg, tag, attrs, parent, text) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    (parent || svg).appendChild(e);
+    if (text) e.textContent = text;
+    return e;
+  };
+  const MONO = (w, s, c) => `font:${w} ${s}px var(--f-mono);fill:${c}`;
+
+  /* ---- Fix A: late chunking ---- */
+  const A = document.getElementById("c02x-late");
+  const N = 40, CW = 15, X0 = 10, TY = 26;
+  const CH = [[0, 14], [14, 28], [28, 40]];
+  const toks = [];
+  for (let i = 0; i < N; i++) {
+    const hot = i <= 1 ? "var(--state)" : i === 14 ? "var(--agent)" : null;
+    toks.push(mk(A, "rect", { x: X0 + i * CW, y: TY, width: CW - 2, height: 20, rx: 2,
+      style: `fill:${hot ? `color-mix(in oklab,${hot} 70%,transparent)` : `color-mix(in oklab,var(--state) ${CH.findIndex((c) => i < c[1]) % 2 ? 22 : 38}%,transparent)`}` }));
+  }
+  mk(A, "text", { x: X0, y: TY + 36, style: MONO(700, 11, "var(--state)") }, null, "Berlin");
+  mk(A, "text", { x: X0 + 14 * CW, y: TY + 36, style: MONO(700, 11, "var(--agent)") }, null, "Its");
+  const arc = mk(A, "path", { d: `M${X0 + 14 * CW + 6} ${TY - 2} C ${X0 + 14 * CW - 20} 0, ${X0 + 40} 0, ${X0 + 14} ${TY - 2}`, style: "fill:none;stroke:var(--agent);stroke-width:2.4" });
+  const arcHead = mk(A, "path", { d: `M${X0 + 14 - 6} ${TY - 10} L${X0 + 14} ${TY - 1} L${X0 + 14 + 6} ${TY - 9}`, style: "fill:none;stroke:var(--agent);stroke-width:2.4" });
+  const band = mk(A, "g", {});
+  mk(A, "rect", { x: X0, y: 66, width: N * CW - 2, height: 26, rx: 8, style: "fill:var(--model-soft);stroke:var(--model);stroke-width:1.6" }, band);
+  mk(A, "text", { x: X0 + (N * CW) / 2, y: 84, "text-anchor": "middle", style: MONO(600, 12, "var(--model)") }, band, "1 · long-context embedder reads the whole document");
+  const brackets = CH.map(([a, b], i) => {
+    const g = mk(A, "g", {});
+    const x1 = X0 + a * CW + 2, x2 = X0 + b * CW - 4, xm = (x1 + x2) / 2;
+    mk(A, "path", { d: `M${x1} 100 L${x1} 108 L${x2} 108 L${x2} 100 M${xm} 108 L${xm} 118`, style: "fill:none;stroke:var(--state);stroke-width:2" }, g);
+    mk(A, "circle", { cx: xm, cy: 126, r: 7, style: "fill:var(--state)" }, g);
+    mk(A, "text", { x: xm + 12, y: 131, style: MONO(600, 11, "var(--ink-2)") }, g, i === 0 ? "2 · mean-pool each span → c1" : "c" + (i + 1));
+    return g;
+  });
+
+  /* ---- Fix B: contextual retrieval ---- */
+  const B = document.getElementById("c02x-ctx");
+  const llm = mk(B, "g", {});
+  mk(B, "rect", { x: 6, y: 34, width: 140, height: 66, rx: 12, style: "fill:var(--model-soft);stroke:var(--model);stroke-width:1.8" }, llm);
+  mk(B, "text", { x: 76, y: 62, "text-anchor": "middle", style: "font:700 15px var(--f-body);fill:var(--ink)" }, llm, "LLM");
+  mk(B, "text", { x: 76, y: 82, "text-anchor": "middle", style: MONO(500, 11, "var(--muted)") }, llm, "doc in cache");
+  const card = mk(B, "g", {});
+  mk(B, "rect", { x: 266, y: 40, width: 170, height: 56, rx: 10, style: "fill:var(--surface-2);stroke:var(--state);stroke-width:1.8" }, card);
+  mk(B, "text", { x: 276, y: 63, style: MONO(500, 11, "var(--ink-2)") }, card, "revenue grew by 3%");
+  mk(B, "text", { x: 276, y: 80, style: MONO(500, 11, "var(--ink-2)") }, card, "over the previous…");
+  const note = mk(B, "g", {});
+  mk(B, "rect", { x: 186, y: 36, width: 82, height: 64, rx: 6, style: "fill:color-mix(in oklab,var(--model) 22%,var(--surface-2));stroke:var(--model);stroke-width:1.4" }, note);
+  mk(B, "text", { x: 194, y: 58, style: MONO(700, 11, "var(--model)") }, note, "ACME 10-Q");
+  mk(B, "text", { x: 194, y: 74, style: MONO(700, 11, "var(--model)") }, note, "Q2 2023");
+  mk(B, "text", { x: 194, y: 90, style: MONO(500, 10, "var(--muted)") }, note, "50–100 tok");
+  const outs = [["Dense index", 14], ["BM25 index", 84]].map(([t, y]) => {
+    const g = mk(B, "g", {});
+    const p = mk(B, "path", { d: `M440 68 C 470 68, 470 ${y + 21}, 494 ${y + 21}`, style: "fill:none;stroke:var(--state);stroke-width:2.2" }, g);
+    mk(B, "rect", { x: 496, y, width: 118, height: 42, rx: 10, style: "fill:var(--state-soft);stroke:var(--state);stroke-width:1.6" }, g);
+    mk(B, "text", { x: 555, y: y + 26, "text-anchor": "middle", style: "font:700 14px var(--f-body);fill:var(--ink)" }, g, t);
+    g._p = p;
+    return g;
+  });
+
+  const all = [...toks, arc, arcHead, band, ...brackets, llm, card, note, ...outs];
+  const drawPath = (p, delay) => { const L = p.getTotalLength(); gsap.fromTo(p, { strokeDasharray: L, strokeDashoffset: L }, { strokeDashoffset: 0, duration: 0.6, delay, ease: "power2.inOut" }); };
+
+  function render(n, animate) {
+    gsap.killTweensOf(all);
+    // A: base = tokens only; step >= 1 shows band, brackets, arc
+    const aOn = n >= 1;
+    if (aOn && animate && n === 1) {
+      gsap.fromTo(band, { opacity: 0, y: -40 }, { opacity: 1, y: 0, duration: 0.6, ease: "power3.out" });
+      gsap.fromTo(brackets, { opacity: 0, y: -16 }, { opacity: 1, y: 0, duration: 0.45, stagger: 0.15, delay: 0.7, ease: "back.out(2)" });
+      gsap.set([arc, arcHead], { opacity: 1 }); drawPath(arc, 1.3); gsap.fromTo(arcHead, { opacity: 0 }, { opacity: 1, duration: 0.2, delay: 1.85 });
+    } else gsap.set([band, ...brackets, arc, arcHead], { opacity: aOn ? 1 : 0, y: 0, strokeDasharray: "none" });
+    // B: base = LLM + card; step >= 2 note attaches and arrows fan out
+    const bOn = n >= 2;
+    if (bOn && animate && n === 2) {
+      gsap.fromTo(note, { opacity: 0, x: -120, y: 0, rotation: -8, transformOrigin: "50% 50%" }, { opacity: 1, x: 0, rotation: 0, duration: 0.8, ease: "power3.out" });
+      gsap.fromTo(card, { x: 0 }, { x: 4, duration: 0.15, yoyo: true, repeat: 1, delay: 0.8 });
+      outs.forEach((g, i) => { gsap.fromTo(g, { opacity: 0 }, { opacity: 1, duration: 0.3, delay: 1 + i * 0.2 }); drawPath(g._p, 1 + i * 0.2); });
+    } else {
+      gsap.set(note, { opacity: bOn ? 1 : 0, x: 0, rotation: 0 });
+      gsap.set(outs, { opacity: bOn ? 1 : 0 });
+      outs.forEach((g) => gsap.set(g._p, { strokeDasharray: "none" }));
+    }
+  }
+
+  Deck.register("rag-c02-contextual-chunks", {
+    enter(slide, step) {
+      render(step, false);
+      if (step === 0) {
+        gsap.fromTo(toks, { opacity: 0 }, { opacity: 1, duration: 0.3, stagger: 0.01 });
+        gsap.fromTo([llm, card], { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.5, stagger: 0.15, delay: 0.3 });
+      }
+    },
+    step(slide, n, animate) { render(n, animate); },
+    leave() { gsap.killTweensOf(all); },
+  });
+})();
+</script>

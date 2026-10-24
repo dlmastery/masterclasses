@@ -1,0 +1,229 @@
+<section class="slide" id="custom-c02-forgetting-merging-distillation" data-tone="model" data-title="Forgetting, merging and distillation">
+  <style>
+    #custom-c02-forgetting-merging-distillation svg text { font-family: var(--f-mono); }
+    #custom-c02-forgetting-merging-distillation .c02f-swap { display: grid; }
+    #custom-c02-forgetting-merging-distillation .c02f-swap > * { grid-area: 1 / 1; }
+    #custom-c02-forgetting-merging-distillation table.t { font-size: 15px; }
+    #custom-c02-forgetting-merging-distillation table.t td, #custom-c02-forgetting-merging-distillation table.t th { padding: 6px 10px; }
+    #custom-c02-forgetting-merging-distillation ol.seq > li { font-size: 17px; padding-left: 44px; }
+    #custom-c02-forgetting-merging-distillation ol.seq > li::before { width: 30px; height: 30px; font-size: 15px; }
+  </style>
+  <h2 class="title">Limit forgetting with adapters, merging and on-policy distillation</h2>
+  <div class="grid fill" style="grid-template-columns: 720px 1fr; gap:28px">
+    <svg class="interactive" id="c02f-svg" viewBox="0 0 720 590" width="720" height="590" aria-label="Forgetting frontier, TIES merging and distillation"></svg>
+    <div class="c02f-swap">
+      <div class="stack" data-until="4" style="gap:14px">
+        <div data-step="1">
+          <h4 style="margin-bottom:8px">Why a fine-tuned model forgets</h4>
+          <div class="tags">
+            <span class="tag t-risk">distribution shift</span><span class="tag t-risk">high LR</span><span class="tag t-risk">too many epochs</span>
+            <span class="tag t-risk">narrow data</span><span class="tag t-risk">template mismatch</span><span class="tag t-risk">safety-refusal drift</span>
+          </div>
+        </div>
+        <div data-step="2">
+          <h4 style="margin-bottom:8px">Mitigations, cheapest first</h4>
+          <ol class="seq" style="gap:10px">
+            <li>Use PEFT. Keep the adapter separate and hot-swappable.</li>
+            <li>Lower the LR. Train 1–3 epochs. Stop early on held-out general benchmarks.</li>
+            <li>Watch the loss: below 0.2 usually means overfitting. Scale an over-fit adapter by α × 0.5 (Unsloth).</li>
+            <li>Merge back toward the base model.</li>
+          </ol>
+        </div>
+        <div class="panel tight k-model" data-step="3">
+          <h4>Real example: SmolLM3</h4>
+          <p class="tiny">A linear merge of 0.9 × the APO soup + 0.1 × a mid-training checkpoint recovered the long-context RULER scores.</p>
+        </div>
+      </div>
+      <div class="stack" data-until="5" style="gap:12px">
+        <div data-step="4">
+          <h4 style="margin-bottom:6px">Merge methods</h4>
+          <table class="t">
+            <tr><td>Task arithmetic</td><td>τ = θ<sub>ft</sub> − θ<sub>base</sub>; add or negate task vectors (2212.04089)</td></tr>
+            <tr><td>TIES</td><td>trim redundant values, elect the sign, average the values that agree (2306.01708)</td></tr>
+            <tr><td>DARE</td><td>drop a fraction p of the deltas, rescale by 1/(1−p); often <code>dare_ties</code> (2311.03099)</td></tr>
+            <tr><td>SLERP</td><td>merge exactly two models along the arc, not the chord</td></tr>
+          </table>
+        </div>
+        <p class="tiny" data-step="4"><b>mergekit</b> (LGPL-3.0, 18+ methods): <code>mergekit-yaml config.yml ./out</code>. <b>PEFT</b>: <code>add_weighted_adapter(…, combination_type="dare_ties", density=0.2)</code>.</p>
+        <div class="callout pitfall" data-step="4" style="font-size:16px"><div>Special tokens added at the <b>same embedding index</b> collide when you merge fully fine-tuned models.</div></div>
+        <div class="cites" data-step="4">
+          <a class="cite doc" href="https://huggingface.co/docs/peft/developer_guides/model_merging" target="_blank" rel="noopener"><b>Doc</b>&nbsp;PEFT model merging</a>
+          <a class="cite repo" href="https://github.com/arcee-ai/mergekit" target="_blank" rel="noopener"><b>Repo</b>&nbsp;arcee-ai/mergekit</a>
+        </div>
+      </div>
+      <div class="stack" style="gap:12px">
+        <div class="panel tight k-model" data-step="5">
+          <h4>Distillation</h4>
+          <ul class="clean tiny" style="gap:8px">
+            <li><b>Off-policy:</b> SFT on teacher outputs, as in the DeepSeek-R1-Distill Qwen and Llama students.</li>
+            <li><b>On-policy (GKD, 2306.13649):</b> the student writes, and the teacher scores every token. This removes the train/inference mismatch.</li>
+            <li><b>TRL <code>DistillationTrainer</code></b>, stable since v1.10.0 (2026-08-13): <code>beta</code> 0.0 = forward KL, 0.5 = JSD, 1.0 = reverse KL (default). Teacher and student must share a vocabulary. Tool-result tokens are masked.</li>
+          </ul>
+        </div>
+        <div class="cites" data-step="5">
+          <a class="cite doc" href="https://huggingface.co/docs/trl/main/en/distillation_trainer" target="_blank" rel="noopener"><b>Doc</b>&nbsp;TRL Distillation Trainer</a>
+          <a class="cite paper" href="https://arxiv.org/abs/2306.13649" target="_blank" rel="noopener"><b>Paper</b>&nbsp;On-Policy Distillation (GKD)</a>
+        </div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Catastrophic forgetting is the price of specialization. Step 1: the plot has target-task accuracy on the x-axis and general accuracy on the y-axis; the list shows the usual causes. Step 2: full fine-tuning moves far right but drops a lot; LoRA moves right with a smaller drop. The mitigations are in cost order, so try the cheap ones first. Step 3: merging pulls the full-FT point back toward the base; SmolLM3 used a 0.9 to 0.1 linear merge to win back long-context scores. The plot is illustrative, not measured. Step 4: TIES in three moves: trim the small deltas, elect a sign per weight, and average only the values that agree. Step 5: distillation. On-policy distillation lets the student make its own mistakes and get a grade on every token. Analogy: off-policy is copying the teacher's homework; on-policy is the teacher marking your own homework line by line. Likely question: "Why does TIES elect a sign?" Because a plus and a minus delta on the same weight cancel when averaged, and both tasks lose.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c02-forgetting-merging-distillation";
+  // deterministic toy task vectors for TIES (3 tasks x 8 weights)
+  const TV = [[0.8, -0.2, 0.5, 0.1, -0.6, 0.3, -0.05, 0.7], [0.6, 0.4, -0.3, 0.05, -0.7, -0.5, 0.2, 0.6], [-0.3, 0.1, 0.6, -0.1, -0.5, 0.4, 0.3, -0.2]];
+  const TRIM = 0.3;
+  const TONES = ["var(--model)", "var(--agent)", "var(--tool)"];
+  let S = null, tw = [];
+  const el = (tag, a, p) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); if (p) p.appendChild(e); return e; };
+  const txt = (p, x, y, s, a = {}) => { const t = el("text", { x, y, ...a }, p); t.textContent = s; return t; };
+
+  function build(slide) {
+    const svg = slide.querySelector("#c02f-svg");
+    if (S && S.svg === svg) return;
+    svg.innerHTML = "";
+    S = { svg };
+    // --- frontier plot (full size 0..720 x 0..560) ---
+    const pl = el("g", {}, svg);
+    S.pl = pl;
+    el("line", { x1: 60, y1: 500, x2: 700, y2: 500, stroke: "var(--line-2)", "stroke-width": 2 }, pl);
+    el("line", { x1: 60, y1: 500, x2: 60, y2: 30, stroke: "var(--line-2)", "stroke-width": 2 }, pl);
+    txt(pl, 700, 530, "target-task accuracy →", { "font-size": 16, "text-anchor": "end", fill: "var(--muted)" });
+    txt(pl, 70, 26, "↑ general accuracy", { "font-size": 16, fill: "var(--muted)" });
+    txt(pl, 400, 556, "illustrative, no measured numbers", { "font-size": 13, "text-anchor": "middle", fill: "var(--faint)" });
+    const base = [130, 110];
+    el("circle", { cx: base[0], cy: base[1], r: 10, fill: "var(--ink-2)" }, pl);
+    txt(pl, base[0] + 16, base[1] - 12, "base", { "font-size": 16, fill: "var(--ink)", "font-weight": 700 });
+    S.full = el("path", { d: `M${base[0]},${base[1]} C300,130 480,300 620,390`, fill: "none", stroke: "var(--risk)", "stroke-width": 3.5, "stroke-linecap": "round" }, pl);
+    S.fullDot = el("circle", { cx: 620, cy: 390, r: 9, fill: "var(--risk)" }, pl);
+    S.fullLab = txt(pl, 610, 425, "full FT", { "font-size": 16, fill: "var(--risk)", "font-weight": 700, "text-anchor": "end" });
+    S.lora = el("path", { d: `M${base[0]},${base[1]} C280,115 430,160 560,190`, fill: "none", stroke: "var(--model)", "stroke-width": 3.5, "stroke-linecap": "round" }, pl);
+    S.loraDot = el("circle", { cx: 560, cy: 190, r: 9, fill: "var(--model)" }, pl);
+    S.loraLab = txt(pl, 572, 180, "LoRA", { "font-size": 16, fill: "var(--model)", "font-weight": 700 });
+    S.merge = el("path", { d: "M612,384 C600,320 590,270 575,232", fill: "none", stroke: "var(--state)", "stroke-width": 3, "stroke-dasharray": "7 6" }, pl);
+    S.mergeHead = el("path", { d: "M567,238 L575,222 L585,238 Z", fill: "var(--state)" }, pl);
+    S.mergeLab = txt(pl, 470, 300, "merge toward base", { "font-size": 15, fill: "var(--state)", "font-weight": 600, "text-anchor": "end" });
+    S.mergeDot = el("circle", { cx: 575, cy: 222, r: 9, fill: "none", stroke: "var(--state)", "stroke-width": 3 }, pl);
+    [S.full, S.lora, S.merge].forEach((p) => { p._len = p.getTotalLength(); });
+
+    // --- TIES panels (appear at step 4) ---
+    const tg = el("g", { opacity: 0 }, svg);
+    S.tg = tg;
+    const PX = [300, 440, 580], PW = 130, PY = 30, MID = 120;
+    const names = ["1 · trim", "2 · elect sign", "3 · disjoint mean"];
+    S.bars = [];
+    const sumSign = TV[0].map((_, j) => Math.sign(TV.reduce((s, v) => s + (Math.abs(v[j]) >= TRIM ? v[j] : 0), 0)));
+    PX.forEach((x0, p) => {
+      el("rect", { x: x0 - 6, y: PY - 6, width: PW + 6, height: 190, rx: 10, fill: "var(--surface)", stroke: "var(--line)" }, tg);
+      el("line", { x1: x0, y1: PY + MID - 20, x2: x0 + PW - 6, y2: PY + MID - 20, stroke: "var(--line-2)" }, tg);
+      txt(tg, x0, PY + 178, names[p], { "font-size": 12, fill: "var(--ink-2)", "font-weight": 600 });
+    });
+    // panels 1 and 2: three tasks side by side per weight
+    for (let p = 0; p < 2; p++) {
+      TV.forEach((v, t) => v.forEach((val, j) => {
+        const x = PX[p] + j * 15 + t * 4, h = Math.abs(val) * 70, y0 = PY + MID - 20;
+        const r = el("rect", { x, y: val >= 0 ? y0 - h : y0, width: 3.5, height: h, fill: TONES[t] }, tg);
+        S.bars.push({ r, p, t, j, val, trimmed: Math.abs(val) < TRIM, minority: Math.abs(val) >= TRIM && Math.sign(val) !== sumSign[j] });
+      }));
+    }
+    // panel 3: merged = mean of kept values that agree with the elected sign
+    S.merged = TV[0].map((_, j) => {
+      const keep = TV.map((v) => v[j]).filter((x) => Math.abs(x) >= TRIM && Math.sign(x) === sumSign[j]);
+      const m = keep.length ? keep.reduce((a, b) => a + b, 0) / keep.length : 0;
+      const h = Math.abs(m) * 70, y0 = PY + MID - 20;
+      return el("rect", { x: PX[2] + j * 15 + 2, y: m >= 0 ? y0 - h : y0, width: 10, height: h, fill: "var(--state)", opacity: 0 }, tg);
+    });
+    txt(tg, 300, PY - 14, "TIES merging: 3 task vectors × 8 weights (toy values)", { "font-size": 13, fill: "var(--muted)" });
+
+    // --- distillation strip (appears at step 5) ---
+    const dg = el("g", { opacity: 0 }, svg);
+    S.dg = dg;
+    const DY = 300;
+    el("rect", { x: 0, y: DY, width: 340, height: 150, rx: 12, fill: "var(--surface)", stroke: "var(--line)" }, dg);
+    el("rect", { x: 360, y: DY, width: 356, height: 150, rx: 12, fill: "var(--model-soft)", stroke: "var(--model)" }, dg);
+    txt(dg, 16, DY + 26, "off-policy: copy the teacher", { "font-size": 14, fill: "var(--ink)", "font-weight": 700 });
+    txt(dg, 376, DY + 26, "on-policy: teacher grades student", { "font-size": 14, fill: "var(--ink)", "font-weight": 700 });
+    for (let i = 0; i < 8; i++) {
+      el("rect", { x: 16 + i * 38, y: DY + 46, width: 32, height: 24, rx: 5, fill: "var(--human)", "fill-opacity": 0.5 }, dg);
+      el("rect", { x: 16 + i * 38, y: DY + 92, width: 32, height: 24, rx: 5, fill: "var(--model)", "fill-opacity": 0.35 }, dg);
+    }
+    txt(dg, 16, DY + 86, "teacher text  ↓  student imitates", { "font-size": 12, fill: "var(--muted)" });
+    txt(dg, 16, DY + 136, "student never sees its own errors", { "font-size": 12, fill: "var(--risk)" });
+    S.onTok = [];
+    S.onScore = [];
+    for (let i = 0; i < 8; i++) {
+      S.onTok.push(el("rect", { x: 376 + i * 40, y: DY + 46, width: 34, height: 24, rx: 5, fill: "var(--model)", opacity: 0 }, dg));
+      const h = 8 + ((i * 29) % 26);
+      S.onScore.push(el("rect", { x: 376 + i * 40 + 10, y: DY + 118 - h, width: 14, height: h, rx: 3, fill: "var(--human)", opacity: 0 }, dg));
+    }
+    txt(dg, 376, DY + 140, "student writes → teacher scores each token", { "font-size": 12, fill: "var(--muted)" });
+    // beta slider
+    const SY = DY + 200;
+    el("line", { x1: 40, y1: SY, x2: 680, y2: SY, stroke: "var(--line-2)", "stroke-width": 4, "stroke-linecap": "round" }, dg);
+    [["0.0 forward KL", 40], ["0.5 JSD", 360], ["1.0 reverse KL (default)", 680]].forEach(([s, x]) => {
+      el("line", { x1: x, y1: SY - 8, x2: x, y2: SY + 8, stroke: "var(--line-2)", "stroke-width": 2 }, dg);
+      txt(dg, x, SY + 30, s, { "font-size": 13, fill: "var(--ink-2)", "text-anchor": x === 40 ? "start" : x === 680 ? "end" : "middle" });
+    });
+    txt(dg, 40, SY - 18, "DistillationTrainer(beta=…)", { "font-size": 13, fill: "var(--model)", "font-weight": 600 });
+    S.knob = el("circle", { cx: 680, cy: SY, r: 11, fill: "var(--model)", stroke: "var(--bg)", "stroke-width": 3 }, dg);
+  }
+
+  function kill() { tw.forEach((t) => t.kill()); tw = []; }
+
+  function render(n, animate) {
+    kill();
+    const d = animate ? 1 : 0;
+    const T = (t, v) => { const x = gsap.to(t, { ...v, duration: (v.duration ?? 0.5) * d, delay: (v.delay || 0) * d }); tw.push(x); return x; };
+    const draw = (p, on, delay = 0) => {
+      if (on) {
+        if (animate && p._wasOff) tw.push(gsap.fromTo(p, { strokeDashoffset: p._len, strokeDasharray: p._len }, { strokeDashoffset: 0, duration: 1.2, delay, ease: "power2.inOut", onComplete: () => { if (p === S.merge) p.setAttribute("stroke-dasharray", "7 6"); } }));
+        else gsap.set(p, { strokeDashoffset: 0, strokeDasharray: p === S.merge ? "7 6" : "none", opacity: 1 });
+        gsap.set(p, { opacity: 1 });
+      } else gsap.set(p, { opacity: 0 });
+      p._wasOff = !on;
+    };
+    draw(S.full, n >= 2, 0);
+    draw(S.lora, n >= 2, 0.5);
+    draw(S.merge, n >= 3, 0.2);
+    T([S.fullDot, S.fullLab], { opacity: n >= 2 ? 1 : 0, delay: n === 2 ? 1.1 : 0, duration: 0.4 });
+    T([S.loraDot, S.loraLab], { opacity: n >= 2 ? 1 : 0, delay: n === 2 ? 1.6 : 0, duration: 0.4 });
+    T([S.mergeHead, S.mergeLab, S.mergeDot], { opacity: n >= 3 ? 1 : 0, delay: n === 3 ? 1.2 : 0, duration: 0.4 });
+    // shrink plot into the top-left corner from step 4
+    T(S.pl, { scale: n >= 4 ? 0.4 : 1, svgOrigin: "0 0", x: 0, y: n >= 4 ? 6 : 0, duration: 0.8, ease: "power3.inOut" });
+    // TIES
+    T(S.tg, { opacity: n >= 4 ? 1 : 0, duration: 0.5, delay: n === 4 ? 0.5 : 0 });
+    const tl = gsap.timeline({ paused: true });
+    S.bars.forEach((b) => {
+      gsap.set(b.r, { opacity: 1, fill: TONES[b.t] });
+      if (b.trimmed) tl.to(b.r, { opacity: 0.12, duration: 0.4 }, 0.2);
+      if (b.p === 1 && b.trimmed) gsap.set(b.r, { opacity: 0 });
+      if (b.p === 1 && b.minority) tl.to(b.r, { fill: "var(--faint)", opacity: 0.45, duration: 0.4 }, 1.0);
+    });
+    tl.to(S.merged, { opacity: 1, duration: 0.4, stagger: 0.06 }, 1.6);
+    if (n >= 4) { if (animate && n === 4) { tl.delay(0.9).play(); tw.push(tl); } else tl.progress(1); }
+    else { tl.progress(0); gsap.set(S.merged, { opacity: 0 }); }
+    // distillation
+    T(S.dg, { opacity: n >= 5 ? 1 : 0, duration: 0.5 });
+    if (n >= 5) {
+      if (animate && n === 5) {
+        gsap.set(S.onTok, { opacity: 0 }); gsap.set(S.onScore, { opacity: 0, scaleY: 0, transformOrigin: "50% 100%" }); gsap.set(S.knob, { attr: { cx: 40 } });
+        const dl = gsap.timeline({ delay: 0.4 });
+        dl.to(S.onTok, { opacity: 1, duration: 0.25, stagger: 0.12 })
+          .to(S.onScore, { opacity: 1, scaleY: 1, duration: 0.35, stagger: 0.08 }, "-=0.6")
+          .to(S.knob, { attr: { cx: 360 }, duration: 0.8, ease: "power2.inOut" }, "+=0.2")
+          .to(S.knob, { attr: { cx: 680 }, duration: 0.8, ease: "power2.inOut", delay: 0.5 });
+        tw.push(dl);
+      } else { gsap.set(S.onTok, { opacity: 1 }); gsap.set(S.onScore, { opacity: 1, scaleY: 1 }); gsap.set(S.knob, { attr: { cx: 680 } }); }
+    }
+  }
+
+  Deck.register(ID, {
+    enter(slide, n) { build(slide); render(n, false); },
+    step(slide, n, animate) { build(slide); render(n, animate); },
+    leave() { kill(); },
+  });
+})();
+</script>

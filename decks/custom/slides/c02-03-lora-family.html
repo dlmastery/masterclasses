@@ -1,0 +1,155 @@
+<section class="slide" id="custom-c02-lora-family" data-tone="model" data-title="LoRA and its variants">
+  <style>
+    #custom-c02-lora-family svg text { font-family: var(--f-mono); }
+    #custom-c02-lora-family svg .chip-t { font: 700 14px var(--f-body); fill: var(--ink); }
+    #custom-c02-lora-family svg .chip-d { font: 500 12.5px var(--f-body); fill: var(--ink-2); }
+  </style>
+  <h2 class="title">LoRA trains a thin low-rank update; its variants change the scale, the init and the precision</h2>
+  <div class="grid g2 fill">
+    <div class="stack" style="gap:12px">
+      <svg class="interactive" id="c02l-svg" viewBox="0 0 660 516" width="610" height="477" aria-label="Frozen weight matrix with low-rank update"></svg>
+      <div class="cites">
+        <a class="cite paper" href="https://arxiv.org/abs/2106.09685" target="_blank" rel="noopener"><b>LoRA</b>&nbsp;2106.09685</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2305.14314" target="_blank" rel="noopener"><b>QLoRA</b>&nbsp;2305.14314</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2402.09353" target="_blank" rel="noopener"><b>DoRA</b>&nbsp;2402.09353</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2312.03732" target="_blank" rel="noopener"><b>rsLoRA</b>&nbsp;2312.03732</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2404.02948" target="_blank" rel="noopener"><b>PiSSA</b>&nbsp;2404.02948</a>
+      </div>
+    </div>
+    <div class="stack" style="gap:14px">
+      <div class="code-wrap" data-fx="up"><div class="code-head">lora_config.py · PEFT v0.21.0</div>
+<pre class="code xs" data-lang="python" data-focus="1:4-5, 2:8-8, 3:9-10, 4:6-6"><code>
+from peft import LoraConfig, get_peft_model
+
+config = LoraConfig(
+    r=16,
+    lora_alpha=32,
+    target_modules="all-linear",       # include MLP layers
+    lora_dropout=0.05,
+    use_rslora=True,                   # alpha/sqrt(r) scaling
+    use_dora=False,                    # True -> DoRA (merge before inference)
+    init_lora_weights="pissa_niter_4", # PiSSA init via fast SVD
+    task_type="CAUSAL_LM",
+)
+model = get_peft_model(base_model, config)
+model.print_trainable_parameters()
+</code></pre></div>
+      <p class="tiny" data-step="3">Other inits in PEFT v0.21.0: <code>olora</code>, <code>eva</code>, <code>corda</code>, <code>loftq</code>, <code>orthogonal</code>.</p>
+      <div class="callout insight" data-step="4" style="font-size:16px">
+        <div><b>LoRA Without Regret</b> (Schulman et al., 2025-09-29): LoRA matches full FT on small and medium SFT sets. Put it on <b>all</b> layers, MLP and MoE too; attention-only LoRA does worse. Use a LR about <b>10×</b> the full-FT LR. For RL, even rank 1 matches full FT. LoRA falls behind when the data exceeds the adapter capacity, for example large continued pretraining.</div>
+      </div>
+      <div class="cites push">
+        <a class="cite doc" href="https://huggingface.co/docs/peft/developer_guides/lora" target="_blank" rel="noopener"><b>Doc</b>&nbsp;PEFT LoRA developer guide</a>
+        <a class="cite doc" href="https://thinkingmachines.ai/blog/lora/" target="_blank" rel="noopener"><b>Blog</b>&nbsp;LoRA Without Regret</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">The grey square is one frozen weight matrix W with d equal to 4096. Step 1: LoRA adds two thin matrices, B and A, and trains only them; watch the trainable share as the rank moves from 4 to 64 and back to 16. At r = 16 it is 2·d·r over d squared, about 0.78% of the layer. Step 2: rsLoRA changes the scale from alpha over r to alpha over the square root of r, so high ranks keep a useful update size. Step 3: the variants. QLoRA keeps the base in 4-bit NF4, DoRA splits magnitude and direction, PiSSA starts from the top singular vectors. Step 4: the practical evidence from LoRA Without Regret: all layers, about 10 times the learning rate. Analogy: the base model is a printed book, and LoRA is a thin transparent overlay you can swap. Likely question: "Why does LoRA need a higher learning rate?" Because B starts at zero and the update is scaled down, so the same step size moves the output less.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c02-lora-family";
+  const D = 4096, ALPHA = 32;
+  const X0 = 300, Y0 = 50, SZ = 240;
+  let S = null, tw = [];
+  const el = (tag, a, p) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); if (p) p.appendChild(e); return e; };
+  const txt = (p, x, y, s, a = {}) => { const t = el("text", { x, y, ...a }, p); t.textContent = s; return t; };
+  const wr = (r) => 6 + r * 1.1;
+
+  function setRank(r) {
+    const w = wr(r);
+    S.B.setAttribute("width", w);
+    S.A.setAttribute("x", X0 + w + 14); S.A.setAttribute("height", w);
+    S.Alab.setAttribute("x", X0 + w + 14); S.Alab.setAttribute("y", Y0 + w + 20);
+    const rr = Math.round(r);
+    const pct = (100 * 2 * D * rr) / (D * D);
+    S.read.textContent = `r = ${rr}   trainable = 2·d·r / d² = ${pct.toFixed(2)}%`;
+    S.read2.textContent = `${(2 * D * rr).toLocaleString("en-US")} of ${(D * D).toLocaleString("en-US")} weights per layer`;
+  }
+
+  function build(slide) {
+    const svg = slide.querySelector("#c02l-svg");
+    if (S && S.svg === svg) return;
+    svg.innerHTML = "";
+    S = { svg };
+    // frozen W
+    const W = el("rect", { x: 10, y: Y0, width: SZ, height: SZ, rx: 10, fill: "var(--faint)", "fill-opacity": 0.28, stroke: "var(--line-2)", "stroke-width": 1.5 }, svg);
+    for (let i = 1; i < 8; i++) {
+      el("line", { x1: 10 + i * 30, y1: Y0, x2: 10 + i * 30, y2: Y0 + SZ, stroke: "var(--line)" }, svg);
+      el("line", { x1: 10, y1: Y0 + i * 30, x2: 10 + SZ, y2: Y0 + i * 30, stroke: "var(--line)" }, svg);
+    }
+    txt(svg, 130, Y0 + SZ / 2 + 6, "W", { "font-size": 40, "text-anchor": "middle", fill: "var(--muted)", "font-weight": 700 });
+    txt(svg, 10, Y0 + SZ + 22, "W: d × d, frozen (d = 4096)", { "font-size": 14, fill: "var(--muted)" });
+    txt(svg, 10, Y0 - 16, "full FT: ~16 bytes/param (AdamW, mixed precision)", { "font-size": 13, fill: "var(--risk)" });
+    S.W = W;
+    // update group
+    const ug = el("g", {}, svg);
+    S.ug = ug;
+    txt(ug, 268, Y0 + SZ / 2 + 10, "+", { "font-size": 34, fill: "var(--ink)", "text-anchor": "middle" });
+    S.B = el("rect", { x: X0, y: Y0, width: wr(16), height: SZ, rx: 5, fill: "var(--model)" }, ug);
+    S.A = el("rect", { x: X0 + wr(16) + 14, y: Y0, width: SZ, height: wr(16), rx: 5, fill: "var(--model)", "fill-opacity": 0.75 }, ug);
+    txt(ug, X0, Y0 + SZ + 22, "B: d × r (starts at 0)", { "font-size": 14, fill: "var(--model)" });
+    S.Alab = txt(ug, X0 + wr(16) + 14, Y0 + wr(16) + 20, "A: r × d", { "font-size": 14, fill: "var(--model)" });
+    S.read = txt(ug, 10, Y0 + SZ + 52, "", { "font-size": 15, fill: "var(--ink)", "font-weight": 600 });
+    S.read2 = txt(ug, 10, Y0 + SZ + 72, "", { "font-size": 13, fill: "var(--muted)" });
+    // scale labels
+    S.sc1 = txt(svg, X0 + 120, Y0 + 150, "h = Wx + (α/r)·BAx", { "font-size": 15, fill: "var(--ink)", "font-weight": 600 });
+    S.sc1b = txt(svg, X0 + 120, Y0 + 174, "α/r = 32/16 = 2", { "font-size": 14, fill: "var(--ink-2)" });
+    S.sc2 = txt(svg, X0 + 120, Y0 + 150, "h = Wx + (α/√r)·BAx", { "font-size": 15, fill: "var(--model)", "font-weight": 600, opacity: 0 });
+    S.sc2b = txt(svg, X0 + 120, Y0 + 174, "α/√r = 32/4 = 8  (rsLoRA)", { "font-size": 14, fill: "var(--model)", opacity: 0 });
+    // chips
+    const chips = [
+      ["QLoRA · 4-bit base", "NF4 + double quant + paged optimizers", "65B on one 48 GB GPU · Guanaco: 99.3% of ChatGPT"],
+      ["DoRA · magnitude + direction", "helps most at low rank (ICML 2024)", "more overhead: merge before inference"],
+      ["rsLoRA · scale α/√r", "high ranks keep learning", "use_rslora=True"],
+      ["PiSSA · SVD init", "A, B from the top-r singular vectors", "residual frozen; converges faster"],
+    ];
+    S.chips = chips.map((c, i) => {
+      const x = 10 + (i % 2) * 325, y = 380 + Math.floor(i / 2) * 66;
+      const g = el("g", { opacity: 0 }, svg);
+      el("rect", { x, y, width: 315, height: 60, rx: 10, fill: "var(--model-soft)", stroke: "var(--model)", "stroke-width": 1.2 }, g);
+      txt(g, x + 12, y + 19, c[0], { class: "chip-t" });
+      txt(g, x + 12, y + 36, c[1], { class: "chip-d" });
+      txt(g, x + 12, y + 52, c[2], { class: "chip-d" });
+      return g;
+    });
+    setRank(16);
+  }
+
+  function kill() { tw.forEach((t) => t.kill()); tw = []; }
+
+  function render(n, animate) {
+    kill();
+    const d = animate ? 1 : 0;
+    const T = (t, v) => { const x = gsap.to(t, { ...v, duration: (v.duration ?? 0.5) * d, delay: (v.delay || 0) * d }); tw.push(x); return x; };
+    T(S.ug, { opacity: n >= 1 ? 1 : 0, duration: 0.4 });
+    if (n >= 1 && animate && n === 1) {
+      const p = { r: 4 };
+      setRank(4);
+      const tl = gsap.timeline({ delay: 0.3 });
+      tl.to(p, { r: 64, duration: 1.6, ease: "power2.inOut", onUpdate: () => setRank(p.r) })
+        .to(p, { r: 16, duration: 1.2, ease: "power2.inOut", delay: 0.5, onUpdate: () => setRank(p.r) });
+      tw.push(tl);
+    } else setRank(16);
+    const rs = n >= 2;
+    T(S.sc1, { opacity: n >= 1 && !rs ? 1 : 0, duration: 0.4 });
+    T(S.sc1b, { opacity: n >= 1 && !rs ? 1 : 0, duration: 0.4 });
+    T(S.sc2, { opacity: rs ? 1 : 0, duration: 0.5, delay: rs ? 0.2 : 0 });
+    T(S.sc2b, { opacity: rs ? 1 : 0, duration: 0.5, delay: rs ? 0.3 : 0 });
+    S.chips.forEach((g, i) => {
+      if (n >= 3) {
+        if (animate && n === 3) { const x = gsap.fromTo(g, { opacity: 0, scale: 0.7, svgOrigin: "330 440" }, { opacity: 1, scale: 1, duration: 0.5, delay: i * 0.12, ease: "back.out(1.8)" }); tw.push(x); }
+        else gsap.set(g, { opacity: 1, scale: 1 });
+      } else gsap.set(g, { opacity: 0 });
+    });
+    S.W.setAttribute("stroke", n >= 4 ? "var(--model)" : "var(--line-2)");
+  }
+
+  Deck.register(ID, {
+    enter(slide, n) { build(slide); render(n, false); },
+    step(slide, n, animate) { build(slide); render(n, animate); },
+    leave() { kill(); },
+  });
+})();
+</script>

@@ -1,0 +1,158 @@
+<section class="slide" id="rag-c10-managed-rag" data-tone="tool" data-title="Managed RAG services">
+  <style>
+    #rag-c10-managed-rag .mr-grid { display: grid; grid-template-columns: 540px 828px; gap: 24px; }
+    #rag-c10-managed-rag .mr-right { position: relative; }
+    #rag-c10-managed-rag .mr-code { position: absolute; left: 0; right: 0; top: 0; }
+    #rag-c10-managed-rag table.t { font-size: 14.5px; line-height: 1.32; }
+    #rag-c10-managed-rag table.t th { font-size: 13px; padding: 6px 10px; }
+    #rag-c10-managed-rag table.t td { padding: 7px 10px; }
+    #rag-c10-managed-rag table.t td code { font-size: 0.92em; white-space: normal; }
+    #rag-c10-managed-rag .cites { gap: 7px; }
+    #rag-c10-managed-rag .cite { font-size: 14px; padding: 6px 11px 6px 9px; }
+    #rag-c10-managed-rag .callout { font-size: 15.5px; padding: 11px 15px; line-height: 1.4; }
+    #rag-c10-managed-rag svg text { font-family: var(--f-mono); }
+  </style>
+  <h2 class="title">Managed RAG services now parse, chunk, embed, store and cite for you</h2>
+  <div class="mr-grid fill">
+    <div class="stack" style="gap:10px">
+      <svg id="rag-c10-ladder" viewBox="0 0 540 300" width="540" height="300" aria-label="Google RAG ladder"></svg>
+      <div class="legend"><span class="l-human">you manage</span><span class="l-tool">Google manages</span><span class="tiny">shares illustrative</span></div>
+      <div class="cites" data-step="1" data-fx="fade">
+        <a class="cite doc" href="https://docs.cloud.google.com/bigquery/docs/text-embedding-semantic-search" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Perform semantic search and retrieval-augmented generation</a>
+        <a class="cite codelab" href="https://codelabs.developers.google.com/patent-search-alloydb-gemini" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;Build a patent search app using AlloyDB, vector search, and Gemini Enterprise Agent Platform (formerly Vertex AI)</a>
+        <a class="cite codelab" href="https://codelabs.developers.google.com/alloydb-ai-operators" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;AlloyDB AI Operators and Reranking</a>
+        <a class="cite doc" href="https://docs.cloud.google.com/gemini-enterprise-agent-platform/build/rag-engine/rag-quickstart" target="_blank" rel="noopener"><b>Docs</b>&nbsp;RAG quickstart</a>
+        <a class="cite codelab" href="https://codelabs.developers.google.com/build-google-quality-rag" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;Building a Google-quality Search System with Vertex AI</a>
+        <a class="cite doc" href="https://ai.google.dev/gemini-api/docs/file-search" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Gemini API File Search</a>
+      </div>
+    </div>
+
+    <div class="mr-right">
+      <div class="stack" style="gap:10px" data-step="2" data-until="3">
+        <table class="t">
+          <thead><tr><th style="width:150px">Service</th><th style="width:250px">Primitive · API</th><th>Oct 2026 facts</th></tr></thead>
+          <tbody data-step="2" data-fx="stagger">
+            <tr data-on="2:hot"><td>Gemini API File Search</td><td><code>FileSearchStore</code> + <code>file_search</code> tool (<code>google-genai</code> 2.33.0)</td><td>Storage and query-time embeddings free. Indexing at embedding rates ($0.15 / 1M tokens at launch). 100 MB per file; store 1 GB (Free) to 1 TB (Tier 3); keep stores under 20 GB. <code>metadata_filter</code>, <code>file_citation</code>.</td></tr>
+            <tr><td>Agent Platform RAG Engine</td><td><code>client.rag.create_corpus / import_files / retrieve_contexts</code> (<code>google-cloud-agentplatform</code> 2.6.0)</td><td>Chunking 512 / 100, <code>text-embedding-005</code>. Bring your own vector DB (Pinecone, Vector Search). Agent Search backend. ADK tool.</td></tr>
+            <tr><td>OpenAI file_search</td><td><code>vector_stores</code> + Responses API tool</td><td>Semantic + keyword search. <code>max_num_results</code>, <code>filters</code>, <code>include=["file_search_call.results"]</code>.</td></tr>
+            <tr><td>Amazon Bedrock Knowledge Bases</td><td><code>retrieve</code> · <code>retrieve_and_generate</code></td><td><code>overrideSearchType: HYBRID</code>, rerankers, GraphRAG on Neptune Analytics.</td></tr>
+            <tr><td>Azure AI Search agentic retrieval</td><td>knowledge base <code>retrieve</code> or MCP endpoint</td><td>GA in REST 2026-04-01. LLM query planning, parallel subqueries, semantic rerank. 2,000 retrievals ≈ $4.32. Powers Foundry IQ.</td></tr>
+          </tbody>
+        </table>
+        <div class="callout pitfall" data-step="2"><span><b>Renamed in 2026:</b> Vertex AI → Gemini Enterprise Agent Platform (22 Apr 2026) · Agent Engine → Agent Runtime · Vertex AI Search → Agent Search · <code>google/adk-samples</code> → <code>google/adk-recipes</code> · <code>genai-toolbox</code> → <code>mcp-toolbox</code>. Do not mix the old <code>vertexai.rag</code> style and the new <code>agentplatform</code> client in one project.</span></div>
+      </div>
+
+      <div class="mr-code">
+        <div class="code-wrap" data-step="3"><div class="code-head">file_search.py · Gemini API, Interactions API</div>
+<pre class="code xs" data-lang="python" data-focus="3:4-6, 4:8-12, 5:14-16, 6:17-21"><code>
+import time
+from google import genai                       # google-genai 2.33.0
+client = genai.Client()
+store = client.file_search_stores.create(config={
+    "display_name": "my-store",
+    "embedding_model": "models/gemini-embedding-2"})   # images need -2
+
+op = client.file_search_stores.upload_to_file_search_store(
+    file="sample.txt", file_search_store_name=store.name,
+    config={"display_name": "display-file-name"})
+while not op.done:                     # service parses, chunks, embeds
+    time.sleep(5); op = client.operations.get(op)
+
+interaction = client.interactions.create(
+    model="gemini-3.8-flash", input="Can you tell me about ...",
+    tools=[{"type": "file_search", "file_search_store_names": [store.name]}])
+for step in interaction.steps:
+    if step.type == "model_output":
+        for b in step.content:
+            if b.type == "text":
+                print(b.text, [a.file_name for a in (b.annotations or [])
+                               if a.type == "file_citation"])
+</code></pre></div>
+      </div>
+    </div>
+  </div>
+
+  <aside class="notes">
+    Step 1 builds the Google ladder from the bottom: BigQuery VECTOR_SEARCH, where you write one SQL statement and own every choice, up to Gemini File Search, where Google parses, chunks, embeds, stores and cites. The shading shows who manages the pipeline; the shares are illustrative.
+    Step 2 compares the five managed services across clouds. Point at File Search pricing: storage and query embeddings are free, and you pay embedding rates only at indexing time. Point at Azure: agentic retrieval plans subqueries with an LLM and costs about $4.32 for 2,000 retrievals in the docs example.
+    The rename callout matters in practice: in April 2026 Vertex AI became Gemini Enterprise Agent Platform, so old tutorials use old names and the old vertexai.rag SDK.
+    Steps 3 to 6 walk the File Search code: create a store, upload and poll, call the file_search tool, then read the file_citation annotations.
+    Analogy: managed RAG is a hotel; DIY RAG is your own house. The hotel is ready tonight, but you cannot move the walls. Likely question: "When would you leave File Search?" When you need custom chunking, hybrid weights, a specific reranker or ACL logic it does not expose.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  // top to bottom; share = part you manage (illustrative)
+  const RUNGS = [
+    ["Gemini File Search", "file_search tool + citations", 0.12],
+    ["Agent Search", "data store + Search app", 0.24],
+    ["RAG Engine", "import_files → retrieve_contexts", 0.40],
+    ["Firestore", "vector index on a collection", 0.62],
+    ["AlloyDB / Cloud SQL", "embedding() + <=> in Postgres", 0.72],
+    ["BigQuery", "VECTOR_SEARCH in one SQL query", 0.84],
+  ];
+  const BX = 236, BW = 300, Y0 = 34, RH = 40, BH = 24;
+  const tweens = [];
+  let svg, rungs = [], built = false, lastOn = null;
+  const mk = (tag, attrs, parent, text) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text != null) e.textContent = text;
+    if (parent) parent.appendChild(e);
+    return e;
+  };
+
+  function build(slide) {
+    svg = slide.querySelector("#rag-c10-ladder");
+    if (svg._built) { built = true; return; }
+    svg._built = built = true;
+    mk("text", { x: 0, y: 14, "font-size": 12.5, "font-weight": 600, fill: "var(--tool)" }, svg, "▲ Google manages more: fast start, citations, fewer knobs");
+    mk("line", { x1: BX - 10, x2: BX - 10, y1: Y0 - 6, y2: Y0 + RUNGS.length * RH - 8, stroke: "var(--line-2)", "stroke-width": 2 }, svg);
+    mk("line", { x1: BX + BW + 2, x2: BX + BW + 2, y1: Y0 - 6, y2: Y0 + RUNGS.length * RH - 8, stroke: "var(--line-2)", "stroke-width": 2 }, svg);
+    RUNGS.forEach(([name, sub, share], i) => {
+      const y = Y0 + i * RH;
+      const g = mk("g", { opacity: 0 }, svg);
+      mk("text", { x: 0, y: y + 11, "font-size": 14.5, "font-weight": 700, fill: "var(--ink)", "font-family": "var(--f-body)" }, g, name);
+      mk("text", { x: 0, y: y + 27, "font-size": 11, fill: "var(--muted)" }, g, sub);
+      mk("rect", { x: BX, y: y + 2, width: BW, height: BH, rx: 6, fill: "var(--surface)", stroke: "var(--line)" }, g);
+      const you = mk("rect", { x: BX, y: y + 2, width: 0, height: BH, rx: 6, fill: "var(--human)", opacity: 0.85 }, g);
+      const goog = mk("rect", { x: BX + BW, y: y + 2, width: 0, height: BH, rx: 6, fill: "var(--tool)", opacity: 0.85 }, g);
+      rungs.push({ g, you, goog, share });
+    });
+    mk("text", { x: 0, y: 292, "font-size": 12.5, "font-weight": 600, fill: "var(--human)" }, svg, "▼ You manage more: chunking, hybrid weights, rerankers, ACLs");
+  }
+
+  function render(n, animate) {
+    if (!built) return;
+    const on = n >= 1;
+    if (animate && on === lastOn) return;
+    lastOn = on;
+    rungs.forEach((r, i) => {
+      const order = rungs.length - 1 - i; // bottom rung first
+      const split = BX + r.share * BW;
+      gsap.killTweensOf([r.g, r.you, r.goog]);
+      if (!on) { gsap.set(r.g, { opacity: 0 }); gsap.set(r.you, { attr: { width: 0 } }); gsap.set(r.goog, { attr: { x: BX + BW, width: 0 } }); return; }
+      if (animate) {
+        const d = order * 0.28;
+        gsap.set(r.you, { attr: { width: 0 } });
+        gsap.set(r.goog, { attr: { x: BX + BW, width: 0 } });
+        tweens.push(gsap.fromTo(r.g, { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.4, delay: d }));
+        tweens.push(gsap.to(r.you, { attr: { width: BW }, duration: 0.35, delay: d + 0.15, ease: "power2.out" }));
+        tweens.push(gsap.to(r.you, { attr: { width: r.share * BW }, duration: 0.6, delay: d + 0.55, ease: "power3.inOut" }));
+        tweens.push(gsap.to(r.goog, { attr: { x: split, width: (1 - r.share) * BW }, duration: 0.6, delay: d + 0.55, ease: "power3.inOut" }));
+      } else {
+        gsap.set(r.g, { opacity: 1, y: 0 });
+        gsap.set(r.you, { attr: { width: r.share * BW } });
+        gsap.set(r.goog, { attr: { x: split, width: (1 - r.share) * BW } });
+      }
+    });
+  }
+
+  Deck.register("rag-c10-managed-rag", {
+    enter(slide, step) { build(slide); lastOn = null; render(step, false); },
+    step(slide, n, animate) { render(n, animate); },
+    leave() { tweens.forEach((t) => t.kill()); tweens.length = 0; },
+  });
+})();
+</script>

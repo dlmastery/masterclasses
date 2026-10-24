@@ -1,0 +1,148 @@
+<section class="slide tight" id="custom-c04-pipeline-contextual" data-tone="agent" data-title="RAG pipeline and contextual retrieval">
+  <h2 class="title">Hybrid search, contextual chunks and reranking cut retrieval failures by two thirds</h2>
+  <div class="row fill" style="gap:32px">
+    <div class="stack" style="width:1060px;gap:20px">
+      <div class="diagram" style="width:1060px;height:375px"
+           data-wires="ingest>chunk@1; chunk>enrich@2; enrich>emb@2:flow{state}:bt; enrich>bm25@2:flow{state}:bt; query>rewrite@3; rewrite>retrieve@3; emb>retrieve@3:flow{agent}:bt; bm25>retrieve@3:flow{agent}:bt; retrieve>rerank@4:flow{model}; rerank>generate@4; generate>check@4; check>evalx@4:dash">
+        <div class="node n-tool" id="ingest" style="left:0;top:0;width:200px"><span class="nt">Ingest</span><span class="ns">PDF · HTML · tables</span></div>
+        <div class="node n-agent" id="chunk" style="left:260px;top:0;width:210px" data-on="1:hot 2:dim"><span class="nt">Chunk</span><span class="ns">512 tok · 100 overlap</span></div>
+        <div class="node n-model" id="enrich" style="left:530px;top:0;width:200px" data-step="2" data-fx="pop" data-on="3:dim"><span class="nt">Enrich</span><span class="ns">contextual header</span></div>
+        <div class="node n-tool" id="evalx" style="left:850px;top:0;width:210px" data-step="4" data-fx="pop"><span class="nt">Eval</span><span class="ns">recall@k</span><span class="ns">faithfulness</span></div>
+        <div class="group g-state" style="left:300px;top:110px;width:510px;height:140px"><span class="gl">Index</span></div>
+        <div class="node n-state" id="emb" style="left:325px;top:145px;width:210px" data-on="2:hot 4:dim"><span class="nt">Embeddings</span><span class="ns">dense vectors</span></div>
+        <div class="node n-state" id="bm25" style="left:575px;top:145px;width:210px" data-on="2:hot 4:dim"><span class="nt">BM25</span><span class="ns">exact terms</span></div>
+        <div class="node n-tool" id="check" style="left:860px;top:145px;width:200px" data-step="4" data-fx="pop"><span class="nt">Cite + check</span><span class="ns">grounding test</span></div>
+        <svg id="c04p-chunks" viewBox="0 0 270 180" width="270" height="180" style="position:absolute;left:0;top:100px" aria-label="A page splits into 512-token chunks with overlap bands"></svg>
+        <div class="node n-human pill" id="query" style="left:0;top:312px" data-step="3" data-fx="pop"><span class="nt">Query</span></div>
+        <div class="node n-agent" id="rewrite" style="left:180px;top:300px;width:170px" data-step="3" data-fx="pop"><span class="nt">Rewrite</span><span class="ns">expand query</span></div>
+        <div class="node n-agent" id="retrieve" style="left:410px;top:300px;width:200px" data-step="3" data-fx="pop" data-on="3:hot 4:dim"><span class="nt">Hybrid retrieve</span><span class="ns">top-k 20–150</span></div>
+        <div class="node n-model" id="rerank" style="left:670px;top:300px;width:170px" data-step="4" data-fx="pop" data-on="4:hot"><span class="nt">Rerank</span><span class="ns">top-n 3–20</span></div>
+        <div class="node n-model" id="generate" style="left:900px;top:300px;width:160px" data-step="4" data-fx="pop"><span class="nt">Generate</span><span class="ns">pack + cite</span></div>
+      </div>
+      <div class="grid g2" style="gap:20px">
+        <div class="panel k-model tight" data-step="2">
+          <h4>Why a contextual header helps</h4>
+          <p class="small">A chunk such as “revenue grew 3%” loses its company and its quarter. An LLM reads the full document and writes a short header. The header goes into the embedding and the BM25 text.</p>
+        </div>
+        <div class="stack" style="gap:12px" data-step="4">
+          <div class="callout pitfall">Tune chunking with retrieval recall on a labeled set, not by eye.</div>
+          <div class="cites">
+            <a class="cite doc" href="https://www.anthropic.com/news/contextual-retrieval" target="_blank" rel="noopener"><b>Doc</b>&nbsp;Anthropic: Contextual Retrieval</a>
+            <a class="cite doc" href="https://docs.cloud.google.com/vertex-ai/generative-ai/docs/rag-engine/rag-quickstart" target="_blank" rel="noopener"><b>Doc</b>&nbsp;Vertex AI RAG Engine quickstart</a>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="stack" style="width:300px;gap:14px">
+      <h4>Top-20 retrieval failure rate</h4>
+      <div class="stat"><span class="n" id="c04p-rate">5.7%</span><span class="l" id="c04p-delta">baseline embeddings</span></div>
+      <svg id="c04p-bar" viewBox="0 0 300 200" width="300" height="200" aria-label="Failure rate bar"></svg>
+      <ul class="clean small" style="gap:6px">
+        <li>Baseline: <b>5.7%</b></li>
+        <li data-step="2">+ contextual embeddings: <b class="c-state">3.7%</b> (−35%)</li>
+        <li data-step="3">+ contextual BM25: <b class="c-state">2.9%</b> (−49%)</li>
+        <li data-step="4">+ reranking: <b class="c-model">1.9%</b> (−67%)</li>
+      </ul>
+      <p class="tiny">Anthropic, 2024-09-19. Failure = 1 − recall@20.</p>
+    </div>
+  </div>
+  <aside class="notes">
+    Walk the pipeline left to right. Step 1: parse, then chunk; the Vertex AI RAG Engine quickstart uses 512 tokens with 100 overlap, and the overlap keeps sentences that cross a boundary. Step 2: an LLM writes a context header for each chunk, and both the dense and the BM25 index see it; the failure rate drops from 5.7% to 3.7%. Step 3: the query is rewritten, and hybrid retrieval merges both indexes; contextual BM25 takes it to 2.9%. Step 4: a reranker cuts 20 to 150 candidates down to 3 to 20, and the failure rate is 1.9%, which is 67% fewer failures. Analogy: BM25 is the index at the back of a book, embeddings are a librarian who knows synonyms; you want both. Likely question: "Why BM25 in 2026?" Because exact identifiers, error codes and product names are lexical, and embeddings blur them.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c04-pipeline-contextual";
+  const RATES = [5.7, 5.7, 3.7, 2.9, 1.9];
+  const DELTA = ["baseline embeddings", "baseline embeddings", "−35% with contextual embeddings", "−49% with contextual BM25", "−67% with reranking"];
+  let blocks = [], bands = [], fill = null, marks = [], num = null, del = null, cur = 5.7, tws = [];
+
+  function el(tag, attrs, parent) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+
+  function build(slide) {
+    const svg = slide.querySelector("#c04p-chunks");
+    svg.innerHTML = "";
+    el("rect", { x: 6, y: 6, width: 96, height: 150, rx: 8, fill: "var(--surface-2)", stroke: "var(--muted)", "stroke-width": 1.5 }, svg);
+    for (let i = 0; i < 11; i++) el("rect", { x: 16, y: 16 + i * 12.5, width: i % 4 === 3 ? 50 : 76, height: 4, rx: 2, fill: "var(--line-2)" }, svg);
+    // four 512-token regions on the page, each overlapping the next by ~100 tokens
+    blocks = []; bands = [];
+    for (let i = 0; i < 4; i++) {
+      const y = 12 + i * 34;
+      const b = el("rect", { x: 10, y, width: 88, height: 42, rx: 6, fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 2, opacity: 0 }, svg);
+      b._home = { x: 10, y }; b._out = { x: 152, y: 4 + i * 40 };
+      blocks.push(b);
+      if (i > 0) bands.push(el("rect", { x: 10, y, width: 88, height: 8, fill: "var(--tool)", opacity: 0 }, svg));
+    }
+    blocks.forEach((b, i) => {
+      const t = el("text", { x: b._out.x + 54, y: b._out.y + 25, "text-anchor": "middle", fill: "var(--state)", "font-family": "var(--f-mono)", "font-size": 13, "font-weight": 600, opacity: 0 }, svg);
+      t.textContent = "512 tok";
+      b._label = t;
+    });
+    const cap = el("text", { x: 135, y: 176, "text-anchor": "middle", fill: "var(--tool)", "font-family": "var(--f-mono)", "font-size": 13, opacity: 0 }, svg);
+    cap.textContent = "amber = 100-token overlap";
+    bands._cap = cap;
+
+    const bar = slide.querySelector("#c04p-bar");
+    bar.innerHTML = "";
+    el("rect", { x: 20, y: 10, width: 70, height: 180, rx: 10, fill: "var(--surface-2)", stroke: "var(--line-2)", "stroke-width": 1.5 }, bar);
+    fill = el("rect", { x: 20, y: 10, width: 70, height: 180, rx: 10, fill: "var(--risk)", opacity: 0.85 }, bar);
+    marks = [5.7, 3.7, 2.9, 1.9].map((r, i) => {
+      const y = 190 - (r / 5.7) * 180;
+      const g = el("g", { opacity: i === 0 ? 1 : 0 }, bar);
+      el("line", { x1: 94, y1: y, x2: 112, y2: y, stroke: "var(--muted)", "stroke-width": 1.5 }, g);
+      el("text", { x: 118, y: y + 5, fill: "var(--ink-2)", "font-family": "var(--f-mono)", "font-size": 14 }, g).textContent = r.toFixed(1) + "%";
+      return g;
+    });
+    num = slide.querySelector("#c04p-rate");
+    del = slide.querySelector("#c04p-delta");
+  }
+
+  function render(n, animate) {
+    tws.forEach((t) => t.kill()); tws = [];
+    const on = n >= 1;
+    const d = animate ? 0.7 : 0;
+    blocks.forEach((b, i) => {
+      const p = on ? b._out : b._home;
+      if (animate) {
+        tws.push(gsap.to(b, { attr: { x: p.x, y: p.y, opacity: on ? 1 : 0, width: on ? 108 : 88, height: on ? 34 : 42 }, duration: d, delay: on ? 0.15 + i * 0.12 : 0, ease: "power3.inOut" }));
+        tws.push(gsap.to(b._label, { attr: { opacity: on ? 1 : 0 }, duration: 0.3, delay: on ? 0.6 + i * 0.12 : 0 }));
+      } else {
+        b.setAttribute("x", p.x); b.setAttribute("y", p.y); b.setAttribute("opacity", on ? 1 : 0);
+        b.setAttribute("width", on ? 108 : 88); b.setAttribute("height", on ? 34 : 42);
+        b._label.setAttribute("opacity", on ? 1 : 0);
+      }
+    });
+    [...bands, bands._cap].forEach((x) => {
+      if (animate) tws.push(gsap.to(x, { attr: { opacity: on ? (x === bands._cap ? 1 : 0.75) : 0 }, duration: 0.4, delay: on ? 0.1 : 0 }));
+      else x.setAttribute("opacity", on ? (x === bands._cap ? 1 : 0.75) : 0);
+    });
+    // failure bar
+    const r = RATES[Math.min(n, 4)];
+    const h = (r / 5.7) * 180;
+    const tone = n >= 4 ? "var(--state)" : n >= 2 ? "var(--tool)" : "var(--risk)";
+    if (animate) {
+      tws.push(gsap.to(fill, { attr: { y: 190 - h, height: h }, fill: tone, duration: 0.9, ease: "power3.inOut" }));
+      const p = { v: cur };
+      tws.push(gsap.to(p, { v: r, duration: 0.9, ease: "power3.out", onUpdate: () => (num.textContent = p.v.toFixed(1) + "%") }));
+    } else {
+      fill.setAttribute("y", 190 - h); fill.setAttribute("height", h); fill.setAttribute("fill", tone);
+      num.textContent = r.toFixed(1) + "%";
+    }
+    cur = r;
+    del.textContent = DELTA[Math.min(n, 4)];
+    marks.forEach((m, i) => m.setAttribute("opacity", n >= i + 1 || i === 0 ? 1 : 0));
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { build(slide); cur = RATES[Math.min(step, 4)]; render(step, false); },
+    step(slide, n, animate) { if (fill) render(n, animate); },
+    leave() { tws.forEach((t) => t.kill()); tws = []; },
+  });
+})();
+</script>

@@ -1,0 +1,126 @@
+<section class="slide" id="rag-c07-lazy-light" data-tone="state" data-title="LazyGraphRAG and LightRAG">
+  <h2 class="title sm">LazyGraphRAG and LightRAG cut graph cost by deferring LLM work or using one call</h2>
+  <div class="grid fill" style="grid-template-columns:640px 1fr;gap:28px">
+    <div class="stack" style="gap:14px">
+      <h3>LazyGraphRAG: no LLM at index time</h3>
+      <p class="small">It "requires no prior summarization of the source data". The index is a noun-phrase co-occurrence graph. Graph statistics make the communities.</p>
+      <svg id="c7l-bars" viewBox="0 0 640 196" width="640" height="196" aria-label="Log-scale cost bars"></svg>
+      <svg id="c7l-slider" viewBox="0 0 640 84" width="640" height="84" aria-label="Relevance-test budget slider"></svg>
+      <p class="small" data-step="3"><b>Query:</b> LLM writes 3–5 subqueries → best-first rank of chunks and communities → LLM relevance tests, breadth-first → deepen into sub-communities → stop at the budget → map-reduce of claims.</p>
+      <p class="tiny" data-step="2">5,590 AP articles, LLM judge. At 4% of GraphRAG global query cost, it beats all methods on local and global queries. Ships in Microsoft Discovery (Azure).</p>
+      <div class="cites push"><a class="cite doc" href="https://www.microsoft.com/en-us/research/blog/lazygraphrag-setting-a-new-standard-for-quality-and-cost/" target="_blank" rel="noopener"><b>Blog</b>&nbsp;LazyGraphRAG: Setting a new standard for quality and cost</a></div>
+    </div>
+    <div class="stack" style="gap:14px">
+      <h3>LightRAG: one keyword call, dual-level retrieval</h3>
+      <div class="tags"><span class="tag t-state">EMNLP 2025</span><span class="tag t-state">40.3k stars</span><span class="tag t-tool">pip install lightrag-hku</span><span class="tag new">2026.05 RAG-Anything merged</span></div>
+      <div class="grid g3" data-step="4" data-fx="stagger" style="gap:18px">
+        <div class="stat"><span class="n" style="font-size:46px" data-to="100" data-pre="&lt;">0</span><span class="l small">tokens per retrieval, 1 API call. GraphRAG global: 610,000 (Legal set)</span></div>
+        <div class="stat"><span class="n" style="font-size:46px" data-to="50" data-pre="~" data-suf="%">0</span><span class="l">win rate vs GraphRAG (49.6–54.8%, LLM judge)</span></div>
+        <div class="stat"><span class="n" style="font-size:46px" data-to="85" data-pre="60–" data-suf="%">0</span><span class="l">win rate vs naive RAG</span></div>
+      </div>
+      <div style="position:relative;height:322px">
+        <div data-step="4" data-until="5" style="position:absolute;inset:0">
+          <div class="diagram" style="width:728px;height:280px" data-wires="c7l-q>c7l-kw@4:flow{human}; c7l-kw>c7l-ent@4 [low-level]; c7l-kw>c7l-rel@4 [high-level]; c7l-ent>c7l-ans@4:flow{state}; c7l-rel>c7l-ans@4:flow{state}">
+            <div class="node n-human pill" id="c7l-q" style="left:0;top:113px"><span class="nt">Query</span></div>
+            <div class="node n-model" id="c7l-kw" style="left:150px;top:100px;width:160px"><span class="nt">LLM keywords</span><span class="ns">one call</span></div>
+            <div class="node n-state" id="c7l-ent" style="left:380px;top:14px;width:180px"><span class="nt">Entity nodes</span><span class="ns">"Scrooge"</span></div>
+            <div class="node n-state" id="c7l-rel" style="left:380px;top:190px;width:180px"><span class="nt">Relation edges</span><span class="ns">"redemption"</span></div>
+            <div class="node n-state" id="c7l-ans" style="left:608px;top:100px;width:120px"><span class="nt">Context</span><span class="ns">+1-hop, chunks</span></div>
+          </div>
+          <p class="tiny">Index: LLM extracts entities and relations → profiles key-value pairs → dedupes. Update = graph union, no community rebuild.</p>
+        </div>
+        <div class="code-wrap" data-step="5" style="position:absolute;inset:0 0 auto 0"><div class="code-head">examples/lightrag_openai_demo.py (trimmed)</div>
+<pre class="code xs" data-lang="python" data-focus="5:4-5, 6:7-7, 7:8-10"><code>
+from lightrag import LightRAG, QueryParam
+from lightrag.llm.openai import gpt_4o_mini_complete, openai_embed
+
+rag = LightRAG(working_dir="./rag_storage", embedding_func=openai_embed,
+               llm_model_func=gpt_4o_mini_complete)
+await rag.initialize_storages()        # inside async def main()
+await rag.ainsert(f.read())            # incremental: graph union
+for mode in ["naive", "local", "global", "hybrid", "mix"]:
+    print(mode, await rag.aquery("What are the top themes in this story?",
+                                 param=QueryParam(mode=mode)))
+await rag.finalize_storages()
+</code></pre></div>
+      </div>
+      <div class="cites push">
+        <a class="cite paper" href="https://arxiv.org/abs/2410.05779" target="_blank" rel="noopener"><b>Paper</b>&nbsp;LightRAG: Simple and Fast RAG</a>
+        <a class="cite repo" href="https://github.com/HKUDS/LightRAG" target="_blank" rel="noopener"><b>Repo</b>&nbsp;HKUDS/LightRAG</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Both systems attack the same problem: full GraphRAG spends LLM calls at index time on every chunk and every community. LazyGraphRAG moves that work to query time: the index is cheap NLP co-occurrence, the same cost as vector RAG and 0.1% of GraphRAG, and the LLM only tests chunks that look promising, until a budget runs out. That budget is the one knob: Z100_Lite costs the same as an 8k vector RAG call, and more budget gives more quality. LightRAG keeps an LLM-built graph but drops community reports: one LLM call makes low-level keywords that hit entity nodes and high-level keywords that hit relation edges, and an update is a graph union. Analogy: GraphRAG pre-cooks every meal; LazyGraphRAG cooks to order; LightRAG keeps a well-labelled pantry. Likely question: "Is LightRAG better than GraphRAG?" On LLM-judge win rates it is about even, near 50%, at a small fraction of the query tokens; the next slide shows that F1 tells a different story.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const mk = (tag, attrs, style, txt) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (style) e.setAttribute("style", style); if (txt) e.textContent = txt; return e; };
+  const ROWS = [
+    { s: 1, y: 26, label: "GraphRAG (full)", v: 1000, val: "≈1000x", c: "var(--model)" },
+    { s: 1, y: 54, label: "LazyGraphRAG", v: 1, val: "1x = vector RAG", c: "var(--state)" },
+    { s: 1, y: 82, label: "Vector RAG", v: 1, val: "1x", c: "var(--faint)" },
+    { s: 2, y: 136, label: "GraphRAG global", v: 700, val: ">700x", c: "var(--model)" },
+    { s: 2, y: 164, label: "LazyGraphRAG", v: 1, val: "1x", c: "var(--state)" },
+  ];
+  const W = (v) => 24 + 336 * Math.log10(v) / 3;
+  const STOPS = [[100, "Z100_Lite", 0.3], [350, "Z500", 0.62], [600, "Z1500", 0.9]];
+  function build(slide) {
+    const bars = slide.querySelector("#c7l-bars"), sl = slide.querySelector("#c7l-slider");
+    if (bars._b) return bars._b;
+    const b = { rows: [], heads: [] };
+    b.heads.push(mk("text", { x: 0, y: 14 }, "font:700 13px var(--f-mono);fill:var(--muted)", "INDEXING COST, RELATIVE (LOG SCALE)"));
+    b.heads.push(mk("text", { x: 0, y: 124 }, "font:700 13px var(--f-mono);fill:var(--muted)", "QUERY COST AT COMPARABLE QUALITY"));
+    b.heads.forEach((h) => bars.appendChild(h));
+    ROWS.forEach((r) => {
+      const g = mk("g", { opacity: 0 });
+      g.appendChild(mk("text", { x: 0, y: r.y + 15 }, "font:600 15px var(--f-body);fill:var(--ink)", r.label));
+      const bar = mk("rect", { x: 170, y: r.y, width: 0, height: 20, rx: 5 }, "fill:" + r.c);
+      const val = mk("text", { x: 170 + W(r.v) + 10, y: r.y + 15 }, "font:700 14px var(--f-mono);fill:var(--ink-2)", r.val);
+      g.appendChild(bar); g.appendChild(val); bars.appendChild(g);
+      b.rows.push({ r, g, bar });
+    });
+    sl.appendChild(mk("text", { x: 0, y: 27 }, "font:600 13px var(--f-mono);fill:var(--muted)", "budget"));
+    sl.appendChild(mk("text", { x: 0, y: 76 }, "font:600 13px var(--f-mono);fill:var(--muted)", "quality"));
+    sl.appendChild(mk("line", { x1: 80, y1: 22, x2: 620, y2: 22 }, "stroke:var(--line-2);stroke-width:4;stroke-linecap:round"));
+    b.lbl = STOPS.map(([x, t]) => { sl.appendChild(mk("circle", { cx: x, cy: 22, r: 4 }, "fill:var(--faint)")); const e = mk("text", { x: x - 30, y: 48 }, "font:700 13px var(--f-mono);fill:var(--faint)", t); sl.appendChild(e); return e; });
+    sl.appendChild(mk("rect", { x: 80, y: 64, width: 540, height: 14, rx: 7 }, "fill:var(--surface-2);stroke:var(--line-2)"));
+    b.q = mk("rect", { x: 80, y: 64, width: 0, height: 14, rx: 7 }, "fill:var(--state)"); sl.appendChild(b.q);
+    b.knob = mk("circle", { cx: 100, cy: 22, r: 11 }, "fill:var(--state);stroke:var(--surface-2);stroke-width:3;opacity:0.25"); sl.appendChild(b.knob);
+    bars._b = b;
+    return b;
+  }
+  function render(slide, n, animate) {
+    const b = build(slide);
+    const d = animate ? 1 : 0;
+    gsap.killTweensOf([...b.rows.flatMap((x) => [x.g, x.bar]), b.knob, b.q, ...b.lbl]);
+    b.rows.forEach((x, i) => {
+      const on = n >= x.r.s;
+      gsap.to(x.g, { opacity: on ? 1 : 0, duration: d * 0.3, delay: d * (i % 3) * 0.15 });
+      gsap.to(x.bar, { attr: { width: on ? W(x.r.v) : 0 }, duration: d * 1.1, delay: d * (0.1 + (i % 3) * 0.15), ease: "power3.out" });
+    });
+    if (n >= 3) {
+      gsap.set(b.knob, { opacity: 1 });
+      if (d) {
+        const tl = gsap.timeline();
+        STOPS.forEach(([x, , q], k) => {
+          tl.to(b.knob, { attr: { cx: x }, duration: k ? 0.9 : 0.4, ease: "power2.inOut" })
+            .to(b.q, { attr: { width: 540 * q }, duration: 0.7, ease: "power2.out" }, "<0.2")
+            .to(b.lbl[k], { fill: "var(--state)", duration: 0.2 }, "<");
+        });
+      } else {
+        gsap.set(b.knob, { attr: { cx: STOPS[2][0] } }); gsap.set(b.q, { attr: { width: 540 * STOPS[2][2] } });
+        b.lbl.forEach((l) => (l.style.fill = "var(--state)"));
+      }
+    } else {
+      gsap.set(b.knob, { opacity: 0.25, attr: { cx: 100 } }); gsap.set(b.q, { attr: { width: 0 } });
+      b.lbl.forEach((l) => (l.style.fill = "var(--faint)"));
+    }
+  }
+  Deck.register("rag-c07-lazy-light", {
+    enter(slide, n) { render(slide, n, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { const s = slide.querySelector("#c7l-bars"); if (s._b) gsap.killTweensOf([...s._b.rows.flatMap((x) => [x.g, x.bar]), s._b.knob, s._b.q, ...s._b.lbl]); }
+  });
+})();
+</script>

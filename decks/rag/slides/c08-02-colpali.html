@@ -1,0 +1,175 @@
+<section class="slide" id="rag-c08-colpali" data-tone="model" data-title="ColPali and MaxSim">
+  <h2 class="title">ColPali embeds the page image and matches query tokens to image patches with MaxSim</h2>
+  <div class="grid fill" style="grid-template-columns:760px 1fr;gap:32px">
+    <div class="stack" style="gap:14px">
+      <svg class="interactive" id="rag-c08-colpali-svg" viewBox="0 0 760 330" width="760" height="330"></svg>
+      <div class="grid" style="grid-template-columns:370px 1fr;gap:22px" data-step="5" data-fx="bar">
+        <div class="stack" style="gap:8px">
+          <div class="tiny"><b>Index size, 4,874 NQ passages</b></div>
+          <div class="grid" style="grid-template-columns:190px 1fr;gap:8px 10px;align-items:center">
+            <span class="tiny">Dense MiniLM <b>7.5 MB</b></span><div class="bar" style="--aurora:var(--state)"><i style="--v:2.4%"></i></div>
+            <span class="tiny">LateOn fp32 <b>311.5 MB</b></span><div class="bar" style="--aurora:var(--risk)"><i style="--v:100%"></i></div>
+            <span class="tiny">+ fast-plaid <b>92 MB</b></span><div class="bar" style="--aurora:var(--tool)"><i style="--v:29.5%"></i></div>
+            <span class="tiny">+ <code>pool_factor=4</code> <b>78.8 MB</b></span><div class="bar" style="--aurora:var(--tool)"><i style="--v:25.3%"></i></div>
+          </div>
+          <p class="tiny">Multi-vector costs about 40x a dense vector before compression.</p>
+        </div>
+        <div class="stack" style="gap:8px">
+          <p class="tiny"><b>One vector instead:</b> <code>gemini-embedding-2</code> puts text, image, video (up to 120 s), audio and PDF (up to 6 pages) in one space, 128 to 3072 dims.</p>
+          <p class="tiny"><b>Video:</b> cut 10–120 s clips, embed them, index them with timestamps, and cite the timestamp. VideoRAG uses LongerVideos: more than 160 videos, 134 h.</p>
+          <div class="cites"><a class="cite paper" href="https://arxiv.org/abs/2502.01549" target="_blank" rel="noopener"><b>Paper</b>&nbsp;VideoRAG, arXiv 2502.01549</a></div>
+        </div>
+      </div>
+    </div>
+    <div class="stack" style="gap:12px">
+      <div class="code-wrap"><div class="code-head">colqwen_search.py · sentence-transformers v6</div>
+<pre class="code xs" data-lang="python" data-focus="1:9-13, 2:14-15, 4:14-15, 5:9-10"><code>
+# pip install -U "sentence-transformers[image]"
+from sentence_transformers import MultiVectorEncoder
+
+model = MultiVectorEncoder("vidore/colqwen2.5-v0.2")
+BASE = ("https://huggingface.co/datasets/"
+        "sentence-transformers/example-documents/resolve/main/")
+pages = [BASE + "doc1.jpg", BASE + "doc2.jpg"]   # page images
+
+# many patch vectors per page image, 128 dims each
+doc_emb = model.encode_document(pages)
+# one vector per query token
+q_emb = model.encode_query(
+    ["Total outlay is maximum in which year?"])
+# MaxSim: max over patches, then sum over query tokens
+scores = model.similarity(q_emb, doc_emb)
+</code></pre></div>
+      <p class="tiny"><b>ViDoRe nDCG@5:</b> colpali 81.3 · colpali-v1.3 84.8 · colqwen2-v1.0 89.3 · colqwen2.5-v0.2 89.4 · tomoro-colqwen3-embed-4b 90.6 · colqwen3.5-4.5B-v3 90.9 · colSmol-256M 80.1. <code>colpali-engine</code> is deprecated for new projects. v6 needs transformers v5.</p>
+      <div class="cites">
+        <a class="cite paper" href="https://arxiv.org/abs/2407.01449" target="_blank" rel="noopener"><b>Paper</b>&nbsp;ColPali, ICLR 2025</a>
+        <a class="cite repo" href="https://github.com/illuin-tech/colpali" target="_blank" rel="noopener"><b>Repo</b>&nbsp;illuin-tech/colpali</a>
+        <a class="cite doc" href="https://huggingface.co/blog/multi-vector-encoder" target="_blank" rel="noopener"><b>Blog</b>&nbsp;Multi-Vector (Late Interaction) Embedding Models with Sentence Transformers</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">ColPali (Faysse et al., ICLR 2025) skips OCR, layout parsing and chunking. It renders each PDF page as an image, and PaliGemma-3B gives about 1,000 patch vectors of 128 dims per page. The query becomes about 20 token vectors. Step 1 fills the token-by-patch similarity matrix; step 2 keeps the best patch per token; step 3 sums those maxima into the page score. This is ColBERT MaxSim applied to pixels. Step 4 shows the similarity map: it tells you where on the page the match is, which is good for debugging and for showing evidence. The Hugging Face blog reports that ColPali beats pipelines in which Claude Sonnet captions every visual element. Step 5 is the cost: multi-vector storage is about 40 times a dense vector until you use PLAID-style indexes and token pooling. Analogy: a dense vector is a one-line summary of the page; multi-vector keeps a sticky note on every patch. Likely question: "Why not just use one multimodal vector?" Answer: cheaper and fits any vector DB, but you lose token-to-patch detail on dense pages; a common design is single-vector recall plus ColPali reranking.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const TOK = ["total", "outlay", "maximum", "which", "year"];
+  const MAXC = [5, 9, 7, 2, 14];
+  const MAXV = [0.81, 0.77, 0.69, 0.52, 0.74];
+  // page patch (row, col) on the 16x16 grid for each of the 16 sampled matrix columns
+  const POS = [[1,2],[2,9],[3,3],[4,12],[5,6],[7,4],[8,13],[9,10],[10,2],[7,6],[11,8],[12,5],[3,14],[13,12],[14,10],[15,1]];
+  const CAP = [
+    "Each page image becomes a grid of patch vectors. No OCR, no layout parsing, no chunking.",
+    "Step 1: compare every query token with every page patch.",
+    "Step 2: keep the best patch for each query token (MaxSim).",
+    "Step 3: sum the row maxima. The sum is the page score.",
+    "Step 4: the similarity map shows where on the page the match is."
+  ];
+  const PX = 8, PY = 8, PW = 232, PH = 290, G = 16, CW = PW / G, CH = PH / G;
+  const MX = 330, MY = 44, MW = 22, MH = 30, GAP = 2;
+  let st = null;
+
+  function el(tag, attrs, style, parent) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (style) e.setAttribute("style", style);
+    parent.appendChild(e);
+    return e;
+  }
+  function sim(r, c) {
+    if (MAXC[r] === c) return MAXV[r];
+    const near = Math.abs(MAXC[r] - c) === 1 ? 0.18 : 0;
+    return 0.1 + near + 0.28 * (((r * 7 + c * 13) % 11) / 10);
+  }
+  function build(svg) {
+    svg.innerHTML = "";
+    const s = { cells: [], maxTxt: [], heat: [], links: [] };
+    const mono = "font-family:var(--f-mono);";
+    // page
+    el("rect", { x: PX, y: PY, width: PW, height: PH, rx: 6 }, "fill:var(--surface-2);stroke:var(--line-2);stroke-width:1.5", svg);
+    el("rect", { x: PX + 18, y: PY + 16, width: 140, height: 12, rx: 3 }, "fill:var(--muted);opacity:.55", svg);
+    for (let i = 0; i < 5; i++) el("rect", { x: PX + 18, y: PY + 44 + i * 14, width: 196 - (i % 3) * 30, height: 6, rx: 3 }, "fill:var(--faint);opacity:.6", svg);
+    el("text", { x: PX + 50, y: PY + 132 }, mono + "font-size:10px;fill:var(--ink-2)", svg).textContent = "Total outlay";
+    const bars = [40, 62, 50, 96, 70, 58];
+    bars.forEach((h, i) => el("rect", { x: PX + 36 + i * 28, y: PY + 252 - h, width: 18, height: h }, "fill:var(--muted);opacity:.45", svg));
+    el("line", { x1: PX + 26, y1: PY + 253, x2: PX + 212, y2: PY + 253 }, "stroke:var(--muted);stroke-width:1.5", svg);
+    el("text", { x: PX + 150, y: PY + 272 }, mono + "font-size:10px;fill:var(--ink-2)", svg).textContent = "year";
+    // heat overlay
+    for (let i = 0; i < G; i++) for (let j = 0; j < G; j++) {
+      let h = 0;
+      MAXC.forEach((c, r) => { const [pi, pj] = POS[c]; const d2 = (pi - i) ** 2 + (pj - j) ** 2; h = Math.max(h, MAXV[r] * Math.exp(-d2 / 3)); });
+      const rr = el("rect", { x: PX + j * CW, y: PY + i * CH, width: CW, height: CH }, "fill:var(--model);opacity:0", svg);
+      rr._h = h; s.heat.push(rr);
+    }
+    // patch grid
+    for (let k = 1; k < G; k++) {
+      el("line", { x1: PX + k * CW, y1: PY, x2: PX + k * CW, y2: PY + PH }, "stroke:var(--line-2);stroke-width:.6", svg);
+      el("line", { x1: PX, y1: PY + k * CH, x2: PX + PW, y2: PY + k * CH }, "stroke:var(--line-2);stroke-width:.6", svg);
+    }
+    el("text", { x: PX, y: PY + PH + 14 }, mono + "font-size:12px;fill:var(--muted)", svg).textContent = "page image, 16 x 16 patches";
+    // matrix
+    el("text", { x: MX, y: MY - 14 }, mono + "font-size:12px;fill:var(--muted)", svg).textContent = "16 of about 1,000 patches (illustrative values)";
+    el("text", { x: 758, y: MY - 14, "text-anchor": "end" }, mono + "font-size:12px;fill:var(--muted)", svg).textContent = "max";
+    TOK.forEach((t, r) => {
+      el("text", { x: MX - 10, y: MY + r * (MH + GAP) + 20, "text-anchor": "end" }, mono + "font-size:14px;fill:var(--ink)", svg).textContent = t;
+      s.cells[r] = [];
+      for (let c = 0; c < 16; c++) {
+        const x = MX + c * (MW + GAP), y = MY + r * (MH + GAP);
+        el("rect", { x, y, width: MW, height: MH, rx: 3 }, "fill:none;stroke:var(--line-2);stroke-width:1", svg);
+        const cell = el("rect", { x, y, width: MW, height: MH, rx: 3 }, "fill:var(--model);opacity:0;stroke:var(--ink);stroke-width:0", svg);
+        cell._v = sim(r, c); s.cells[r][c] = cell;
+      }
+      const mt = el("text", { x: 758, y: MY + r * (MH + GAP) + 20, "text-anchor": "end" }, mono + "font-size:14px;font-weight:700;fill:var(--ink);opacity:0", svg);
+      mt.textContent = MAXV[r].toFixed(2); s.maxTxt.push(mt);
+      // link from max cell to page patch
+      const [pi, pj] = POS[MAXC[r]];
+      const ln = el("line", { x1: MX + MAXC[r] * (MW + GAP), y1: MY + r * (MH + GAP) + MH / 2, x2: PX + (pj + 0.5) * CW, y2: PY + (pi + 0.5) * CH }, "stroke:var(--agent);stroke-width:1.5;opacity:0;stroke-dasharray:4 4", svg);
+      s.links.push(ln);
+    });
+    s.score = el("text", { x: MX, y: 238 }, mono + "font-size:20px;font-weight:700;fill:var(--agent);opacity:0", svg);
+    s.score.textContent = "page score = sum of row max = 0.00";
+    s.cmp = el("text", { x: MX, y: 264 }, mono + "font-size:13px;fill:var(--muted);opacity:0", svg);
+    s.cmp.textContent = "rank pages by score, send top-k images to the LLM";
+    s.cap = el("text", { x: MX, y: 300 }, "font-family:var(--f-body);font-size:15px;font-weight:600;fill:var(--ink-2)", svg);
+    s.cap2 = el("text", { x: MX, y: 320 }, "font-family:var(--f-body);font-size:15px;fill:var(--ink-2)", svg);
+    s.val = { v: 0 };
+    return s;
+  }
+  function setCap(n) {
+    const words = CAP[Math.min(n, 4)].split(" ");
+    let a = "", b = "";
+    words.forEach((w) => { if ((a + " " + w).length <= 52 && !b) a = (a ? a + " " : "") + w; else b = (b ? b + " " : "") + w; });
+    st.cap.textContent = a; st.cap2.textContent = b;
+  }
+  function render(n, animate) {
+    if (!st) return;
+    const d = animate ? 0.5 : 0;
+    gsap.killTweensOf(st.val);
+    setCap(n);
+    st.cells.forEach((row, r) => row.forEach((cell, c) => {
+      const isMax = MAXC[r] === c;
+      let op = 0;
+      if (n >= 1) op = cell._v;
+      if (n >= 2 && !isMax) op = cell._v * 0.45;
+      gsap.to(cell, { opacity: op, duration: d, delay: animate && n === 1 ? c * 0.03 + r * 0.05 : 0, overwrite: true });
+      cell.style.strokeWidth = n >= 2 && isMax ? "2.5" : "0";
+    }));
+    st.maxTxt.forEach((t, r) => gsap.to(t, { opacity: n >= 2 ? 1 : 0, duration: d, delay: animate && n === 2 ? r * 0.08 : 0, overwrite: true }));
+    gsap.to([st.score, st.cmp], { opacity: n >= 3 ? 1 : 0, duration: d, overwrite: true });
+    const target = n >= 3 ? 3.53 : 0;
+    const fmt = () => (st.score.textContent = "page score = sum of row max = " + st.val.v.toFixed(2));
+    if (animate && n === 3) gsap.fromTo(st.val, { v: 0 }, { v: target, duration: 1.2, ease: "power3.out", onUpdate: fmt });
+    else { st.val.v = target; fmt(); }
+    st.heat.forEach((h, i) => gsap.to(h, { opacity: n >= 4 ? h._h * 0.8 : 0, duration: d, delay: animate && n === 4 ? (i % 16) * 0.01 : 0, overwrite: true }));
+    st.links.forEach((l) => gsap.to(l, { opacity: n >= 4 ? 0.9 : 0, duration: d, overwrite: true }));
+  }
+  Deck.register("rag-c08-colpali", {
+    enter(slide, step) { st = build(slide.querySelector("#rag-c08-colpali-svg")); render(step, false); },
+    step(slide, n, animate) { render(n, animate); },
+    leave() {
+      if (!st) return;
+      gsap.killTweensOf([st.val, st.score, st.cmp, ...st.heat, ...st.links, ...st.maxTxt, ...st.cells.flat()]);
+    }
+  });
+})();
+</script>

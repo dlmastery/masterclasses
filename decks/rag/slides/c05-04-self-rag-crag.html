@@ -1,0 +1,125 @@
+<section class="slide" id="rag-c05-self-rag-crag" data-tone="agent" data-title="Self-RAG and CRAG">
+  <style>
+    #rag-c05-self-rag-crag .srs { height: 200px; justify-content: flex-start; gap: 6px; font: 500 15px/1.4 var(--f-mono); color: var(--ink); }
+    #rag-c05-self-rag-crag .srs .ln { display: flex; flex-wrap: nowrap; align-items: center; gap: 8px; min-height: 30px; }
+    #rag-c05-self-rag-crag .srs .ln .m { color: var(--muted); }
+    #rag-c05-self-rag-crag .srs .tag { font-size: 14px; padding: 5px 9px 5px 8px; }
+    #rag-c05-self-rag-crag .lg { display: grid; grid-template-columns: auto 1fr; gap: 6px 10px; align-items: center; }
+    #rag-c05-self-rag-crag .lg .tag { font-size: 14px; }
+    #rag-c05-self-rag-crag .crag .node { padding: 9px 14px; }
+    #rag-c05-self-rag-crag .bars { display: grid; grid-template-columns: 70px 1fr 52px; gap: 8px 12px; align-items: center; }
+    #rag-c05-self-rag-crag .bars .num { font: 700 19px var(--f-mono); color: var(--ink); text-align: right; }
+  </style>
+  <h2 class="title">Self-RAG critiques itself with reflection tokens, and CRAG grades evidence and falls back to web search</h2>
+
+  <div class="vs" style="gap:24px">
+    <div class="stack" style="gap:12px">
+      <h3>Self-RAG <span class="tiny">Asai et al., arXiv 2310.11511 · one fine-tuned LM</span></h3>
+      <div class="panel tight srs" id="c05-sr-stream" aria-label="Self-RAG decoding with reflection tokens"></div>
+      <div class="lg small" data-step="1" data-fx="fade">
+        <span class="tag t-agent">Retrieve</span><span>Should I retrieve for this segment?</span>
+        <span class="tag t-state">ISREL</span><span>Is the passage relevant?</span>
+        <span class="tag t-state">ISSUP</span><span>Is the output supported by the passage?</span>
+        <span class="tag t-human">ISUSE</span><span>Is the output useful?</span>
+      </div>
+      <p class="tiny" data-step="2">Per segment: one continuation per passage, then keep the best by a weighted critique score. Self-RAG 7B and 13B beat ChatGPT and retrieval-augmented Llama2-chat on open-domain QA, reasoning and fact verification.</p>
+    </div>
+    <div class="mid">vs</div>
+    <div class="stack crag" style="gap:12px">
+      <h3>CRAG <span class="tiny">Yan et al., arXiv 2401.15884 · plug-in, any generator</span></h3>
+      <div class="diagram" style="width:640px;height:290px" data-step="3" data-fx="fade"
+           data-wires="cev>cok@3:lr{state}; cev>camb@3:lr{tool}; cev>cbad@3:lr{risk}; cok>cref@3:flow{state}; camb>cboth@3:flow{tool}; cbad>cweb@3:flow{risk}">
+        <div class="node n-model" id="cev" style="left:0;top:112px;width:190px"><span class="nt">Evaluator</span><span class="ns">T5-large ≈0.77B</span></div>
+        <div class="node n-state" id="cok" style="left:250px;top:10px;width:160px"><span class="nt">Correct</span><span class="ns">max &gt; upper θ</span></div>
+        <div class="node n-tool" id="camb" style="left:250px;top:112px;width:160px"><span class="nt">Ambiguous</span><span class="ns">in between</span></div>
+        <div class="node n-risk" id="cbad" style="left:250px;top:214px;width:160px"><span class="nt">Incorrect</span><span class="ns">all &lt; lower θ</span></div>
+        <div class="node n-agent" id="cref" style="left:470px;top:10px;width:170px"><span class="nt">Refine</span><span class="ns">strips → filter</span></div>
+        <div class="node n-agent" id="cboth" style="left:470px;top:112px;width:170px"><span class="nt">Both</span><span class="ns">refined + web</span></div>
+        <div class="node n-tool" id="cweb" style="left:470px;top:214px;width:170px"><span class="nt">Web search</span><span class="ns">query → keywords</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid" style="grid-template-columns:1fr 1fr 1.25fr;gap:24px">
+    <div class="stack" data-step="4" data-fx="bar" style="gap:8px">
+      <h4>PopQA <span class="tiny">RAG → CRAG</span></h4>
+      <div class="bars">
+        <span class="small">RAG</span><div class="bar"><i style="--v:52.8%;background:var(--faint)"></i></div><span class="num" data-to="52.8" data-dec="1">0</span>
+        <span class="small">CRAG</span><div class="bar"><i style="--v:59.8%;background:var(--state)"></i></div><span class="num" data-to="59.8" data-dec="1">0</span>
+      </div>
+    </div>
+    <div class="stack" data-step="4" data-fx="bar" style="gap:8px">
+      <h4>PubHealth <span class="tiny">generator: Self-RAG-LLaMA2-7B</span></h4>
+      <div class="bars">
+        <span class="small">RAG</span><div class="bar"><i style="--v:39%;background:var(--faint)"></i></div><span class="num" data-to="39.0" data-dec="1">0</span>
+        <span class="small">CRAG</span><div class="bar"><i style="--v:75.6%;background:var(--state)"></i></div><span class="num" data-to="75.6" data-dec="1">0</span>
+      </div>
+    </div>
+    <div class="callout pitfall" data-step="4"><div><b>Pitfall:</b> an uncalibrated LLM grader marks everything “relevant”. Then the corrective branch never fires. Check the grader against human labels first.</div></div>
+  </div>
+
+  <aside class="notes">
+    Two ways to check evidence. Self-RAG (Asai et al.) trains one model to write reflection tokens into its own output: Retrieve says whether to fetch, ISREL grades each passage, ISSUP checks that the sentence is supported, ISUSE scores usefulness. The model writes one continuation per passage and keeps the best one by a weighted critique score. CRAG (Yan et al.) leaves the generator alone and adds a T5-large evaluator of about 0.77B parameters: Correct refines the documents into knowledge strips, Incorrect rewrites the query into keywords and searches the web, Ambiguous does both. With the same Self-RAG-LLaMA2-7B generator, CRAG lifts PopQA from 52.8 to 59.8 and PubHealth from 39.0 to 75.6. Analogy: Self-RAG is a writer who learned to fact-check while writing; CRAG is an editor who checks the sources before the writer starts. Likely question: "Which one for a hosted API model?" CRAG, because you cannot fine-tune the hosted model to emit reflection tokens.
+  </aside>
+</section>
+<script>
+(() => {
+  const SEG = [
+    { s: 1, l: 0, k: "txt", t: "Q: What county is Erik Hort's birthplace a part of?", m: 1 },
+    { s: 1, l: 1, k: "tag", t: "Retrieve = yes", tone: "agent" },
+    { s: 1, l: 1, k: "txt", t: "→ fetch passages", m: 1 },
+    { s: 1, l: 2, k: "txt", t: "d1: Erik Hort's birthplace is Montebello." },
+    { s: 1, l: 2, k: "tag", t: "ISREL relevant", tone: "state" },
+    { s: 1, l: 3, k: "txt", t: "d2: Montebello is a part of Rockland County." },
+    { s: 1, l: 3, k: "tag", t: "ISREL relevant", tone: "state" },
+    { s: 2, l: 4, k: "txt", t: "A: It is part of Rockland County." },
+    { s: 2, l: 4, k: "tag", t: "ISSUP fully", tone: "state" },
+    { s: 2, l: 4, k: "tag", t: "ISUSE 5", tone: "human" },
+  ];
+  let box = null, els = [], tl = null;
+  function build(slide) {
+    box = slide.querySelector("#c05-sr-stream");
+    box.innerHTML = "";
+    const lines = [];
+    for (let i = 0; i < 5; i++) { const d = document.createElement("div"); d.className = "ln"; box.appendChild(d); lines.push(d); }
+    els = SEG.map((g) => {
+      const e = document.createElement("span");
+      if (g.k === "tag") e.className = "tag t-" + g.tone;
+      else if (g.m) e.className = "m";
+      e.textContent = g.t;
+      lines[g.l].appendChild(e);
+      return e;
+    });
+  }
+  function render(n, animate) {
+    if (!box) return;
+    if (tl) { tl.kill(); tl = null; }
+    const fresh = [];
+    SEG.forEach((g, i) => {
+      const e = els[i];
+      e.textContent = g.t;
+      if (g.s < n || (g.s === n && !animate)) gsap.set(e, { autoAlpha: 1, scale: 1 });
+      else if (g.s === n) fresh.push(i);
+      else gsap.set(e, { autoAlpha: 0 });
+    });
+    if (!fresh.length) return;
+    tl = gsap.timeline();
+    fresh.forEach((i) => {
+      const g = SEG[i], e = els[i];
+      gsap.set(e, { autoAlpha: 0 });
+      if (g.k === "tag") {
+        tl.fromTo(e, { autoAlpha: 0, scale: 0.4 }, { autoAlpha: 1, scale: 1, duration: 0.4, ease: "back.out(2.4)" });
+      } else {
+        const p = { c: 0 };
+        tl.set(e, { autoAlpha: 1 })
+          .to(p, { c: g.t.length, duration: g.t.length * 0.022, ease: "none", onStart: () => (e.textContent = ""), onUpdate: () => (e.textContent = g.t.slice(0, Math.round(p.c))) });
+      }
+    });
+  }
+  Deck.register("rag-c05-self-rag-crag", {
+    enter(slide, step) { build(slide); render(step, false); },
+    step(slide, n, animate) { render(n, animate); },
+    leave() { if (tl) tl.kill(); tl = null; box = null; }
+  });
+})();
+</script>

@@ -1,0 +1,249 @@
+<section class="slide" id="custom-c03-reward-sources" data-tone="model" data-title="Where rewards come from">
+  <style>
+    #custom-c03-reward-sources .swap { display:grid; }
+    #custom-c03-reward-sources .swap > * { grid-area:1/1; align-self:start; }
+    #custom-c03-reward-sources .swap p, #custom-c03-reward-sources .swap li { font-size:18px; line-height:1.42; }
+  </style>
+  <h2 class="title">Rewards range from human preference to programs, and checkable rewards are the hardest to hack</h2>
+  <div class="row fill" style="gap:28px">
+    <svg class="interactive" id="c03-rew-svg" viewBox="0 0 840 600" width="840" height="600" style="flex:none;overflow:visible"></svg>
+    <div class="stack fill" style="gap:16px">
+      <div class="swap">
+        <div class="stack" data-until="1">
+          <p>A reward can come from people, from a model trained on people, from a judge, from a rubric or from a program. The source sets the cost, the scale and the attack surface.</p>
+        </div>
+        <div class="panel tight k-tool" data-step="1" data-until="2">
+          <h4>RLVR: a program is the reward</h4>
+          <p>Tulu 3 named it: “a novel method we call Reinforcement Learning with Verifiable Rewards”.</p>
+          <ul class="ticks">
+            <li>math answer match (<code>math-verify</code>)</li>
+            <li>unit tests in a sandbox</li>
+            <li>JSON schema or regex checks</li>
+            <li>IFEval-style constraint checks; SQL result match</li>
+          </ul>
+        </div>
+        <div class="panel tight k-model" data-step="2" data-until="3">
+          <h4>Cost and hackability fall to the right</h4>
+          <p>A program is cheap per label and hard to fool. But most real tasks (writing, medicine, law) are not verifiable. Judges and rubrics are the bridge.</p>
+          <p><b>RLAIF.</b> Constitutional AI: the model critiques and revises its outputs with a list of principles, then RL uses AI preference labels. Lee et al.: AI labels perform comparably to human labels on summarization and dialogue.</p>
+        </div>
+        <div class="panel tight k-state" data-step="3" data-until="4">
+          <h4>Outcome vs process reward models</h4>
+          <p>An ORM scores only the final answer. A PRM scores each reasoning step.</p>
+          <p>“Let's Verify Step by Step”: the process-supervised model solves <b>78%</b> of a MATH test subset. PRM800K has <b>800,000</b> step labels.</p>
+          <p>In 2025-26, teams use PRMs mostly for test-time reranking. DeepSeek-R1 did not train with PRMs.</p>
+        </div>
+        <div class="panel tight k-tool" data-step="4" data-until="5">
+          <h4>Rubrics and graders</h4>
+          <p><b>Rubrics as Rewards</b> (Scale AI): a judge grades a checklist for each prompt. Up to <b>28%</b> relative gain on HealthBench-1k vs Likert scores.</p>
+          <p><b>OpenAI RFT graders:</b> <code>string_check</code>, <code>text_similarity</code>, <code>score_model</code>, <code>python</code>, <code>multi</code>. The platform is winding down, so keep the grader as a design pattern. <b>Bedrock RFT:</b> reward in AWS Lambda or model-as-judge.</p>
+        </div>
+        <div class="stack" data-step="5" style="gap:14px">
+          <h4>Hacks to know</h4>
+          <div class="tags" data-step="5" data-fx="stagger">
+            <span class="tag t-risk">length inflation</span><span class="tag t-risk">sycophancy to an RM</span><span class="tag t-risk">edit unit tests, sys.exit(0)</span><span class="tag t-risk">regex format gaming</span><span class="tag t-risk">judge prompt injection</span>
+          </div>
+          <p>Fireworks: test the grader on full, partial, zero, malformed and edge-case answers before you train.</p>
+          <div class="callout pitfall"><span>Graders are the new labels: red-team them like a dataset.</span></div>
+        </div>
+      </div>
+      <div class="cites push">
+        <a class="cite paper" href="https://arxiv.org/abs/2411.15124" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Tulu 3 (RLVR)</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2305.20050" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Let's Verify Step by Step</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2507.17746" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Rubrics as Rewards</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2212.08073" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Constitutional AI</a>
+        <a class="cite doc" href="https://developers.openai.com/api/docs/guides/reinforcement-fine-tuning" target="_blank" rel="noopener"><b>Docs</b>&nbsp;OpenAI RFT graders</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Move along the axis from left to right. Human labels are the gold standard but slow and costly; a reward model compresses them into a scalar but can be fooled; an LLM judge scales the labeling (RLAIF); a rubric makes the judge check named criteria; a verifier is a program that checks the answer. Cost per label and hackability both fall as you move right, which is why RLVR took over math and code. The ORM vs PRM inset shows the credit-assignment question: score the end only, or score every step. Analogy: the grader is the exam; if the exam has a loophole, RL finds it faster than any student. Likely question: "How would you build a reward for a task with no single right answer?" Answer: write a per-prompt rubric with weighted items, grade it with a judge, validate the judge against expert labels, and red-team it with partial and malformed answers before training.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c03-reward-sources";
+  const S = {};
+  const XS = [90, 255, 420, 585, 750];
+  const NODES = [
+    ["H", "Human labels", "rankings", "human"],
+    ["RM", "Reward model", "Bradley-Terry", "model"],
+    ["J", "LLM judge", "RLAIF", "model"],
+    ["R", "Rubric", "checklist + judge", "tool"],
+    ["V", "Verifier", "tests · regex", "tool"],
+  ];
+  const HACKS = [[1, "sycophancy"], [2, "injection"], [4, "test edits"]];
+
+  function mk(tag, at, parent, css) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in at) e.setAttribute(k, at[k]);
+    if (css) e.setAttribute("style", css);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function txt(parent, x, y, str, css, anchor) {
+    const t = mk("text", { x, y, "text-anchor": anchor || "start" }, parent, css);
+    t.textContent = str;
+    return t;
+  }
+  const mono = (w, s, c) => `font:${w} ${s}px var(--f-mono);fill:var(--${c})`;
+
+  function build(slide) {
+    if (S.slide === slide) return;
+    S.slide = slide;
+    const svg = slide.querySelector("#c03-rew-svg");
+    svg.innerHTML = "";
+
+    // bands
+    S.bands = mk("g", {}, svg);
+    S.band1 = mk("g", {}, S.bands);
+    mk("polygon", { points: "60,28 800,128 800,150 60,150" }, S.band1, "fill:var(--tool-soft);stroke:var(--tool);stroke-width:1.5");
+    txt(S.band1, 72, 70, "cost per label", mono(700, 16, "tool"));
+    txt(S.band1, 72, 92, "high", mono(500, 13, "muted"));
+    txt(S.band1, 792, 120, "low", mono(500, 13, "muted"), "end");
+    S.band2 = mk("g", {}, S.bands);
+    mk("polygon", { points: "60,172 800,272 800,294 60,294" }, S.band2, "fill:var(--risk-soft);stroke:var(--risk);stroke-width:1.5");
+    txt(S.band2, 72, 214, "hackability", mono(700, 16, "risk"));
+    txt(S.band2, 72, 236, "high", mono(500, 13, "muted"));
+    txt(S.band2, 792, 264, "low", mono(500, 13, "muted"), "end");
+    txt(S.bands, 800, 14, "qualitative", mono(500, 12, "faint"), "end");
+
+    // axis + nodes
+    S.axis = mk("path", { d: "M30,345 L825,345" }, svg, "fill:none;stroke:var(--line-2);stroke-width:2.5");
+    S.axisHead = mk("path", { d: "M825,345 L813,338 L813,352 Z" }, svg, "fill:var(--line-2)");
+    S.nodes = NODES.map(([g, name, sub, tone], i) => {
+      const n = mk("g", {}, svg);
+      mk("circle", { cx: XS[i], cy: 345, r: 27 }, n, `fill:var(--${tone}-soft);stroke:var(--${tone});stroke-width:2.5`);
+      txt(n, XS[i], 351, g, `font:800 17px var(--f-mono);fill:var(--${tone})`, "middle");
+      txt(n, XS[i], 398, name, "font:700 17px var(--f-body);fill:var(--ink)", "middle");
+      txt(n, XS[i], 418, sub, mono(500, 13, "muted"), "middle");
+      return n;
+    });
+    txt(svg, 30, 330, "people", mono(600, 13, "human"));
+    txt(svg, 825, 330, "programs", mono(600, 13, "tool"), "end");
+    S.ends = [...svg.children].slice(-2);
+
+    // hack badges (step 5)
+    S.hacks = HACKS.map(([i, label]) => {
+      const h = mk("g", {}, svg);
+      mk("circle", { cx: XS[i] + 22, cy: 324, r: 11 }, h, "fill:var(--risk)");
+      txt(h, XS[i] + 22, 329, "!", "font:800 14px var(--f-mono);fill:#fff", "middle");
+      txt(h, XS[i] + 22, 306, label, mono(700, 12, "risk"), "middle");
+      return h;
+    });
+
+    // ORM vs PRM inset (step 3)
+    S.orm = mk("g", {}, svg);
+    mk("rect", { x: 8, y: 448, width: 404, height: 148, rx: 16 }, S.orm, "fill:var(--surface);stroke:var(--line-2);stroke-width:1.5");
+    txt(S.orm, 24, 474, "ORM vs PRM: 5 reasoning steps", "font:700 15px var(--f-body);fill:var(--ink)");
+    const chain = (y, lbl) => {
+      txt(S.orm, 24, y + 5, lbl, mono(700, 14, "ink-2"));
+      mk("line", { x1: 80, y1: y, x2: 330, y2: y }, S.orm, "stroke:var(--line-2);stroke-width:2");
+      return [0, 1, 2, 3, 4].map((k) => mk("circle", { cx: 90 + k * 60, cy: y, r: 11 }, S.orm, "fill:var(--surface-2);stroke:var(--model);stroke-width:2"));
+    };
+    chain(512, "ORM");
+    chain(566, "PRM");
+    S.ormBadge = mk("g", {}, S.orm);
+    mk("rect", { x: 352, y: 498, width: 50, height: 28, rx: 8 }, S.ormBadge, "fill:var(--state)");
+    txt(S.ormBadge, 377, 517, "1", "font:800 15px var(--f-mono);fill:#fff", "middle");
+    S.ticks = [1, 1, 1, 0, 1].map((ok, k) => {
+      const t = mk("g", {}, S.orm);
+      mk("circle", { cx: 90 + k * 60, cy: 566, r: 11 }, t, `fill:var(--${ok ? "state" : "risk"})`);
+      txt(t, 90 + k * 60, 571, ok ? "✓" : "✗", "font:800 13px var(--f-mono);fill:#fff", "middle");
+      return t;
+    });
+    txt(S.orm, 352, 571, "step 4 wrong", mono(600, 12, "risk"));
+    S.ormNote = S.orm.lastChild;
+
+    // multi grader inset (step 4)
+    S.multi = mk("g", {}, svg);
+    mk("rect", { x: 428, y: 448, width: 404, height: 148, rx: 16 }, S.multi, "fill:var(--surface);stroke:var(--tool);stroke-width:1.5;stroke-dasharray:6 6");
+    txt(S.multi, 444, 474, "multi grader (OpenAI RFT style)", "font:700 15px var(--f-body);fill:var(--ink)");
+    S.subs = [[488, "compliant", "python"], [540, "explanation", "score_model"]].map(([y, a, b]) => {
+      const g = mk("g", {}, S.multi);
+      mk("rect", { x: 444, y, width: 176, height: 44, rx: 10 }, g, "fill:var(--tool-soft);stroke:var(--tool);stroke-width:1.8");
+      txt(g, 456, y + 19, a, "font:700 14px var(--f-body);fill:var(--ink)");
+      txt(g, 456, y + 36, b, mono(500, 12, "muted"));
+      return g;
+    });
+    S.wires = [[510, "× 0.5"], [562, "× 0.5"]].map(([y, w]) => {
+      const g = mk("g", {}, S.multi);
+      mk("path", { d: `M620,${y} C660,${y} 660,536 694,536` }, g, "fill:none;stroke:var(--tool);stroke-width:2");
+      txt(g, 650, y < 536 ? y - 6 : y + 16, w, mono(700, 12, "tool"), "middle");
+      return g;
+    });
+    S.sum = mk("g", {}, S.multi);
+    mk("rect", { x: 696, y: 508, width: 124, height: 56, rx: 12 }, S.sum, "fill:var(--state-soft);stroke:var(--state);stroke-width:2");
+    txt(S.sum, 758, 530, "one score", mono(600, 12, "muted"), "middle");
+    S.sumVal = txt(S.sum, 758, 554, "0.85", "font:800 20px var(--f-display);fill:var(--state)", "middle");
+    txt(S.multi, 826, 588, "example: 0.5 · 1.0 + 0.5 · 0.7", mono(500, 12, "faint"), "end");
+  }
+
+  const on = (el) => gsap.set(el, { autoAlpha: 1 });
+  const off = (el) => gsap.set(el, { autoAlpha: 0 });
+
+  function render(slide, n, animate) {
+    build(slide);
+    const A = (k) => animate && n === k;
+    const svg = slide.querySelector("#c03-rew-svg");
+    gsap.killTweensOf(svg.querySelectorAll("*"));
+    gsap.set(S.axis, { clearProps: "strokeDasharray,strokeDashoffset" });
+
+    // step 1: axis + five sources
+    const s1 = [S.axis, S.axisHead, ...S.nodes, ...S.ends];
+    if (n >= 1) {
+      s1.forEach(on);
+      gsap.set(S.nodes, { scale: 1 });
+      if (A(1)) {
+        const L = S.axis.getTotalLength();
+        gsap.fromTo(S.axis, { strokeDasharray: L, strokeDashoffset: L }, { strokeDashoffset: 0, duration: 0.9, ease: "power2.inOut" });
+        gsap.fromTo(S.axisHead, { autoAlpha: 0 }, { autoAlpha: 1, delay: 0.8, duration: 0.3 });
+        gsap.fromTo(S.nodes, { autoAlpha: 0, scale: 0.4, transformOrigin: "50% 30%" }, { autoAlpha: 1, scale: 1, duration: 0.5, stagger: 0.16, delay: 0.3, ease: "back.out(2)" });
+      }
+    } else s1.forEach(off);
+
+    // step 2: cost and hackability bands
+    if (n >= 2) {
+      on(S.bands); gsap.set([S.band1, S.band2], { scaleX: 1 });
+      if (A(2)) gsap.fromTo([S.band1, S.band2], { scaleX: 0, transformOrigin: "0% 50%" }, { scaleX: 1, duration: 1, stagger: 0.25, ease: "power3.out" });
+    } else off(S.bands);
+
+    // step 3: ORM vs PRM
+    if (n >= 3) {
+      on(S.orm); S.ticks.forEach(on); on(S.ormBadge); on(S.ormNote);
+      if (A(3)) {
+        gsap.fromTo(S.orm, { autoAlpha: 0, y: 16 }, { autoAlpha: 1, y: 0, duration: 0.5 });
+        gsap.fromTo(S.ormBadge, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.3, delay: 0.7 });
+        gsap.fromTo(S.ticks, { autoAlpha: 0, scale: 0.3, transformOrigin: "50% 50%" }, { autoAlpha: 1, scale: 1, duration: 0.35, stagger: 0.32, delay: 1.1, ease: "back.out(2)" });
+        gsap.fromTo(S.ormNote, { autoAlpha: 0 }, { autoAlpha: 1, delay: 2.8, duration: 0.4 });
+      } else gsap.set(S.orm, { y: 0 });
+    } else off(S.orm);
+
+    // step 4: multi grader
+    if (n >= 4) {
+      on(S.multi); [...S.subs, ...S.wires, S.sum].forEach(on);
+      S.sumVal.textContent = "0.85";
+      if (A(4)) {
+        gsap.fromTo(S.multi, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.4 });
+        gsap.fromTo(S.subs, { autoAlpha: 0, x: -16 }, { autoAlpha: 1, x: 0, duration: 0.45, stagger: 0.2, delay: 0.3 });
+        gsap.fromTo(S.wires, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.4, stagger: 0.15, delay: 0.9 });
+        gsap.fromTo(S.sum, { autoAlpha: 0, scale: 0.6, transformOrigin: "50% 50%" }, { autoAlpha: 1, scale: 1, duration: 0.5, delay: 1.3, ease: "back.out(2)" });
+        const p = { v: 0 };
+        gsap.to(p, { v: 0.85, duration: 1, delay: 1.4, onUpdate: () => (S.sumVal.textContent = p.v.toFixed(2)) });
+      } else gsap.set([...S.subs, S.sum], { x: 0, scale: 1 });
+    } else off(S.multi);
+
+    // step 5: every source has an attack
+    if (n >= 5) {
+      S.hacks.forEach(on);
+      if (A(5)) gsap.fromTo(S.hacks, { autoAlpha: 0, scale: 0.3, transformOrigin: "20px 0px" }, { autoAlpha: 1, scale: 1, duration: 0.45, stagger: 0.2, ease: "back.out(2.4)" });
+      else gsap.set(S.hacks, { scale: 1 });
+    } else S.hacks.forEach(off);
+  }
+
+  Deck.register(ID, {
+    enter(slide) { build(slide); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { gsap.killTweensOf(slide.querySelectorAll("#c03-rew-svg *")); },
+  });
+})();
+</script>

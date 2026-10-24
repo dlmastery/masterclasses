@@ -1,0 +1,60 @@
+<section class="slide" id="custom-c01-ladder-decision" data-tone="agent" data-title="Ladder and decision flow">
+  <h2 class="title">Climb the ladder one rung at a time, and let the eval decide each step</h2>
+  <div class="fill" style="position:relative">
+    <div class="diagram" data-until="6" style="width:1392px;height:600px"
+         data-wires="eval>prompt@1:flow{state}; prompt>ship@1 [pass]{state}; prompt>fa@2 [fail]; fa>lc@3 [knowledge]{agent}; fa>rag@3:flow{agent}; fa>arag@3{agent}; fa>sft@4{model}; fa>dpo@4:flow{model}; fa>rft@4 [behavior]{model}; lc>combine@5; rag>combine@5; arag>combine@5; sft>combine@5; dpo>combine@5; rft>combine@5:flow">
+      <div class="node n-state" id="eval" style="left:0;top:228px;width:190px" data-step="1" data-fx="pop"><span class="nt">Eval set</span><span class="ns">20+ gold + metric</span></div>
+      <div class="node n-agent" id="prompt" style="left:250px;top:228px;width:210px" data-step="1" data-fx="pop"><span class="nt">Prompt + context</span><span class="ns">instructions, tools</span></div>
+      <div class="node n-state pill" id="ship" style="left:282px;top:70px" data-step="1" data-fx="pop"><span class="nt">Pass → ship</span></div>
+      <div class="node n-agent" id="fa" style="left:530px;top:228px;width:210px" data-step="2" data-fx="pop" data-on="3:hot"><span class="nt">Failure analysis</span><span class="ns">classify each miss</span></div>
+
+      <div class="group g-agent" style="left:800px;top:-14px;width:280px;height:282px" data-step="3" data-fx="fade"><span class="gl">knowledge</span></div>
+      <div class="node n-state" id="lc" style="left:820px;top:6px;width:240px" data-step="3" data-fx="left"><span class="nt">KB &lt; 200k tokens</span><span class="ns">long context + cache</span></div>
+      <div class="node n-agent" id="rag" style="left:820px;top:96px;width:240px" data-step="3" data-fx="left"><span class="nt">RAG</span><span class="ns">hybrid + rerank</span></div>
+      <div class="node n-agent" id="arag" style="left:820px;top:186px;width:240px" data-step="3" data-fx="left"><span class="nt">Agentic RAG</span><span class="ns">plan→retrieve→reflect</span></div>
+
+      <div class="group g-model" style="left:800px;top:286px;width:280px;height:282px" data-step="4" data-fx="fade"><span class="gl">behavior</span></div>
+      <div class="node n-model" id="sft" style="left:820px;top:306px;width:240px" data-step="4" data-fx="left"><span class="nt">Gold outputs → SFT</span><span class="ns">LoRA, or distill</span></div>
+      <div class="node n-model" id="dpo" style="left:820px;top:396px;width:240px" data-step="4" data-fx="left"><span class="nt">Pairs → DPO</span><span class="ns">chosen vs rejected</span></div>
+      <div class="node n-model" id="rft" style="left:820px;top:486px;width:240px" data-step="4" data-fx="left"><span class="nt">Grader → RFT / GRPO</span><span class="ns">no gold outputs</span></div>
+
+      <div class="node n-agent" id="combine" style="left:1160px;top:228px;width:220px" data-step="5" data-fx="pop" data-on="5:hot"><span class="nt">Combine, re-eval</span><span class="ns">RAFT · SFT → DPO</span></div>
+      <svg data-step="5" data-fx="draw" width="1392" height="600" viewBox="0 0 1392 600" style="position:absolute;left:0;top:0;overflow:visible;pointer-events:none">
+        <path d="M1270,302 V575 Q1270,588 1257,588 H108 Q95,588 95,575 V312" stroke="var(--state)" stroke-width="2.6" fill="none" stroke-linecap="round"/>
+        <path d="M86,322 L95,306 L104,322" stroke="var(--state)" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <text x="450" y="578" text-anchor="middle" style="font:600 14px var(--f-mono)" fill="var(--state)">monitor drift · re-tune when the base model retires</text>
+      </svg>
+      <p class="tiny" data-step="2" style="position:absolute;left:250px;top:340px;width:500px">Read 20 to 50 failures. Ask one question per failure: is a fact missing, or is the behavior wrong?</p>
+      <p class="tiny" data-step="5" style="position:absolute;left:1165px;top:96px;width:225px">RAFT: fine-tune with distractor documents so the model ignores noise and cites the right chunk. Vertex: SFT first, then preference tuning.</p>
+    </div>
+
+    <div data-step="6" style="position:absolute;inset:0;display:flex;flex-direction:column;gap:14px">
+      <table class="t" style="font-size:16px">
+        <tr><th>Rung</th><th>Data needed</th><th>Cost and latency</th><th>Wins when</th></tr>
+        <tr data-on="6:hot"><td>1 · Prompt / context engineering</td><td>0 to tens of examples + an eval set of 20+</td><td>Hours. Longer prompts; prompt caching offsets them</td><td>Always first; the task fits the model's priors</td></tr>
+        <tr><td>2 · Long context</td><td>KB under ~200k tokens (~500 pages)</td><td>Very low upfront; high per call unless cached</td><td>Small, stable corpora</td></tr>
+        <tr><td>3 · RAG / agentic RAG</td><td>A corpus, no labels; eval Q/A pairs</td><td>Days. + a retrieval hop (tens to hundreds of ms)</td><td>Fresh, large, private, citable, permissioned facts</td></tr>
+        <tr><td>4 · SFT (LoRA / full)</td><td>50 to 500 to start (OpenAI ≥50; Vertex “100 to 500”)</td><td>Tokens × epochs + hosting; can shrink prompts</td><td>Format, tone, narrow tasks, distillation</td></tr>
+        <tr><td>5 · Preference tuning (DPO)</td><td>Pairs (chosen, rejected)</td><td>~1.1x to 4x the SFT token price (Together)</td><td>Judgments with no single gold answer</td></tr>
+        <tr><td>6 · RL / RFT</td><td>Tens to thousands of prompts + a reward function</td><td>Highest: rollouts + training</td><td>Verifiable tasks: code, math, extraction, tools</td></tr>
+      </table>
+      <div class="grid g3" style="gap:14px">
+        <div class="panel tight k-agent">
+          <p class="tiny"><b>Rung 1 is context engineering:</b> keep “the optimal set of tokens” in the window. Against context rot: just-in-time retrieval, compaction, stale tool-result clearing, sub-agents.</p>
+          <a class="cite doc" href="https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents" target="_blank" rel="noopener"><b>Doc</b>&nbsp;Anthropic, Effective context engineering for AI agents</a>
+        </div>
+        <div class="panel tight k-tool">
+          <p class="tiny"><b>Set the bar in money:</b> +$20 per success, −$40 per escalation, −$1,000 churn in 5% of failures. Break-even accuracy is <b class="c-tool">81.5%</b>. Below it, climb a rung.</p>
+          <a class="cite doc" href="https://developers.openai.com/api/docs/guides/optimizing-llm-accuracy" target="_blank" rel="noopener"><b>Doc</b>&nbsp;OpenAI, Optimizing LLM accuracy</a>
+        </div>
+        <div class="panel tight k-model">
+          <p class="tiny"><b>LoRA is usually enough:</b> it matches full fine-tuning on small and medium SFT sets, and in RL even at rank 1. Anthropic has no public fine-tuning API.</p>
+          <a class="cite doc" href="https://thinkingmachines.ai/blog/lora/" target="_blank" rel="noopener"><b>Blog</b>&nbsp;Thinking Machines, LoRA Without Regret</a>
+        </div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    Start every project with an eval set of at least 20 gold cases and a business metric. Then try prompt and context engineering; if the eval passes, ship. If it fails, read the failures and classify each one as knowledge or behavior. Knowledge goes right and up: long context for a small stable KB, RAG for a large or fresh corpus, agentic RAG for multi-hop questions. Behavior goes right and down, and the data you have picks the method: gold outputs mean SFT, pairs mean DPO, a grader means RFT or GRPO. Analogy: a doctor runs the test before choosing the drug. The table then gives the cost of each rung. Note that Anthropic offers no public fine-tuning API; its customization path is context engineering, prompt caching, Skills and tools. Likely question: "How do I pick the accuracy bar?" Use the OpenAI break-even example: with these costs, the system must beat 81.5 percent to make money.
+  </aside>
+</section>

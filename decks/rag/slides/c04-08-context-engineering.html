@@ -1,0 +1,97 @@
+<section class="slide" id="rag-c04-context-engineering" data-tone="agent" data-title="Context engineering">
+  <h2 class="title">Context engineering treats retrieval as one way to select the smallest high-signal context</h2>
+  <p class="quote" data-fx="up" style="font-size:30px">"good context engineering means finding the smallest possible set of high-signal tokens that maximize the likelihood of some desired outcome." <span class="tiny">Anthropic, 29 Sep 2025</span></p>
+  <div class="row fill" style="gap:24px;align-items:stretch">
+    <div class="diagram" style="width:820px;height:460px" data-wires="sel>ctx@1:flow{state} [chunks]; cmp>ctx@2:flow{model} [summary]; iso1>ctx@3:flow{agent}:lr [1–2k tokens]; iso2>ctx@3:flow{agent}:lr; wr<>ctx@4:flow{state}:tl [notes]; tc>ctx@5:flow{tool}">
+      <div class="group g-tool" style="left:270px;top:270px;width:320px;height:190px" data-step="5" data-fx="fade"><span class="gl">Just in time</span></div>
+      <div class="node n-model" id="ctx" style="left:290px;top:120px;width:240px"><span class="nt">Context window</span><span class="ns">smallest high-signal set</span><div class="bar" style="margin-top:6px;--aurora:var(--model)"><i id="c04e-fill" style="--v:100%;width:15%"></i></div></div>
+      <div class="node n-state" id="sel" style="left:0;top:0;width:230px" data-step="1" data-fx="pop"><span class="nt">Select</span><span class="ns">RAG: hybrid + rerank</span></div>
+      <div class="node n-model" id="cmp" style="left:590px;top:0;width:230px" data-step="2" data-fx="pop"><span class="nt">Compress</span><span class="ns">compaction of old turns</span></div>
+      <div id="c04e-trace" data-step="2" data-fx="fade" style="position:absolute;left:590px;top:92px;width:230px;height:140px;overflow:hidden;border:1.5px dashed var(--model);border-radius:10px;padding:8px 12px;font:500 13px/1.45 var(--f-mono);color:var(--muted);background:var(--surface-2)">
+        <div class="full">turn 1: search refunds<br>turn 2: read 4 docs<br>turn 3: tool error, retry<br>turn 4: read 6 docs<br>… 36 more turns …</div>
+        <div class="sum" style="color:var(--ink);font-weight:700;opacity:0">summary: decisions + open tasks</div>
+      </div>
+      <div class="node n-agent" id="iso1" style="left:590px;top:256px;width:230px" data-step="3" data-fx="pop"><span class="nt">Sub-agent A</span><span class="ns">own context window</span></div>
+      <div class="node n-agent" id="iso2" style="left:590px;top:370px;width:230px" data-step="3" data-fx="pop"><span class="nt">Sub-agent B</span><span class="ns">own context window</span></div>
+      <div class="node n-state" id="wr" style="left:0;top:300px;width:230px" data-step="4" data-fx="pop"><span class="nt">Write</span><span class="ns">NOTES.md, outside the window</span></div>
+      <div class="node n-tool pill" id="tc" style="left:345px;top:246px;width:170px" data-step="5" data-fx="pop" data-on="5:hot"><span class="nt">tool call</span></div>
+      <div class="c04e-chip" data-step="5" data-fx="left" style="position:absolute;left:290px;top:318px;width:230px"><span>path: docs/refunds.md</span><b class="ld"> → loaded</b></div>
+      <div class="c04e-chip" data-step="5" data-fx="left" style="position:absolute;left:290px;top:364px;width:230px"><span>query: tickets, tag=refund</span><b class="ld"> → loaded</b></div>
+      <div class="c04e-chip" data-step="5" data-fx="left" style="position:absolute;left:290px;top:410px;width:230px"><span>link: status page</span><b class="ld"> → loaded</b></div>
+    </div>
+    <div class="stack" style="gap:14px;flex:1">
+      <p class="tiny">Definition: "the set of strategies for curating and maintaining the optimal set of tokens (information) during LLM inference." LangChain (2 Jul 2025) names four buckets: <b>Write, Select, Compress, Isolate</b>. RAG is <b>Select</b>.</p>
+      <p class="tiny" data-step="3">Sub-agents return "a condensed, distilled summary of its work (often 1,000-2,000 tokens)".</p>
+      <p class="tiny" data-step="5"><b>Just-in-time retrieval:</b> the agent keeps "lightweight identifiers (file paths, stored queries, web links, etc.)" and loads the content through tools when it needs it. A hybrid strategy loads some data up front and lets the agent explore the rest (suited to legal or finance work).</p>
+      <div class="callout tip" data-step="5">Agent instructions and skills follow the same rule: load task knowledge just in time by an identifier, not all up front.</div>
+      <p class="tiny" data-step="5"><b>Practitioners:</b> Hamel Husain and Ben Clavié: naive single-vector search is dead, retrieval is not. Bischof and Chaurasia: "Stop searching for the perfect embedding. Build specialized representations and route intelligently."</p>
+      <div class="cites push">
+        <a class="cite doc" href="https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents" target="_blank" rel="noopener"><b>Post</b>&nbsp;Effective context engineering for AI agents</a>
+        <a class="cite doc" href="https://blog.langchain.com/context-engineering-for-agents/" target="_blank" rel="noopener"><b>Post</b>&nbsp;Context Engineering for Agents</a>
+        <a class="cite doc" href="https://hamel.dev/notes/llm/rag/not_dead.html" target="_blank" rel="noopener"><b>Series</b>&nbsp;Stop Saying RAG Is Dead</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    Context engineering is the 2025 frame that replaced prompt engineering: the job is to choose which tokens the model sees, and RAG is only one of four ways to do it. Select brings in retrieved chunks; Compress replaces a long trace with a short summary; Isolate gives each sub-agent its own window and brings back only 1,000 to 2,000 tokens; Write keeps notes outside the window so the agent can read them later. The last step is just-in-time loading: the agent holds cheap identifiers such as a path, a stored query or a link, and pays for the content only when a tool call loads it. Skills and long instructions work the same way: keep a short index in the prompt and load the full text on demand. Analogy: a chef keeps the recipe names on the wall and takes a recipe card from the drawer only when an order needs it. Likely question: "Is RAG dead?" No; naive single-vector top-k is out of date, but selecting evidence is now a core part of every agent.
+  </aside>
+</section>
+<script>
+(() => {
+  const ID = "rag-c04-context-engineering";
+  const FILL = [15, 45, 32, 40, 52, 60];
+  let chips = [], trace = null, fill = null;
+  function build(slide) {
+    chips = [...slide.querySelectorAll(".c04e-chip")];
+    chips.forEach((c) => {
+      if (c._st) return;
+      c._st = true;
+      c.style.cssText += ";height:36px;display:flex;align-items:center;gap:6px;padding:0 12px;border-radius:9px;border:1.5px solid var(--tool);background:var(--surface-2);font:600 13px var(--f-mono);color:var(--ink-2);white-space:nowrap;overflow:hidden;box-sizing:border-box";
+      c.querySelector(".ld").style.color = "var(--tool)";
+    });
+    trace = slide.querySelector("#c04e-trace");
+    fill = slide.querySelector("#c04e-fill");
+  }
+  function render(slide, n, animate) {
+    build(slide);
+    gsap.to(fill, { width: FILL[Math.min(n, 5)] + "%", duration: animate ? 0.8 : 0, ease: "power2.out" });
+    const full = trace.querySelector(".full"), sum = trace.querySelector(".sum");
+    if (n >= 2) {
+      if (animate && !trace._done) {
+        gsap.set(trace, { height: 140 }); gsap.set(full, { opacity: 1 }); gsap.set(sum, { opacity: 0 });
+        gsap.to(full, { opacity: 0, duration: 0.3, delay: 0.9 });
+        gsap.to(trace, { height: 46, duration: 0.7, delay: 1.0, ease: "power3.inOut" });
+        gsap.to(sum, { opacity: 1, duration: 0.4, delay: 1.3 });
+        gsap.set(sum, { y: -96 });
+      } else { gsap.set(trace, { height: 46 }); gsap.set(full, { opacity: 0 }); gsap.set(sum, { opacity: 1, y: -96 }); }
+      trace._done = true;
+    } else {
+      trace._done = false;
+      gsap.set(trace, { height: 140 }); gsap.set(full, { opacity: 1 }); gsap.set(sum, { opacity: 0, y: 0 });
+    }
+    chips.forEach((c, i) => {
+      const ld = c.querySelector(".ld");
+      if (n >= 5) {
+        if (animate && !c._open) {
+          gsap.fromTo(c, { width: 230 }, { width: 296, duration: 0.6, delay: 0.9 + i * 0.45, ease: "power3.out" });
+          gsap.fromTo(ld, { opacity: 0 }, { opacity: 1, duration: 0.3, delay: 1.2 + i * 0.45 });
+          gsap.to(c, { borderColor: "var(--state)", duration: 0.3, delay: 0.9 + i * 0.45 });
+        } else { gsap.set(c, { width: 296, borderColor: "var(--state)" }); gsap.set(ld, { opacity: 1 }); }
+        c._open = true;
+      } else {
+        c._open = false;
+        gsap.set(c, { width: 230, borderColor: "var(--tool)" }); gsap.set(ld, { opacity: 0 });
+      }
+    });
+  }
+  Deck.register(ID, {
+    enter(slide, n) {
+      build(slide);
+      trace._done = n >= 2; chips.forEach((c) => (c._open = n >= 5));
+      render(slide, n, false);
+    },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { gsap.killTweensOf([...chips, trace, fill]); },
+  });
+})();
+</script>

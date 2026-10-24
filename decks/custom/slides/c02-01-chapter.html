@@ -1,0 +1,77 @@
+<section class="slide chapter" id="custom-c02-chapter" data-tone="model" data-title="Supervised fine-tuning">
+  <style>
+    #custom-c02-chapter .c02c-top { display: flex; align-items: flex-end; gap: 40px; }
+    #custom-c02-chapter .c02c-strip { display: flex; flex-wrap: wrap; gap: 6px; max-width: 960px; }
+    #custom-c02-chapter .tk { position: relative; overflow: hidden; font: 500 16px/1 var(--f-mono); padding: 9px 10px; border-radius: 8px; border: 1px solid var(--line-2); color: var(--muted); background: var(--surface); }
+    #custom-c02-chapter .tk.sp { border-style: dashed; }
+    #custom-c02-chapter .tk i { position: absolute; inset: 0; background: var(--model); opacity: 0; }
+    #custom-c02-chapter .tk span { position: relative; }
+    #custom-c02-chapter .tk.lit { color: #fff; border-color: var(--model); }
+    #custom-c02-chapter .c02c-key { display: flex; gap: 22px; margin-top: 10px; font: 500 14px/1 var(--f-mono); color: var(--muted); }
+    #custom-c02-chapter .c02c-key b { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+    #custom-c02-chapter .c02c-loss text { font: 500 13px/1 var(--f-mono); fill: var(--muted); }
+  </style>
+  <div class="ch-num" data-fx="blur">02</div>
+
+  <div class="c02c-top">
+    <div>
+      <div class="c02c-strip" id="c02c-strip">
+        <span class="tk sp"><i></i><span>&lt;user&gt;</span></span>
+        <span class="tk"><i></i><span>Is</span></span>
+        <span class="tk"><i></i><span>my</span></span>
+        <span class="tk"><i></i><span>refund</span></span>
+        <span class="tk"><i></i><span>approved</span></span>
+        <span class="tk"><i></i><span>?</span></span>
+        <span class="tk sp"><i></i><span>&lt;assistant&gt;</span></span>
+        <span class="tk as"><i></i><span>{"status":</span></span>
+        <span class="tk as"><i></i><span>"approved",</span></span>
+        <span class="tk as"><i></i><span>"days":</span></span>
+        <span class="tk as"><i></i><span>3}</span></span>
+        <span class="tk as sp"><i></i><span>&lt;eos&gt;</span></span>
+      </div>
+      <div class="c02c-key"><span><b style="background:var(--surface);border:1px solid var(--line-2)"></b>context: label −100, no loss</span><span><b style="background:var(--model)"></b>target tokens: cross-entropy loss</span></div>
+    </div>
+    <svg class="c02c-loss" data-fx="draw" viewBox="0 0 340 120" width="340" height="120" aria-label="Training loss falls over steps">
+      <line x1="30" y1="10" x2="30" y2="96" stroke="var(--line-2)" stroke-width="2"/>
+      <line x1="30" y1="96" x2="330" y2="96" stroke="var(--line-2)" stroke-width="2"/>
+      <path d="M32,16 C70,22 88,60 130,70 C175,80 220,84 326,86" fill="none" stroke="var(--model)" stroke-width="3.2" stroke-linecap="round"/>
+      <text x="36" y="114">training steps</text>
+      <text x="230" y="70">train loss</text>
+    </svg>
+  </div>
+
+  <div class="tags" data-fx="fade">
+    <span class="tag t-model">LoRA</span><span class="tag t-model">QLoRA</span><span class="tag t-model">DoRA</span>
+    <span class="tag t-tool new">TRL v1.16.0 · 2026-10-15</span><span class="tag t-tool">PEFT v0.21.0</span><span class="tag t-tool">Unsloth</span>
+    <span class="tag t-model">Gemma 4</span><span class="tag t-tool">Vertex AI</span>
+  </div>
+  <h2 class="display" style="font-size:80px">Supervised fine-tuning teaches format, style and skills from examples</h2>
+  <p class="lede" data-fx="up">SFT minimizes the cross-entropy of the target tokens. The data and the mask decide what the model learns.</p>
+  <div class="row middle" data-step="1" style="gap:24px">
+    <p class="quote" style="font-size:28px">Fine-tuning is “the most reliable way to enforce a specific output format”.</p>
+    <a class="cite doc" href="https://developers.googleblog.com/en/own-your-ai-fine-tune-gemma-3-270m-for-on-device/" target="_blank" rel="noopener"><b>Blog</b>&nbsp;Own your AI · Google Developers Blog · 2025-10-08</a>
+  </div>
+
+  <aside class="notes">This chapter is about supervised fine-tuning, the most common way to change model weights. Point at the token strip: the grey tokens are context, and only the coral tokens add to the loss. That is the whole idea of SFT: next-token cross-entropy, but only on the tokens you choose. An analogy: SFT is a copy-writing exercise where the teacher grades only the answer lines, never the question lines. The quote is from Google's "Own your AI" post: fine-tuning is the most reliable way to force a format. A likely student question: "If prompting already works, why fine-tune?" Answer: for a format, a tone or a narrow skill that prompting cannot make consistent, or to make a small model do the job of a big one.</aside>
+</section>
+<script>
+(() => {
+  let tl = null;
+  Deck.register("custom-c02-chapter", {
+    enter(slide, n) {
+      const toks = [...slide.querySelectorAll("#c02c-strip .tk.as")];
+      if (tl) tl.kill();
+      gsap.set(toks.map((t) => t.querySelector("i")), { opacity: 0 });
+      toks.forEach((t) => t.classList.remove("lit"));
+      tl = gsap.timeline({ delay: 0.9 });
+      toks.forEach((t, i) => {
+        tl.to(t.querySelector("i"), { opacity: 1, duration: 0.3, ease: "power2.out" }, i * 0.22);
+        tl.add(() => t.classList.add("lit"), i * 0.22);
+      });
+      if (n > 0) tl.progress(1);
+    },
+    step() {},
+    leave() { if (tl) tl.kill(); tl = null; },
+  });
+})();
+</script>

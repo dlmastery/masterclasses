@@ -1,0 +1,181 @@
+<section class="slide" id="rag-c07-hipporag-raptor" data-tone="state" data-title="HippoRAG 2 and RAPTOR">
+  <h2 class="title sm">HippoRAG 2 spreads activation with PageRank, and RAPTOR retrieves from a tree of summaries</h2>
+  <div class="grid fill" style="grid-template-columns:640px 1fr;gap:28px">
+    <div class="stack" style="gap:14px">
+      <svg id="c7h-ppr" viewBox="0 0 640 320" width="640" height="320" aria-label="Personalized PageRank heat spreading over a knowledge graph"></svg>
+      <svg id="c7h-tree" viewBox="0 0 640 196" width="640" height="196" aria-label="RAPTOR summary tree growing from chunks"></svg>
+      <p class="tiny" data-step="5">Bergum (Hamel series): "You don't need a graph database for GraphRAG." Han et al. (arXiv 2502.11371): combining graph and vector paradigms "yields consistent performance gains."</p>
+    </div>
+    <div class="stack" style="gap:14px">
+      <h3>HippoRAG 2: PageRank over a KG as memory</h3>
+      <ol class="seq small" style="gap:10px">
+        <li data-step="1"><b>Offline:</b> OpenIE triples → phrase nodes, synonym edges (similarity &gt; 0.8), passage nodes linked by "contains".</li>
+        <li data-step="2"><b>Online:</b> query → top-5 triples → LLM recognition filter → seeds: kept phrases + all passages (weight × 0.05).</li>
+        <li data-step="3"><b>Personalized PageRank</b> spreads activation from the seeds. Passages rank by score → reader.</li>
+      </ol>
+      <p class="small" data-step="4"><b>RAPTOR</b> (Stanford): retrieve over the collapsed tree, all levels at once; it beats top-down traversal. With GPT-4: +20% absolute on QuALITY. RAPTOR clusters <i>chunks by similarity</i>; GraphRAG clusters <i>entities by connectivity</i>.</p>
+      <div class="grid g2" id="c7h-score" data-step="5" data-fx="bar" style="gap:16px;perspective:900px">
+        <div class="panel tight k-model">
+          <h4>LLM-judge win rate</h4>
+          <span class="stat"><span class="n" style="font-size:52px;color:var(--model)">~50%</span><span class="l small">LightRAG vs GraphRAG (49.6–54.8%). Metric: comprehensiveness, diversity.</span></span>
+        </div>
+        <div class="panel tight k-state">
+          <h4>Avg F1, 7 QA sets</h4>
+          <div class="stack" style="gap:5px">
+            <div class="row middle" style="gap:8px"><span class="tiny" style="width:96px;color:var(--ink)">HippoRAG 2</span><div class="bar" style="flex:1;--v:59.8%"><i></i></div><b class="tiny">59.8</b></div>
+            <div class="row middle" style="gap:8px"><span class="tiny" style="width:96px">dense</span><div class="bar" style="flex:1;--v:57%"><i></i></div><b class="tiny">57.0</b></div>
+            <div class="row middle" style="gap:8px"><span class="tiny" style="width:96px">GraphRAG</span><div class="bar" style="flex:1;--v:49.6%"><i></i></div><b class="tiny">49.6</b></div>
+            <div class="row middle" style="gap:8px"><span class="tiny" style="width:96px">RAPTOR</span><div class="bar" style="flex:1;--v:48.8%"><i></i></div><b class="tiny">48.8</b></div>
+            <div class="row middle" style="gap:8px"><span class="tiny" style="width:96px;color:var(--risk)">LightRAG</span><div class="bar" style="flex:1;--v:6.6%;--aurora:var(--risk)"><i></i></div><b class="tiny" style="color:var(--risk)">6.6</b></div>
+          </div>
+        </div>
+      </div>
+      <div class="cites push">
+        <a class="cite paper" href="https://arxiv.org/abs/2502.14802" target="_blank" rel="noopener"><b>Paper</b>&nbsp;From RAG to Memory (HippoRAG 2, ICML 2025)</a>
+        <a class="cite repo" href="https://github.com/OSU-NLP-Group/HippoRAG" target="_blank" rel="noopener"><b>Repo</b>&nbsp;OSU-NLP-Group/HippoRAG</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2401.18059" target="_blank" rel="noopener"><b>Paper</b>&nbsp;RAPTOR</a>
+        <a class="cite repo" href="https://github.com/parthsarthi03/raptor" target="_blank" rel="noopener"><b>Repo</b>&nbsp;parthsarthi03/raptor</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">HippoRAG models the hippocampus: the LLM is the cortex, the knowledge graph is the index, and Personalized PageRank is pattern completion. Watch the heat: the query picks triples, an LLM drops the bad ones, the kept phrases become seeds, and PageRank spreads activation along edges until passages two hops away light up. That is associative recall: the passage about Rockland County never matched the query words, but it wins through Montebello. RAPTOR takes the other road: it clusters chunks by embedding similarity, writes a summary per cluster and repeats, so long documents get a tree of summaries; search all levels at once. Then the metric trap: graph papers report LLM-judge win rates, HippoRAG 2 reports F1, and LightRAG goes from about 50% to 6.6 depending on the metric. Likely question: "Which number do I trust?" The one that matches your task; for factual QA, F1 against a strong dense baseline.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const mk = (tag, attrs, style, txt) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (style) e.setAttribute("style", style); if (txt) e.textContent = txt; return e; };
+  // phrase nodes [x, y, label]
+  const PH = [[70,80,"Erik Hort"],[230,120,"Montebello"],[410,80,"Rockland County"],[570,46,"Rockland Co."],[70,250,"George Rankin"],[240,290,""],[390,210,""],[520,180,""],[170,190,""],[320,44,""],[600,260,""],[470,290,"politician"]];
+  // passage nodes [x, y, contains[]]
+  const PA = [[150,46,[0,1]],[330,150,[1,2]],[150,286,[4,11]],[470,240,[6,7,11]],[590,130,[3,7,10]],[300,250,[8,6,5]]];
+  const SIM = [0.9, 0.7, 0.3, 0.3, 0.3, 0.3];
+  const REL = [[0,1],[1,2],[4,11],[6,7],[7,10],[6,11],[8,4],[8,6],[9,2],[9,0],[10,11],[5,8]];
+  const SYN = [[2,3]];
+  const SEEDS = [0, 1];
+  const NP = PH.length, NT = NP + PA.length;
+  function ppr(iters) {
+    const adj = Array.from({ length: NT }, () => []);
+    const link = (a, b) => { adj[a].push(b); adj[b].push(a); };
+    REL.concat(SYN).forEach(([a, b]) => link(a, b));
+    PA.forEach((p, k) => p[2].forEach((c) => link(NP + k, c)));
+    const s = new Array(NT).fill(0);
+    SEEDS.forEach((i) => (s[i] = 1));
+    PA.forEach((p, k) => (s[NP + k] = 0.05 * SIM[k]));
+    const tot = s.reduce((a, b) => a + b, 0);
+    for (let i = 0; i < NT; i++) s[i] /= tot;
+    let r = s.slice();
+    for (let t = 0; t < iters; t++) {
+      const nr = s.map((v) => 0.5 * v);
+      for (let j = 0; j < NT; j++) adj[j].forEach((i) => (nr[i] += 0.5 * r[j] / adj[j].length));
+      r = nr;
+    }
+    return r;
+  }
+  const IT = [1, 2, 4, 40];
+  const R0 = ppr(0), RI = IT.map(ppr);
+  const pos = (i) => (i < NP ? PH[i] : PA[i - NP]);
+  function buildPPR(svg) {
+    if (svg._b) return svg._b;
+    const b = { heat: [], seedRings: [], ranks: [], q: null, it: null };
+    const eg = mk("g", {}); svg.appendChild(eg);
+    REL.forEach(([a, c]) => eg.appendChild(mk("line", { x1: PH[a][0], y1: PH[a][1], x2: PH[c][0], y2: PH[c][1] }, "stroke:var(--line-2);stroke-width:2")));
+    SYN.forEach(([a, c]) => eg.appendChild(mk("line", { x1: PH[a][0], y1: PH[a][1], x2: PH[c][0], y2: PH[c][1] }, "stroke:var(--state);stroke-width:2.5;stroke-dasharray:6 4")));
+    PA.forEach((p) => p[2].forEach((c) => eg.appendChild(mk("line", { x1: p[0], y1: p[1], x2: PH[c][0], y2: PH[c][1] }, "stroke:var(--faint);stroke-width:1.2;stroke-dasharray:2 4"))));
+    PH.forEach(([x, y, l], i) => {
+      svg.appendChild(mk("circle", { cx: x, cy: y, r: 13 }, "fill:var(--surface-2);stroke:var(--state);stroke-width:1.5"));
+      const h = mk("circle", { cx: x, cy: y, r: 13 }, "fill:var(--state);opacity:0"); svg.appendChild(h); b.heat.push(h);
+      if (l) svg.appendChild(mk("text", { x: x, y: y + 29, "text-anchor": "middle" }, "font:600 12px var(--f-body);fill:var(--ink)", l));
+    });
+    PA.forEach(([x, y], k) => {
+      svg.appendChild(mk("rect", { x: x - 22, y: y - 13, width: 44, height: 26, rx: 6 }, "fill:var(--surface-2);stroke:var(--ink-2);stroke-width:1.5"));
+      const h = mk("rect", { x: x - 22, y: y - 13, width: 44, height: 26, rx: 6 }, "fill:var(--state);opacity:0"); svg.appendChild(h); b.heat.push(h);
+      svg.appendChild(mk("text", { x: x, y: y + 5, "text-anchor": "middle" }, "font:700 12px var(--f-mono);fill:var(--ink)", "P" + (k + 1)));
+      const rk = mk("text", { x: x + 26, y: y - 14 }, "font:800 13px var(--f-mono);fill:var(--agent);opacity:0", ""); svg.appendChild(rk); b.ranks.push(rk);
+    });
+    SEEDS.forEach((i) => { const c = mk("circle", { cx: PH[i][0], cy: PH[i][1], r: 21 }, "fill:none;stroke:var(--agent);stroke-width:2.5;stroke-dasharray:4 3;opacity:0"); svg.appendChild(c); b.seedRings.push(c); });
+    b.q = mk("text", { x: 0, y: 14 }, "font:600 13px var(--f-mono);fill:var(--muted)", "query: \"What county is Erik Hort's birthplace a part of?\""); svg.appendChild(b.q);
+    b.it = mk("text", { x: 0, y: 316 }, "font:700 13px var(--f-mono);fill:var(--state)", ""); svg.appendChild(b.it);
+    svg._b = b;
+    return b;
+  }
+  // RAPTOR tree
+  const LEAF = Array.from({ length: 8 }, (_, i) => [10 + i * 56, 160]);
+  const L1 = [[66, 92, [0, 1, 2, 3]], [206, 92, [3, 4, 5]], [374, 92, [6, 7]]];
+  const ROOT = [220, 24];
+  function buildTree(svg) {
+    if (svg._b) return svg._b;
+    const b = { leaves: [], e1: [], n1: [], e2: [], root: null, box: null, labels: [] };
+    const line = (x1, y1, x2, y2, dash) => { const L = Math.hypot(x2 - x1, y2 - y1); const l = mk("line", { x1, y1, x2, y2 }, "stroke:var(--state);stroke-width:1.8;stroke-dasharray:" + (dash ? "4 4" : L + " " + L) + ";stroke-dashoffset:" + (dash ? 0 : L)); l._L = dash ? 0 : L; l._dash = dash; svg.appendChild(l); return l; };
+    L1.forEach(([x, y, kids], k) => kids.forEach((c) => b.e1.push(line(LEAF[c][0] + 23, LEAF[c][1], x, y + 26, c === 3 && k === 0))));
+    L1.forEach(([x, y]) => b.e2.push(line(x, y, ROOT[0], ROOT[1] + 26, false)));
+    LEAF.forEach(([x, y], i) => { const g = mk("g", { opacity: 0 }); g.appendChild(mk("rect", { x, y, width: 46, height: 26, rx: 5 }, "fill:var(--state-soft);stroke:var(--state);stroke-width:1.5")); g.appendChild(mk("text", { x: x + 23, y: y + 17, "text-anchor": "middle" }, "font:600 11px var(--f-mono);fill:var(--ink-2)", "c" + (i + 1))); svg.appendChild(g); b.leaves.push(g); });
+    const sum = (x, y, t) => { const g = mk("g", { opacity: 0 }); g.appendChild(mk("rect", { x: x - 44, y, width: 88, height: 26, rx: 13 }, "fill:var(--surface-2);stroke:var(--model);stroke-width:1.8")); g.appendChild(mk("text", { x, y: y + 17, "text-anchor": "middle" }, "font:600 11px var(--f-mono);fill:var(--ink)", t)); svg.appendChild(g); return g; };
+    L1.forEach(([x, y], k) => b.n1.push(sum(x, y, "summary " + (k + 1))));
+    b.root = sum(ROOT[0], ROOT[1], "root summary");
+    b.box = mk("rect", { x: 2, y: 14, width: 460, height: 180, rx: 14 }, "fill:none;stroke:var(--agent);stroke-width:2;stroke-dasharray:8 6;opacity:0"); svg.appendChild(b.box);
+    [["~100-token chunks → SBERT", 177], ["UMAP + GMM soft clusters", 104], ["(BIC) → LLM summary", 122], ["recurse to the root", 40], ["collapsed tree: search all", 62]].forEach(([t, y], k) => { const e = mk("text", { x: 474, y }, "font:600 12px var(--f-mono);fill:" + (k === 4 ? "var(--agent)" : "var(--muted)") + ";opacity:0", t); svg.appendChild(e); b.labels.push(e); });
+    svg._b = b;
+    return b;
+  }
+  function render(slide, n, animate) {
+    const P = buildPPR(slide.querySelector("#c7h-ppr")), T = buildTree(slide.querySelector("#c7h-tree"));
+    const d = animate ? 1 : 0;
+    const allP = [...P.heat, ...P.seedRings, ...P.ranks, P.q];
+    const allT = [...T.leaves, ...T.e1, ...T.n1, ...T.e2, T.root, T.box, ...T.labels];
+    gsap.killTweensOf([...allP, ...allT]);
+    if (P.tl) { P.tl.kill(); P.tl = null; }
+    // PPR heat: step 1 graph only, step 2 seeds, step 3 diffusion to convergence
+    const paint = (st, dur) => { const mx = Math.max(...st); P.heat.forEach((h, i) => gsap.to(h, { opacity: Math.pow(st[i] / mx, 0.6) * 0.95, duration: dur })); };
+    const zero = () => gsap.to(P.heat, { opacity: 0, duration: d * 0.3 });
+    gsap.to(P.seedRings, { opacity: n >= 2 ? 1 : 0, duration: d * 0.4 });
+    gsap.to(P.q, { opacity: n >= 2 ? 1 : 0.35, duration: d * 0.3 });
+    P.it.textContent = n >= 3 ? "PPR converged → top-3 passages" : n >= 2 ? "seeds: Erik Hort, Montebello (+ passages × 0.05)" : n >= 1 ? "offline graph: phrases, passages, synonym edge" : "";
+    const fin = RI[RI.length - 1];
+    const rank = PA.map((_, k) => [fin[NP + k], k]).sort((a, b) => b[0] - a[0]);
+    P.ranks.forEach((r) => (r.textContent = ""));
+    rank.slice(0, 3).forEach(([, k], j) => (P.ranks[k].textContent = "#" + (j + 1)));
+    if (n <= 1) zero();
+    else if (n === 2) paint(R0, d * 0.6);
+    else if (d) {
+      const tl = gsap.timeline();
+      paint(R0, 0);
+      RI.forEach((st, k) => tl.add(() => { paint(st, 0.55); P.it.textContent = k < RI.length - 1 ? "PPR iteration " + IT[k] : "PPR converged → top-3 passages"; }, k * 0.65));
+      P.tl = tl;
+    } else paint(fin, 0);
+    gsap.to(P.ranks, { opacity: n >= 3 ? 1 : 0, duration: d * 0.4, delay: d * 2.8 });
+    // RAPTOR tree
+    const on = n >= 4;
+    if (on && d) {
+      const tl = gsap.timeline();
+      tl.to(T.leaves, { opacity: 1, duration: 0.3, stagger: 0.06 })
+        .to(T.labels[0], { opacity: 1, duration: 0.3 }, "<")
+        .to(T.e1.filter((e) => !e._dash), { strokeDashoffset: 0, duration: 0.5, stagger: 0.04 })
+        .to(T.e1.filter((e) => e._dash), { opacity: 1, duration: 0.3 }, "<")
+        .to(T.n1, { opacity: 1, duration: 0.35, stagger: 0.12 })
+        .to([T.labels[1], T.labels[2]], { opacity: 1, duration: 0.3 }, "<")
+        .to(T.e2, { strokeDashoffset: 0, duration: 0.5, stagger: 0.05 })
+        .to(T.root, { opacity: 1, duration: 0.35 })
+        .to(T.labels[3], { opacity: 1, duration: 0.3 }, "<")
+        .to([T.box, T.labels[4]], { opacity: 1, duration: 0.4 }, "+=0.2");
+    } else {
+      gsap.set([...T.leaves, ...T.n1, T.root, T.box, ...T.labels], { opacity: on ? 1 : 0 });
+      T.e1.concat(T.e2).forEach((e) => (e._dash ? gsap.set(e, { opacity: on ? 1 : 0 }) : gsap.set(e, { strokeDashoffset: on ? 0 : e._L })));
+    }
+    // metric-trap flip
+    const cards = slide.querySelectorAll("#c7h-score > .panel");
+    gsap.killTweensOf(cards);
+    if (n >= 5 && d) gsap.fromTo(cards, { rotationY: -90 }, { rotationY: 0, duration: 0.7, ease: "back.out(1.4)", stagger: 0.35 });
+    else gsap.set(cards, { rotationY: 0 });
+  }
+  Deck.register("rag-c07-hipporag-raptor", {
+    enter(slide, n) { render(slide, n, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) {
+      const p = slide.querySelector("#c7h-ppr")._b, t = slide.querySelector("#c7h-tree")._b;
+      if (p) { gsap.killTweensOf([...p.heat, ...p.seedRings, ...p.ranks, p.q]); if (p.tl) p.tl.kill(); }
+      if (t) gsap.killTweensOf([...t.leaves, ...t.e1, ...t.n1, ...t.e2, t.root, t.box, ...t.labels]);
+      gsap.killTweensOf(slide.querySelectorAll("#c7h-score > .panel"));
+    }
+  });
+})();
+</script>

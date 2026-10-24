@@ -1,0 +1,207 @@
+<section class="slide tight" id="rag-c06-deep-research" data-tone="tool" data-title="Deep research architecture">
+  <h2 class="title">Deep research plans, fans out, compresses and writes, with citations at every step</h2>
+  <div class="grid fill" style="grid-template-columns:820px 548px;gap:24px">
+    <div class="stack" style="gap:14px">
+      <svg class="interactive" id="c06-dr-svg" viewBox="0 0 820 520" width="820" height="496" aria-label="Deep research swimlanes: plan, parallel researchers, compress, supervisor, report"></svg>
+      <div class="cites" data-fx="fade">
+        <a class="cite doc" href="https://www.anthropic.com/engineering/multi-agent-research-system" target="_blank" rel="noopener"><b>Blog</b>&nbsp;How we built our multi-agent research system</a>
+        <a class="cite repo" href="https://github.com/assafelovic/gpt-researcher" target="_blank" rel="noopener"><b>Repo</b>&nbsp;assafelovic/gpt-researcher</a>
+        <a class="cite doc" href="https://ai.google.dev/gemini-api/docs/interactions/deep-research" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Gemini Deep Research agent</a>
+        <a class="cite repo" href="https://github.com/langchain-ai/open_deep_research" target="_blank" rel="noopener"><b>Repo</b>&nbsp;langchain-ai/open_deep_research (archived)</a>
+      </div>
+    </div>
+    <div class="stack" style="gap:14px">
+      <ul class="clean tiny" data-fx="stagger" style="gap:9px">
+        <li><b class="c-agent">OpenAI deep research</b> (Feb 2025): 26.6% on Humanity's Last Exam. API <code>o3-deep-research</code> / <code>o4-mini-deep-research</code> with <code>web_search_preview</code>, <code>file_search</code> (max 2 vector stores), <code>code_interpreter</code>. Docs: shutdown 2026-07-23, then <code>gpt-5.6-sol</code>.</li>
+        <li><b class="c-agent">Gemini Deep Research</b> (Interactions API): <code>deep-research-preview-04-2026</code> and a <code>-max-</code> variant; 1,048,576 input / 65,536 output tokens; MCP servers and File Search.</li>
+        <li><b class="c-agent">Open source</b>: GPT Researcher (~30.3k stars, MCP retriever). open_deep_research: RACE 0.4943 with GPT-5 on Deep Research Bench; archived 2026-08-21, successor Deep Agents. One bench run: $20–$100 per 100 tasks.</li>
+      </ul>
+      <div class="code-wrap"><div class="code-head">gemini_deep_research.py · Interactions API</div>
+<pre class="code xs" data-lang="python" data-focus="1:4-7, 5:8-11"><code>
+import time
+from google import genai
+client = genai.Client()
+interaction = client.interactions.create(
+    input="Research the history of Google TPUs.",
+    agent="deep-research-preview-04-2026",
+    background=True)            # a long job: poll it
+while interaction.status not in ("completed", "failed"):
+    time.sleep(10)
+    interaction = client.interactions.get(interaction.id)
+print(interaction.steps[-1].content[0].text)  # or .error
+</code></pre></div>
+    </div>
+  </div>
+  <aside class="notes">
+    Walk the canonical loop top to bottom. Step 1: the planner writes a research brief and splits it into sub-questions; Gemini lets the user edit this plan. Step 2: one researcher sub-agent per sub-question runs search, read, note in its own context window, in parallel; Anthropic's Opus 4 lead with Sonnet 4 sub-agents beat single-agent Opus 4 by 90.2% on an internal eval. Step 3: each lane compresses its notes and keeps the URLs; "the essence of search is compression", and token use alone explains 80% of BrowseComp variance. Step 4: a supervisor looks for gaps and spawns another lane; this is why multi-agent costs about 15x the tokens of chat. Step 5: the writer produces a report with inline citations, then the hosted API returns it from a background job that you poll. Analogy: an editor who sends four reporters out, reads their short memos, sends one more, then writes the story. Likely question: "Can I still call o3-deep-research?" The OpenAI docs list a shutdown on 2026-07-23 with gpt-5.6-sol as the replacement, so check the docs before you build on it.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "rag-c06-deep-research";
+  const LX = [140, 270, 400, 530];
+  const LQ = ["Q1 origins", "Q2 generations", "Q3 adoption", "Q4 gap found"];
+  const DUR = [1.9, 2.5, 2.2, 1.7];
+  const mk = (tag, a, p, st) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in a) e.setAttribute(k, a[k]);
+    if (st) Object.assign(e.style, st);
+    if (p) p.appendChild(e);
+    return e;
+  };
+  const tx = (p, x, y, s, st, anchor) => {
+    const t = mk("text", { x, y, "text-anchor": anchor || "start" }, p, Object.assign({ font: "500 13px var(--f-mono)", fill: "var(--ink-2)" }, st || {}));
+    t.textContent = s; return t;
+  };
+  const box = (p, x, y, w, h, tone, dash) => mk("rect", { x, y, width: w, height: h, rx: 12 }, p,
+    { fill: `var(--${tone}-soft)`, stroke: `var(--${tone})`, strokeWidth: 2, strokeDasharray: dash ? "6 6" : "none" });
+  const line = (p, d, tone, w, dash) => mk("path", { d }, p, { fill: "none", stroke: tone ? `var(--${tone})` : "var(--line-2)", strokeWidth: w || 2, strokeDasharray: dash ? "6 6" : "none", strokeLinecap: "round" });
+
+  function lane(p, i) {
+    const X = LX[i], g = mk("g", {}, p);
+    const head = mk("g", {}, g);
+    mk("rect", { x: X - 58, y: 74, width: 116, height: 26, rx: 13 }, head, { fill: i === 3 ? "var(--risk-soft)" : "var(--agent-soft)", stroke: i === 3 ? "var(--risk)" : "var(--agent)", strokeWidth: 1.5 });
+    tx(head, X, 92, LQ[i], { font: "600 12.5px var(--f-mono)", fill: "var(--ink)" }, "middle");
+    const track = line(g, `M${X},106 L${X},300`, null, 2);
+    track.classList.add("drw");
+    [["tool", 140], ["state", 200], ["agent", 260]].forEach(([t, y]) => mk("circle", { cx: X, cy: y, r: 7 }, g, { fill: "var(--bg)", stroke: `var(--${t})`, strokeWidth: 2.4 }));
+    const out = line(g, `M${X},300 C${X},318 320,312 320,330`, "state", 2);
+    out.classList.add("drw");
+    const dot = mk("circle", { cx: X, cy: 106, r: 6 }, g, { fill: "var(--agent)", filter: "drop-shadow(0 0 6px var(--agent))", opacity: 0 });
+    return { g, dot };
+  }
+
+  function stat(p, y, val, dec, pre, suf, l1, l2, tone) {
+    const g = mk("g", {}, p);
+    const n = tx(g, 664, y + 42, pre + val.toFixed(dec) + suf, { font: "600 42px var(--f-display)", fill: `var(--${tone})`, letterSpacing: "-0.03em" });
+    tx(g, 664, y + 66, l1, { font: "500 13px var(--f-body)", fill: "var(--ink-2)" });
+    tx(g, 664, y + 84, l2, { font: "500 13px var(--f-body)", fill: "var(--ink-2)" });
+    g._count = { n, val, dec, pre, suf };
+    return g;
+  }
+
+  function build(slide) {
+    const svg = slide.querySelector("#c06-dr-svg");
+    if (svg._S) return svg._S;
+    svg.innerHTML = "";
+    const S = { svg, steps: {}, lanes: [], loops: [] };
+    const base = mk("g", {}, svg);
+    box(base, 170, 4, 300, 54, "agent");
+    tx(base, 186, 27, "PLAN", { font: "700 14px var(--f-mono)", fill: "var(--agent)" });
+    S.brief = tx(base, 186, 46, "", { font: "500 13px var(--f-mono)", fill: "var(--ink)" });
+    S.briefFull = "brief: history of Google TPUs · 3 sub-questions";
+    [["search", 145], ["read", 205], ["note", 265]].forEach(([s, y]) => tx(base, 4, y, s, { fill: "var(--muted)" }));
+
+    const g1 = mk("g", {}, svg);
+    LX.slice(0, 3).forEach((X) => line(g1, `M320,58 C320,68 ${X},62 ${X},74`, "agent", 1.8).classList.add("drw"));
+    const g2 = mk("g", {}, svg);
+    for (let i = 0; i < 3; i++) S.lanes.push(lane(g2, i));
+    S.stA = stat(g2, 14, 90.2, 1, "+", "%", "multi-agent vs single-", "agent Opus 4 (internal)", "agent");
+    // move lane headers into step 1 group so they appear with the plan
+    S.lanes.forEach((L) => g1.appendChild(L.g.firstChild));
+
+    const g3 = mk("g", {}, svg);
+    box(g3, 170, 330, 300, 44, "state");
+    tx(g3, 320, 357, "COMPRESS · notes + URLs", { font: "700 14px var(--f-mono)", fill: "var(--state)" }, "middle");
+    ["Q1 note · [url]", "Q2 note · [url]", "Q3 note · [url]"].forEach((s, i) => {
+      const c = mk("g", {}, g3);
+      mk("rect", { x: 6, y: 322 + i * 34, width: 146, height: 26, rx: 7 }, c, { fill: "var(--surface-2)", stroke: "var(--state)", strokeWidth: 1.4 });
+      tx(c, 14, 340 + i * 34, s, { font: "500 12.5px var(--f-mono)", fill: "var(--ink)" });
+    });
+    tx(g3, 4, 450, "“The essence of search", { font: "italic 500 13px var(--f-body)", fill: "var(--ink-2)" });
+    tx(g3, 4, 468, "is compression.”", { font: "italic 500 13px var(--f-body)", fill: "var(--ink-2)" });
+    tx(g3, 4, 486, "Anthropic, Jun 2025", { font: "500 12px var(--f-mono)", fill: "var(--muted)" });
+    S.stB = stat(g3, 184, 80, 0, "", "%", "of BrowseComp variance", "explained by token use", "tool");
+
+    const g4 = mk("g", {}, svg);
+    box(g4, 556, 330, 84, 44, "agent", true);
+    tx(g4, 598, 357, "gaps?", { font: "700 14px var(--f-mono)", fill: "var(--agent)" }, "middle");
+    line(g4, "M470,352 L552,352", "agent", 2).classList.add("drw");
+    line(g4, "M600,330 C650,250 650,110 590,87", "agent", 2, true);
+    tx(g4, 556, 236, "spawn", { font: "600 12px var(--f-mono)", fill: "var(--agent)" });
+    S.lanes.push(lane(g4, 3));
+    g4.appendChild(S.lanes[3].g.firstChild);
+    S.stC = stat(g4, 354, 15, 0, "", "×", "tokens vs chat for multi-", "agent (single agent: 4×)", "risk");
+
+    const g5 = mk("g", {}, svg);
+    line(g5, "M320,374 L320,448", "model", 2).classList.add("drw");
+    box(g5, 170, 452, 300, 56, "model");
+    tx(g5, 186, 476, "REPORT", { font: "700 14px var(--f-mono)", fill: "var(--model)" });
+    tx(g5, 186, 496, "claims with inline citations", { font: "500 12.5px var(--f-mono)", fill: "var(--ink-2)" });
+    ["[1]", "[2]", "[3]", "[4]"].forEach((s, i) => {
+      const c = mk("g", {}, g5);
+      mk("rect", { x: 488 + i * 40, y: 466, width: 34, height: 24, rx: 6 }, c, { fill: "var(--surface-2)", stroke: "var(--state)", strokeWidth: 1.4 });
+      tx(c, 505 + i * 40, 483, s, { font: "600 12.5px var(--f-mono)", fill: "var(--state)" }, "middle");
+    });
+    S.steps = { 1: g1, 2: g2, 3: g3, 4: g4, 5: g5 };
+    Object.values(S.steps).forEach((g) => { g._shown = false; gsap.set(g, { autoAlpha: 0 }); });
+    svg._S = S;
+    return S;
+  }
+
+  function countText(c, v) { c.n.textContent = c.pre + v.toFixed(c.dec) + c.suf; }
+
+  function show(S, k, animate) {
+    const g = S.steps[k];
+    g._shown = true;
+    gsap.killTweensOf(g);
+    if (!animate) { gsap.set(g, { autoAlpha: 1 }); g.querySelectorAll(".drw").forEach((p) => gsap.set(p, { clearProps: "strokeDasharray,strokeDashoffset" })); }
+    else {
+      gsap.fromTo(g, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.5 });
+      g.querySelectorAll(".drw").forEach((p, i) => {
+        const L = p.getTotalLength();
+        gsap.fromTo(p, { strokeDasharray: L, strokeDashoffset: L }, { strokeDashoffset: 0, duration: 0.9, delay: i * 0.08, ease: "power2.inOut", onComplete: () => gsap.set(p, { clearProps: "strokeDasharray,strokeDashoffset" }) });
+      });
+      g.querySelectorAll(":scope > g").forEach((c, i) => gsap.from(c, { autoAlpha: 0, y: 8, duration: 0.45, delay: 0.25 + i * 0.07 }));
+    }
+    [S.stA, S.stB, S.stC].forEach((st) => {
+      if (!st || !g.contains(st)) return;
+      const c = st._count;
+      if (!animate) { countText(c, c.val); return; }
+      const p = { v: 0 };
+      gsap.to(p, { v: c.val, duration: 1.4, ease: "power3.out", delay: 0.3, onUpdate: () => countText(c, p.v) });
+    });
+    if (k === 1) {
+      if (!animate) S.brief.textContent = S.briefFull;
+      else { const p = { n: 0 }; gsap.to(p, { n: S.briefFull.length, duration: 1.1, ease: "none", onUpdate: () => (S.brief.textContent = S.briefFull.slice(0, Math.round(p.n))) }); }
+    }
+  }
+  function hide(S, k) {
+    const g = S.steps[k];
+    g._shown = false;
+    gsap.killTweensOf(g);
+    gsap.to(g, { autoAlpha: 0, duration: 0.25 });
+    if (k === 1) S.brief.textContent = "";
+  }
+  function pulses(S, n) {
+    S.lanes.forEach((L, i) => {
+      const on = i < 3 ? n >= 2 : n >= 4;
+      if (on && !L.tw) {
+        gsap.set(L.dot, { attr: { cy: 106 }, opacity: 1 });
+        L.tw = gsap.to(L.dot, { attr: { cy: 300 }, duration: DUR[i], ease: "none", repeat: -1, delay: 0.4 + i * 0.25 });
+        S.loops.push(L.tw);
+      } else if (!on && L.tw) { L.tw.kill(); L.tw = null; gsap.set(L.dot, { opacity: 0 }); }
+    });
+  }
+  function render(slide, n, animate) {
+    const S = build(slide);
+    for (let k = 1; k <= 5; k++) {
+      const g = S.steps[k];
+      if (n >= k && !g._shown) show(S, k, animate);
+      else if (n < k && g._shown) hide(S, k);
+    }
+    pulses(S, n);
+  }
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) {
+      const S = slide.querySelector("#c06-dr-svg")._S;
+      if (!S) return;
+      S.lanes.forEach((L) => { if (L.tw) { L.tw.kill(); L.tw = null; } gsap.set(L.dot, { opacity: 0 }); });
+      S.loops = [];
+    },
+  });
+})();
+</script>

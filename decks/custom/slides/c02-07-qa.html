@@ -1,0 +1,40 @@
+<section class="slide" id="custom-c02-qa" data-tone="model" data-title="Interview: supervised fine-tuning">
+  <style>
+    #custom-c02-qa .qa { gap: 10px; }
+    #custom-c02-qa .qa .a { display: flex; gap: 14px; align-items: flex-start; font-size: 18px; padding: 10px 16px; }
+    #custom-c02-qa .qa .a svg { flex: none; margin-top: 2px; }
+    #custom-c02-qa .qa .q { font-size: 23px; }
+  </style>
+  <h2 class="title">Interview: supervised fine-tuning</h2>
+  <div class="stack" style="gap:16px">
+    <div class="qa">
+      <div class="q">After SFT the model never stops generating. Why?</div>
+      <div class="a" data-step="1">
+        <svg width="34" height="26" viewBox="0 0 34 26" aria-hidden="true"><rect x="1" y="3" width="32" height="20" rx="5" fill="none" stroke="var(--model)" stroke-width="2" stroke-dasharray="4 3"/><text x="17" y="17" font-size="9" font-family="var(--f-mono)" text-anchor="middle" fill="var(--model)">EOS</text></svg>
+        <div>The EOS token or the chat template is wrong, so the stop token never got a loss. Set <code>eos_token</code> (for example <code>"&lt;|im_end|&gt;"</code> on a Qwen2.5 base). Use the <b>same template</b> in training and serving. Check the mask: the end-of-turn token must be unmasked.</div>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">LoRA or full fine-tuning for 20k support conversations?</div>
+      <div class="a" data-step="2">
+        <svg width="34" height="26" viewBox="0 0 34 26" aria-hidden="true"><line x1="3" y1="13" x2="31" y2="13" stroke="var(--line-2)" stroke-width="3" stroke-linecap="round"/><circle cx="12" cy="13" r="6" fill="var(--model)"/></svg>
+        <div><b>LoRA on all linear layers</b>, MLP included, with a LR about 10× the full-FT LR (LoRA Without Regret). On small and medium SFT sets it matches full FT. Use full FT only when the data exceeds the adapter capacity, for example large continued pretraining.</div>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">How do you measure and limit forgetting?</div>
+      <div class="a" data-step="3">
+        <svg width="34" height="26" viewBox="0 0 34 26" aria-hidden="true"><path d="M4 22 L4 4 M4 22 L30 22" stroke="var(--line-2)" stroke-width="2" fill="none"/><path d="M26 18 C24 12 20 9 14 7" stroke="var(--state)" stroke-width="2.4" fill="none"/><path d="M11 5 L17 4 L15 10 Z" fill="var(--state)"/></svg>
+        <div>Track held-out <b>general benchmarks next to the target metric</b> each epoch. Stop early. Keep the adapters separate. Mix in general data. Merge toward the base with TIES, DARE or a linear merge, as SmolLM3 did to recover long-context scores.</div>
+      </div>
+    </div>
+    <div class="qa">
+      <div class="q">Explain where QLoRA saves memory.</div>
+      <div class="a" data-step="4">
+        <svg width="34" height="26" viewBox="0 0 34 26" aria-hidden="true"><rect x="2" y="3" width="30" height="20" rx="4" fill="var(--faint)" fill-opacity=".35" stroke="var(--line-2)"/><text x="17" y="17" font-size="10" font-weight="700" font-family="var(--f-mono)" text-anchor="middle" fill="var(--ink)">4-bit</text></svg>
+        <div>The base stays <b>frozen in 4-bit NF4</b> with double quantization. Only the small LoRA matrices train, and paged optimizers absorb memory spikes. QLoRA fine-tuned a 65B model on one 48 GB GPU. Full FT with AdamW needs about 16 bytes per parameter.</div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Use these as practice questions. Ask the room first, then reveal each answer. Question 1 is the most common real bug after a first SFT run: the model rambles because it never learned the stop token. Question 2 tests whether students know the 2025 evidence: LoRA on all layers is usually enough, with a higher learning rate. Question 3 tests measurement discipline: you cannot limit forgetting that you do not measure. Question 4 is a numbers question: 16 bytes per parameter for full fine-tuning against a 4-bit frozen base for QLoRA. Analogy for question 4: QLoRA keeps the library in compressed storage and writes notes only in a small notebook. A likely follow-up: "When is LoRA not enough?" When the data exceeds the adapter capacity, for example large continued pretraining.</aside>
+</section>

@@ -1,0 +1,243 @@
+<section class="slide" id="rag-c10-latency-cost" data-tone="tool" data-title="Tracing, caching and incremental indexing">
+  <style>
+    #rag-c10-latency-cost .lc-grid { display: grid; grid-template-columns: 684px 684px; gap: 24px; }
+    #rag-c10-latency-cost .lc-right { position: relative; }
+    #rag-c10-latency-cost .lc-code { position: absolute; left: 0; right: 0; top: 0; }
+    #rag-c10-latency-cost .lc-right .panel h4 { font-size: 19px; }
+    #rag-c10-latency-cost .lc-right p, #rag-c10-latency-cost .lc-right li { font-size: 17px; line-height: 1.38; }
+    #rag-c10-latency-cost .lc-right ul.ticks { gap: 5px; }
+    #rag-c10-latency-cost .lc-right .tag { font-size: 13px; padding: 5px 9px 5px 8px; }
+    #rag-c10-latency-cost .lc-right .tags { gap: 7px; }
+    #rag-c10-latency-cost .callout { font-size: 16px; padding: 12px 16px; }
+    #rag-c10-latency-cost svg text { font-family: var(--f-mono); }
+  </style>
+  <h2 class="title">Trace every hop, cache what repeats and re-embed only what changed</h2>
+  <div class="lc-grid fill">
+    <div class="stack" style="gap:12px">
+      <svg id="rag-c10-wf" viewBox="0 0 684 446" width="684" height="446" aria-label="Trace waterfall and hash diff"></svg>
+      <div class="cites">
+        <a class="cite doc" href="https://redis.io/docs/latest/develop/ai/redisvl/0.14.0/user_guide/llmcache/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;RedisVL LLM Caching</a>
+        <a class="cite doc" href="https://platform.claude.com/docs/en/build-with-claude/prompt-caching" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Prompt caching</a>
+        <a class="cite doc" href="https://reference.langchain.com/python/langchain-core/indexing/api/index" target="_blank" rel="noopener"><b>Docs</b>&nbsp;LangChain index()</a>
+        <a class="cite doc" href="https://langfuse.com/docs/observability/sdk/python/overview" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Langfuse Python SDK</a>
+        <a class="cite doc" href="https://arize.com/docs/phoenix/tracing/llm-traces-1/quickstart-tracing-python" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Phoenix tracing quickstart</a>
+      </div>
+    </div>
+
+    <div class="lc-right">
+      <div class="stack" style="gap:12px" data-until="4">
+        <div class="panel tight k-agent" data-step="1">
+          <h4>Trace on OpenTelemetry, track these KPIs</h4>
+          <p><b>Langfuse</b> 5.0.4 <code>@observe</code> · <b>Phoenix</b> 20.26.0 <code>register(auto_instrument=True)</code> · <b>LangSmith</b> <code>@traceable</code></p>
+          <div class="tags">
+            <span class="tag t-tool">p50 / p95 per span</span><span class="tag t-model">TTFT</span><span class="tag t-model">tokens + $ / query</span><span class="tag t-state">cache hit rate</span>
+            <span class="tag t-state">hit@k (golden set)</span><span class="tag t-risk">groundedness drift</span><span class="tag t-human">"I don't know" rate</span><span class="tag t-human">thumbs-down</span>
+          </div>
+        </div>
+        <div class="panel tight k-model" data-step="2">
+          <h4>Five levers for latency and cost</h4>
+          <ul class="ticks">
+            <li><b>Retrieve less:</b> rerank the top-50 to the top-5.</li>
+            <li><b>Prompt cache:</b> static prefix first; reads cost 0.1x (Anthropic).</li>
+            <li><b>Semantic cache:</b> ~0.05 s hit vs ~1.8 s LLM call.</li>
+            <li><b>Route and cascade:</b> small model first, escalate on low confidence.</li>
+            <li><b>Batch APIs</b> for indexing and offline eval.</li>
+          </ul>
+        </div>
+        <div class="panel tight k-state" data-step="3">
+          <h4>Freshness: stop zombie chunks</h4>
+          <p><code>index()</code> + <code>RecordManager</code> hashes each chunk and skips unchanged ones. Cleanup: <code>incremental</code> · <code>full</code> · <code>scoped_full</code>. Never point it at a store that another process filled. New embedding model = full blue/green re-embed.</p>
+        </div>
+      </div>
+
+      <div class="lc-code stack" style="gap:12px">
+        <div class="code-wrap" data-step="4"><div class="code-head">semantic_cache.py · RedisVL</div>
+<pre class="code xs" data-lang="python" data-focus="4:5-9, 5:10-13, 6:14-16"><code>
+from redisvl.extensions.cache.llm import SemanticCache
+from redisvl.utils.vectorize import HFTextVectorizer
+from redisvl.query.filter import Tag
+
+cache = SemanticCache(name="llmcache",
+    redis_url="redis://localhost:6379",
+    distance_threshold=0.1,     # Redis COSINE 0-2, lower = stricter
+    vectorizer=HFTextVectorizer("redis/langcache-embed-v1"),
+    filterable_fields=[{"name": "user_id", "type": "tag"}])
+def answer(q: str, uid: str) -&gt; str:
+    hit = cache.check(prompt=q, filter_expression=Tag("user_id") == uid)
+    if hit:                               # ~0.05 s instead of ~1.8 s
+        return hit[0]["response"]
+    out = rag_answer(q)                   # retrieve, rerank, generate
+    cache.store(prompt=q, response=out, filters={"user_id": uid})
+    cache.set_ttl(3600)                   # freshness bound
+    return out
+</code></pre></div>
+        <div class="callout pitfall" data-step="5">Partition the cache by <code>user_id</code> or tenant, or user A gets user B's answer. At <code>distance_threshold=0.5</code>, a question about "the country that has a city named Nice" hit the cached "Paris" answer. Tune the value with <code>CacheThresholdOptimizer</code>, and invalidate entries by <code>doc_id</code> when a source changes.</div>
+      </div>
+    </div>
+  </div>
+
+  <aside class="notes">
+    Step 1 draws one request as a trace. Every hop is a span, and each span records what you need to debug it: the retriever span keeps the top-k ids, scores, the filter and the index version.
+    Step 2 turns on prompt caching and a semantic cache. The prefill bar shrinks because the static prefix is read from cache at 0.1x price; a repeated question returns in about 0.05 s instead of 1.8 s. The bar widths are illustrative; the 0.05 s and 1.8 s values come from the RedisVL docs demo.
+    Step 3 is freshness: hash every chunk, re-embed only the changed ones, write tombstones for deleted ones, and invalidate cache entries tagged with that doc_id.
+    Steps 4 to 6 walk the RedisVL code: the partition field, the filtered check, and the TTL. Analogy: a semantic cache is a librarian who remembers recent questions; without a partition, the librarian tells you someone else's answer.
+    Likely question: "Why not cache by exact string?" Exact match misses paraphrases; a semantic cache catches them, but it needs a strict threshold.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const X0 = 150, BW = 520, Y0 = 34, RH = 24, BH = 16;
+  // name, tone, start, dur, cachedStart, cachedDur, note, cachedNote, noteMode (in | after | before)
+  const ROWS = [
+    ["root span", "human", 0, 1.0, 0, 0.72, "query · user_id · tenant", "query · user_id · tenant", "in"],
+    ["rewrite / HyDE", "model", 0, 0.10, 0, 0.10, "", "", "after"],
+    ["retriever", "state", 0.10, 0.08, 0.10, 0.08, "top-k ids · scores · filter · index ver.", "top-k ids · scores · filter · index ver.", "after"],
+    ["reranker", "agent", 0.18, 0.12, 0.18, 0.12, "top-50 → top-5", "top-50 → top-5", "after"],
+    ["LLM prefill", "model", 0.30, 0.30, 0.30, 0.08, "prompt tokens · cached tokens", "cached prefix: read at 0.1x price", "after"],
+    ["LLM decode", "model", 0.60, 0.28, 0.38, 0.28, "TTFT · tokens · $", "TTFT · tokens · $", "in"],
+    ["guardrail", "risk", 0.88, 0.06, 0.66, 0.06, "", "", "after"],
+    ["scores", "state", 0.94, 0.0, 0.72, 0.0, "groundedness · user feedback", "groundedness · user feedback", "before"],
+    ["repeat query", "state", 0, 0.0, 0, 0.03, "", "semantic-cache hit: ~0.05 s vs ~1.8 s LLM call", "after"],
+  ];
+  const TILE = { cols: 14, rows: 3, w: 40, h: 24, gx: 6.3, gy: 7, y: 286 };
+  const CHANGED = [4, 17, 30], DELETED = [23];
+  const tweens = [];
+  const mk = (tag, attrs, parent, text) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text != null) e.textContent = text;
+    if (parent) parent.appendChild(e);
+    return e;
+  };
+  const T = (f) => X0 + f * BW;
+  let svg, wf, grid, counter, cpx = { v: 1 }, rows = [], tiles = [], lastN = -1;
+
+  function build(slide) {
+    svg = slide.querySelector("#rag-c10-wf");
+    if (svg._built) return;
+    svg._built = true;
+    wf = mk("g", { opacity: 0 }, svg);
+    mk("text", { x: 0, y: 14, "font-size": 13, fill: "var(--muted)" }, wf, "One RAG request as a trace (widths illustrative)");
+    counter = mk("text", { x: 684, y: 14, "font-size": 13, "font-weight": 700, "text-anchor": "end", fill: "var(--model)" }, wf, "prefix input price ×1.00");
+    ROWS.forEach((r, i) => {
+      const y = Y0 + i * RH;
+      const g = mk("g", {}, wf);
+      const label = mk("text", { x: 0, y: y + 12.5, "font-size": 13, fill: i === 8 ? "var(--state)" : "var(--ink-2)", "font-weight": i === 0 ? 700 : 500 }, g, r[0]);
+      mk("line", { x1: X0, x2: X0 + BW, y1: y + BH / 2, y2: y + BH / 2, stroke: "var(--line)", "stroke-width": 1 }, g);
+      let bar;
+      if (i === 7) {
+        bar = mk("g", {}, g);
+        [0, 12].forEach((dx) => mk("rect", { x: dx, y: y + 2, width: 11, height: 11, rx: 2, fill: "var(--state)", transform: `rotate(45 ${dx + 5.5} ${y + 7.5})` }, bar));
+      } else {
+        bar = mk("rect", { x: T(r[2]), y, width: 0, height: BH, rx: 4, fill: `var(--${r[1]})`, opacity: i === 0 ? 0.28 : 0.9 }, g);
+      }
+      const note = mk("text", { x: 0, y: y + 12.5, "font-size": 11.5, fill: r[8] === "in" ? "var(--ink)" : "var(--muted)" }, g, "");
+      rows.push({ r, g, bar, note, label });
+    });
+    grid = mk("g", { opacity: 0 }, svg);
+    mk("text", { x: 0, y: 274, "font-size": 13, fill: "var(--muted)" }, grid, "Re-index by hash diff: index() + RecordManager");
+    for (let k = 0; k < TILE.cols * TILE.rows; k++) {
+      const c = k % TILE.cols, rr = Math.floor(k / TILE.cols);
+      const x = c * (TILE.w + TILE.gx), y = TILE.y + rr * (TILE.h + TILE.gy);
+      const g = mk("g", {}, grid);
+      const rect = mk("rect", { x, y, width: TILE.w, height: TILE.h, rx: 5, fill: "var(--state)", "fill-opacity": 0.35, stroke: "var(--state)", "stroke-width": 1.2 }, g);
+      const kind = CHANGED.includes(k) ? "changed" : DELETED.includes(k) ? "deleted" : "same";
+      let mark = null;
+      if (kind === "changed") mark = mk("text", { x: x + TILE.w / 2, y: y + 17, "text-anchor": "middle", "font-size": 15, "font-weight": 700, fill: "#fff", opacity: 0 }, g, "↻");
+      if (kind === "deleted") {
+        mark = mk("g", { opacity: 0 }, g);
+        mk("line", { x1: x + 11, y1: y + 5, x2: x + 29, y2: y + 19, stroke: "var(--risk)", "stroke-width": 2.5, "stroke-linecap": "round" }, mark);
+        mk("line", { x1: x + 29, y1: y + 5, x2: x + 11, y2: y + 19, stroke: "var(--risk)", "stroke-width": 2.5, "stroke-linecap": "round" }, mark);
+      }
+      tiles.push({ g, rect, kind, mark });
+    }
+    const lg = mk("text", { x: 0, y: 398, "font-size": 12.5, fill: "var(--ink-2)" }, grid);
+    [["■ ", "var(--state)"], ["39 hash match: skipped   ", "var(--ink-2)"], ["■ ", "var(--tool)"], ["3 changed: re-embed   ", "var(--ink-2)"], ["✕ ", "var(--risk)"], ["1 deleted: tombstone", "var(--ink-2)"]]
+      .forEach(([t, f]) => mk("tspan", { fill: f }, lg, t));
+    mk("text", { x: 0, y: 420, "font-size": 12.5, fill: "var(--tool)", "font-weight": 600 }, grid, "CDC event → diff by hash → re-embed delta → upsert + tombstones");
+    mk("text", { x: 0, y: 440, "font-size": 12.5, fill: "var(--tool)", "font-weight": 600 }, grid, "→ invalidate cache entries by doc_id → bump index version in traces");
+  }
+
+  function layout(cached, animate, grow) {
+    rows.forEach(({ r, bar, note }, i) => {
+      const s = cached ? r[4] : r[2], d = cached ? r[5] : r[3];
+      const txt = cached ? r[7] : r[6];
+      const x = T(s), w = d * BW;
+      const delay = grow ? i * 0.12 : 0;
+      if (i === 7) {
+        const tx = T(s) + 4;
+        if (animate) tweens.push(gsap.to(bar, { x: tx, duration: 0.7, ease: "power3.inOut", delay }));
+        else gsap.set(bar, { x: tx });
+      } else {
+        if (grow) gsap.set(bar, { attr: { width: 0, x } });
+        if (animate) tweens.push(gsap.to(bar, { attr: { x, width: w }, duration: 0.7, ease: "power3.inOut", delay }));
+        else gsap.set(bar, { attr: { x, width: w } });
+      }
+      note.textContent = txt;
+      let nx, anchor = "start";
+      if (r[8] === "in") nx = x + 8;
+      else if (r[8] === "before") { nx = T(s) - 8; anchor = "end"; }
+      else nx = x + w + 8;
+      note.setAttribute("text-anchor", anchor);
+      if (animate) tweens.push(gsap.fromTo(note, { attr: { x: nx }, opacity: 0 }, { opacity: 1, duration: 0.4, delay: delay + 0.45 }));
+      else gsap.set(note, { attr: { x: nx }, opacity: 1 });
+    });
+    const rep = rows[8];
+    if (animate) tweens.push(gsap.to(rep.g, { opacity: cached ? 1 : 0, duration: 0.4 }));
+    else gsap.set(rep.g, { opacity: cached ? 1 : 0 });
+    const to = cached ? 0.1 : 1;
+    const upd = () => (counter.textContent = `prefix input price ×${cpx.v.toFixed(2)}`);
+    if (animate) tweens.push(gsap.to(cpx, { v: to, duration: 1.2, ease: "power2.out", onUpdate: upd }));
+    else { cpx.v = to; upd(); }
+  }
+
+  function tilesState(on, animate) {
+    tiles.forEach((t, k) => {
+      const hot = on && t.kind !== "same";
+      const fill = t.kind === "changed" && on ? "var(--tool)" : t.kind === "deleted" && on ? "none" : "var(--state)";
+      const stroke = t.kind === "changed" && on ? "var(--tool)" : t.kind === "deleted" && on ? "var(--risk)" : "var(--state)";
+      const fo = t.kind === "changed" && on ? 0.95 : 0.35;
+      if (animate && on) {
+        tweens.push(gsap.fromTo(t.g, { opacity: 0, y: 8 }, { opacity: 1, y: 0, duration: 0.35, delay: k * 0.012 }));
+        if (hot) {
+          tweens.push(gsap.to(t.rect, { attr: { fill, stroke, "fill-opacity": fo, "stroke-dasharray": t.kind === "deleted" ? "4 3" : "none" }, duration: 0.3, delay: 0.9 + k * 0.01 }));
+          tweens.push(gsap.fromTo(t.mark, { opacity: 0 }, { opacity: 1, duration: 0.3, delay: 1.05 + k * 0.01 }));
+          if (t.kind === "changed") tweens.push(gsap.fromTo(t.g, { scale: 1 }, { scale: 1.18, transformOrigin: "50% 50%", yoyo: true, repeat: 3, duration: 0.25, delay: 1.1 }));
+        }
+      } else {
+        gsap.set(t.g, { opacity: 1, y: 0, scale: 1 });
+        gsap.set(t.rect, { attr: { fill, stroke, "fill-opacity": fo, "stroke-dasharray": t.kind === "deleted" && on ? "4 3" : "none" } });
+        if (t.mark) gsap.set(t.mark, { opacity: on && hot ? 1 : 0 });
+      }
+    });
+  }
+
+  function render(n, animate) {
+    if (!svg || !svg._built) return;
+    const wfOn = n >= 1, cached = n >= 2, gOn = n >= 3;
+    const pWf = lastN >= 1, pCached = lastN >= 2, pG = lastN >= 3;
+    if (!animate) {
+      gsap.set(wf, { opacity: wfOn ? 1 : 0 });
+      layout(cached, false, false);
+      gsap.set(grid, { opacity: gOn ? 1 : 0 });
+      tilesState(gOn, false);
+    } else {
+      if (wfOn !== pWf) tweens.push(gsap.to(wf, { opacity: wfOn ? 1 : 0, duration: 0.35 }));
+      if (wfOn && !pWf) layout(cached, true, true);
+      else if (wfOn && cached !== pCached) layout(cached, true, false);
+      if (gOn !== pG) {
+        tweens.push(gsap.to(grid, { opacity: gOn ? 1 : 0, duration: 0.35 }));
+        tilesState(gOn, gOn);
+      }
+    }
+    lastN = n;
+  }
+
+  Deck.register("rag-c10-latency-cost", {
+    enter(slide, step) { build(slide); lastN = -1; render(step, false); },
+    step(slide, n, animate) { render(n, animate); },
+    leave() { tweens.forEach((t) => t.kill()); tweens.length = 0; },
+  });
+})();
+</script>

@@ -1,0 +1,145 @@
+<section class="slide tight" id="rag-c09-acl-pii" data-tone="risk" data-title="ACL filters and PII">
+  <style>
+    #rag-c09-acl-pii .acl text { font-family: var(--f-body); }
+    #rag-c09-acl-pii .acl .nt { font-weight: 700; font-size: 17px; fill: var(--ink); }
+    #rag-c09-acl-pii .acl .ns { font-family: var(--f-mono); font-size: 12.5px; fill: var(--muted); }
+    #rag-c09-acl-pii .acl .ct { font-family: var(--f-mono); font-size: 14px; font-weight: 600; fill: var(--ink); }
+    #rag-c09-acl-pii .acl .ln { fill: none; stroke: var(--line-2); stroke-width: 2.2; }
+    #rag-c09-acl-pii .layer { position: absolute; inset: 0; display: flex; flex-direction: column; gap: 14px; }
+  </style>
+  <h2 class="title">Filter by the end user's permissions inside the query, before ranking, and redact PII at ingestion</h2>
+  <div class="grid fill" style="grid-template-columns:780px 1fr;gap:28px">
+    <svg class="acl" id="c09-acl" viewBox="0 0 780 470" width="780" height="470" aria-label="Two users, one query, permission filter and cache partition">
+      <path class="ln" d="M170,90 C 205,90 200,180 230,180"/>
+      <path class="ln" d="M170,330 C 205,330 200,250 230,250"/>
+      <path class="ln" d="M460,180 C 495,180 495,100 528,100"/>
+      <path class="ln" d="M460,250 C 495,250 495,330 528,330"/>
+      <path id="c09-store" class="ln" d="M345,290 L345,348" opacity="0" style="stroke-dasharray:6 6"/>
+      <path id="c09-leak" class="ln" d="M230,384 C 200,384 200,350 172,346" opacity="0" style="stroke:var(--risk);stroke-width:3"/>
+      <text id="c09-leak-l" class="ns" x="176" y="410" opacity="0" style="fill:var(--risk);font-weight:700">A's answer → B</text>
+
+      <g><rect x="0" y="60" width="170" height="60" rx="30" style="fill:var(--human-soft);stroke:var(--human);stroke-width:1.8"/><text class="nt" x="85" y="86" text-anchor="middle">User A</text><text class="ns" x="85" y="105" text-anchor="middle">groups: hr</text></g>
+      <g><rect x="0" y="300" width="170" height="60" rx="30" style="fill:var(--human-soft);stroke:var(--human);stroke-width:1.8"/><text class="nt" x="85" y="326" text-anchor="middle">User B</text><text class="ns" x="85" y="345" text-anchor="middle">groups: sales</text></g>
+      <g><rect x="230" y="140" width="230" height="150" rx="16" style="fill:var(--agent-soft);stroke:var(--agent);stroke-width:1.8"/><text class="nt" x="248" y="168">Hybrid retriever</text><text class="ns" x="248" y="190">same query for A and B:</text><text class="ns" x="248" y="208">“salary bands 2026”</text></g>
+      <g id="c09-filter" opacity="0"><rect x="244" y="230" width="202" height="38" rx="10" style="fill:var(--state-soft);stroke:var(--state);stroke-width:2"/><text class="ct" x="345" y="254" text-anchor="middle" style="fill:var(--state)">acl_groups ∈ user</text></g>
+
+      <text class="ns" x="530" y="16">top-k for A</text>
+      <g class="ka" id="c09-a0"><rect x="530" y="26" width="240" height="36" rx="9" style="fill:var(--surface-2);stroke:var(--state);stroke-width:1.5"/><text class="ct" x="544" y="49">HR salaries</text><text class="ns" x="758" y="49" text-anchor="end">acl: hr</text></g>
+      <g class="ka"><rect x="530" y="70" width="240" height="36" rx="9" style="fill:var(--surface-2);stroke:var(--line-2);stroke-width:1.5"/><text class="ct" x="544" y="93">Pay policy</text></g>
+      <g class="ka"><rect x="530" y="114" width="240" height="36" rx="9" style="fill:var(--surface-2);stroke:var(--line-2);stroke-width:1.5"/><text class="ct" x="544" y="137">Benefits FAQ</text></g>
+      <g class="ka"><rect x="530" y="158" width="240" height="36" rx="9" style="fill:var(--surface-2);stroke:var(--line-2);stroke-width:1.5"/><text class="ct" x="544" y="181">Holiday calendar</text></g>
+
+      <text class="ns" x="530" y="250">top-k for B</text>
+      <text id="c09-k4" class="ns" x="770" y="250" text-anchor="end" opacity="0" style="fill:var(--state);font-weight:700">pre-filter: k = 4 kept</text>
+      <g id="c09-b0"><rect id="c09-b0-r" width="240" height="36" rx="9" style="fill:var(--risk-soft);stroke:var(--risk);stroke-width:2"/><text class="ct" x="14" y="23">HR salaries</text><text id="c09-b0-t" class="ns" x="228" y="23" text-anchor="end" style="fill:var(--risk);font-weight:700">LEAK · acl: hr</text></g>
+      <g id="c09-b1"><rect width="240" height="36" rx="9" style="fill:var(--surface-2);stroke:var(--line-2);stroke-width:1.5"/><text class="ct" x="14" y="23">Pay policy</text></g>
+      <g id="c09-b2"><rect width="240" height="36" rx="9" style="fill:var(--surface-2);stroke:var(--line-2);stroke-width:1.5"/><text class="ct" x="14" y="23">Benefits FAQ</text></g>
+      <g id="c09-b3"><rect width="240" height="36" rx="9" style="fill:var(--surface-2);stroke:var(--line-2);stroke-width:1.5"/><text class="ct" x="14" y="23">Holiday calendar</text></g>
+      <g id="c09-b4" opacity="0"><rect width="240" height="36" rx="9" style="fill:var(--surface-2);stroke:var(--state);stroke-width:1.5"/><text class="ct" x="14" y="23">Sales comp plan</text><text class="ns" x="228" y="23" text-anchor="end">acl: sales</text></g>
+
+      <g id="c09-cache" opacity="0"><rect x="230" y="350" width="230" height="64" rx="14" style="fill:var(--state-soft);stroke:var(--state);stroke-width:1.8"/><text class="nt" x="248" y="377">Semantic cache</text><text id="c09-cache-t" class="ns" x="248" y="398" style="fill:var(--risk)">no partition</text></g>
+      <text id="c09-store-l" class="ns" x="354" y="326" opacity="0">store A's answer</text>
+    </svg>
+
+    <div style="position:relative">
+      <div class="layer" data-until="4">
+        <p class="small">Embeddings drop the source document's ACL. Top-k returns what is <b>similar</b>, not what this user <b>may see</b>. The retriever becomes a confused deputy.</p>
+        <div class="cites"><a class="cite doc" href="https://genai.owasp.org/llmrisk/llm082025-vector-and-embedding-weaknesses/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;OWASP LLM08: “permission-aware vector stores”</a></div>
+        <ol class="seq small" style="gap:10px">
+          <li data-step="2"><b>Index time:</b> copy the source ACL onto every chunk as metadata. Use group ids. Deny overrides grant.</li>
+          <li data-step="2"><b>Query time:</b> pass the end user's identity, not a service account. Filter inside the vector and BM25 queries, before ranking and fusion.</li>
+          <li data-step="3"><b>Re-sync</b> chunk ACLs when permissions change.</li>
+          <li data-step="3"><b>Partition</b> semantic caches and memories the same way.</li>
+        </ol>
+        <div class="callout pitfall" data-step="3" style="padding:10px 14px">Post-filtering can return fewer than k results and leaks through counts. Never let an LLM write tenant or ACL filters.</div>
+      </div>
+
+      <div class="layer" data-step="4">
+        <div class="code-wrap"><div class="code-head">acl_and_pii.py</div>
+<pre class="code xs" data-lang="python" data-focus="4:1-3, 5:5-12"><code>
+# illustrative Chroma-style filter: END USER's groups
+hits = collection.query(query_texts=[q], n_results=5,
+    where={"acl_groups": {"$in": user.groups}})
+
+from presidio_analyzer import AnalyzerEngine
+from presidio_anonymizer import AnonymizerEngine
+
+text = "My phone number is 212-555-5555"
+results = AnalyzerEngine().analyze(
+    text=text, entities=["PHONE_NUMBER"], language="en")
+print(AnonymizerEngine().anonymize(
+    text=text, analyzer_results=results))
+</code></pre></div>
+        <p class="tiny" data-step="5"><b>PII:</b> redact or pseudonymize at ingest, before embedding, because embeddings can be inverted (OWASP LLM08). Redact again at output. Right-to-erasure deletes must reach vector stores, caches and traces.</p>
+        <p class="tiny" data-step="5"><b>Products:</b> OpenSearch and Elasticsearch document-level security. Glean and Microsoft 365 Copilot advertise permission-trimmed retrieval. <b>Red-team:</b> user A asks for user B's data; PII probes; poisoning canaries.</p>
+        <div class="cites" data-step="5"><a class="cite doc" href="https://presidio.dataprivacystack.org/getting_started/getting_started_text/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Presidio, Getting started (text)</a></div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Two users send the same query. Step 1: without a filter, both lists contain "HR salaries", so user B from sales sees a document he may not open. Step 2: the permission filter moves inside the retriever query. B's restricted chunk is removed before ranking, and the list still has k = 4 results; a post-filter would show only 3 and leak through the count. Step 3: the same leak through a semantic cache: B's similar question hits A's cached answer, until the cache is partitioned by user. Steps 4 and 5: the filter in code, then Presidio removes PII before embedding. Analogy: a library that shows every book title in the catalogue but keeps the restricted shelf locked; the catalogue must be filtered too. Likely question: "Can the LLM decide which filter to apply?" No. Identity and ACL filters come from the authenticated session, never from model output.</aside>
+</section>
+<script>
+(() => {
+  const ID = "rag-c09-acl-pii";
+  const BX = 530, BS = [264, 308, 352, 396];
+  let tl = null, cacheDone = false;
+
+  function q(slide, s) { return slide.querySelector(s); }
+  function cacheFinal(slide) {
+    gsap.set(q(slide, "#c09-cache"), { opacity: 1 });
+    gsap.set([q(slide, "#c09-store"), q(slide, "#c09-store-l")], { opacity: 1 });
+    gsap.set(q(slide, "#c09-leak"), { opacity: 0.7 });
+    q(slide, "#c09-leak").style.stroke = "var(--faint)";
+    q(slide, "#c09-leak").style.strokeDasharray = "5 6";
+    q(slide, "#c09-leak-l").textContent = "blocked: other user_id";
+    q(slide, "#c09-leak-l").style.fill = "var(--state)";
+    gsap.set(q(slide, "#c09-leak-l"), { opacity: 1 });
+    const t = q(slide, "#c09-cache-t"); t.textContent = "partition: user_id"; t.style.fill = "var(--state)";
+  }
+  function cacheReset(slide) {
+    gsap.set([q(slide, "#c09-cache"), q(slide, "#c09-store"), q(slide, "#c09-store-l"), q(slide, "#c09-leak"), q(slide, "#c09-leak-l")], { opacity: 0 });
+    const lk = q(slide, "#c09-leak"); lk.style.stroke = "var(--risk)"; lk.style.strokeDasharray = "none";
+    const ll = q(slide, "#c09-leak-l"); ll.textContent = "A's answer → B"; ll.style.fill = "var(--risk)";
+    const t = q(slide, "#c09-cache-t"); t.textContent = "no partition"; t.style.fill = "var(--risk)";
+  }
+  function cachePlay(slide) {
+    cacheReset(slide);
+    const lk = q(slide, "#c09-leak"), L = lk.getTotalLength();
+    tl = gsap.timeline();
+    tl.to(q(slide, "#c09-cache"), { opacity: 1, duration: 0.5 })
+      .to([q(slide, "#c09-store"), q(slide, "#c09-store-l")], { opacity: 1, duration: 0.4 })
+      .fromTo(lk, { opacity: 1, strokeDasharray: L, strokeDashoffset: L }, { strokeDashoffset: 0, duration: 0.7, ease: "power2.inOut" }, "+=0.3")
+      .to(q(slide, "#c09-leak-l"), { opacity: 1, duration: 0.3 })
+      .fromTo(q(slide, "#c09-cache rect"), { scale: 1 }, { scale: 1.04, transformOrigin: "50% 50%", yoyo: true, repeat: 3, duration: 0.18 }, "+=0.6")
+      .call(() => cacheFinal(slide));
+  }
+  function render(slide, n, animate) {
+    const d = (x) => (animate ? x : 0);
+    // user B list: before / after the pre-filter
+    const filtered = n >= 2;
+    gsap.to(q(slide, "#c09-b0"), { x: BX + (filtered ? 30 : 0), y: BS[0], opacity: filtered ? 0.18 : 1, duration: d(0.6), overwrite: true });
+    for (let i = 1; i <= 3; i++) gsap.to(q(slide, "#c09-b" + i), { x: BX, y: BS[filtered ? i - 1 : i], duration: d(0.6), delay: filtered && animate ? 0.3 : 0, ease: "power2.inOut", overwrite: true });
+    gsap.to(q(slide, "#c09-b4"), { x: BX, y: BS[3], opacity: filtered ? 1 : 0, duration: d(0.5), delay: filtered && animate ? 0.7 : 0, overwrite: true });
+    gsap.to(q(slide, "#c09-k4"), { opacity: filtered ? 1 : 0, duration: d(0.4), delay: filtered && animate ? 0.9 : 0 });
+    // filter chip slides from below into the retriever box
+    gsap.to(q(slide, "#c09-filter"), { opacity: filtered ? 1 : 0, y: filtered ? 0 : 120, duration: d(0.7), ease: "power3.out", overwrite: true });
+    // the A list keeps HR salaries: A is in group hr
+    gsap.to(q(slide, "#c09-a0"), { opacity: 1, duration: 0 });
+    // cache leak and fix
+    if (n >= 3) {
+      if (!cacheDone) { cacheDone = true; if (animate) cachePlay(slide); else cacheFinal(slide); }
+    } else {
+      if (tl) { tl.kill(); tl = null; }
+      cacheDone = false; cacheReset(slide);
+    }
+  }
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) {
+      if (!animate && tl && n >= 3) tl.progress(1);
+      render(slide, n, animate);
+    },
+    leave() { if (tl) { tl.kill(); tl = null; } cacheDone = false; }
+  });
+})();
+</script>

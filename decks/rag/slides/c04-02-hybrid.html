@@ -1,0 +1,125 @@
+<section class="slide" id="rag-c04-hybrid" data-tone="agent" data-title="Hybrid: BM25 + dense + SPLADE">
+  <h2 class="title">BM25 and dense retrieval fail on different queries, so run both</h2>
+  <div class="grid g2 fill" style="gap:24px">
+    <div class="stack" style="gap:14px">
+      <svg viewBox="0 0 684 340" width="684" height="340" aria-label="Venn diagram of BM25 hits and dense hits">
+        <defs>
+          <mask id="c04h-b-only"><rect x="0" y="0" width="684" height="340" fill="white"/><circle cx="434" cy="180" r="148" fill="black"/></mask>
+          <mask id="c04h-d-only"><rect x="0" y="0" width="684" height="340" fill="white"/><circle cx="250" cy="180" r="148" fill="black"/></mask>
+          <clipPath id="c04h-both"><circle cx="434" cy="180" r="148"/></clipPath>
+        </defs>
+        <g data-fx="draw">
+          <circle cx="250" cy="180" r="148" style="fill:var(--tool-soft);stroke:var(--tool);stroke-width:2.5"/>
+          <circle cx="434" cy="180" r="148" style="fill:var(--state-soft);stroke:var(--state);stroke-width:2.5"/>
+        </g>
+        <text x="170" y="20" text-anchor="middle" style="font:700 19px var(--f-body);fill:var(--tool)">BM25: exact tokens</text>
+        <text x="520" y="20" text-anchor="middle" style="font:700 19px var(--f-body);fill:var(--state)">Dense: meaning</text>
+        <!-- step 1: BM25-only hit -->
+        <g data-step="1" data-fx="fade">
+          <circle cx="250" cy="180" r="148" mask="url(#c04h-b-only)" style="fill:var(--tool);fill-opacity:.22"/>
+          <rect x="102" y="160" width="132" height="38" rx="10" style="fill:var(--surface-2);stroke:var(--tool);stroke-width:2"/>
+          <text x="168" y="185" text-anchor="middle" style="font:600 16px var(--f-mono);fill:var(--ink)">error E1023</text>
+        </g>
+        <!-- step 2: dense-only hit -->
+        <g data-step="2" data-fx="fade">
+          <circle cx="434" cy="180" r="148" mask="url(#c04h-d-only)" style="fill:var(--state);fill-opacity:.22"/>
+          <rect x="446" y="148" width="148" height="62" rx="10" style="fill:var(--surface-2);stroke:var(--state);stroke-width:2"/>
+          <text x="520" y="174" text-anchor="middle" style="font:600 15px var(--f-mono);fill:var(--ink)">how to make</text>
+          <text x="520" y="196" text-anchor="middle" style="font:600 15px var(--f-mono);fill:var(--ink)">the car faster</text>
+        </g>
+        <!-- step 3: both + union -->
+        <g data-step="3" data-fx="fade">
+          <circle cx="250" cy="180" r="148" clip-path="url(#c04h-both)" style="fill:var(--agent);fill-opacity:.22"/>
+          <rect x="290" y="148" width="104" height="62" rx="10" style="fill:var(--surface-2);stroke:var(--agent);stroke-width:2"/>
+          <text x="342" y="174" text-anchor="middle" style="font:600 15px var(--f-mono);fill:var(--ink)">Q3 revenue</text>
+          <text x="342" y="196" text-anchor="middle" style="font:600 15px var(--f-mono);fill:var(--ink)">ACME</text>
+        </g>
+        <g data-step="3" data-fx="draw">
+          <circle cx="250" cy="180" r="154" style="fill:none;stroke:var(--agent);stroke-width:4;stroke-opacity:.8"/>
+          <circle cx="434" cy="180" r="154" style="fill:none;stroke:var(--agent);stroke-width:4;stroke-opacity:.8"/>
+        </g>
+      </svg>
+      <p class="small" data-step="1"><b class="c-tool">BM25 wins.</b> Dense vectors miss exact tokens: error codes, SKUs, names and rare acronyms.</p>
+      <p class="small" data-step="2"><b class="c-state">Dense wins.</b> "car" ≈ "automobile". BM25 misses synonyms and paraphrase.</p>
+      <p class="small" data-step="3"><b class="c-agent">Both hit.</b> The failures barely overlap, so the union raises recall. BEIR (NeurIPS 2021): "BM25 is a robust baseline."</p>
+    </div>
+    <div class="stack" style="gap:14px">
+      <svg id="c04h-vec" viewBox="0 0 684 260" width="684" height="260" data-step="4" data-fx="fade" aria-label="Three vector types for one passage">
+        <text x="0" y="14" style="font:600 15px var(--f-mono);fill:var(--tool)">BM25: bag of exact words</text>
+        <g id="c04h-bow"></g>
+        <text x="0" y="86" style="font:600 15px var(--f-mono);fill:var(--state)">Dense: 768 numbers, all non-zero</text>
+        <g id="c04h-dense"></g>
+        <text x="0" y="146" style="font:600 15px var(--f-mono);fill:var(--agent)">SPLADE: 30,522 terms, a few hundred non-zero</text>
+        <line x1="0" y1="228" x2="684" y2="228" style="stroke:var(--line-2);stroke-width:1.5"/>
+        <g id="c04h-splade"></g>
+      </svg>
+      <div class="panel tight k-agent" data-step="4">
+        <p class="small"><b>SPLADE</b> (Formal et al., SIGIR 2021): a BERT MLM head projects each token onto the whole 30,522-term vocabulary. Log-saturation and a FLOPS regulariser keep a few hundred weights. Expansion adds "vehicle" and "automobile" to a "car" passage.</p>
+        <p class="tiny">It is still an inverted-index vector: Lucene, Elastic, OpenSearch, Qdrant sparse. Sentence Transformers: <code>SparseEncoder("naver/splade-cocondenser-ensembledistil")</code>.</p>
+      </div>
+      <p class="tiny" data-step="5"><b>Score fusion, if you fuse scores:</b> Weaviate <code>relativeScoreFusion</code> (default since v1.24) min-max normalises, then weights by <code>alpha</code> (0.5 default, 1 = pure vector, 0 = pure BM25). Qdrant DBSF normalises each list with mean ± 3σ. Rank fusion is on the next slide.</p>
+      <div class="cites push" data-step="5">
+        <a class="cite doc" href="https://docs.weaviate.io/weaviate/concepts/search/hybrid-search" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Weaviate hybrid search</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2104.08663" target="_blank" rel="noopener"><b>Paper</b>&nbsp;BEIR</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2107.05720" target="_blank" rel="noopener"><b>Paper</b>&nbsp;SPLADE</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    Start with three real query shapes. "error E1023" is an exact token, so BM25 finds it and a dense vector blurs it. "How to make the car faster" uses other words than the document, so only the dense retriever finds it. "Q3 revenue ACME" is found by both, and the point is that the two failure sets barely overlap, so running both raises recall. Then show the three vector types for one passage: BM25 keeps only the words that are there, dense spreads meaning over 768 numbers, and SPLADE learns weights over the whole vocabulary and adds expansion terms in blue, while it still runs on an inverted index. Analogy: one witness remembers exact names, another remembers what happened; ask both. Likely question: "Does SPLADE replace hybrid search?" It narrows the gap, but most production systems still fuse a sparse list and a dense list, and you measure on your own queries.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "rag-c04-hybrid";
+  const WORDS = ["tune", "car", "engine", "speed"];
+  const TERMS = [["car", 1, 0], ["engine", .82, 0], ["speed", .7, 0], ["tune", .52, 0], ["vehicle", .64, 1], ["automobile", .58, 1], ["motor", .36, 1], ["fast", .3, 1]];
+  let built = false, cells = [], bars = [];
+  const mk = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); parent.appendChild(e); return e; };
+  function build(slide) {
+    if (built) return;
+    const bow = slide.querySelector("#c04h-bow"), dense = slide.querySelector("#c04h-dense"), sp = slide.querySelector("#c04h-splade");
+    let x = 0;
+    WORDS.forEach((w) => {
+      const wd = 22 + w.length * 10;
+      mk("rect", { x, y: 26, width: wd, height: 32, rx: 8, style: "fill:var(--tool-soft);stroke:var(--tool);stroke-width:1.5" }, bow);
+      const t = mk("text", { x: x + wd / 2, y: 47, "text-anchor": "middle", style: "font:600 15px var(--f-mono);fill:var(--ink)" }, bow);
+      t.textContent = w; x += wd + 10;
+    });
+    const tx = mk("text", { x: x + 8, y: 47, style: "font:500 14px var(--f-mono);fill:var(--muted)" }, bow);
+    tx.textContent = "(only words in the text)";
+    cells = Array.from({ length: 48 }, (_, i) => {
+      const v = 0.18 + 0.8 * Math.abs(Math.sin(i * 1.7 + 0.4) * Math.cos(i * 0.6));
+      return mk("rect", { x: i * 14.25, y: 96, width: 13, height: 26, rx: 2, style: `fill:var(--state);fill-opacity:${v.toFixed(2)}` }, dense);
+    });
+    for (let i = 0; i < 68; i++) mk("line", { x1: 4 + i * 10, y1: 226, x2: 4 + i * 10, y2: 230, style: "stroke:var(--faint);stroke-width:1" }, sp);
+    bars = TERMS.map(([w, h, exp], i) => {
+      const bx = 18 + i * 84, H = 62 * h;
+      const r = mk("rect", { x: bx, y: 228 - H, width: 40, height: H, rx: 4, style: `fill:var(${exp ? "--agent" : "--tool"})` }, sp);
+      const t = mk("text", { x: bx + 20, y: 248, "text-anchor": "middle", style: `font:600 13px var(--f-mono);fill:var(${exp ? "--agent" : "--ink-2"})` }, sp);
+      t.textContent = w;
+      return r;
+    });
+    built = true;
+  }
+  function render(slide, n, animate) {
+    build(slide);
+    if (n >= 4 && !slide._c04hShown) {
+      slide._c04hShown = true;
+      if (animate) {
+        gsap.fromTo(cells, { scaleY: 0, transformOrigin: "50% 100%" }, { scaleY: 1, duration: .5, stagger: .012, ease: "power2.out", delay: .2 });
+        gsap.fromTo(bars, { scaleY: 0, transformOrigin: "50% 100%" }, { scaleY: 1, duration: .7, stagger: .09, ease: "back.out(1.6)", delay: .6 });
+      } else gsap.set([...cells, ...bars], { scaleY: 1 });
+    } else if (n < 4) {
+      slide._c04hShown = false;
+      gsap.set([...cells, ...bars], { scaleY: 0, transformOrigin: "50% 100%" });
+    }
+  }
+  Deck.register(ID, {
+    enter(slide, n) { slide._c04hShown = false; render(slide, n, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { gsap.killTweensOf([...cells, ...bars]); },
+  });
+})();
+</script>

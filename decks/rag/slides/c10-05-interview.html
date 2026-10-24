@@ -1,0 +1,36 @@
+<section class="slide" id="rag-c10-interview" data-tone="tool" data-title="Interview: shipping RAG at scale">
+  <style>
+    #rag-c10-interview .qa .q { font-size: 22px; }
+    #rag-c10-interview .qa .a { font-size: 17.5px; line-height: 1.42; }
+  </style>
+  <h2 class="title">Interview: shipping RAG at scale</h2>
+  <div class="tags" data-fx="fade">
+    <span class="tag t-tool">system design</span><span class="tag t-model">latency + cost</span><span class="tag t-state">index migration</span><span class="tag t-risk">caching risks</span>
+  </div>
+  <div class="grid g2 fill" style="gap:22px 32px;align-content:start">
+    <div class="qa">
+      <div class="q">Design RAG for 50M documents, p95 under 1 second, with per-user ACLs.</div>
+      <div class="a" data-step="1">Run <b>hybrid BM25 + ANN</b> (HNSW or DiskANN; MRL 768 dims + int8). Apply the <b>ACL pre-filter inside both queries</b> with the end user's identity. Fuse with RRF. Rerank the top-100 with a <b>small, fast reranker</b>. Cache the static prompt prefix. Stream the output. Give each span a latency budget and trace it.</div>
+    </div>
+    <div class="qa">
+      <div class="q">Build your own pipeline, or use File Search / RAG Engine?</div>
+      <div class="a" data-step="2">Use <b>managed</b> for speed, citations and low ops. Build <b>DIY</b> when you need custom chunking, hybrid weights, rerankers, ACL logic or a non-Google stack. <b>Measure both on the same golden set</b> before you decide.</div>
+    </div>
+    <div class="qa">
+      <div class="q">How do you migrate to a new embedding model with zero downtime?</div>
+      <div class="a" data-step="3"><b>Blue/green.</b> Build the new index in parallel. Compare both indexes on the golden set. Switch reads when the new index wins. Keep the old index for rollback. <b>Never mix vectors</b> from two models in one index.</div>
+    </div>
+    <div class="qa">
+      <div class="q">What are the risks of a semantic cache?</div>
+      <div class="a" data-step="4"><b>Cross-user leakage:</b> partition by user or tenant. <b>False hits:</b> tune the threshold; at 0.5 a "Nice" question hit the "Paris" answer (RedisVL docs). <b>Stale answers:</b> set a TTL and invalidate entries by <code>doc_id</code> when a document changes.</div>
+    </div>
+  </div>
+
+  <aside class="notes">
+    Ask the students to answer each question aloud before you reveal the model answer.
+    Q1 is a classic system-design question. A strong answer names the budget per span, puts the ACL filter inside the ANN and BM25 queries (not after generation), and keeps the reranker small because it runs on every query.
+    Q2 tests judgment, not loyalty to a vendor: the right answer is "measure both on the same golden set".
+    Q3 tests whether the candidate knows that vectors from two models live in different spaces. Analogy: you cannot compare a GPS coordinate with a street address; you must re-encode everything.
+    Q4 has three distinct risks; a strong candidate names all three and a fix for each. Likely follow-up: "How do you pick the threshold?" Use a labelled set of paraphrase and non-paraphrase pairs and an optimizer such as RedisVL CacheThresholdOptimizer.
+  </aside>
+</section>

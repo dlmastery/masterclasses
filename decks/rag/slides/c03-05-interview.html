@@ -1,0 +1,24 @@
+<section class="slide" id="rag-c03-interview" data-tone="state" data-title="Interview: embeddings and ANN">
+  <h2 class="title">Interview: embeddings and ANN index design</h2>
+  <div class="grid g2 fill">
+    <div class="qa">
+      <div class="q">Design an index for 1B vectors on a tight memory budget.</div>
+      <div class="a" data-step="1">Use <b>DiskANN</b> (PQ codes in RAM, graph and full vectors on SSD) or <b>IVF-PQ</b>. Cut to 768 dims with MRL, then use int8 or binary. Re-score the top candidates with the full vectors. Measure <b>recall@k against exact k-NN</b> on a sample. DiskANN served SIFT1B from one 64 GB workstation at &gt;5,000 QPS.</div>
+    </div>
+    <div class="qa">
+      <div class="q">What do HNSW M, efConstruction and efSearch change?</div>
+      <div class="a" data-step="2"><b>M</b> is the graph degree: more memory (HNSWFlat costs 4·d + M·2·4 B) and higher recall. <b>efConstruction</b> sets build quality: higher values make the build slower. <b>efSearch</b> is the query beam width: higher values give more recall and more latency. You set efSearch at query time.</div>
+    </div>
+    <div class="qa">
+      <div class="q">Can you query a gemini-embedding-001 index with gemini-embedding-2 vectors?</div>
+      <div class="a" data-step="3"><b>No.</b> The two models make different vector spaces, so the distances have no meaning. Do a <b>blue/green re-embed</b>: build a second index with the new model, compare both on the golden set, then move the traffic.</div>
+    </div>
+    <div class="qa">
+      <div class="q">Numbers to know.</div>
+      <div class="a" data-step="4">10M × 3072 × 4 B ≈ <b>123 GB</b>; 768-bit binary ≈ <b>0.96 GB</b>. PQ96x8 = <b>96 B</b> per vector (3,072 B for 768-d float32). MRL: <b>up to 14× smaller</b> at the same accuracy. Exact k-NN: <b>O(N × d)</b> per query.</div>
+    </div>
+  </div>
+  <aside class="notes">
+    Ask the room each question first and give them twenty seconds before you reveal the answer. For the billion-vector design, the expected structure is: compress (MRL plus quantization), pick a memory-light index (DiskANN or IVF-PQ), re-score with full vectors, and prove it with recall@k against exact search. Analogy for the model-swap question: you cannot use GPS coordinates from one map projection on a different map. A strong candidate also says how to migrate safely: run both indexes side by side and switch only after the golden-set numbers agree. Likely follow-up: "How big is the golden set?" Answer: enough real queries with labelled gold chunks to see a recall difference of a few points, and keep it versioned with the index.
+  </aside>
+</section>

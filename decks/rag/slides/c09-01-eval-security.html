@@ -1,0 +1,56 @@
+<section class="slide chapter" id="rag-c09-eval-security" data-tone="risk" data-title="09 Evaluation and security">
+  <style>
+    #rag-c09-eval-security .fail { position:absolute; z-index:2; }
+    #rag-c09-eval-security .slide-pulse { animation: c09pulse 1.6s ease-in-out infinite; }
+    #rag-c09-eval-security .atk { position:absolute; z-index:2; }
+    #rag-c09-eval-security .atk svg { color: var(--risk); flex:none; }
+    @keyframes c09pulse {
+      0%, 100% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--risk) 45%, transparent); }
+      50% { box-shadow: 0 0 0 10px color-mix(in oklab, var(--risk) 0%, transparent); }
+    }
+    @media (prefers-reduced-motion: reduce) { #rag-c09-eval-security .slide-pulse { animation: none; } }
+  </style>
+  <div class="ch-num" data-fx="blur">09</div>
+
+  <div class="diagram" style="width:1392px;height:318px"
+       data-wires="q>ret:flow{human}; ret>ctx:flow{agent}; ctx>llm:flow{state}; llm>ans:flow{model}; docs>idx [ingest]; idx>ret; llm<>tools [tool call]">
+    <div class="node n-human pill" id="q" style="left:0;top:52px;width:170px"><span class="nt">Query</span></div>
+    <div class="node n-agent" id="ret" style="left:280px;top:44px;width:210px"><span class="nt">Retriever</span><span class="ns">hybrid + rerank</span></div>
+    <div class="node n-state" id="ctx" style="left:590px;top:44px;width:210px" data-on="1:hot"><span class="nt">Context</span><span class="ns">top-k chunks</span></div>
+    <div class="node n-model" id="llm" style="left:900px;top:44px;width:190px" data-on="1:hot"><span class="nt">LLM</span><span class="ns">writes answer</span></div>
+    <div class="node n-agent" id="ans" style="left:1190px;top:44px;width:200px" data-on="1:hot"><span class="nt">Answer</span><span class="ns">+ citations</span></div>
+
+    <div class="node n-state" id="docs" style="left:0;top:196px;width:210px"><span class="nt">Documents</span><span class="ns">web · email · PDF</span></div>
+    <div class="node n-state" id="idx" style="left:280px;top:196px;width:250px"><span class="nt">Index</span><span class="ns">vectors + ACL metadata</span></div>
+    <div class="node n-tool" id="tools" style="left:900px;top:196px;width:190px"><span class="nt">Tools / MCP</span><span class="ns">send · fetch · write</span></div>
+
+    <span class="tag t-risk fail slide-pulse" style="left:600px;top:0" data-step="1" data-fx="pop">1 · wrong chunks</span>
+    <span class="tag t-risk fail slide-pulse" style="left:880px;top:0" data-step="1" data-fx="pop">2 · unsupported claims</span>
+    <span class="tag t-risk fail slide-pulse" style="left:1200px;top:0" data-step="1" data-fx="pop">3 · off-question</span>
+
+    <span class="tag t-risk atk" style="left:0;top:284px" data-step="2" data-fx="pop"><svg width="14" height="16" viewBox="0 0 24 26" aria-hidden="true"><path d="M12 1l10 4v7c0 6.5-4.3 11.6-10 13.5C6.3 23.6 2 18.5 2 12V5z" fill="currentColor"/></svg>injection · poisoning</span>
+    <span class="tag t-risk atk" style="left:280px;top:284px" data-step="2" data-fx="pop"><svg width="14" height="16" viewBox="0 0 24 26" aria-hidden="true"><path d="M12 1l10 4v7c0 6.5-4.3 11.6-10 13.5C6.3 23.6 2 18.5 2 12V5z" fill="currentColor"/></svg>ACL leak · inversion</span>
+    <span class="tag t-risk atk" style="left:900px;top:284px" data-step="2" data-fx="pop"><svg width="14" height="16" viewBox="0 0 24 26" aria-hidden="true"><path d="M12 1l10 4v7c0 6.5-4.3 11.6-10 13.5C6.3 23.6 2 18.5 2 12V5z" fill="currentColor"/></svg>exfiltration</span>
+  </div>
+
+  <div class="row" style="gap:48px;align-items:flex-end">
+    <div class="stack lg" style="width:800px;flex:none">
+      <h2 class="display">Evaluation and security</h2>
+      <p class="lede" data-fx="up">A RAG system is as good as its measured retrieval and as safe as its least trusted document.</p>
+    </div>
+    <div class="stack" style="flex:1">
+      <ul class="clean small" data-step="1" data-fx="stagger">
+        <li><b class="c-risk">Fails</b> in three places: retrieval, grounding, usefulness. Score each one separately.</li>
+      </ul>
+      <ul class="clean small" data-step="2" data-fx="stagger">
+        <li><b class="c-risk">Is attacked</b> in three places: the documents, the index, the tools.</li>
+      </ul>
+      <p class="quote" data-step="3" style="font-size:30px">“LLM-Integrated Applications blur the line between data and instructions.”</p>
+      <div class="cites" data-step="3">
+        <a class="cite paper" href="https://arxiv.org/abs/2302.12173" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Greshake et al. 2023, Not what you've signed up for</a>
+      </div>
+    </div>
+  </div>
+
+  <aside class="notes">This chapter answers two questions: how do you know the system works, and how do you stop it from being turned against its users. Step 1: three failure points pulse. Retrieval returns the wrong chunks, the model writes claims the context does not support, or the answer is grounded but does not answer the question. Step 2: three attack points appear. Attackers write into documents, read across the index without permission, and use tools to send data out. Step 3: the Greshake quote is the root cause: the model reads retrieved text and instructions in one token stream. Analogy: a new employee who obeys every sticky note in the filing cabinet. Likely question: "Is security not a separate team's job?" Answer: no, because the retriever decides what text the model reads, so the RAG engineer owns this boundary.</aside>
+</section>

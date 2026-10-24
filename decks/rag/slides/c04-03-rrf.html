@@ -1,0 +1,153 @@
+<section class="slide" id="rag-c04-rrf" data-tone="agent" data-title="Reciprocal Rank Fusion">
+  <h2 class="title">Reciprocal Rank Fusion merges ranked lists by rank only, with k = 60</h2>
+  <div class="row fill" style="gap:24px;align-items:stretch">
+    <div class="stack" style="width:658px;gap:14px">
+      <p class="small"><code>RRFscore(d) = Σ 1 / (k + rank_r(d))</code> over all rankers r. Only ranks count, so BM25 (unbounded) and cosine (−1..1) need no calibration.</p>
+      <div id="c04r-stage" class="interactive" style="position:relative;width:658px;height:270px" aria-label="Two ranked lists fused by RRF"></div>
+      <div class="row" style="gap:18px;align-items:center" data-step="4">
+        <svg viewBox="0 0 230 96" width="230" height="96" data-fx="draw" aria-label="MAP versus k is flat">
+          <line x1="16" y1="80" x2="222" y2="80" style="stroke:var(--line-2);stroke-width:1.5"/>
+          <line x1="16" y1="8" x2="16" y2="80" style="stroke:var(--line-2);stroke-width:1.5"/>
+          <polyline points="24,22 116,20 214,21.3" style="fill:none;stroke:var(--agent);stroke-width:3"/>
+          <circle cx="24" cy="22" r="4" style="fill:var(--agent)"/><circle cx="116" cy="20" r="4" style="fill:var(--agent)"/><circle cx="214" cy="21.3" r="4" style="fill:var(--agent)"/>
+          <text x="24" y="94" text-anchor="middle" style="font:500 12px var(--f-mono);fill:var(--muted)">k=0</text>
+          <text x="116" y="94" text-anchor="middle" style="font:500 12px var(--f-mono);fill:var(--muted)">k=60</text>
+          <text x="214" y="94" text-anchor="middle" style="font:500 12px var(--f-mono);fill:var(--muted)">k=500</text>
+          <text x="22" y="60" style="font:500 12px var(--f-mono);fill:var(--muted)">MAP, axis from 0</text>
+        </svg>
+        <p class="tiny" style="flex:1">Pilot MAP: k=0 <b>.2072</b> · k=60 <b>.2145</b> · k=500 <b>.2098</b>. "k = 60 was fixed during a pilot investigation and not altered." RRF beats Condorcet, CombMNZ and the best single system by 4–5% on average.</p>
+      </div>
+      <div class="callout pitfall" data-step="7">Qdrant: set each prefetch <code>limit</code> ≥ the main <code>limit + offset</code>. If you do not, the result can come back empty.</div>
+      <div class="cites push" data-step="4">
+        <a class="cite paper" href="http://cormack.uwaterloo.ca/cormacksigir09-rrf.pdf" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Cormack, Clarke, Büttcher, SIGIR 2009</a>
+        <a class="cite doc" href="https://qdrant.tech/documentation/concepts/hybrid-queries/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Qdrant hybrid queries</a>
+      </div>
+    </div>
+    <div class="code-wrap" style="width:710px"><div class="code-head">rrf.py</div>
+<pre class="code xs" data-lang="python" data-focus="5:3-5, 6:15-19, 7:20-21"><code>
+def rrf(rankings: list[list[str]], k: int = 60) -> list[tuple[str, float]]:
+    scores: dict[str, float] = {}
+    for ranking in rankings:
+        for rank, doc_id in enumerate(ranking, start=1):
+            scores[doc_id] = scores.get(doc_id, 0.0) + 1.0 / (k + rank)
+    return sorted(scores.items(), key=lambda x: x[1], reverse=True)
+
+bm25 = ["A", "C", "E"]; dense = ["D", "B", "A"]
+print(rrf([bm25, dense])[0])   # ('A', 0.03226...)
+
+from qdrant_client import QdrantClient, models
+client = QdrantClient(url="http://localhost:6333")
+results = client.query_points(
+    collection_name="my_collection",
+    prefetch=[
+        models.Prefetch(query=models.SparseVector(indices=[1, 42],
+                        values=[0.22, 0.8]), using="sparse", limit=20),
+        models.Prefetch(query=[0.01, 0.45, 0.67], using="dense", limit=20),
+    ],
+    query=models.RrfQuery(rrf=models.Rrf(k=60)),   # k param since v1.16.0
+    limit=10,
+)
+# Weighted RRF (v1.17.0+): models.Rrf(weights=[3.0, 1.0])
+</code></pre></div>
+  </div>
+  <aside class="notes">
+    RRF is the default way to merge a BM25 list and a dense list. Each list gives a document 1 over (60 plus its rank), and the scores add up. Walk the worked example: A is rank 1 in BM25 and rank 3 in dense, so it gets 0.0164 plus 0.0159, which is 0.0323; B is only in the dense list at rank 2, so it gets 0.0161; A wins because both lists agree on it. Then show the pilot table: k from 0 to 500 barely moves MAP, so you almost never tune k. Analogy: two judges rank the same contestants; you add up placings, not their raw scores, because one judge scores out of 10 and the other out of 100. Likely question: "When is score fusion better?" When the scores are calibrated and you have labels to tune alpha; otherwise RRF is the safe default, and Qdrant v1.17 adds weights if one list is more reliable.
+  </aside>
+</section>
+<script>
+(() => {
+  const ID = "rag-c04-rrf";
+  const K = 60;
+  const BM = ["A", "C", "E"], DN = ["D", "B", "A"];
+  const INS = ["A", "C", "E", "D", "B"];   // insertion order (dict order in rrf())
+  const SORTED = ["A", "D", "C", "B", "E"]; // sorted by score, stable
+  const X = { bm: 0, dn: 166, fu: 350 }, W = { bm: 150, dn: 150, fu: 308 };
+  const rowY = (i) => 30 + i * 48;
+  const f4 = (v) => v.toFixed(4);
+  const parts = {};
+  BM.forEach((d, i) => (parts[d] = (parts[d] || []).concat(1 / (K + i + 1))));
+  DN.forEach((d, i) => (parts[d] = (parts[d] || []).concat(1 / (K + i + 1))));
+  let stage = null, src = [], fused = {}, ghosts = [], last = 0;
+
+  function card(x, y, w, tone) {
+    const d = document.createElement("div");
+    d.style.cssText = `position:absolute;left:${x}px;top:${y}px;width:${w}px;height:40px;display:flex;align-items:center;gap:12px;padding:0 12px;border-radius:10px;border:1.5px solid var(--${tone});background:var(--surface-2);font:600 14px var(--f-mono);color:var(--ink-2);box-sizing:border-box;white-space:nowrap;transition:box-shadow .4s`;
+    stage.appendChild(d);
+    return d;
+  }
+  function head(x, w, txt, tone) {
+    const h = document.createElement("div");
+    h.style.cssText = `position:absolute;left:${x}px;top:0;width:${w}px;font:700 15px var(--f-mono);color:var(--${tone})`;
+    h.textContent = txt;
+    stage.appendChild(h);
+  }
+  function build(slide) {
+    stage = slide.querySelector("#c04r-stage");
+    if (stage._built) return;
+    stage._built = true;
+    stage.innerHTML = "";
+    head(X.bm, W.bm, "BM25", "tool");
+    head(X.dn, W.dn, "Dense", "state");
+    head(X.fu, W.fu, "Fused (RRF)", "agent");
+    src = [];
+    [[BM, "bm", "tool"], [DN, "dn", "state"]].forEach(([list, col, tone]) => {
+      list.forEach((d, i) => {
+        const c = card(X[col], rowY(i), W[col], tone);
+        c.innerHTML = `<b style="font:700 17px var(--f-body);color:var(--ink)">${d}</b><span class="s">1/${K + i + 1} = ${f4(1 / (K + i + 1))}</span>`;
+        c._doc = d;
+        src.push(c);
+      });
+    });
+    fused = {};
+    INS.forEach((d) => {
+      const c = card(X.fu, rowY(INS.indexOf(d)), W.fu, "agent");
+      const p = parts[d];
+      c.innerHTML = `<b style="font:700 17px var(--f-body);color:var(--ink)">${d}</b><span>${p.length > 1 ? p.map(f4).join(" + ") + " =" : ""}</span><b class="tot" style="color:var(--agent);margin-left:auto">${f4(p.reduce((a, b) => a + b, 0))}</b>`;
+      c._tot = p.reduce((a, b) => a + b, 0);
+      fused[d] = c;
+    });
+  }
+  function render(slide, n, animate) {
+    build(slide);
+    const sLabels = src.map((c) => c.querySelector(".s"));
+    gsap.to(sLabels, { autoAlpha: n >= 1 ? 1 : 0, duration: animate ? 0.4 : 0, stagger: animate && n >= 1 ? 0.06 : 0 });
+    gsap.to(src, { opacity: n >= 2 ? 0.45 : 1, duration: animate ? 0.4 : 0 });
+    const order = n >= 3 ? SORTED : INS;
+    INS.forEach((d, k) => {
+      const c = fused[d];
+      const top = rowY(order.indexOf(d));
+      if (n < 2) { gsap.set(c, { autoAlpha: 0, top }); return; }
+      if (animate && last < 2) {
+        gsap.fromTo(c, { autoAlpha: 0, x: -30 }, { autoAlpha: 1, x: 0, top, duration: 0.5, delay: 0.55 + k * 0.08 });
+        const t = c.querySelector(".tot"), p = { v: 0 };
+        gsap.to(p, { v: c._tot, duration: 0.9, delay: 0.6 + k * 0.08, ease: "power2.out", onUpdate: () => (t.textContent = f4(p.v)) });
+      } else if (animate) {
+        gsap.to(c, { autoAlpha: 1, x: 0, top, duration: 0.7, ease: "power3.inOut" });
+      } else {
+        gsap.set(c, { autoAlpha: 1, x: 0, top });
+        c.querySelector(".tot").textContent = f4(c._tot);
+      }
+      c.style.boxShadow = n >= 3 && d === "A" ? "0 0 0 4px var(--agent-soft), 0 12px 30px -14px var(--agent)" : "none";
+    });
+    if (animate && n >= 2 && last < 2) {
+      src.forEach((s, i) => {
+        const g = s.cloneNode(true);
+        g.style.opacity = 1;
+        stage.appendChild(g);
+        ghosts.push(g);
+        gsap.to(g, { left: X.fu, top: rowY(INS.indexOf(s._doc)), width: W.fu, opacity: 0, duration: 0.8, delay: i * 0.06, ease: "power2.inOut", onComplete: () => g.remove() });
+      });
+    }
+    last = n;
+  }
+  Deck.register(ID, {
+    enter(slide, n) { last = n; render(slide, n, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() {
+      ghosts.forEach((g) => { gsap.killTweensOf(g); g.remove(); });
+      ghosts = [];
+      gsap.killTweensOf([...src, ...Object.values(fused)]);
+    },
+  });
+})();
+</script>

@@ -1,0 +1,23 @@
+<section class="slide" id="rag-c02-interview" data-tone="state" data-title="Interview: parsing and chunking">
+  <h2 class="title">Interview: parsing and chunking trade-offs</h2>
+  <div class="tags" data-fx="fade"><span class="tag t-state">ingestion</span><span class="tag t-state">chunking</span><span class="tag t-model">contextual retrieval</span><span class="tag t-risk">tables and scans</span></div>
+  <div class="grid g2 fill" style="gap:28px 40px;align-content:start">
+    <div class="qa">
+      <div class="q">How do you choose a chunk size?</div>
+      <div class="a" data-step="1">Run an eval, not a guess. Measure <b>token-level recall and IoU</b> on a golden set. Start with <b>recursive ~200 tokens, no overlap</b> (Chroma: recall 88.1, IoU 6.9). Move to structure-aware chunks when the parser is good.</div>
+    </div>
+    <div class="qa">
+      <div class="q">Why is Contextual Retrieval cheap enough to run on every chunk?</div>
+      <div class="a" data-step="2"><b>Prompt caching.</b> The document is written to the cache once. Each chunk call reads it from the cache and adds only the chunk. Cost: about <b>$1.02 per million document tokens</b>, one time. Failures fall 5.7% → 2.9% before reranking.</div>
+    </div>
+    <div class="qa">
+      <div class="q">Financial PDFs full of tables give bad answers. Design the fix.</div>
+      <div class="a" data-step="3">Use a layout parser that isolates tables (<b>Docling</b>, <b>Unstructured</b>). Send charts and scans to a <b>VLM tier</b>. Or retrieve page images with ColPali (chapter 8). Keep each table as its own chunk, with its caption and section as context.</div>
+    </div>
+    <div class="qa">
+      <div class="q">Parent-child retrieval: what do you index and what do you send?</div>
+      <div class="a" data-step="4">Index <b>small children</b> for a precise match. Send the <b>parent</b> or a <b>sentence window</b> for context (LlamaIndex <code>AutoMergingRetriever</code>, LangChain <code>ParentDocumentRetriever</code>). Cost: more storage and more bookkeeping.</div>
+    </div>
+  </div>
+  <aside class="notes">Ask the room each question before you reveal the answer. Q1 tests if the candidate measures; the strong answer names token-level recall and IoU and a golden set, not a magic number. Q2 tests cost reasoning: the document is the large part of each prompt, and caching turns it into a cheap read. Q3 is a design question; a strong answer separates parsing (tables, charts, scans) from chunking and names a fallback (page-image retrieval). Q4 checks the small-to-big idea: small units match well, large units answer well. Likely follow-up: "How do you keep parent and child in sync when a document changes?" Answer: re-chunk the whole document, delete its old children by document id, then upsert.</aside>
+</section>

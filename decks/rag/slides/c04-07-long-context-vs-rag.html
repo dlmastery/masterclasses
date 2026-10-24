@@ -1,0 +1,52 @@
+<section class="slide" id="rag-c04-long-context-vs-rag" data-tone="state" data-title="Long context vs RAG, and caching">
+  <h2 class="title">Cache a small static corpus in the prompt; retrieve from a large, changing or permissioned one</h2>
+  <div class="grid g2 fill" style="gap:24px">
+    <div class="stack" style="gap:14px">
+      <div class="diagram" style="width:684px;height:330px" data-wires="q1>cag@1:flow{state} [yes]; q1>rag@2:flow{agent} [no]; rag>q3@3:dash; q3>agt@3:flow{agent} [yes]">
+        <div class="node ghost" id="q1" style="left:0;top:0;width:360px"><span class="nt">Corpus &lt; 200k tokens and static?</span><span class="ns">one permission level</span></div>
+        <div class="node n-state" id="cag" style="left:450px;top:0;width:234px" data-step="1" data-fx="pop"><span class="nt">Cache it in the prompt</span><span class="ns">CAG / prompt cache</span></div>
+        <div class="node n-agent" id="rag" style="left:0;top:128px;width:360px" data-step="2" data-fx="pop"><span class="nt">Hybrid + rerank RAG</span><span class="ns">large, daily changes, per-user ACLs</span></div>
+        <div class="node ghost" id="q3" style="left:0;top:256px;width:360px" data-step="3" data-fx="pop"><span class="nt">Multi-hop, or one pass not enough?</span><span class="ns">model judges the context</span></div>
+        <div class="node n-agent" id="agt" style="left:450px;top:256px;width:234px" data-step="3" data-fx="pop"><span class="nt">Agentic / Self-Route</span><span class="ns">iterate, or fall back to LC</span></div>
+      </div>
+      <div class="panel tight k-state" data-step="4">
+        <h4>Anthropic prompt-cache price, × base input</h4>
+        <div class="stack" data-step="4" data-fx="bar" style="gap:7px">
+          <div class="row" style="gap:10px;align-items:center"><span class="tiny" style="width:220px">base input</span><div class="bar" style="flex:1;--aurora:var(--faint)"><i style="--v:50%"></i></div><b class="tiny" style="width:44px">1×</b></div>
+          <div class="row" style="gap:10px;align-items:center"><span class="tiny" style="width:220px">write, 5-min TTL</span><div class="bar" style="flex:1;--aurora:var(--tool)"><i style="--v:62.5%"></i></div><b class="tiny" style="width:44px">1.25×</b></div>
+          <div class="row" style="gap:10px;align-items:center"><span class="tiny" style="width:220px">write, 1-hour TTL</span><div class="bar" style="flex:1;--aurora:var(--tool)"><i style="--v:100%"></i></div><b class="tiny" style="width:44px">2×</b></div>
+          <div class="row" style="gap:10px;align-items:center"><span class="tiny" style="width:220px">read (0.05× Opus/Sonnet 5.5)</span><div class="bar" style="flex:1;--aurora:var(--state)"><i style="--v:5%"></i></div><b class="tiny" style="width:44px">0.1×</b></div>
+        </div>
+      </div>
+      <p class="tiny" data-step="4"><b>Gemini:</b> implicit caching is on by default for 2.5+ (minimum 2,048 / 4,096 tokens). Explicit <code>client.caches.create</code> has a 1 h default TTL. It is not supported on Gemini 4 Argon and later. <b>Anthropic:</b> up to 4 breakpoints, minimum 512–4,096 tokens by model.</p>
+    </div>
+    <div class="stack" style="gap:14px">
+      <ul class="clean tiny" style="gap:7px">
+        <li data-step="1"><b>Anthropic:</b> if the knowledge base is "smaller than 200,000 tokens (about 500 pages)", skip RAG. Put it in the prompt with caching: &gt;2× lower latency, up to 90% lower cost.</li>
+        <li data-step="1"><b>CAG</b> (Chan et al., arXiv 2412.15605): preload the corpus and precompute the KV cache. No retriever. It works only when the corpus fits.</li>
+        <li data-step="3"><b>Self-Route</b> (Google DeepMind, EMNLP 2024): long context wins on average when resourced, but RAG is far cheaper. The model checks if the retrieved context is enough. If not, it falls back to long context.</li>
+        <li data-step="3"><b>LaRA</b> (ICML 2025, 2,326 cases, 11 LLMs): "no silver bullet". Llama 4 Scout claims 10M tokens, but it was trained at 256K.</li>
+        <li data-step="4" class="c-state"><b>2026 synthesis:</b> not RAG vs long context, but RAG <i>into</i> long context. Retrieve and rerank to a focused set. Use the big window for breadth and caching.</li>
+      </ul>
+      <div class="code-wrap" style="width:684px"><div class="code-head">cache_kb.py</div>
+<pre class="code xs" data-lang="python" data-focus="5:5-6, 6:8-8"><code>
+import anthropic
+client = anthropic.Anthropic()
+resp = client.messages.create(
+    model="claude-opus-5-5", max_tokens=1024,
+    system=[{"type": "text", "text": BIG_KNOWLEDGE_BASE,
+             "cache_control": {"type": "ephemeral", "ttl": "1h"}}],
+    messages=[{"role": "user", "content": question}])
+print(resp.usage.cache_read_input_tokens)   # tokens billed at the read rate
+</code></pre></div>
+      <div class="cites push">
+        <a class="cite doc" href="https://platform.claude.com/docs/en/build-with-claude/prompt-caching" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Claude prompt caching</a>
+        <a class="cite doc" href="https://ai.google.dev/gemini-api/docs/caching" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Gemini context caching</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2407.16833" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Self-Route</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    Walk the decision tree one branch at a time. If the corpus is under about 200k tokens, does not change, and every user may see all of it, put it in the prompt and cache it; Anthropic reports more than 2x lower latency and up to 90% lower cost, and CAG goes further by precomputing the KV cache. If the corpus is large, changes daily, or has per-user permissions, you need hybrid retrieval with reranking, because you cannot cache a different prompt for every user and every edit. If one retrieval pass misses facts that need several hops, move to an agentic loop or Self-Route, where the model decides if the retrieved context is enough. The cost bars show why caching pays: you pay 1.25x or 2x once to write and 0.1x on every read. Analogy: a small reference card lives on your desk; the full library needs a catalogue and a librarian. Likely question: "With 10M-token models, why retrieve at all?" Cost, latency, freshness and permissions, plus the context-rot results from the previous slide.
+  </aside>
+</section>

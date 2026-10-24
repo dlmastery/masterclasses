@@ -1,0 +1,137 @@
+<section class="slide" id="rag-c01-two-pipelines" data-tone="agent" data-title="Two pipelines">
+  <style>
+    #rag-c01-two-pipelines .chb {
+      position: absolute; top: -12px; right: 8px; width: 24px; height: 24px; border-radius: 50%;
+      display: grid; place-items: center; font: 700 13px/1 var(--f-mono);
+      color: var(--bg); background: var(--ink-2);
+    }
+    #rag-c01-two-pipelines .node .ns { white-space: nowrap; }
+  </style>
+  <h2 class="title">Every RAG system is an offline index pipeline plus an online retrieval funnel</h2>
+  <div class="diagram" style="width:1392px;height:372px"
+       data-wires="src>parse@1:flow{state}; parse>chunk@1:flow{state}; chunk>emb@1:flow{state}; emb>vec@1:flow{state}; chunk>bm25@1{state}; parse>meta@1:dash;
+                   q>rw@2:flow{agent}; rw>ret@2:flow{agent}; meta>ret@2:dash:bt [filter]; bm25>ret@2:bt{state}; vec>ret@2:bt{state}; ret>rr@2:flow{agent} [150]; rr>llm@2:flow{agent}; llm>ans@2:flow{model}">
+    <span class="tag t-state" style="position:absolute;left:0;top:0" data-step="1" data-fx="left">OFFLINE · indexing, batch</span>
+    <span class="tag t-agent" style="position:absolute;left:0;top:258px" data-step="2" data-fx="left">ONLINE · every query</span>
+
+    <div class="node n-state" id="src" style="left:0;top:36px;width:140px" data-step="1" data-fx="pop"><span class="nt">Sources</span><span class="ns">PDF · HTML</span><b class="chb" data-step="4">2</b></div>
+    <div class="node n-state" id="parse" style="left:190px;top:36px;width:230px" data-step="1" data-fx="pop"><span class="nt">Parse</span><span class="ns">layout · tables · OCR</span><b class="chb" data-step="4">2</b></div>
+    <div class="node n-state" id="chunk" style="left:470px;top:36px;width:180px" data-step="1" data-fx="pop"><span class="nt">Chunk</span><span class="ns">+ LLM context</span><b class="chb" data-step="4">2</b></div>
+    <div class="node n-state" id="emb" style="left:700px;top:36px;width:150px" data-step="1" data-fx="pop"><span class="nt">Embed</span><span class="ns">bi-encoder</span><b class="chb" data-step="4">3</b></div>
+
+    <div class="group g-state" style="left:280px;top:146px;width:608px;height:112px" data-step="1" data-fx="fade"><span class="gl">indexes</span></div>
+    <div class="node n-state" id="meta" style="left:300px;top:166px;width:150px" data-step="1" data-fx="pop"><span class="nt">Metadata</span><span class="ns">ACL · date</span><b class="chb" data-step="4">9</b></div>
+    <div class="node n-state" id="bm25" style="left:500px;top:166px;width:150px" data-step="1" data-fx="pop"><span class="nt">BM25 index</span><span class="ns">inverted</span><b class="chb" data-step="4">4</b></div>
+    <div class="node n-state" id="vec" style="left:700px;top:166px;width:168px" data-step="1" data-fx="pop"><span class="nt">Vector index</span><span class="ns">ANN · HNSW</span><b class="chb" data-step="4">3</b></div>
+
+    <div class="node n-human pill" id="q" style="left:0;top:300px;width:130px" data-step="2" data-fx="pop"><span class="nt">Query</span></div>
+    <div class="node n-agent ghost" id="rw" style="left:180px;top:300px;width:140px" data-step="2" data-fx="pop"><span class="nt">Rewrite</span><span class="ns">optional</span><b class="chb" data-step="4">4</b></div>
+    <div class="node n-agent" id="ret" style="left:380px;top:300px;width:400px" data-step="2" data-fx="pop"><span class="nt">Hybrid retrieve</span><span class="ns">ANN top-k + BM25 → RRF</span><b class="chb" data-step="4">4</b></div>
+    <div class="node n-agent" id="rr" style="left:830px;top:300px;width:150px" data-step="2" data-fx="pop"><span class="nt">Rerank</span><span class="ns">cross-encoder</span><b class="chb" data-step="4">4</b></div>
+    <div class="node n-model" id="llm" style="left:1030px;top:300px;width:190px" data-step="2" data-fx="pop"><span class="nt">LLM</span><span class="ns">chunks + query</span><b class="chb" data-step="4">4</b></div>
+    <div class="node n-human" id="ans" style="left:1262px;top:300px;width:130px" data-step="2" data-fx="pop"><span class="nt">Answer</span><span class="ns">+ cites</span><b class="chb" data-step="4">9</b></div>
+
+    <svg id="rag-pp-funnel" viewBox="0 0 482 262" width="482" height="262" style="position:absolute;left:910px;top:0;overflow:visible" aria-label="Retrieval funnel: 1,000,000 documents to 150 to 20 to 5"></svg>
+  </div>
+
+  <div class="grid" style="grid-template-columns:1.3fr 1fr;gap:28px">
+    <div class="callout pitfall" data-step="4"><div><b>Pitfall: you tune the prompt when recall is the problem.</b> The LLM can use only the chunks that the retriever returns. If the gold chunk is not in the top-k, no prompt can fix the answer. Measure recall@k on a golden set first.</div></div>
+    <div class="stack" data-step="4" style="gap:10px">
+      <p class="small"><b>Failure rate = 1 &minus; recall@20.</b> Anthropic's baseline misses the gold chunk on <b class="c-risk" data-to="5.7" data-dec="1" data-suf="%">0</b> of queries. Badges show the chapter that teaches each box.</p>
+      <div class="cites">
+        <a class="cite doc" href="https://www.anthropic.com/news/contextual-retrieval" target="_blank" rel="noopener"><b>Blog</b>&nbsp;Introducing Contextual Retrieval</a>
+        <a class="cite repo" href="https://github.com/langchain-ai/rag-from-scratch" target="_blank" rel="noopener"><b>Repo</b>&nbsp;langchain-ai/rag-from-scratch</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Every RAG system, from a weekend demo to a managed service, has these two pipelines. Step 1 is the offline lane: parse, chunk, optionally add context, embed, and write three indexes. Step 2 is the online lane that runs on every query: rewrite, hybrid retrieve, rerank, then build the prompt for the LLM. Step 3 is the funnel: one million documents, 150 hybrid candidates, 20 after the reranker, 5 in the prompt. Step 4 names what each band decides: recall at the first stage, precision at the reranker, use at context assembly. Analogy: a library; the catalogue is built at night, and each visitor gets a librarian who narrows a million books to the five on the desk. Likely question: "Where do I start when answers are wrong?" Start at the top of the funnel: measure recall@k, because nothing downstream can bring back a chunk that the first stage dropped.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const Y = [14, 90, 166, 242];               // band boundaries
+  const HW = [120, 78, 44, 18];               // half-width of the funnel at each boundary
+  const CX = 130;
+  const COUNTS = [1000000, 150, 20, 5];
+  const UNITS = ["docs", "hybrid candidates", "after rerank", "in the prompt"];
+  const BANDS = [
+    { name: "Recall", tone: "var(--state)", sub: "first stage: cheap, wide" },
+    { name: "Precision", tone: "var(--agent)", sub: "reranker sees q + doc" },
+    { name: "Use", tone: "var(--model)", sub: "position · distractors" },
+  ];
+  let S = null;
+
+  function el(tag, attrs, style) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (style) e.setAttribute("style", style);
+    return e;
+  }
+
+  function build(slide) {
+    const svg = slide.querySelector("#rag-pp-funnel");
+    svg.innerHTML = "";
+    const bands = BANDS.map((b, i) => {
+      const pts = [[CX - HW[i], Y[i]], [CX + HW[i], Y[i]], [CX + HW[i + 1], Y[i + 1]], [CX - HW[i + 1], Y[i + 1]]];
+      const poly = el("polygon", { points: pts.map((p) => p.join(",")).join(" ") },
+        `fill:color-mix(in oklab, ${b.tone} 16%, transparent);stroke:${b.tone};stroke-width:2;stroke-linejoin:round`);
+      const lab = el("text", { x: CX, y: (Y[i] + Y[i + 1]) / 2 + 6, "text-anchor": "middle" }, `font:700 ${i === 2 ? 15 : 17}px var(--f-body);fill:${b.tone}`);
+      lab.textContent = b.name;
+      const sub = el("text", { x: 268, y: (Y[i] + Y[i + 1]) / 2 + 5 }, `font:500 14px var(--f-mono);fill:${b.tone}`);
+      sub.textContent = b.sub;
+      svg.append(poly, lab, sub);
+      return { poly, lab, sub };
+    });
+    const counts = COUNTS.map((c, i) => {
+      const t = el("text", { x: 268, y: Y[i] + 5 }, "font:600 15px var(--f-mono);fill:var(--ink)");
+      const n = el("tspan", {}, "font-weight:800"); n.textContent = "0";
+      const u = el("tspan", {}, "fill:var(--muted)"); u.textContent = " " + UNITS[i];
+      t.append(n, u);
+      const tick = el("line", { x1: CX + HW[i] + 8, y1: Y[i], x2: 260, y2: Y[i] }, "stroke:var(--line-2);stroke-width:1.5;stroke-dasharray:3 4");
+      svg.append(tick, t);
+      return { t, n, tick, to: c };
+    });
+    S = { svg, bands, counts, shown3: false, shown4: false, tweens: [] };
+  }
+
+  const fmt = (v) => Math.round(v).toLocaleString("en-US");
+
+  function render(n, animate) {
+    if (!S) return;
+    S.tweens.forEach((t) => t.kill()); S.tweens = [];
+    const show3 = n >= 3, show4 = n >= 4;
+    // bands + counts (step 3)
+    S.bands.forEach((b, i) => {
+      if (show3 && animate && !S.shown3) {
+        S.tweens.push(gsap.fromTo(b.poly, { autoAlpha: 0, scaleY: 0, transformOrigin: "50% 0%" }, { autoAlpha: 1, scaleY: 1, duration: 0.55, delay: i * 0.45, ease: "power3.out" }));
+      } else gsap.set(b.poly, { autoAlpha: show3 ? 1 : 0, scaleY: 1 });
+    });
+    S.counts.forEach((c, i) => {
+      if (show3 && animate && !S.shown3) {
+        const p = { v: i === 0 ? 0 : COUNTS[i - 1] };
+        gsap.set([c.t, c.tick], { autoAlpha: 1 });
+        c.n.textContent = fmt(p.v);
+        S.tweens.push(gsap.to(p, { v: c.to, duration: 0.9, delay: Math.max(0, i * 0.45 - 0.1), ease: "power2.out", onUpdate: () => (c.n.textContent = fmt(p.v)) }));
+        if (i > 0) gsap.set([c.t, c.tick], { autoAlpha: 0 }), S.tweens.push(gsap.to([c.t, c.tick], { autoAlpha: 1, duration: 0.3, delay: i * 0.45 - 0.1 }));
+      } else {
+        gsap.set([c.t, c.tick], { autoAlpha: show3 ? 1 : 0 });
+        c.n.textContent = fmt(c.to);
+      }
+    });
+    S.shown3 = show3;
+    // names of the three decisions (step 4)
+    S.bands.forEach((b, i) => {
+      if (show4 && animate && !S.shown4) {
+        S.tweens.push(gsap.fromTo([b.lab, b.sub], { autoAlpha: 0, x: -14 }, { autoAlpha: 1, x: 0, duration: 0.5, delay: i * 0.18, ease: "power3.out" }));
+      } else gsap.set([b.lab, b.sub], { autoAlpha: show4 ? 1 : 0, x: 0 });
+    });
+    S.shown4 = show4;
+  }
+
+  Deck.register("rag-c01-two-pipelines", {
+    enter(slide, n) { build(slide); render(n, false); },
+    step(slide, n, animate) { render(n, animate); },
+    leave() { if (S) { S.tweens.forEach((t) => t.kill()); S.tweens = []; } },
+  });
+})();
+</script>

@@ -1,0 +1,166 @@
+<section class="slide" id="rag-c08-code-rag" data-tone="model" data-title="Code RAG">
+  <h2 class="title">Code retrieval combines grep, symbols and embeddings, and re-indexes only what changed</h2>
+  <div class="grid fill" style="grid-template-columns:700px 1fr;gap:36px">
+    <div class="stack" style="gap:16px">
+      <div style="position:relative;width:700px;height:330px">
+        <svg class="interactive" id="rag-c08-merkle-svg" viewBox="0 0 700 330" width="700" height="330" data-until="5"></svg>
+        <div class="diagram" style="position:absolute;left:0;top:0;width:700px;height:330px" data-step="5" data-fx="fade"
+             data-wires="grep<>agent@5:flow{tool}; lsp<>agent@5:flow{tool}; emb<>agent@5:flow{state}">
+          <div class="node n-tool" id="grep" style="left:100px;top:0;width:280px"><span class="nt">grep / ripgrep</span><span class="ns">exact identifiers, always fresh</span></div>
+          <div class="node n-tool" id="lsp" style="left:100px;top:128px;width:280px"><span class="nt">LSP / symbol graph</span><span class="ns">definitions, references</span></div>
+          <div class="node n-state" id="emb" style="left:100px;top:256px;width:280px"><span class="nt">Embedding index</span><span class="ns">"where is the auth logic?"</span></div>
+          <div class="node n-agent" id="agent" style="left:470px;top:128px;width:230px"><span class="nt">Coding agent loop</span><span class="ns">picks a tool per step</span></div>
+        </div>
+      </div>
+      <div class="grid g3" style="gap:18px" data-step="4" data-fx="fade">
+        <div class="stat"><span class="n rag-ttfq" style="font-size:54px" data-from="14508" data-goal="21">4.03 h</span><span class="l">p99 time to first query<br><span class="tiny">was 4.03 h</span></span></div>
+        <div class="stat" style="--aurora:var(--agent)"><span class="n rag-ttfq" style="font-size:54px" data-from="169.2" data-goal="1.87">2.82 min</span><span class="l">p90 time to first query<br><span class="tiny">was 2.82 min</span></span></div>
+        <div class="stat" style="--aurora:var(--state)"><span class="n rag-ttfq" style="font-size:54px" data-from="7.87" data-goal="0.525">7.87 s</span><span class="l">median time to first query<br><span class="tiny">was 7.87 s</span></span></div>
+      </div>
+    </div>
+    <div class="stack" style="gap:12px">
+      <div class="panel k-tool tight">
+        <h4>Code has exact names, syntax trees, cross-file links and constant change</h4>
+        <p class="small">cAST chunks along the AST: split large nodes, merge small siblings under a size budget. <b>+4.3 Recall@5</b> on RepoEval, <b>+2.67 Pass@1</b> on SWE-bench.</p>
+      </div>
+      <div style="position:relative;height:280px">
+        <div class="stack" style="gap:8px" data-until="5">
+          <h4>Cursor: re-index only what changed</h4>
+          <ol class="seq small" style="gap:8px">
+            <li data-step="1">A Merkle tree of file hashes finds the changed files. 50,000 files give about 3.2 MB of hashes.</li>
+            <li data-step="2">One changed file changes every hash up to the root. Compare roots, then walk down.</li>
+            <li data-step="3">Split changed files into syntactic chunks. Embed them asynchronously. Cache embeddings by chunk content.</li>
+            <li data-step="4">A simhash seeds a new user's index from a teammate's (92% average similarity). Content proofs return only files the client has.</li>
+          </ol>
+        </div>
+        <div class="callout insight" style="position:absolute;left:0;right:0;top:0" data-step="5">
+          <div><b>"Grep generally yields higher accuracy than vector retrieval"</b> on 116 LongMemEval questions across Claude Code, Codex, Gemini CLI and a custom harness. The result depends strongly on the harness. Practice in 2026: grep for names, LSP for precision, embeddings for concepts, an agent loop on top. Streaming RAG uses the same delta idea: Pathway re-embeds only new data.</div>
+        </div>
+      </div>
+      <div class="cites push">
+        <a class="cite doc" href="https://cursor.com/blog/secure-codebase-indexing" target="_blank" rel="noopener"><b>Blog</b>&nbsp;Securely indexing large codebases</a>
+        <a class="cite repo" href="https://github.com/yilinjz/astchunk" target="_blank" rel="noopener"><b>Repo</b>&nbsp;yilinjz/astchunk</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2506.15655" target="_blank" rel="noopener"><b>Paper</b>&nbsp;cAST</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2605.15184" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Is Grep All You Need?</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Code breaks three assumptions of text RAG: the user often searches for an exact name, the structure is a syntax tree, and the corpus changes every few minutes. cAST (Findings of EMNLP 2025) chunks along the AST and gains 4.3 Recall@5 on RepoEval. Steps 1 to 3 follow Cursor's January 2026 blog: a Merkle tree finds the changed files, only their syntactic chunks are re-embedded, and embeddings are cached by content, so a teammate's clone seeds yours through a simhash. Step 4 shows the result: p99 time to first query fell from 4.03 hours to 21 seconds. Step 5 is the 2026 debate: a May 2026 study found grep usually beat vector retrieval inside coding-agent harnesses, but the harness mattered a lot, so the practical answer is a hybrid toolset. Analogy: Git does not re-copy the repository on every commit; it only stores what changed. Likely question: "Does Claude Code use a vector DB?" Answer: say only what the published study shows, and design for grep plus symbols plus embeddings.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const FILES = ["auth.py", "db.py", "api.ts", "ui.tsx", "jobs.go", "main.rs", "cfg.yaml", "test.py"];
+  const CHANGED = [2, 5];
+  const hx = (i, salt) => ((i * 2654435761 + salt * 40503) >>> 0).toString(16).slice(-4);
+  let st = null;
+  function el(tag, attrs, style, parent) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (style) e.setAttribute("style", style);
+    parent.appendChild(e);
+    return e;
+  }
+  function node(svg, x, y, w, h, label, hash) {
+    const g = el("g", {}, "opacity:0", svg);
+    const r = el("rect", { x, y, width: w, height: h, rx: 8 }, "fill:var(--surface-2);stroke:var(--state);stroke-width:1.5", g);
+    let t = null;
+    if (label) { t = el("text", { x: x + w / 2, y: y + 17, "text-anchor": "middle" }, "font-family:var(--f-mono);font-size:12px;font-weight:600;fill:var(--ink)", g); t.textContent = label; }
+    const hsh = el("text", { x: x + w / 2, y: y + (label ? 34 : 25), "text-anchor": "middle" }, "font-family:var(--f-mono);font-size:12px;fill:var(--muted)", g);
+    hsh.textContent = hash;
+    return { g, r, hsh, cx: x + w / 2, top: y, bot: y + h, old: hash };
+  }
+  function build(svg) {
+    svg.innerHTML = "";
+    const s = { leaves: [], l1: [], l2: [], edges: [], chips: [], cached: [], calls: [] };
+    const edgeLayer = el("g", {}, "", svg);
+    FILES.forEach((f, i) => s.leaves.push(node(svg, 8 + i * 86, 214, 76, 44, f, hx(i, 1))));
+    for (let k = 0; k < 4; k++) { const cx = (s.leaves[2 * k].cx + s.leaves[2 * k + 1].cx) / 2; s.l1.push(node(svg, cx - 45, 144, 90, 36, "", hx(k, 2))); }
+    for (let k = 0; k < 2; k++) { const cx = (s.l1[2 * k].cx + s.l1[2 * k + 1].cx) / 2; s.l2.push(node(svg, cx - 45, 74, 90, 36, "", hx(k, 3))); }
+    s.root = node(svg, (s.l2[0].cx + s.l2[1].cx) / 2 - 55, 4, 110, 36, "", "root " + hx(9, 4));
+    const link = (c, p) => {
+      const ln = el("line", { x1: c.cx, y1: c.top, x2: p.cx, y2: p.bot }, "stroke:var(--line-2);stroke-width:1.5", edgeLayer);
+      const L = Math.hypot(c.cx - p.cx, c.top - p.bot);
+      ln.style.strokeDasharray = L; ln.style.strokeDashoffset = L; ln._L = L;
+      s.edges.push(ln); return ln;
+    };
+    s.leaves.forEach((c, i) => link(c, s.l1[i >> 1]));
+    s.l1.forEach((c, i) => link(c, s.l2[i >> 1]));
+    s.l2.forEach((c) => link(c, s.root));
+    // embed bar
+    s.embed = el("g", {}, "opacity:0", svg);
+    el("rect", { x: 200, y: 288, width: 330, height: 36, rx: 10 }, "fill:var(--model-soft);stroke:var(--model);stroke-width:1.5", s.embed);
+    const et = el("text", { x: 302, y: 311 }, "font-family:var(--f-body);font-size:15px;font-weight:700;fill:var(--ink)", s.embed);
+    et.textContent = "Embed: changed chunks only";
+    CHANGED.forEach((li, j) => {
+      for (let c = 0; c < 3; c++) {
+        const lf = s.leaves[li];
+        const chip = el("rect", { x: lf.cx - 22 + c * 16, y: 262, width: 12, height: 10, rx: 2 }, "fill:var(--tool);opacity:0", svg);
+        chip._dx = 214 + j * 42 + c * 13 - (lf.cx - 22 + c * 16); s.chips.push(chip);
+      }
+    });
+    s.leaves.forEach((lf, i) => {
+      if (CHANGED.includes(i)) return;
+      const t = el("text", { x: lf.cx, y: 274, "text-anchor": "middle" }, "font-family:var(--f-mono);font-size:11px;fill:var(--state);opacity:0", svg);
+      t.textContent = "cached"; s.cached.push(t);
+    });
+    s.cap = el("text", { x: 692, y: 22, "text-anchor": "end" }, "font-family:var(--f-mono);font-size:12px;fill:var(--muted)", svg);
+    s.cap.textContent = "file-hash Merkle tree";
+    return s;
+  }
+  function pathOf(li) { return [st.leaves[li], st.l1[li >> 1], st.l2[li >> 2], st.root]; }
+  function render(n, animate) {
+    if (!st) return;
+    const d = animate ? 0.5 : 0;
+    const all = [...st.leaves, ...st.l1, ...st.l2, st.root];
+    st.calls.forEach((c) => c.kill()); st.calls = [];
+    st.leaves.forEach((lf) => gsap.to(lf.g, { opacity: 1, duration: d, overwrite: true }));
+    [...st.l1, ...st.l2, st.root].forEach((nd, i) => gsap.to(nd.g, { opacity: n >= 1 ? 1 : 0, duration: d, delay: animate && n === 1 ? 0.3 + i * 0.06 : 0, overwrite: true }));
+    st.edges.forEach((e, i) => gsap.to(e, { strokeDashoffset: n >= 1 ? 0 : e._L, duration: animate ? 0.8 : 0, delay: animate && n === 1 ? i * 0.04 : 0, overwrite: true }));
+    // reset colours
+    all.forEach((nd) => { nd.r.style.stroke = "var(--state)"; nd.r.style.fill = "var(--surface-2)"; nd.hsh.textContent = nd.old; });
+    if (n >= 2) {
+      CHANGED.forEach((li) => pathOf(li).forEach((nd, lvl) => {
+        const apply = () => { nd.r.style.stroke = "var(--tool)"; nd.r.style.fill = "var(--tool-soft)"; nd.hsh.textContent = nd === st.root ? "root " + hx(17, 8) : hx(li + lvl * 3, 7); };
+        if (animate && n === 2) st.calls.push(gsap.delayedCall(lvl * 0.35, apply)); else apply();
+      }));
+    }
+    st.chips.forEach((c, i) => {
+      if (n >= 3) {
+        if (animate && n === 3) gsap.fromTo(c, { opacity: 1, x: 0, y: 0 }, { x: c._dx, y: 39, opacity: 0.95, duration: 0.9, ease: "power2.inOut", delay: i * 0.07, overwrite: true });
+        else gsap.set(c, { opacity: 0.95, x: c._dx, y: 39 });
+      } else gsap.set(c, { opacity: 0, x: 0, y: 0 });
+    });
+    gsap.to(st.embed, { opacity: n >= 3 ? 1 : 0, duration: d, overwrite: true });
+    st.cached.forEach((t) => gsap.to(t, { opacity: n >= 3 ? 1 : 0, duration: d, overwrite: true }));
+  }
+  function fmt(v) {
+    if (v >= 3600) return (v / 3600).toFixed(2) + " h";
+    if (v >= 60) return (v / 60).toFixed(2) + " min";
+    if (v >= 10) return Math.round(v) + " s";
+    if (v >= 1) return v.toFixed(2) + " s";
+    return Math.round(v * 1000) + " ms";
+  }
+  function stats(slide, n, animate) {
+    slide.querySelectorAll(".rag-ttfq").forEach((t, i) => {
+      if (t._p) gsap.killTweensOf(t._p);
+      const a = +t.dataset.from, b = +t.dataset.goal;
+      if (n < 4) { t.textContent = fmt(a); return; }
+      if (!animate || n !== 4) { t.textContent = fmt(b); return; }
+      const p = { k: 0 };
+      t._p = p;
+      gsap.to(p, { k: 1, duration: 1.8, ease: "power2.out", delay: 0.2 + i * 0.15, onUpdate: () => (t.textContent = fmt(a * Math.pow(b / a, p.k))) });
+    });
+  }
+  Deck.register("rag-c08-code-rag", {
+    enter(slide, step) { st = build(slide.querySelector("#rag-c08-merkle-svg")); render(step, false); stats(slide, step, false); },
+    step(slide, n, animate) { render(n, animate); stats(slide, n, animate); },
+    leave(slide) {
+      if (!st) return;
+      gsap.killTweensOf([...st.chips, ...st.edges, st.embed, ...st.cached, ...[...st.leaves, ...st.l1, ...st.l2, st.root].map((x) => x.g)]);
+      st.calls.forEach((c) => c.kill()); st.calls = [];
+      slide.querySelectorAll(".rag-ttfq").forEach((t) => { if (t._p) gsap.killTweensOf(t._p); });
+    }
+  });
+})();
+</script>

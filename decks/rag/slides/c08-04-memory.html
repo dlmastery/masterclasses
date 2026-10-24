@@ -1,0 +1,138 @@
+<section class="slide" id="rag-c08-memory" data-tone="model" data-title="Agent memory">
+  <h2 class="title">Agent memory is retrieval over the user's own history: extract, consolidate, retrieve, inject</h2>
+  <div class="grid fill" style="grid-template-columns:740px 1fr;gap:36px">
+    <div style="position:relative">
+      <div class="stack" style="gap:12px" data-until="5">
+        <div class="diagram" style="width:740px;height:320px"
+             data-wires="conv>extract@1:flow{human}; extract>consol@1:flow{model}; consol>store@2:flow{state}; store>retrieve@2:flow{state}; retrieve>inject@3:flow{agent}; inject>conv@3:flow{agent}">
+          <div class="node n-human" id="conv" style="left:0;top:124px;width:170px"><span class="nt">Conversation</span><span class="ns">session events</span></div>
+          <div class="node n-model" id="extract" style="left:240px;top:0;width:190px" data-step="1" data-fx="pop"><span class="nt">Extract</span><span class="ns">LLM finds facts</span></div>
+          <div class="node n-state" id="consol" style="left:500px;top:0;width:240px" data-step="1" data-fx="pop"><span class="nt">Consolidate</span><span class="ns">ADD / UPDATE / DELETE</span></div>
+          <div class="node n-state" id="store" style="left:540px;top:124px;width:200px" data-step="2" data-fx="pop"><span class="nt">Memory store</span><span class="ns">scope: user_id</span></div>
+          <div class="node n-agent" id="retrieve" style="left:500px;top:248px;width:240px" data-step="2" data-fx="pop"><span class="nt">Retrieve</span><span class="ns">similarity, top_k</span></div>
+          <div class="node n-agent" id="inject" style="left:240px;top:248px;width:190px" data-step="3" data-fx="pop"><span class="nt">Inject</span><span class="ns">into the prompt</span></div>
+        </div>
+        <div class="stack" style="gap:6px" data-step="4" data-fx="fade">
+          <svg class="interactive" id="rag-c08-graphiti-svg" viewBox="0 0 740 190" width="740" height="190"></svg>
+          <p class="tiny"><b>Graphiti:</b> "Facts have validity windows. When information changes, old facts are invalidated — not deleted."</p>
+        </div>
+      </div>
+      <div style="position:absolute;left:0;top:0;width:740px" data-step="5" data-fx="up">
+        <div class="code-wrap"><div class="code-head">agent.py · ADK + Memory Bank</div>
+<pre class="code sm" data-lang="python" data-focus="5:6-8, 6:13-16"><code>
+from google import adk
+from google.adk.agents import Agent
+from google.adk.memory import VertexAiMemoryBankService
+from google.adk.tools import preload_memory
+
+memory_service = VertexAiMemoryBankService(
+    project="PROJECT_ID", location="LOCATION",
+    agent_engine_id="AGENT_ENGINE_ID")
+
+async def auto_save(callback_context):
+    await callback_context.add_session_to_memory()
+
+agent = Agent(model=MODEL, name="Generic_QA_Agent",
+    instruction="Answer the user's questions",
+    tools=[preload_memory],      # or load_memory: agent decides
+    after_agent_callback=auto_save)
+runner = adk.Runner(agent=agent, app_name="app",
+    session_service=session_service,
+    memory_service=memory_service)
+</code></pre></div>
+        <p class="tiny" style="margin-top:10px"><code>preload_memory</code> retrieves on every turn. <code>load_memory</code> is a tool the agent calls when it needs it. <code>InMemoryMemoryService()</code> is for prototypes.</p>
+      </div>
+    </div>
+    <div class="stack" style="gap:12px">
+      <p class="tiny"><b class="c-agent">Working:</b> context window, session state · <b class="c-human">Episodic:</b> past sessions · <b class="c-state">Semantic:</b> facts, preferences · <b class="c-model">Procedural:</b> learned instructions</p>
+      <p class="tiny"><b>LongMemEval</b> (ICLR 2025): 500 questions, 5 abilities (extraction, multi-session, temporal reasoning, knowledge updates, abstention). Assistants lose about <b>30%</b> accuracy over sustained use. <b>LaMP</b> (ACL 2024) retrieves from the user profile to personalize.</p>
+      <div class="grid" style="grid-template-columns:118px 1fr;gap:8px 12px">
+        <b class="tiny">Letta / MemGPT</b><span class="tiny">Virtual context management. The agent edits its own in-context memory blocks.</span>
+        <b class="tiny">Mem0</b><span class="tiny">LLM picks ADD / UPDATE / DELETE / NOOP. LOCOMO: +26% vs OpenAI memory, 91% lower p95 latency, &gt;90% fewer tokens.</span>
+        <b class="tiny">Zep / Graphiti</b><span class="tiny">Temporal knowledge graph. DMR 94.8% vs MemGPT 93.4%. LongMemEval up to +18.5%.</span>
+        <b class="tiny" data-on="5:c-state">Memory Bank</b><span class="tiny" data-on="5:c-state">Agent Platform, formerly Vertex AI Agent Engine. Scoped memories, Gemini extraction and consolidation, IAM Conditions, VPC-SC, CMEK.</span>
+      </div>
+      <div class="callout pitfall"><div>Scope every read and write by <code>user_id</code>, or facts leak between users. Invalidate stale preferences with a validity window. Treat memories as personal data.</div></div>
+      <div class="cites push">
+        <a class="cite doc" href="https://adk.dev/sessions/memory/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;ADK Memory</a>
+        <a class="cite doc" href="https://docs.cloud.google.com/agent-builder/agent-engine/memory-bank/overview" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Memory Bank overview</a>
+        <a class="cite repo" href="https://github.com/getzep/graphiti" target="_blank" rel="noopener"><b>Repo</b>&nbsp;getzep/graphiti</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2504.19413" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Mem0</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2410.10813" target="_blank" rel="noopener"><b>Paper</b>&nbsp;LongMemEval</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">RAG retrieves from a shared corpus. Memory retrieves from one user's own history. Steps 1 to 3 build the lifecycle: an LLM extracts candidate facts from the conversation, a consolidation step decides ADD, UPDATE, DELETE or NOOP against similar memories (this is Mem0's design), the store is scoped by user_id, and the agent retrieves and injects the top memories into the prompt. Step 4 is the Graphiti idea: when Alice moves from Acme to Google, the old edge is invalidated but kept, so the question about 2025 still has an answer. Steps 5 and 6 show the ADK version with Memory Bank: preload_memory retrieves every turn, and an after_agent_callback saves the session. Analogy: a good assistant keeps a notebook about you, crosses out old facts with a date, and never reads another client's notebook. Likely question: "Why not keep the whole history in the context window?" Answer: LongMemEval shows about a 30% accuracy drop over long interactions, and Mem0 reports over 90% token savings versus full context.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const X = (m) => 40 + m * 20; // months since 2024-01
+  let st = null;
+  function el(tag, attrs, style, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (style) e.setAttribute("style", style);
+    if (text) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  }
+  function build(svg) {
+    svg.innerHTML = "";
+    const mono = "font-family:var(--f-mono);";
+    const s = {};
+    el("line", { x1: 30, y1: 150, x2: 720, y2: 150 }, "stroke:var(--line-2);stroke-width:1.5", svg);
+    [[0, "2024-01"], [12, "2025-01"], [24, "2026-01"], [33, "now"]].forEach(([m, l]) => {
+      el("line", { x1: X(m), y1: 146, x2: X(m), y2: 154 }, "stroke:var(--muted);stroke-width:1.5", svg);
+      el("text", { x: X(m), y: 168, "text-anchor": "middle" }, mono + "font-size:12px;fill:var(--muted)", svg, l);
+    });
+    s.e1 = el("rect", { x: X(0), y: 50, width: X(26) - X(0), height: 28, rx: 6 }, "fill:var(--state-soft);stroke:var(--state);stroke-width:1.5", svg);
+    s.e1t = el("text", { x: X(0) + 12, y: 69 }, mono + "font-size:13px;font-weight:600;fill:var(--ink)", svg, "Alice works at Acme");
+    el("text", { x: X(26) - 10, y: 69, "text-anchor": "end" }, mono + "font-size:12px;fill:var(--ink-2)", svg, "valid 2024-01 → 2026-03");
+    s.inv = el("text", { x: X(26) - 8, y: 44, "text-anchor": "end" }, mono + "font-size:12px;fill:var(--risk);opacity:0", svg, "invalidated, kept in history");
+    s.ep = el("g", {}, "opacity:0", svg);
+    el("line", { x1: X(26), y1: 30, x2: X(26), y2: 150 }, "stroke:var(--tool);stroke-width:2", s.ep);
+    el("text", { x: X(26), y: 20, "text-anchor": "middle" }, mono + "font-size:12px;fill:var(--tool)", s.ep, "episode: \"Alice joined Google\"");
+    s.e2 = el("rect", { x: X(26), y: 96, width: 0, height: 28, rx: 6 }, "fill:var(--state-soft);stroke:var(--state);stroke-width:1.5", svg);
+    s.e2t = el("text", { x: X(26) + 10, y: 115 }, mono + "font-size:12px;font-weight:600;fill:var(--ink);opacity:0", svg, "works at Google");
+    s.q = el("g", {}, "opacity:0", svg);
+    el("line", { x1: X(15), y1: 50, x2: X(15), y2: 150 }, "stroke:var(--agent);stroke-width:2;stroke-dasharray:5 4", s.q);
+    el("circle", { cx: X(15), cy: 64, r: 6 }, "fill:var(--agent)", s.q);
+    el("text", { x: X(15), y: 186, "text-anchor": "middle" }, mono + "font-size:12px;font-weight:600;fill:var(--agent)", s.q, "query: where did Alice work in 2025?");
+    return s;
+  }
+  function reset() {
+    st.e1.style.strokeDasharray = ""; st.e1.style.opacity = 1; st.e1.style.stroke = "var(--state)"; st.e1.style.strokeWidth = "1.5";
+    gsap.set([st.inv, st.ep, st.e2t, st.q], { opacity: 0 });
+    gsap.set(st.e2, { attr: { width: 0 } });
+  }
+  function final() {
+    st.e1.style.strokeDasharray = "6 4"; st.e1.style.opacity = 1; st.e1.style.stroke = "var(--agent)"; st.e1.style.strokeWidth = "3";
+    gsap.set([st.inv, st.ep, st.e2t, st.q], { opacity: 1 });
+    gsap.set(st.e2, { attr: { width: X(33) - X(26) } });
+  }
+  function render(n, animate) {
+    if (!st) return;
+    if (st.tl) { st.tl.kill(); st.tl = null; }
+    if (n < 4) { reset(); return; }
+    if (!animate || n !== 4) { final(); return; }
+    reset();
+    const tl = gsap.timeline({ delay: 0.3 });
+    tl.to(st.ep, { opacity: 1, duration: 0.5 })
+      .call(() => { st.e1.style.strokeDasharray = "6 4"; })
+      .to(st.e1, { opacity: 0.6, duration: 0.5 }, "<")
+      .to(st.inv, { opacity: 1, duration: 0.4 }, "<")
+      .to(st.e2, { attr: { width: X(33) - X(26) }, duration: 0.8, ease: "power2.out" })
+      .to(st.e2t, { opacity: 1, duration: 0.4 }, "<0.2")
+      .to(st.q, { opacity: 1, duration: 0.5 }, "+=0.4")
+      .call(() => { st.e1.style.stroke = "var(--agent)"; st.e1.style.strokeWidth = "3"; })
+      .to(st.e1, { opacity: 1, duration: 0.4 });
+    st.tl = tl;
+  }
+  Deck.register("rag-c08-memory", {
+    enter(slide, step) { st = build(slide.querySelector("#rag-c08-graphiti-svg")); render(step, false); },
+    step(slide, n, animate) { render(n, animate); },
+    leave() { if (st && st.tl) { st.tl.kill(); st.tl = null; } }
+  });
+})();
+</script>

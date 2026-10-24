@@ -1,0 +1,67 @@
+<section class="slide" id="rag-c02-parsing" data-tone="state" data-title="Parsing">
+  <h2 class="title">Parse layout, tables and reading order first, because naive text extraction scrambles them</h2>
+  <div class="grid g3" style="gap:20px">
+    <div class="panel tight k-risk" data-step="1" data-fx="mask" style="height:232px">
+      <h4>Naive extraction <span class="tiny">pdftotext</span></h4>
+      <div class="mono" style="font-size:14px;line-height:1.5;color:var(--ink-2)">
+        <div>Revenue by region <span class="c-risk">The board approved</span></div>
+        <div>rose in EMEA and <span class="c-risk">a new buyback plan</span></div>
+        <div>Region Q1 Q2 EMEA 4.1 <span class="c-risk">for next</span></div>
+        <div>4.6 APAC 3.2 3.9 <span class="c-risk">year. Risk</span></div>
+      </div>
+      <div class="callout pitfall" style="font-size:15px;padding:8px 12px;gap:10px">Two columns interleave line by line. The table loses its rows and columns.</div>
+    </div>
+    <div class="panel tight k-state" data-step="2" data-fx="up" style="height:232px">
+      <h4>Layout parser <span class="tiny">Docling → Markdown</span></h4>
+      <pre class="mono" style="margin:0;font-size:14px;line-height:1.45;color:var(--ink-2)"># Revenue by region
+Revenue rose in EMEA and APAC.
+
+| Region | Q1  | Q2  |
+|--------|-----|-----|
+| EMEA   | 4.1 | 4.6 |
+| APAC   | 3.2 | 3.9 |</pre>
+      <p class="tiny">Reading order is kept. The table is one unit. Illustrative page.</p>
+    </div>
+    <div class="panel tight k-model" data-step="3" data-fx="up" style="height:232px">
+      <h4>VLM tier <span class="tiny">hard pages only</span></h4>
+      <div class="row middle" style="gap:14px">
+        <svg viewBox="0 0 120 80" width="120" height="80" aria-label="bar chart">
+          <line x1="4" y1="76" x2="116" y2="76" style="stroke:var(--muted)"/>
+          <rect x="14" y="40" width="20" height="36" rx="2" style="fill:var(--model)"/>
+          <rect x="50" y="22" width="20" height="54" rx="2" style="fill:var(--model)"/>
+          <rect x="86" y="10" width="20" height="66" rx="2" style="fill:var(--model)"/>
+        </svg>
+        <span style="font:700 26px var(--f-mono);color:var(--model)">→</span>
+        <pre class="mono" style="margin:0;font-size:14px;line-height:1.45;color:var(--ink-2)">| Year | Units |
+|------|-------|
+| Y1   | 36    |
+| Y2   | 54    |
+| Y3   | 66    |</pre>
+      </div>
+      <p class="tiny">A VLM reads the chart and writes a table. Send only tables, charts and scans to this tier, because it costs more per page.</p>
+    </div>
+  </div>
+  <div class="grid fill" style="grid-template-columns:700px 1fr;gap:24px">
+    <div class="code-wrap" data-fx="up"><div class="code-head">parse.py · Docling README quickstart</div>
+<pre class="code sm" data-lang="python" data-focus="4:4-5, 5:6-7, 6:8-10"><code>
+from docling.document_converter import DocumentConverter
+
+source = "https://arxiv.org/pdf/2408.09869"  # local path or URL
+converter = DocumentConverter()
+result = converter.convert(source)   # layout, tables, OCR
+md = result.document.export_to_markdown()  # -> Markdown
+print(md)
+# CLI: default pipeline, then the GraniteDocling VLM
+# $ docling https://arxiv.org/pdf/2206.01062
+# $ docling --pipeline vlm --vlm-model granite_docling &lt;url&gt;
+</code></pre></div>
+    <table class="t" style="font-size:15.5px;line-height:1.32" data-fx="up">
+      <tr><th style="width:150px">Parser</th><th>What it gives you (Oct 2026)</th></tr>
+      <tr data-on="2:hot"><td><a class="cite repo" href="https://github.com/docling-project/docling" target="_blank" rel="noopener"><b>Repo</b>&nbsp;Docling</a></td><td>MIT, LF AI &amp; Data (from IBM Research Zurich). PDF, DOCX, PPTX, XLSX, HTML, EPUB, images, audio, LaTeX. Layout, reading order, tables, OCR, MCP server. Python 3.10+ (arXiv 2408.09869).</td></tr>
+      <tr><td><a class="cite doc" href="https://docs.unstructured.io/open-source/core-functionality/chunking" target="_blank" rel="noopener"><b>Doc</b>&nbsp;Unstructured</a></td><td>Typed elements: <code>Title</code>, <code>NarrativeText</code>, <code>Table</code>, <code>ListItem</code>. <code>by_title</code> never spans two sections. <code>max_characters</code> 500. Tables stay isolated; <code>orig_elements</code> kept.</td></tr>
+      <tr data-on="3:hot"><td><a class="cite doc" href="https://developers.llamaindex.ai/python/cloud/llamaparse/" target="_blank" rel="noopener"><b>Doc</b>&nbsp;LlamaParse</a></td><td>v2 tiers: <code>fast</code>, <code>cost_effective</code>, <code>agentic</code>, <code>agentic_plus</code>.</td></tr>
+      <tr data-on="3:hot"><td><a class="cite doc" href="https://ai.google.dev/gemini-api/docs/document-processing" target="_blank" rel="noopener"><b>Doc</b>&nbsp;Gemini</a></td><td>1,000 pages and 50 MB per PDF; 258 tokens per page. Converts pages to Markdown, or skips chunking for a small corpus.</td></tr>
+    </table>
+  </div>
+  <aside class="notes">Show the same illustrative page three ways. Step 1: pdftotext reads straight across the page, so the two columns interleave and the table becomes a row of loose numbers. Step 2: a layout parser such as Docling keeps the reading order and writes a real Markdown table. Step 3: a VLM tier (GraniteDocling, LlamaParse agentic, Gemini) reads charts, but it costs more per page, so route only the hard pages to it. Steps 4 to 6 walk the Docling quickstart: convert, export to Markdown, then the CLI with the VLM pipeline. Analogy: a photocopy of a newspaper read left to right across both columns. Likely interview question: "When do you pay for VLM parsing?" Answer: when tables, charts or scans carry the answer; measure retrieval on those pages before and after.</aside>
+</section>

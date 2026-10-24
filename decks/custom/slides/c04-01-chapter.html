@@ -1,0 +1,122 @@
+<section class="slide chapter tight" id="custom-c04-chapter" data-tone="agent" data-title="04 Retrieval-augmented generation">
+  <div class="ch-num" data-fx="blur">04</div>
+  <svg class="interactive" id="c04ch-svg" viewBox="0 0 1000 230" width="1000" height="230" aria-label="A document splits into chunks, the chunks go into an index, and a query pulls three chunks into the model context"></svg>
+  <h2 class="display" style="font-size:62px">RAG gives the model fresh, private and citable knowledge at run time</h2>
+  <p class="lede" data-fx="up">Retrieval changes the tokens in the window, not the weights. It wins when knowledge is large, changing, permissioned or needs citations.</p>
+  <div class="tags" data-step="1" data-fx="stagger">
+    <span class="tag t-agent">hybrid search</span>
+    <span class="tag t-state">contextual retrieval</span>
+    <span class="tag t-model">reranking</span>
+    <span class="tag t-tool new">Vertex AI RAG Engine</span>
+    <span class="tag t-agent">agentic RAG</span>
+    <span class="tag t-model">RAFT</span>
+  </div>
+  <div class="callout tip" data-step="2" style="max-width:1100px">First check the size. If the knowledge base is “smaller than 200,000 tokens”, Anthropic suggests that you put all of it in the prompt and use prompt caching.</div>
+  <aside class="notes">
+    This chapter is about the second big lever: change what the model reads, not what it is. RAG splits documents into chunks, indexes them, and at query time pulls the few chunks that matter into the context window. An analogy: fine-tuning is studying for the exam; RAG is an open-book exam with a good librarian. Step 1 shows the toolbox for this chapter. Step 2 is the sanity check that saves weeks: under about 200k tokens, put the whole corpus in the prompt and cache it. A likely student question: "Does long context make RAG obsolete?" Answer: not for large, changing or permissioned corpora, and not when you need citations per chunk.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c04-chapter";
+  let tl = null, chunks = [], q = {}, tweens = [];
+  const SLOTS = [[395, 72], [475, 72], [395, 106], [475, 106], [395, 140], [475, 140]];
+  const PICK = [1, 2, 4];
+  const WIN = [[725, 92], [725, 122], [725, 152]];
+
+  function el(tag, attrs, parent) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+
+  function build(svg) {
+    svg.innerHTML = "";
+    // document
+    const doc = el("g", { id: "c04ch-doc" }, svg);
+    el("path", { d: "M20,30 h78 l22,22 v148 h-100 z", fill: "var(--surface-2)", stroke: "var(--muted)", "stroke-width": 2 }, doc);
+    el("path", { d: "M98,30 v22 h22", fill: "none", stroke: "var(--muted)", "stroke-width": 2 }, doc);
+    for (let i = 0; i < 9; i++) el("rect", { x: 32, y: 62 + i * 14, width: i % 3 === 2 ? 52 : 76, height: 4, rx: 2, fill: "var(--line-2)" }, doc);
+    el("text", { x: 70, y: 222, "text-anchor": "middle", fill: "var(--muted)", "font-family": "var(--f-mono)", "font-size": 15 }, doc).textContent = "document";
+    // index cylinder
+    const cyl = el("g", { id: "c04ch-cyl" }, svg);
+    el("path", { d: "M360,42 v150 a110,22 0 0 0 220,0 v-150", fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 2 }, cyl);
+    el("ellipse", { cx: 470, cy: 42, rx: 110, ry: 22, fill: "var(--surface-2)", stroke: "var(--state)", "stroke-width": 2 }, cyl);
+    el("text", { x: 470, y: 47, "text-anchor": "middle", fill: "var(--state)", "font-family": "var(--f-mono)", "font-size": 15, "font-weight": 600 }, cyl).textContent = "index";
+    // context window + model
+    q.win = el("rect", { x: 705, y: 70, width: 120, height: 125, rx: 12, fill: "none", stroke: "var(--model)", "stroke-width": 1.5, "stroke-dasharray": "6 6", opacity: 0 }, svg);
+    q.winT = el("text", { x: 765, y: 62, "text-anchor": "middle", fill: "var(--muted)", "font-family": "var(--f-mono)", "font-size": 14, opacity: 0 }, svg);
+    q.winT.textContent = "context window";
+    q.model = el("g", { opacity: 0.35 }, svg);
+    el("rect", { x: 860, y: 82, width: 130, height: 100, rx: 16, fill: "var(--model-soft)", stroke: "var(--model)", "stroke-width": 2 }, q.model);
+    el("text", { x: 925, y: 138, "text-anchor": "middle", fill: "var(--model)", "font-family": "var(--f-body)", "font-size": 22, "font-weight": 700 }, q.model).textContent = "LLM";
+    q.feed = el("path", { d: "M828,132 L852,132", stroke: "var(--model)", "stroke-width": 2.5, opacity: 0 }, svg);
+    // query pill + arrow
+    q.pill = el("g", { opacity: 0 }, svg);
+    el("rect", { x: 610, y: 4, width: 110, height: 34, rx: 17, fill: "var(--human-soft)", stroke: "var(--human)", "stroke-width": 2 }, q.pill);
+    el("text", { x: 665, y: 27, "text-anchor": "middle", fill: "var(--human)", "font-family": "var(--f-mono)", "font-size": 15, "font-weight": 600 }, q.pill).textContent = "query";
+    q.arrow = el("path", { d: "M610,24 C585,28 590,48 575,60", fill: "none", stroke: "var(--human)", "stroke-width": 2.5, opacity: 0 }, svg);
+    // chunks (start on the document)
+    chunks = SLOTS.map((s, i) => el("rect", { x: 30, y: 58 + i * 21, width: 70, height: 20, rx: 5, fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 2, opacity: 0 }, svg));
+  }
+
+  function setChunks(n) {
+    chunks.forEach((c, i) => {
+      const k = PICK.indexOf(i);
+      const [x, y] = n >= 1 && k >= 0 ? WIN[k] : SLOTS[i];
+      c.setAttribute("x", x); c.setAttribute("y", y); c.setAttribute("opacity", 1);
+      c.setAttribute("stroke-width", n >= 1 && k >= 0 ? 3 : 2);
+    });
+  }
+
+  function render(n, animate) {
+    if (tl) { tl.progress(1); tl.kill(); tl = null; }
+    tweens.forEach((t) => t.kill()); tweens = [];
+    const on = n >= 1;
+    const vis = [q.pill, q.arrow, q.win, q.winT, q.feed];
+    if (!animate) {
+      setChunks(n);
+      vis.forEach((v) => v.setAttribute("opacity", on ? 1 : 0));
+      q.model.setAttribute("opacity", on ? 1 : 0.35);
+      return;
+    }
+    const t = gsap.timeline();
+    t.to(vis.slice(0, 2), { attr: { opacity: on ? 1 : 0 }, duration: 0.4 });
+    t.to([q.win, q.winT], { attr: { opacity: on ? 1 : 0 }, duration: 0.4 }, "<");
+    chunks.forEach((c, i) => {
+      const k = PICK.indexOf(i);
+      if (k < 0) return;
+      const [x, y] = on ? WIN[k] : SLOTS[i];
+      t.to(c, { attr: { x, y, "stroke-width": on ? 3 : 2 }, duration: 0.8, ease: "power3.inOut" }, 0.3 + k * 0.12);
+    });
+    t.to(q.feed, { attr: { opacity: on ? 1 : 0 }, duration: 0.3 });
+    t.to(q.model, { attr: { opacity: on ? 1 : 0.35 }, duration: 0.4 }, "<");
+    tweens.push(t);
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) {
+      const svg = slide.querySelector("#c04ch-svg");
+      build(svg);
+      if (step >= 1) { render(step, false); return; }
+      tl = gsap.timeline({ delay: 0.3 });
+      tl.from("#c04ch-doc", { opacity: 0, y: 12, duration: 0.5 });
+      tl.from("#c04ch-cyl", { opacity: 0, scale: 0.9, svgOrigin: "470 110", duration: 0.6 }, "<0.2");
+      tl.to(chunks, { attr: { opacity: 1 }, duration: 0.25, stagger: 0.07 });
+      tl.to(chunks, { attr: { x: 160, y: (i) => 20 + i * 32 }, duration: 0.55, ease: "power2.out", stagger: 0.06 });
+      tl.to(chunks, { attr: { x: (i) => SLOTS[i][0], y: (i) => SLOTS[i][1] }, duration: 0.8, ease: "power3.inOut", stagger: 0.08 }, "+=0.1");
+    },
+    step(slide, n, animate) {
+      if (!chunks.length) return;
+      render(n, animate);
+    },
+    leave() {
+      if (tl) tl.kill(); tl = null;
+      tweens.forEach((t) => t.kill()); tweens = [];
+      gsap.killTweensOf(chunks);
+    },
+  });
+})();
+</script>

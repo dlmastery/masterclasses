@@ -1,0 +1,73 @@
+<section class="slide" id="rag-c04-query-transforms" data-tone="agent" data-title="Query transformations">
+  <h2 class="title">Rewrite the query when the user's words do not match the documents, then measure end to end</h2>
+  <div class="grid g5" style="gap:18px">
+    <div class="panel tight k-agent" data-step="1">
+      <h4>Multi-query</h4>
+      <div class="stack" style="gap:5px"><span class="tag t-human">1 question</span><span class="tag t-model">LLM → 3 versions</span><span class="tag t-agent">unique union</span></div>
+      <p class="tiny">LangChain default: "generate 3 different versions".</p>
+    </div>
+    <div class="panel tight k-agent" data-step="2">
+      <h4>RAG-Fusion</h4>
+      <div class="stack" style="gap:5px"><span class="tag t-human">1 question</span><span class="tag t-model">LLM → N rewrites</span><span class="tag t-agent">RRF fuse, k = 60</span></div>
+      <p class="tiny">Multi-query plus RRF in place of a plain union.</p>
+    </div>
+    <div class="panel tight k-agent" data-step="3">
+      <h4>HyDE</h4>
+      <div class="stack" style="gap:5px"><span class="tag t-human">question</span><span class="tag t-model">LLM → fake answer</span><span class="tag t-agent">embed the answer</span></div>
+      <p class="tiny">ACL 2023. The "dense bottleneck" filters fake detail.</p>
+    </div>
+    <div class="panel tight k-agent" data-step="4">
+      <h4>Step-back</h4>
+      <div class="stack" style="gap:5px"><span class="tag t-human">specific question</span><span class="tag t-model">LLM → the principle</span><span class="tag t-agent">retrieve for both</span></div>
+      <p class="tiny">PaLM-2L: TimeQA +27%, MuSiQue +7%, Chemistry +11%.</p>
+    </div>
+    <div class="panel tight k-agent" data-step="5">
+      <h4>Decomposition</h4>
+      <div class="stack" style="gap:5px"><span class="tag t-human">multi-hop question</span><span class="tag t-model">LLM → sub-questions</span><span class="tag t-agent">answer one by one</span></div>
+      <p class="tiny">Least-to-Most, Self-Ask. The seed of agentic RAG.</p>
+    </div>
+  </div>
+  <div class="row fill" style="gap:24px;align-items:stretch">
+    <div class="stack" style="width:688px;gap:14px">
+      <div class="panel tight k-state" data-step="6">
+        <h4>Self-query and conversational rewrite</h4>
+        <p class="tiny">"sci-fi movies rated above 8.5 from the 90s" → <code>query="sci-fi"</code> + filter <code>rating &gt; 8.5 AND 1990 &lt;= year &lt; 2000</code> (<code>SelfQueryRetriever</code> + <code>AttributeInfo</code>). "what about its price?" → one standalone query from the chat history.</p>
+        <p class="tiny c-risk"><b class="c-risk">Rule:</b> apply tenant and ACL filters server-side and deterministically. Never let the LLM set them.</p>
+      </div>
+      <div class="callout pitfall" data-step="7">
+        <div class="stack" style="gap:8px;flex:1">
+          <span class="small">Medrano et al., arXiv 2603.02153 (2026): fusion gains "mostly disappear after re-ranking and context truncation". The lesson: "retrieval-level improvements do not reliably translate into end-to-end gains."</span>
+          <div data-step="7" data-fx="bar" class="stack" style="gap:6px">
+            <div class="row" style="gap:10px;align-items:center"><span class="tiny" style="width:150px">Hit@10 before</span><div class="bar" style="flex:1;--aurora:var(--faint)"><i style="--v:51%"></i></div><b class="tiny">0.51</b></div>
+            <div class="row" style="gap:10px;align-items:center"><span class="tiny" style="width:150px">with RAG-Fusion</span><div class="bar" style="flex:1;--aurora:var(--risk)"><i style="--v:48%"></i></div><b class="tiny">0.48</b></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="stack" style="width:680px;gap:14px">
+      <div class="code-wrap" style="width:680px"><div class="code-head">query_transforms.py</div>
+<pre class="code xs" data-lang="python" data-focus="1:6-10, 3:1-5"><code>
+def hyde_search(question, llm, embed, index, k=5):
+    fake_doc = llm("Write a short passage that answers the question.\n"
+                   f"Question: {question}\nPassage:")
+    vec = embed(fake_doc)            # embed the answer-shaped text
+    return index.search(vec, k)      # real docs near the hypothetical one
+from langchain_classic.retrievers.multi_query import MultiQueryRetriever
+mq = MultiQueryRetriever.from_llm(
+    retriever=vectorstore.as_retriever(search_kwargs={"k": 5}),
+    llm=ChatGoogleGenerativeAI(model="gemini-2.5-flash"),
+    include_original=True)           # default False
+</code></pre></div>
+      <div class="cites push">
+        <a class="cite codelab" href="https://codelabs.developers.google.com/codelabs/production-ready-ai-with-gc/8-advanced-rag-methods/advanced-rag-methods" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;Advanced RAG Techniques</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2212.10496" target="_blank" rel="noopener"><b>Paper</b>&nbsp;HyDE</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2310.06117" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Step-back</a>
+        <a class="cite repo" href="https://github.com/Raudaschl/rag-fusion" target="_blank" rel="noopener"><b>Repo</b>&nbsp;rag-fusion</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2603.02153" target="_blank" rel="noopener"><b>Paper</b>&nbsp;RAG-Fusion at scale</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    Query transforms fix a vocabulary gap between how users ask and how documents are written. Multi-query and RAG-Fusion write several rewrites and merge the hits, HyDE embeds a fake answer because answers look more like documents than questions do, step-back asks for the general principle first, and decomposition splits a multi-hop question into steps, which leads into agentic RAG in the next chapter. Self-query turns words into a metadata filter, but the security rule is strict: tenant and ACL filters come from your auth system, never from the model. The "Advanced RAG Techniques" codelab runs HyDE and step-back on Cloud SQL with pgvector, and its whole HyDE prompt is one line: "Write a concise, hypothetical answer to the question." Analogy: a librarian rephrases your question before searching the catalogue. Likely question: "Should I always add RAG-Fusion?" No; the 2026 industry study saw recall gains vanish after reranking and truncation, so every transform costs an LLM call and must earn its place on an end-to-end metric.
+  </aside>
+</section>

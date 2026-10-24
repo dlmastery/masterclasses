@@ -1,0 +1,100 @@
+<section class="slide" id="rag-c03-matryoshka" data-tone="state" data-title="Matryoshka and quantization">
+  <h2 class="title">Matryoshka dimensions and quantization shrink a 123 GB index to under 1 GB</h2>
+  <svg class="interactive" id="rag-c03-mrl-svg" viewBox="0 0 1392 236" width="1392" height="236" aria-label="A 3072-dimension vector shrinks to 768 dimensions, then to int8 and binary, while the index size falls"></svg>
+  <div class="grid g3 fill">
+    <div class="panel tight k-model">
+      <h4>Matryoshka Representation Learning</h4>
+      <p class="small">Train the encoder so that every prefix (the first 64, 128, 256 … dims) is itself a good embedding. Sum the loss over the nested sizes.</p>
+      <p class="small"><i>“up to 14x smaller embedding size … at the same level of accuracy”</i></p>
+      <div class="cites"><a class="cite paper" href="https://arxiv.org/abs/2205.13147" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Kusupati et al., NeurIPS 2022</a></div>
+    </div>
+    <div class="panel tight k-state" data-step="1">
+      <h4>MRL is in every major API in 2026</h4>
+      <ul class="clean small">
+        <li><b>Gemini</b> 128–3072 (use 768 or 1536)</li>
+        <li><b>OpenAI</b> <code>dimensions</code> parameter</li>
+        <li><b>Voyage</b> 256–2048; <code>output_dtype</code> float, int8, uint8, binary, ubinary</li>
+        <li><b>Cohere v4</b> 256–1536 · <b>Qwen3</b> MRL</li>
+      </ul>
+      <div class="cites"><a class="cite doc" href="https://docs.voyageai.com/docs/embeddings" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Voyage embeddings</a></div>
+    </div>
+    <div class="stack">
+      <div class="callout pitfall" data-step="3"><div>Re-normalize after you truncate (OpenAI docs). If you do not, cosine scores are wrong. Never compare truncated vectors with full vectors.</div></div>
+      <div class="callout tip" data-step="4"><div>Funnel retrieval: search with short or binary vectors. Re-score the candidates with the full vectors.</div></div>
+    </div>
+  </div>
+  <aside class="notes">
+    The bar is one 3072-dimension embedding; each cell stands for 32 dimensions, and the counter is the size of an index of 10 million chunks. MRL trains the model so the first 768 dimensions already work as an embedding, so you cut the tail and go from about 123 GB to 31 GB. Then quantization: int8 gives about 7.7 GB, and one bit per dimension gives 96 bytes per vector, about 0.96 GB, 128 times smaller. Analogy: nested Russian dolls; each smaller doll is a complete doll, not a broken piece of the big one. Likely question: "Does binary not destroy accuracy?" Answer: use it only for the first pass, then re-score about 100 candidates with the full vectors, which is the funnel in step 4.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "rag-c03-matryoshka";
+  const X0 = 24, CW = 11.5, Y = 66, H = 44, N = 96;
+  const GB = [123, 31, 7.7, 0.96, 0.96];
+  const SUB = ["3072 dims · float32 (4 B)", "768 dims · float32", "768 dims · int8 (1 B)", "768 bits = 96 B · ~128× smaller", "768 bits = 96 B · ~128× smaller"];
+  let built = false, cells = [], dolls = [], cnt, sub, funnel, all = [], val = { v: 123 };
+  const mk = (tag, attrs, parent) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    parent.appendChild(e); return e;
+  };
+  const txt = (parent, x, y, s, style, fill, anchor) => { const t = mk("text", { x, y, fill: fill || "var(--ink-2)", style, "text-anchor": anchor || "start" }, parent); t.textContent = s; return t; };
+  const fmt = (v) => (v >= 10 ? v.toFixed(0) : v >= 1 ? v.toFixed(1) : v.toFixed(2)) + " GB";
+  function build(slide) {
+    const svg = slide.querySelector("#rag-c03-mrl-svg");
+    svg.innerHTML = "";
+    txt(svg, X0, 18, "one embedding · each cell = 32 dims", "font: 600 15px var(--f-mono)", "var(--muted)");
+    dolls = [[96, 16, "3072"], [48, 12, "1536"], [24, 8, "768"], [8, 4, "256"]].map(([n, p, l]) => {
+      const g = mk("g", {}, svg);
+      mk("rect", { x: X0 - p, y: Y - p, width: n * CW - 1.5 + 2 * p, height: H + 2 * p, rx: 10 + p, fill: "none", stroke: "var(--state)", "stroke-width": 1.5, "stroke-dasharray": "6 5", opacity: 0.6 }, g);
+      txt(g, X0 + n * CW - 4 + p, Y - p - 6, l, "font: 700 14px var(--f-mono)", "var(--state)", "end");
+      return g;
+    });
+    cells = Array.from({ length: N }, (_, i) => mk("rect", { x: X0 + i * CW, y: Y, width: CW - 1.5, height: H, rx: 2, fill: "var(--state)", opacity: 0.85 }, svg));
+    cnt = txt(svg, 1200, 98, "123 GB", "font: 700 60px var(--f-display); letter-spacing: -0.04em", "var(--state)");
+    txt(svg, 1200, 126, "index of 10M chunks", "font: 600 15px var(--f-mono)", "var(--muted)");
+    sub = txt(svg, 1200, 150, SUB[0], "font: 600 14px var(--f-mono)", "var(--ink-2)");
+    funnel = mk("g", {}, svg);
+    const box = (x, w, t1, t2, tone) => {
+      mk("rect", { x, y: 166, width: w, height: 58, rx: 12, fill: "var(--surface-2)", stroke: tone, "stroke-width": 2 }, funnel);
+      txt(funnel, x + 16, 190, t1, "font: 700 17px var(--f-body)", "var(--ink)");
+      txt(funnel, x + 16, 213, t2, "font: 500 14px var(--f-mono)", "var(--muted)");
+    };
+    const arrow = (x1, x2, l) => {
+      mk("line", { x1, y1: 195, x2: x2 - 8, y2: 195, stroke: "var(--agent)", "stroke-width": 2.5 }, funnel);
+      mk("path", { d: `M${x2 - 12} 188 L${x2} 195 L${x2 - 12} 202 Z`, fill: "var(--agent)" }, funnel);
+      txt(funnel, (x1 + x2) / 2, 186, l, "font: 700 14px var(--f-mono)", "var(--agent)", "middle");
+    };
+    box(24, 330, "1 · binary search, 10M vectors", "768 bits = 96 B per vector", "var(--state)");
+    arrow(354, 494, "100 candidates");
+    box(494, 360, "2 · re-score with full vectors", "3072 dims · float32 · cosine", "var(--state)");
+    arrow(854, 994, "top 10");
+    box(994, 180, "3 · send to rerank", "or to the prompt", "var(--agent)");
+    all = [...cells, ...dolls, cnt, sub, funnel, val];
+    built = true;
+  }
+  function render(n, animate) {
+    const d = animate ? 0.7 : 0;
+    cells.forEach((c, i) => {
+      const keep = n === 0 || i < 24;
+      const bit = (i * 5) % 3 !== 0;
+      let h = H, op = keep ? 0.85 : 0.07;
+      if (keep && n >= 2 && i < 24) op = 0.55;
+      if (keep && n >= 3 && i < 24) { h = 10; op = bit ? 1 : 0.2; }
+      gsap.to(c, { attr: { height: h, y: Y + (H - h) / 2, opacity: op }, duration: d, delay: animate ? (i % 24) * 0.01 : 0, ease: "power2.inOut", overwrite: "auto" });
+    });
+    dolls.forEach((g, k) => gsap.to(g, { opacity: n >= 1 ? (k === 2 ? 1 : 0.35) : (k === 0 ? 1 : 0.5), duration: d, overwrite: "auto" }));
+    sub.textContent = SUB[Math.min(n, 4)];
+    gsap.to(val, { v: GB[Math.min(n, 4)], duration: animate ? 1 : 0, ease: "power2.out", overwrite: "auto", onUpdate: () => { cnt.textContent = fmt(val.v); } });
+    cnt.textContent = animate ? cnt.textContent : fmt(GB[Math.min(n, 4)]);
+    gsap.to(funnel, { autoAlpha: n >= 4 ? 1 : 0, y: n >= 4 ? 0 : 16, duration: d, overwrite: "auto" });
+  }
+  Deck.register(ID, {
+    enter(slide, step) { build(slide); val.v = GB[Math.min(step, 4)]; render(step, false); },
+    step(slide, n, animate) { if (built) render(n, animate); },
+    leave() { gsap.killTweensOf(all); built = false; }
+  });
+})();
+</script>

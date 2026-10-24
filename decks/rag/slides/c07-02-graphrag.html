@@ -1,0 +1,139 @@
+<section class="slide" id="rag-c07-graphrag" data-tone="state" data-title="Microsoft GraphRAG">
+  <h2 class="title sm">GraphRAG extracts an entity graph, clusters it with Leiden and summarizes every community</h2>
+  <div class="grid fill" style="grid-template-columns:760px 1fr;gap:28px">
+    <div class="stack" style="gap:14px">
+      <svg id="c7g-svg" class="interactive" viewBox="0 0 760 272" width="760" height="272" aria-label="GraphRAG indexing: chunks, entities, edges, Leiden communities, reports">
+        <g class="hulls"></g><g class="edges"></g><g class="chunks"></g><g class="nodes"></g><g class="reports"></g>
+        <text class="ctr" x="582" y="266" style="font:700 15px var(--f-mono);fill:var(--model)">LLM calls: 0</text>
+      </svg>
+      <table class="t" data-step="6" style="font-size:16px">
+        <tr><th>Query mode</th><th>How it works</th><th>Result</th></tr>
+        <tr><td>global (default)</td><td>map-reduce over community reports, <code>--community-level 2</code></td><td>72–83% comprehensiveness win vs vector RAG</td></tr>
+        <tr><td>local</td><td>nearest entities → edges, text units, reports</td><td>"Who is X, how is X related to Y?"</td></tr>
+        <tr data-on="7:hot"><td>DRIFT</td><td>primer over top-K reports, then local follow-ups</td><td>beats local: 78% comprehensiveness, 81% diversity</td></tr>
+        <tr><td>basic</td><td>vector top-k over text units</td><td>baseline</td></tr>
+      </table>
+      <p class="tiny" data-step="6">Root-level (C0) reports use "over 97% fewer tokens" than map-reduce over source text. Dynamic community selection cuts tokens by 77% at comparable quality. DRIFT test: 5,000+ AP news articles.</p>
+    </div>
+    <div class="stack" style="gap:14px">
+      <div style="position:relative;height:300px">
+        <ol class="seq small" data-until="6" style="gap:10px">
+          <li data-step="1"><b>Compose TextUnits.</b> Default 1200 tokens (paper: 600, overlap 100).</li>
+          <li data-step="2"><b>Extract.</b> An LLM finds entities and relationships per chunk. FastGraphRAG uses NLP.</li>
+          <li data-step="3"><b>Summarize.</b> An LLM merges each entity description over all mentions.</li>
+          <li data-step="4"><b>Cluster.</b> Hierarchical Leiden makes levels C0 (few, big) to C3 (many, small). No LLM.</li>
+          <li data-step="5"><b>Report.</b> An LLM writes a report per community per level. Then embed. Output: parquet.</li>
+        </ol>
+        <div class="code-wrap term" data-step="6" style="position:absolute;inset:0 0 auto 0"><div class="code-head">terminal · getting started</div>
+<pre class="code xs" data-lang="bash" data-focus="6:5-5, 7:7-10"><code>
+$ python -m pip install graphrag  # 3.3.0 (8 Oct 2026)
+$ graphrag init                   # .env, settings.yaml, input/
+$ curl https://www.gutenberg.org/cache/epub/24022/pg24022.txt \
+    -o ./input/book.txt           # GRAPHRAG_API_KEY in .env
+$ graphrag index                  # --method standard | fast
+$ graphrag query "What are the top themes in this story?"
+$ graphrag query --method local \
+    "Who is Scrooge and what are his main relationships?"
+$ graphrag query --method drift \
+    "How does Scrooge change, and why?"
+</code></pre></div>
+      </div>
+      <div class="callout pitfall" data-step="5"><div><b>Cost is set by corpus size, not query count.</b> Every chunk, entity and report is an LLM call: about 1000x the cost of vector indexing. The repo is "largely in maintenance mode". Run <code>graphrag init --force</code> between minor versions.</div></div>
+      <div class="cites">
+        <a class="cite paper" href="https://arxiv.org/abs/2404.16130" target="_blank" rel="noopener"><b>Paper</b>&nbsp;From Local to Global (Edge et al.)</a>
+        <a class="cite repo" href="https://github.com/microsoft/graphrag" target="_blank" rel="noopener"><b>Repo</b>&nbsp;microsoft/graphrag</a>
+        <a class="cite doc" href="https://microsoft.github.io/graphrag/index/default_dataflow/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Default Dataflow</a>
+        <a class="cite doc" href="https://www.microsoft.com/en-us/research/blog/introducing-drift-search-combining-global-and-local-search-methods-to-improve-quality-and-efficiency/" target="_blank" rel="noopener"><b>Blog</b>&nbsp;Introducing DRIFT Search</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Walk the index pipeline one phase at a time and watch the LLM-call counter. Chunks first; then an LLM reads every chunk and pulls out entities and relationships; then an LLM merges the descriptions of each entity. Leiden is plain graph maths with no LLM: it finds dense groups, then groups of groups, so you get levels from C0 at the top to C3 at the bottom. Then the expensive part: one LLM report for every community at every level. Analogy: a newsroom that writes a briefing for every desk, every department and the whole paper before anyone asks a question. Global search map-reduces over those briefings; local search starts from entities; DRIFT mixes the two. Likely question: "Why is it so expensive?" Because every LLM phase scales with the corpus, which is about 1000x vector indexing, and the project is now in maintenance mode.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const CH = 6;
+  const N = [[205,48],[268,42],[255,98],[210,190],[272,182],[240,235],[292,228],[420,52],[482,70],[440,108],[430,190],[495,180],[470,235],[410,240]];
+  const COM = [0,0,0,1,1,1,1,2,2,2,3,3,3,3];
+  const SHADE = ["var(--state)", "color-mix(in oklab, var(--state) 60%, var(--ink))", "color-mix(in oklab, var(--state) 55%, var(--surface-2))", "color-mix(in oklab, var(--state) 35%, var(--ink))"];
+  const E = [[0,1],[1,2],[0,2],[3,4],[4,6],[3,5],[5,6],[7,8],[8,9],[7,9],[10,11],[11,12],[12,13],[10,13],[2,4],[1,7],[9,11],[6,12]];
+  const H2 = [[237,70,52],[251,208,56],[450,80,50],[452,210,58]];
+  const H1 = [[246,139,84,130],[452,145,90,130]];
+  const REP = ["C2 · c1", "C2 · c2", "C2 · c3", "C2 · c4", "C1 · c1+c2", "C1 · c3+c4", "C0 · root"];
+  const mk = (tag, attrs, style) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (style) e.setAttribute("style", style); return e; };
+  function build(slide) {
+    const svg = slide.querySelector("#c7g-svg");
+    if (svg._b) return svg._b;
+    const b = { chunks: [], nodes: [], fills: [], edges: [], h2: [], h1: [], h0: null, chips: [], cards: [], ctr: svg.querySelector(".ctr") };
+    for (let i = 0; i < CH; i++) {
+      const g = mk("g", {});
+      g.appendChild(mk("rect", { x: 6, y: 14 + i * 40, width: 112, height: 30, rx: 6 }, "fill:var(--state-soft);stroke:var(--state);stroke-width:1.5"));
+      const t = mk("text", { x: 16, y: 34 + i * 40 }, "font:600 12px var(--f-mono);fill:var(--ink-2)"); t.textContent = "TextUnit " + (i + 1);
+      g.appendChild(t); svg.querySelector(".chunks").appendChild(g); b.chunks.push(g);
+    }
+    E.forEach(([a, c]) => {
+      const L = Math.hypot(N[a][0] - N[c][0], N[a][1] - N[c][1]);
+      const l = mk("line", { x1: N[a][0], y1: N[a][1], x2: N[c][0], y2: N[c][1] }, "stroke:var(--line-2);stroke-width:2;stroke-dasharray:" + L + ";stroke-dashoffset:" + L);
+      l._L = L; svg.querySelector(".edges").appendChild(l); b.edges.push(l);
+    });
+    N.forEach((p, i) => {
+      const src = [118, 29 + (i % CH) * 40];
+      const g = mk("g", {});
+      const base = mk("circle", { cx: src[0], cy: src[1], r: 11 }, "fill:var(--surface-2);stroke:var(--state);stroke-width:2");
+      const fill = mk("circle", { cx: src[0], cy: src[1], r: 11 }, "fill:" + SHADE[COM[i]] + ";opacity:0");
+      g.appendChild(base); g.appendChild(fill); svg.querySelector(".nodes").appendChild(g);
+      b.nodes.push({ g, base, fill, src, p });
+    });
+    const hg = svg.querySelector(".hulls");
+    H2.forEach(([cx, cy, r]) => { const c = mk("circle", { cx, cy, r }, "fill:var(--state-soft);stroke:var(--state);stroke-width:1.5;stroke-dasharray:5 5;opacity:0"); hg.appendChild(c); b.h2.push(c); });
+    H1.forEach(([cx, cy, rx, ry]) => { const c = mk("ellipse", { cx, cy, rx, ry }, "fill:none;stroke:var(--state);stroke-width:2;stroke-dasharray:9 6;opacity:0"); hg.appendChild(c); b.h1.push(c); });
+    b.h0 = mk("rect", { x: 152, y: 3, width: 400, height: 266, rx: 22 }, "fill:none;stroke:var(--ink-2);stroke-width:2;stroke-dasharray:2 6;opacity:0"); hg.appendChild(b.h0);
+    const rg = svg.querySelector(".reports");
+    ["C2", "C1", "C0"].forEach((lv, k) => {
+      const t = mk("text", { x: 582 + k * 58, y: 20 }, "font:700 13px var(--f-mono);fill:var(--faint)"); t.textContent = "level " + lv;
+      if (k) t.textContent = lv;
+      t.setAttribute("x", [582, 650, 690][k]);
+      rg.appendChild(t); b.chips.push(t);
+    });
+    REP.forEach((r, k) => {
+      const g = mk("g", { opacity: 0 });
+      g.appendChild(mk("rect", { x: 582, y: 34 + k * 31, width: 172, height: 26, rx: 6 }, "fill:var(--surface-2);stroke:var(--state);stroke-width:1.5"));
+      g.appendChild(mk("circle", { cx: 596, cy: 47 + k * 31, r: 5 }, "fill:var(--model)"));
+      const t = mk("text", { x: 608, y: 51 + k * 31 }, "font:600 12px var(--f-mono);fill:var(--ink-2)"); t.textContent = "report " + r;
+      g.appendChild(t); rg.appendChild(g); b.cards.push(g);
+    });
+    svg._b = b;
+    return b;
+  }
+  const calls = (n) => (n >= 5 ? 27 : n >= 3 ? 20 : n >= 2 ? 6 : 0);
+  function setCtr(b, v) { b.ctr.textContent = "LLM calls: " + Math.round(v) + (v >= 27 ? " (toy)" : ""); }
+  function all(b) { return [...b.chunks, ...b.edges, ...b.h2, ...b.h1, b.h0, ...b.chips, ...b.cards, ...b.nodes.flatMap((x) => [x.base, x.fill]), b.ctrP || {}]; }
+  function render(slide, n, animate) {
+    const b = build(slide);
+    gsap.killTweensOf(all(b));
+    const d = animate ? 1 : 0;
+    gsap.to(b.chunks, { opacity: n >= 1 ? 1 : 0, x: n >= 1 ? 0 : -20, duration: d * 0.5, stagger: d * 0.07 });
+    b.nodes.forEach((x, i) => {
+      const [cx, cy] = n >= 2 ? x.p : x.src;
+      gsap.to([x.base, x.fill], { attr: { cx, cy }, duration: d * 0.8, delay: d * i * 0.04, ease: "back.out(1.4)" });
+      gsap.to(x.base, { opacity: n >= 2 ? 1 : 0, duration: d * 0.3, delay: d * i * 0.04 });
+      gsap.to(x.fill, { opacity: n >= 4 ? 1 : 0, duration: d * 0.4, delay: d * (0.1 + i * 0.03) });
+    });
+    b.edges.forEach((l, i) => gsap.to(l, { strokeDashoffset: n >= 3 ? 0 : l._L, duration: d * 0.6, delay: d * i * 0.05 }));
+    const t4 = d ? 0.6 : 0;
+    gsap.to(b.h2, { opacity: n >= 4 ? 1 : 0, duration: d * 0.4, delay: t4 });
+    gsap.to(b.h1, { opacity: n >= 4 ? 1 : 0, duration: d * 0.4, delay: t4 * 2.2 });
+    gsap.to(b.h0, { opacity: n >= 4 ? 1 : 0, duration: d * 0.4, delay: t4 * 3.4 });
+    b.chips.forEach((c, k) => gsap.to(c, { fill: n >= 4 ? "var(--state)" : "var(--faint)", duration: d * 0.2, delay: t4 * (1 + k * 1.2) }));
+    gsap.to(b.cards, { opacity: n >= 5 ? 1 : 0, x: n >= 5 ? 0 : 30, duration: d * 0.45, stagger: d * 0.12 });
+    const p = b.ctrP || (b.ctrP = { v: 0 });
+    gsap.to(p, { v: calls(n), duration: d * 1.2, delay: d * 0.2, ease: "power2.out", onUpdate: () => setCtr(b, p.v), onComplete: () => setCtr(b, p.v) });
+    if (!d) setCtr(b, calls(n));
+  }
+  Deck.register("rag-c07-graphrag", {
+    enter(slide, n) { render(slide, n, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { const s = slide.querySelector("#c7g-svg"); if (s._b) gsap.killTweensOf(all(s._b)); }
+  });
+})();
+</script>

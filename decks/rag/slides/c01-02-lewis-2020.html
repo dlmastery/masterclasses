@@ -1,0 +1,158 @@
+<section class="slide" id="rag-c01-lewis-2020" data-tone="model" data-title="Lewis et al. 2020">
+  <style>
+    #rag-c01-lewis-2020 .lw-row { display: grid; grid-template-columns: 196px 1fr 64px; gap: 12px; align-items: center; }
+    #rag-c01-lewis-2020 .lw-row > span { font: 500 15px/1.2 var(--f-mono); color: var(--ink-2); }
+    #rag-c01-lewis-2020 .lw-row > b { font: 700 17px/1 var(--f-mono); text-align: right; }
+    #rag-c01-lewis-2020 .lw-doc { padding: 6px 12px; min-width: 0; }
+    #rag-c01-lewis-2020 .lw-doc .nt { font-size: 16px; }
+    #rag-c01-lewis-2020 .lw-cap { position: relative; height: 54px; }
+    #rag-c01-lewis-2020 .lw-cap > p { position: absolute; left: 0; top: 0; right: 0; }
+    #rag-c01-lewis-2020 .lw-chip { position: absolute; bottom: -15px; right: 14px; z-index: 2; opacity: 0; }
+    #rag-c01-lewis-2020 .group > .gl { white-space: nowrap; }
+  </style>
+  <h2 class="title">Lewis et al. 2020: a 400M generator plus an index beats an 11B closed-book model</h2>
+  <div class="row fill" style="gap:28px">
+    <div class="stack" style="width:880px;flex:none;gap:12px">
+      <div class="diagram" style="width:880px;height:258px" data-wires="q>enc@1:flow{human}; enc>mips@1:flow{model} [q(x)]; d1>gen@1:flow{state}; d2>gen@1:flow{state}; d3>gen@1:flow{state}">
+        <div class="group g-state" style="left:396px;top:12px;width:224px;height:232px"><span class="gl">Index: 21M passages</span>
+          <span class="tag t-state lw-chip" id="lw-c16">2016 index</span>
+          <span class="tag t-state lw-chip" id="lw-c18">2018 index</span>
+        </div>
+        <div class="node n-human pill" id="q" style="left:0;top:92px;width:110px"><span class="nt">Query x</span></div>
+        <div class="node n-model" id="enc" style="left:170px;top:80px;width:170px"><span class="nt">Query encoder</span><span class="ns">BERT · DPR</span></div>
+        <div class="node n-state" id="mips" style="left:420px;top:30px;width:160px"><span class="nt">MIPS</span><span class="ns">FAISS · top-k</span></div>
+        <div class="node n-state lw-doc" id="d1" style="left:430px;top:116px;width:140px;--nc:var(--state)"><span class="nt">passage z1</span></div>
+        <div class="node n-state lw-doc" id="d2" style="left:430px;top:158px;width:140px;--nc:color-mix(in oklab, var(--state) 55%, var(--ink))"><span class="nt">passage z2</span></div>
+        <div class="node n-state lw-doc" id="d3" style="left:430px;top:200px;width:140px;--nc:color-mix(in oklab, var(--state) 40%, var(--bg))"><span class="nt">passage z3</span></div>
+        <div class="node n-model" id="gen" style="left:690px;top:80px;width:190px"><span class="nt">Generator</span><span class="ns">BART-large ~400M</span></div>
+      </div>
+      <svg id="rag-lw-tokens" viewBox="0 0 880 76" width="880" height="76" aria-label="Answer tokens and the passage that drives each token"></svg>
+      <div class="lw-cap">
+        <p class="small" data-step="1" data-until="2" data-fx="fade">The query encoder makes q(x). MIPS returns the top-k passages z. BART writes the answer y token by token.</p>
+        <p class="small" data-step="2" data-until="3" data-fx="fade"><b>RAG-Sequence.</b> One passage conditions the whole answer: p(y|x) &#8776; &Sigma;<sub>z</sub> p(z|x) &middot; &Pi;<sub>i</sub> p(y<sub>i</sub>|x, z, y<sub>&lt;i</sub>)</p>
+        <p class="small" data-step="3" data-fx="fade"><b>RAG-Token.</b> Each token can use a different passage: p(y|x) &#8776; &Pi;<sub>i</sub> &Sigma;<sub>z</sub> p(z|x) &middot; p(y<sub>i</sub>|x, z, y<sub>&lt;i</sub>). Both marginalize over the top-k.</p>
+      </div>
+      <div class="stack" data-step="4" data-fx="bar" style="gap:7px">
+        <div class="row middle" style="gap:14px"><span class="tiny">Natural Questions, exact match (test, Table 1)</span><span class="tag t-model">~27x smaller generator wins</span></div>
+        <div class="lw-row"><span>T5-11B closed-book</span><div class="bar" style="--aurora:var(--faint)"><i style="--v:69%"></i></div><b data-to="34.5" data-dec="1">0</b></div>
+        <div class="lw-row"><span>REALM</span><div class="bar" style="--aurora:var(--faint)"><i style="--v:80.8%"></i></div><b data-to="40.4" data-dec="1">0</b></div>
+        <div class="lw-row"><span>DPR</span><div class="bar" style="--aurora:var(--faint)"><i style="--v:83%"></i></div><b data-to="41.5" data-dec="1">0</b></div>
+        <div class="lw-row"><span>RAG-Token</span><div class="bar"><i style="--v:88.2%"></i></div><b class="c-model" data-to="44.1" data-dec="1">0</b></div>
+        <div class="lw-row"><span>RAG-Sequence</span><div class="bar"><i style="--v:89%"></i></div><b class="c-model" data-to="44.5" data-dec="1">0</b></div>
+      </div>
+    </div>
+
+    <div class="stack" style="flex:1;gap:14px">
+      <div class="panel tight k-model">
+        <h4>Parametric weights + non-parametric index</h4>
+        <ul class="clean small" style="gap:6px">
+          <li><b>Retriever:</b> DPR, a BERT bi-encoder. Fine-tune the query encoder. Keep the index frozen.</li>
+          <li><b>Generator:</b> BART-large, about 400M parameters.</li>
+          <li><b>Index:</b> 21M Wikipedia passages of 100 words. MIPS search with FAISS.</li>
+        </ul>
+      </div>
+      <div class="stack" data-step="5" data-fx="bar" style="gap:7px">
+        <h4>Hot-swap the index: world-leader questions</h4>
+        <div class="lw-row" style="grid-template-columns:150px 1fr 52px"><span>matched 2016</span><div class="bar" style="--aurora:var(--state)"><i style="--v:70%"></i></div><b class="c-state" data-to="70" data-suf="%">0</b></div>
+        <div class="lw-row" style="grid-template-columns:150px 1fr 52px"><span>matched 2018</span><div class="bar" style="--aurora:var(--state)"><i style="--v:68%"></i></div><b class="c-state" data-to="68" data-suf="%">0</b></div>
+        <div class="lw-row" style="grid-template-columns:150px 1fr 52px"><span>mismatched</span><div class="bar" style="--aurora:var(--risk)"><i style="--v:12%"></i></div><b class="c-risk" data-to="12" data-suf="%">0</b></div>
+        <div class="lw-row" style="grid-template-columns:150px 1fr 52px"><span>mismatched</span><div class="bar" style="--aurora:var(--risk)"><i style="--v:4%"></i></div><b class="c-risk" data-to="4" data-suf="%">0</b></div>
+      </div>
+      <p class="quote" data-step="5" style="font-size:22px">"we can update RAG's world knowledge by simply replacing its non-parametric memory."</p>
+      <div class="stack push" style="gap:8px">
+        <p class="tiny"><b>Lineage:</b> DrQA 2017 &rarr; ORQA 2019 &rarr; REALM, DPR 2020 &rarr; RAG 2020 &rarr; FiD, RETRO 2021 &rarr; prompt RAG with frozen LLMs &rarr; agentic RAG</p>
+        <a class="cite paper" href="https://arxiv.org/abs/2005.11401" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Lewis et al., arXiv 2005.11401 (NeurIPS 2020)</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">This is the paper that named RAG: Lewis et al., FAIR, UCL and NYU, NeurIPS 2020. Step 1 draws the pipeline: query encoder, MIPS over 21M passages, top-k passages, BART generator. Steps 2 and 3 show the two variants: RAG-Sequence keeps one passage for the whole answer, RAG-Token lets each token use a different passage; both sum over the top-k. Step 4 is the headline: a 400M generator with an index gets 44.5 exact match on Natural Questions, against 34.5 for closed-book T5-11B, a model about 27 times larger. Step 5 is the experiment to remember: swap the 2016 index for the 2018 index and the answers change with it, no retraining. Analogy: the weights are what you remember, the index is your notebook. Likely question: "Is the retriever trained end to end?" Only the query encoder is fine-tuned; the document encoder and the index stay frozen, so the index never needs a rebuild during training.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const TOK = ["The", "Eiffel", "Tower", "is", "in", "Paris", ",", "France"];
+  const BY_TOKEN = [0, 1, 1, 0, 2, 2, 2, 1];          // RAG-Token: passage index per token (deterministic)
+  const FILL = ["var(--state)", "color-mix(in oklab, var(--state) 55%, var(--ink))", "color-mix(in oklab, var(--state) 40%, var(--bg))"];
+  const INK = ["#fff", "#fff", "var(--ink)"];
+  let S = null;
+
+  function build(slide) {
+    const svg = slide.querySelector("#rag-lw-tokens");
+    svg.innerHTML = "";
+    const lead = document.createElementNS(NS, "text");
+    lead.setAttribute("x", 0); lead.setAttribute("y", 31);
+    lead.setAttribute("style", "font:600 17px var(--f-mono);fill:var(--muted)");
+    lead.textContent = "answer y =";
+    svg.appendChild(lead);
+    let x = 118;
+    const items = TOK.map((t, i) => {
+      const w = 24 + t.length * 13;
+      const g = document.createElementNS(NS, "g");
+      const r = document.createElementNS(NS, "rect");
+      r.setAttribute("x", x); r.setAttribute("y", 6); r.setAttribute("width", w); r.setAttribute("height", 40); r.setAttribute("rx", 9);
+      r.setAttribute("style", "fill:var(--surface-2);stroke:var(--line-2);stroke-width:1.5;transition:fill .5s ease, stroke .5s ease");
+      const tx = document.createElementNS(NS, "text");
+      tx.setAttribute("x", x + w / 2); tx.setAttribute("y", 32); tx.setAttribute("text-anchor", "middle");
+      tx.setAttribute("style", "font:600 18px var(--f-mono);fill:var(--ink);transition:fill .5s ease");
+      tx.textContent = t;
+      const lb = document.createElementNS(NS, "text");
+      lb.setAttribute("x", x + w / 2); lb.setAttribute("y", 68); lb.setAttribute("text-anchor", "middle");
+      lb.setAttribute("style", "font:600 14px var(--f-mono);fill:var(--muted)");
+      g.append(r, tx, lb); svg.appendChild(g);
+      x += w + 9;
+      return { g, r, tx, lb };
+    });
+    S = { slide, svg, items, docs: ["#d1", "#d2", "#d3"].map((s) => slide.querySelector(s)),
+          c16: slide.querySelector("#lw-c16"), c18: slide.querySelector("#lw-c18"), swapped: false };
+  }
+
+  function render(n, animate) {
+    if (!S) return;
+    const d = animate ? 1 : 0;
+    // tokens
+    S.items.forEach((it, i) => {
+      const doc = n >= 3 ? BY_TOKEN[i] : 0;
+      const filled = n >= 2;
+      gsap.to(it.g, { autoAlpha: n >= 1 ? 1 : 0, y: 0, duration: 0.45 * d, delay: animate && n === 1 ? i * 0.07 : 0 });
+      const delay = animate ? i * 0.06 + "s" : "0s";
+      it.r.style.transitionDelay = delay; it.tx.style.transitionDelay = delay;
+      it.r.style.transitionDuration = it.tx.style.transitionDuration = animate ? ".5s" : "0s";
+      it.r.style.fill = filled ? FILL[doc] : "var(--surface-2)";
+      it.r.style.stroke = filled ? FILL[doc] : "var(--line-2)";
+      it.tx.style.fill = filled ? INK[doc] : "var(--ink)";
+      it.lb.textContent = "z" + (doc + 1);
+      gsap.to(it.lb, { autoAlpha: filled ? 1 : 0, duration: 0.4 * d, delay: animate ? i * 0.06 : 0 });
+    });
+    // passages: one lights for RAG-Sequence, all for RAG-Token
+    S.docs.forEach((el, k) => {
+      el.classList.toggle("lit", (n === 2 && k === 0) || n === 3);
+      el.classList.toggle("dim", n === 2 && k > 0);
+    });
+    // hot-swap the index at step 5
+    gsap.killTweensOf([S.c16, S.c18]);
+    if (n >= 5) {
+      if (animate && !S.swapped) {
+        gsap.timeline()
+          .fromTo(S.c16, { autoAlpha: 0, x: 30 }, { autoAlpha: 1, x: 0, duration: 0.4 })
+          .to(S.c16, { autoAlpha: 0, x: -40, duration: 0.45, delay: 0.7 })
+          .fromTo(S.c18, { autoAlpha: 0, x: 40 }, { autoAlpha: 1, x: 0, duration: 0.5, ease: "back.out(1.7)" }, "<0.1");
+      } else { gsap.set(S.c16, { autoAlpha: 0 }); gsap.set(S.c18, { autoAlpha: 1, x: 0 }); }
+      S.swapped = true;
+    } else {
+      gsap.set([S.c16, S.c18], { autoAlpha: 0 });
+      S.swapped = false;
+    }
+  }
+
+  Deck.register("rag-c01-lewis-2020", {
+    enter(slide, n) { build(slide); render(n, false); },
+    step(slide, n, animate) { render(n, animate); },
+    leave() {
+      if (!S) return;
+      S.items.forEach((it) => gsap.killTweensOf([it.g, it.lb]));
+      gsap.killTweensOf([S.c16, S.c18]);
+      S.docs.forEach((el) => el.classList.remove("lit", "dim"));
+    },
+  });
+})();
+</script>

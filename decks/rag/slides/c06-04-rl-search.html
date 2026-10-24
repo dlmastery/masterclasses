@@ -1,0 +1,189 @@
+<section class="slide tight" id="rag-c06-rl-search" data-tone="tool" data-title="RL-trained search agents">
+  <h2 class="title">RL-trained search agents learn when to search from an answer-only reward</h2>
+  <div class="grid fill" style="grid-template-columns:820px 548px;gap:24px">
+    <div class="stack" style="gap:14px">
+      <svg class="interactive" id="c06-rl-svg" viewBox="0 0 820 380" width="820" height="380" aria-label="A Search-R1 rollout with masked retrieved tokens and an exact-match reward flowing back to the policy"></svg>
+      <div class="grid g4" data-step="5" data-fx="stagger" style="gap:20px">
+        <div class="stat" style="--aurora:var(--model)"><span class="n" data-to="24" data-pre="+" data-suf="%">+24%</span><span class="l">Search-R1, Qwen2.5-7B vs RAG (paper v4/v5; v1: +41%)</span></div>
+        <div class="stat" style="--aurora:var(--model)"><span class="n" data-to="20" data-pre="+" data-suf="%">+20%</span><span class="l">Search-R1, Qwen2.5-3B vs RAG, 7 QA sets</span></div>
+        <div class="stat" style="--aurora:var(--agent)"><span class="n" data-to="28.9" data-dec="1" data-pre="+">+28.9</span><span class="l">pts, DeepResearcher vs prompt-engineered agents</span></div>
+        <div class="stat" style="--aurora:var(--agent)"><span class="n" data-to="7.2" data-dec="1" data-pre="+">+7.2</span><span class="l">pts, DeepResearcher vs RAG-based RL agents</span></div>
+      </div>
+      <div class="cites push" data-fx="fade">
+        <a class="cite paper" href="https://arxiv.org/abs/2503.09516" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Search-R1 (arXiv 2503.09516, COLM 2025)</a>
+        <a class="cite repo" href="https://github.com/PeterGriffinJin/Search-R1" target="_blank" rel="noopener"><b>Repo</b>&nbsp;PeterGriffinJin/Search-R1 (Apache-2.0)</a>
+      </div>
+    </div>
+    <div class="stack" style="gap:14px">
+      <h4>Search-R1 <span class="tiny">· UIUC, UMass, Google Cloud AI Research</span></h4>
+      <ul class="ticks small" style="gap:10px">
+        <li data-step="1">The policy writes <code>&lt;search&gt;</code> when it needs evidence. BM25, E5 dense or web search returns <code>&lt;information&gt;</code>.</li>
+        <li data-step="2">The policy picks how many hops to make.</li>
+        <li data-step="3">Tokens in <code>&lt;information&gt;</code> are masked from the loss. The model does not learn to write evidence.</li>
+        <li data-step="4">Reward = exact match of the answer, plus a format check. PPO, GRPO or REINFORCE on veRL.</li>
+      </ul>
+      <ul class="clean tiny" data-step="4" style="gap:6px">
+        <li><b>R1-Searcher</b> (arXiv 2503.05592): two-stage outcome RL. Stage 1 rewards correct search calls and format; stage 2 rewards the answer. No SFT cold start.</li>
+        <li><b>ReSearch</b> (Baichuan, arXiv 2503.19470, NeurIPS 2025): search inside the reasoning chain; it generalizes across datasets. <b>DeepResearcher</b> (arXiv 2504.03160) trains on the live open web.</li>
+      </ul>
+      <div class="code-wrap term push" data-step="5"><div class="code-head">Search-R1 README quick start</div>
+<pre class="code sm" data-lang="bash"><code>
+$ conda activate retriever
+$ bash retrieval_launch.sh   # E5 over Wikipedia
+$ conda activate searchr1
+$ python infer.py            # set `question`, line 7
+</code></pre></div>
+    </div>
+  </div>
+  <aside class="notes">
+    Read the rollout as a transcript the policy writes. It thinks, emits a search, gets passages back from the environment, thinks again and makes a second hop, then answers. Step 3 is the key design choice: the retrieved tokens are masked from the loss, so the gradient trains the decisions and the reasoning, not imitation of Wikipedia text. Step 4: the only reward is exact match on the final answer plus a format check, and GRPO or PPO updates the policy; nobody wrote a rule for when to search. Analogy: you grade a student only on the final answer of an open-book exam, and the student learns by itself when to open the book. Quote the numbers with the paper version: v4/v5 report +24% for the 7B model and +20% for 3B over RAG baselines; v1 said +41%. Likely question: "What can go wrong with the reward?" A format reward can be hacked: the policy can learn to emit valid tags without good answers, so keep exact match as the main signal and read sampled rollouts.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "rag-c06-rl-search";
+  const TONE = { think: "model", search: "tool", information: "state", answer: "agent" };
+  const LINES = [
+    ["think", " need birthplace of X "],
+    ["search", " X birthplace "],
+    ["information", " …top-3 passages… "],
+    ["think", " found Y; now need Y's population "],
+    ["search", " Y population 2020 "],
+    ["information", " … "],
+    ["answer", " 1.2 million "],
+  ];
+  const Y0 = 66, DY = 44;
+  const mk = (tag, a, p, st) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in a) e.setAttribute(k, a[k]);
+    if (st) Object.assign(e.style, st);
+    if (p) p.appendChild(e);
+    return e;
+  };
+  const tx = (p, x, y, s, st, anchor) => {
+    const t = mk("text", { x, y, "text-anchor": anchor || "start" }, p, Object.assign({ font: "500 13px var(--f-mono)", fill: "var(--ink-2)" }, st || {}));
+    t.textContent = s; return t;
+  };
+  const path = (p, d, tone, dash) => mk("path", { d }, p, { fill: "none", stroke: `var(--${tone})`, strokeWidth: 2.4, strokeDasharray: dash ? "6 6" : "none", strokeLinecap: "round" });
+  const arrowHead = (p, x, y, ang, tone) => mk("path", { d: "M0,0 L-10,-6 L-10,6 Z", transform: `translate(${x},${y}) rotate(${ang})` }, p, { fill: `var(--${tone})` });
+
+  function build(slide) {
+    const svg = slide.querySelector("#c06-rl-svg");
+    if (svg._S) return svg._S;
+    svg.innerHTML = "";
+    const S = { svg, lines: [], clips: [], loops: [] };
+    const defs = mk("defs", {}, svg);
+    // static frame
+    mk("rect", { x: 1, y: 1, width: 566, height: 376, rx: 14 }, svg, { fill: "var(--surface)", stroke: "var(--line-2)", strokeWidth: 1.5 });
+    tx(svg, 20, 30, "rollout · Search-R1 template", { font: "600 13px var(--f-mono)", fill: "var(--muted)" });
+    const pol = mk("g", {}, svg);
+    mk("rect", { x: 620, y: 140, width: 192, height: 72, rx: 14 }, pol, { fill: "var(--model-soft)", stroke: "var(--model)", strokeWidth: 2 });
+    tx(pol, 716, 170, "Policy LLM", { font: "700 17px var(--f-body)", fill: "var(--ink)" }, "middle");
+    tx(pol, 716, 194, "Qwen2.5-3B / 7B", { fill: "var(--muted)" }, "middle");
+    S.pol = pol;
+    const ret = mk("g", {}, svg);
+    mk("rect", { x: 620, y: 24, width: 192, height: 64, rx: 14 }, ret, { fill: "var(--tool-soft)", stroke: "var(--tool)", strokeWidth: 2 });
+    tx(ret, 716, 50, "Retriever", { font: "700 17px var(--f-body)", fill: "var(--ink)" }, "middle");
+    tx(ret, 716, 74, "BM25 · E5 · web", { fill: "var(--muted)" }, "middle");
+
+    // trace lines with clip-path typewriter
+    LINES.forEach(([tag, body], i) => {
+      const y = Y0 + i * DY;
+      const cp = mk("clipPath", { id: `c06rl-cp${i}` }, defs);
+      const cr = mk("rect", { x: 0, y: y - 22, width: 0, height: 32 }, cp);
+      const g = mk("g", { "clip-path": `url(#c06rl-cp${i})` }, svg);
+      const t = mk("text", { x: 20, y }, g, { font: "500 14.5px var(--f-mono)" });
+      const a = mk("tspan", {}, t, { fill: `var(--${TONE[tag]})`, fontWeight: 700 }); a.textContent = `<${tag}>`;
+      const b = mk("tspan", {}, t, { fill: "var(--ink)" }); b.textContent = body;
+      const c = mk("tspan", {}, t, { fill: `var(--${TONE[tag]})`, fontWeight: 700 }); c.textContent = `</${tag}>`;
+      S.lines.push({ g, t, cr, tag });
+    });
+
+    // step 1: tool-call wires
+    const w1 = mk("g", {}, svg);
+    path(w1, `M300,${Y0 + DY - 5} C470,${Y0 + DY - 5} 560,56 616,56`, "tool");
+    arrowHead(w1, 618, 56, 0, "tool");
+    path(w1, `M620,72 C590,72 600,${Y0 + 2 * DY - 5} 574,${Y0 + 2 * DY - 5}`, "state", true);
+    arrowHead(w1, 572, Y0 + 2 * DY - 5, 180, "state");
+    path(w1, "M618,176 L574,176", "model", true);
+    arrowHead(w1, 572, 176, 180, "model");
+    tx(w1, 596, 166, "rollout", { font: "600 12px var(--f-mono)", fill: "var(--model)" }, "middle");
+    S.w1 = w1;
+
+    // step 3: mask overlays
+    const m3 = mk("g", {}, svg);
+    [2, 5].forEach((i) => {
+      const y = Y0 + i * DY;
+      mk("rect", { x: 12, y: y - 22, width: 546, height: 32, rx: 7 }, m3, { fill: "var(--faint)", fillOpacity: 0.22, stroke: "var(--muted)", strokeWidth: 1.3, strokeDasharray: "5 5" });
+      tx(m3, 550, y - 1, "masked from loss", { font: "700 12px var(--f-mono)", fill: "var(--ink-2)" }, "end");
+    });
+    S.m3 = m3;
+
+    // step 4: reward loop
+    const r4 = mk("g", {}, svg);
+    const yA = Y0 + 6 * DY - 5;
+    mk("rect", { x: 620, y: 270, width: 192, height: 64, rx: 14 }, r4, { fill: "var(--agent-soft)", stroke: "var(--agent)", strokeWidth: 2 });
+    tx(r4, 716, 296, "reward", { font: "700 17px var(--f-body)", fill: "var(--ink)" }, "middle");
+    tx(r4, 716, 320, "EM(answer, gold)", { fill: "var(--ink-2)" }, "middle");
+    const pA = path(r4, `M298,${yA} C420,${yA} 520,302 616,302`, "agent");
+    arrowHead(r4, 618, 302, 0, "agent");
+    const pB = path(r4, "M716,270 L716,218", "model");
+    arrowHead(r4, 716, 216, -90, "model");
+    tx(r4, 726, 250, "GRPO update", { font: "700 12.5px var(--f-mono)", fill: "var(--model)" });
+    tx(r4, 620, 356, "risk: a format-only reward", { font: "600 12px var(--f-mono)", fill: "var(--risk)" });
+    tx(r4, 620, 372, "can be hacked; keep EM main", { font: "600 12px var(--f-mono)", fill: "var(--risk)" });
+    S.dots = [pA, pB].map((p, k) => ({ p, c: mk("circle", { r: 5.5, cx: -20, cy: -20 }, r4, { fill: k ? "var(--model)" : "var(--agent)", filter: `drop-shadow(0 0 6px var(--${k ? "model" : "agent"}))` }) }));
+    S.r4 = r4;
+
+    [w1, m3, r4].forEach((g) => { g._shown = false; gsap.set(g, { autoAlpha: 0 }); });
+    svg._S = S;
+    return S;
+  }
+
+  function lineWidth(i) { return 30 + S0len(i) * 8.75; }
+  function S0len(i) { const [t, b] = LINES[i]; return (t.length * 2 + 5) + b.length; }
+
+  function setGroup(g, vis, animate) {
+    if (vis && !g._shown) { g._shown = true; gsap.killTweensOf(g); animate ? gsap.fromTo(g, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.5, delay: 0.1 }) : gsap.set(g, { autoAlpha: 1 }); }
+    else if (!vis && g._shown) { g._shown = false; gsap.killTweensOf(g); gsap.to(g, { autoAlpha: 0, duration: 0.25 }); }
+  }
+
+  function render(slide, n, animate) {
+    const S = build(slide);
+    // typewriter lines: 0-2 at step 1, 3-6 at step 2
+    S.lines.forEach((L, i) => {
+      const need = i < 3 ? 1 : 2;
+      const full = lineWidth(i);
+      if (n >= need && !L.on) {
+        L.on = true;
+        gsap.killTweensOf(L.cr);
+        const first = i < 3 ? i : i - 3;
+        animate ? gsap.fromTo(L.cr, { attr: { width: 0 } }, { attr: { width: full }, duration: 0.55, ease: "none", delay: first * 0.6 }) : gsap.set(L.cr, { attr: { width: full } });
+      } else if (n < need && L.on) { L.on = false; gsap.killTweensOf(L.cr); gsap.set(L.cr, { attr: { width: 0 } }); }
+      gsap.to(L.t, { opacity: L.tag === "information" && n >= 3 ? 0.42 : 1, duration: animate ? 0.5 : 0 });
+    });
+    setGroup(S.w1, n >= 1, animate);
+    setGroup(S.m3, n >= 3, animate);
+    setGroup(S.r4, n >= 4, animate);
+    S.pol.querySelector("rect").style.strokeWidth = n >= 4 ? 3.2 : 2;
+    if (n >= 4 && !S.flow) {
+      S.flow = S.dots.map((d, k) => {
+        const L = d.p.getTotalLength(), pr = { t: 0 };
+        const tw = gsap.to(pr, { t: 1, duration: k ? 0.9 : 1.8, ease: "none", repeat: -1, delay: k ? 1.2 : 0.4, repeatDelay: k ? 0.9 : 0,
+          onUpdate: () => { const pt = d.p.getPointAtLength(pr.t * L); d.c.setAttribute("cx", pt.x); d.c.setAttribute("cy", pt.y); d.c.setAttribute("opacity", Math.sin(pr.t * Math.PI).toFixed(2)); } });
+        return tw;
+      });
+    } else if (n < 4 && S.flow) { S.flow.forEach((t) => t.kill()); S.flow = null; S.dots.forEach((d) => d.c.setAttribute("cx", -20)); }
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) {
+      const S = slide.querySelector("#c06-rl-svg")._S;
+      if (S && S.flow) { S.flow.forEach((t) => t.kill()); S.flow = null; }
+    },
+  });
+})();
+</script>

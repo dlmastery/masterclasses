@@ -1,0 +1,224 @@
+<section class="slide" id="custom-c03-grpo-r1" data-tone="model" data-title="GRPO and DeepSeek-R1">
+  <h2 class="title">GRPO drops the critic and scores each answer against its own group</h2>
+  <div class="row fill" style="gap:28px">
+    <svg class="interactive" id="c03-grpo-svg" viewBox="0 0 820 560" width="820" height="560" style="flex:none;overflow:visible"></svg>
+    <div class="stack fill" style="gap:14px">
+      <ol class="seq small" style="gap:12px">
+        <li data-step="1">Sample a <b>group</b> of G answers for each prompt. TRL default: <code>num_generations=8</code>.</li>
+        <li data-step="2">A rule scores each answer: 1 if the final answer matches, else 0. R1 uses accuracy, format (think tags) and language-consistency rewards.</li>
+        <li data-step="3"><code>A<sub>i</sub> = (r<sub>i</sub> − mean(r)) / std(r)</code>. The group mean is the baseline. Then apply a PPO-style clipped ratio, with an optional KL term.</li>
+        <li data-step="4">No value model: about half the memory of PPO. No neural RM either: DeepSeek says neural RMs “are susceptible to reward hacking during large-scale RL”.</li>
+        <li data-step="5">R1-Zero is pure RL on the base model. AIME 2024 pass@1 rises from 15.6% to 77.9%, and to 86.7% with self-consistency (paper v2).</li>
+      </ol>
+      <div class="panel tight k-tool" data-step="5">
+        <p class="tiny" style="color:var(--ink-2)"><b>Cost of the RL stage:</b> about US$294K on 648 H800 GPUs, base model not included (Nature supplementary). The Register argues the true cost is far higher.</p>
+      </div>
+      <div class="cites push">
+        <a class="cite paper" href="https://arxiv.org/abs/2402.03300" target="_blank" rel="noopener"><b>Paper</b>&nbsp;DeepSeekMath (GRPO), 2024</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2501.12948" target="_blank" rel="noopener"><b>Paper</b>&nbsp;DeepSeek-R1, Nature 645 (2025)</a>
+        <a class="cite doc" href="https://www.theregister.com/2025/09/19/deepseek_cost_train/" target="_blank" rel="noopener"><b>Article</b>&nbsp;The Register on R1 cost</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Build the group live. One prompt gives eight answers; a program marks three of them correct. The mean reward is 0.375, so each correct answer gets a positive advantage and each wrong answer a negative one, after division by the group standard deviation. That group baseline replaces the critic, so the value model leaves memory. Analogy: grading on a curve inside one class; you do not need a model of how hard the exam is, because the classmates show it. Then show what this did at scale: DeepSeek-R1-Zero went from 15.6% to 77.9% on AIME 2024 with only rule rewards, and the model started to write "Wait" and re-check its work. Likely question: "What happens if all eight answers are wrong?" Answer: every advantage is zero, so the prompt gives no gradient; DAPO drops such prompts on the next slide.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c03-grpo-r1";
+  const R = [1, 0, 0, 1, 1, 0, 0, 0];
+  const MEAN = R.reduce((a, r) => a + r, 0) / R.length;               // 0.375
+  const SD = Math.sqrt(R.reduce((a, r) => a + (r - MEAN) ** 2, 0) / R.length); // 0.484 (population)
+  const BASE = 470, H = 200, MY = BASE - MEAN * H;
+  const yv = (v) => 500 - 4.6 * v;
+  const S = {};
+
+  function mk(tag, at, parent, css) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in at) e.setAttribute(k, at[k]);
+    if (css) e.setAttribute("style", css);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function txt(parent, x, y, str, css, anchor) {
+    const t = mk("text", { x, y, "text-anchor": anchor || "start" }, parent, css);
+    t.textContent = str;
+    return t;
+  }
+  function drawIn(el, dur, delay) {
+    if (!el.getTotalLength) return;
+    const L = el.getTotalLength();
+    gsap.fromTo(el, { strokeDasharray: L, strokeDashoffset: L }, { strokeDashoffset: 0, duration: dur, delay, ease: "power1.inOut", onComplete: () => gsap.set(el, { clearProps: "strokeDasharray,strokeDashoffset" }) });
+  }
+
+  function build(slide) {
+    if (S.slide === slide) return;
+    S.slide = slide;
+    const svg = slide.querySelector("#c03-grpo-svg");
+    svg.innerHTML = "";
+    const main = (S.main = mk("g", {}, svg));
+
+    // prompt
+    S.prompt = mk("g", {}, main);
+    mk("rect", { x: 310, y: 6, width: 200, height: 52, rx: 14 }, S.prompt, "fill:var(--state-soft);stroke:var(--state);stroke-width:2");
+    txt(S.prompt, 410, 30, "prompt q", "font:700 19px var(--f-body);fill:var(--ink)", "middle");
+    txt(S.prompt, 410, 49, "one math problem", "font:500 13px var(--f-mono);fill:var(--muted)", "middle");
+
+    // critic (crossed out at step 4)
+    S.critic = mk("g", {}, main);
+    mk("rect", { x: 640, y: 6, width: 170, height: 52, rx: 14 }, S.critic, "fill:var(--risk-soft);stroke:var(--risk);stroke-width:2;stroke-dasharray:6 6");
+    txt(S.critic, 725, 38, "critic V(s)", "font:700 18px var(--f-body);fill:var(--risk)", "middle");
+    S.cross = [mk("line", { x1: 652, y1: 14, x2: 798, y2: 50 }, S.critic, "stroke:var(--risk);stroke-width:4;stroke-linecap:round"),
+               mk("line", { x1: 798, y1: 14, x2: 652, y2: 50 }, S.critic, "stroke:var(--risk);stroke-width:4;stroke-linecap:round")];
+
+    S.fan = []; S.cards = []; S.stamps = []; S.bars = []; S.arrows = [];
+    R.forEach((r, i) => {
+      const x = 8 + i * 101, cx = x + 45;
+      S.fan.push(mk("path", { d: `M410,58 C410,86 ${cx},82 ${cx},110` }, main, "fill:none;stroke:var(--line-2);stroke-width:2"));
+      const c = mk("g", {}, main);
+      mk("rect", { x, y: 110, width: 90, height: 74, rx: 10 }, c, "fill:var(--surface-2);stroke:var(--model);stroke-width:1.8");
+      txt(c, x + 10, 131, "o" + (i + 1), "font:700 15px var(--f-mono);fill:var(--model)");
+      [0, 1, 2].forEach((k) => mk("rect", { x: x + 10, y: 144 + k * 12, width: [70, 54, 62][k] - (i % 3) * 6, height: 5, rx: 2.5 }, c, "fill:var(--line-2)"));
+      S.cards.push(c);
+      const s = mk("g", {}, main);
+      mk("circle", { cx: x + 68, cy: 128, r: 14 }, s, `fill:var(--${r ? "state" : "risk"})`);
+      txt(s, x + 68, 134, String(r), "font:800 16px var(--f-mono);fill:#fff", "middle");
+      S.stamps.push(s);
+      S.bars.push(mk("rect", { x: x + 25, y: BASE - Math.max(4, r * H), width: 40, height: Math.max(4, r * H), rx: 4 }, main, `fill:var(--${r ? "state" : "risk"});opacity:${r ? 0.75 : 0.9}`));
+      const a = mk("g", {}, main);
+      const end = r ? BASE - H + 14 : BASE - 14, dir = r ? -1 : 1;
+      mk("line", { x1: cx, y1: MY, x2: cx, y2: end }, a, `stroke:var(--${r ? "state" : "risk"});stroke-width:3.5`);
+      mk("path", { d: `M${cx - 9},${end} L${cx + 9},${end} L${cx},${end + dir * 13} Z` }, a, `fill:var(--${r ? "state" : "risk"})`);
+      const A = (r - MEAN) / SD;
+      txt(a, cx, r ? end - 22 : BASE + 22, (A > 0 ? "+" : "−") + Math.abs(A).toFixed(2), `font:700 15px var(--f-mono);fill:var(--${r ? "state" : "risk"})`, "middle");
+      S.arrows.push(a);
+    });
+    S.axis = mk("g", {}, main);
+    mk("line", { x1: 0, y1: BASE, x2: 810, y2: BASE }, S.axis, "stroke:var(--line-2);stroke-width:2");
+    S.meanLine = mk("line", { x1: 0, y1: MY, x2: 810, y2: MY }, S.axis, "stroke:var(--tool);stroke-width:2.5;stroke-dasharray:8 6");
+    txt(S.axis, 810, MY - 8, "group mean 0.375", "font:700 14px var(--f-mono);fill:var(--tool)", "end");
+    txt(S.axis, 410, 532, "A = (r − 0.375) / 0.484   (std over the group)", "font:600 16px var(--f-mono);fill:var(--ink-2)", "middle");
+
+    // chart (step 5)
+    const ch = (S.chart = mk("g", {}, svg));
+    const X0 = 440, X1 = 805;
+    txt(ch, X0, 22, "DeepSeek-R1-Zero: pure RL on the base model", "font:700 16px var(--f-body);fill:var(--ink)");
+    mk("line", { x1: X0, y1: 500, x2: X1, y2: 500 }, ch, "stroke:var(--line-2);stroke-width:2");
+    mk("line", { x1: X0, y1: 40, x2: X0, y2: 500 }, ch, "stroke:var(--line-2);stroke-width:2");
+    [0, 50, 100].forEach((v) => txt(ch, X0 - 8, yv(v) + 5, String(v), "font:500 13px var(--f-mono);fill:var(--muted)", "end"));
+    txt(ch, X1, 522, "RL steps →", "font:600 14px var(--f-mono);fill:var(--muted)", "end");
+    txt(ch, X0 + 8, 56, "AIME 2024 pass@1 (%)", "font:600 14px var(--f-mono);fill:var(--muted)");
+    S.sc = mk("line", { x1: X0, y1: yv(86.7), x2: X1, y2: yv(86.7) }, ch, "stroke:var(--agent);stroke-width:2;stroke-dasharray:6 6");
+    S.scLbl = txt(ch, X1, yv(86.7) - 8, "86.7% with self-consistency", "font:700 14px var(--f-mono);fill:var(--agent)", "end");
+    const pts = [];
+    for (let k = 0; k <= 60; k++) {
+      const t = k / 60;
+      const f = (1 - Math.exp(-3.2 * t)) / (1 - Math.exp(-3.2));
+      const v = 15.6 + 62.3 * f + 2.2 * Math.sin(t * 41) * Math.sin(Math.PI * t);
+      pts.push([X0 + t * (X1 - X0), yv(v)]);
+    }
+    S.curve = mk("path", { d: "M" + pts.map((p) => p[0].toFixed(1) + "," + p[1].toFixed(1)).join(" L") }, ch, "fill:none;stroke:var(--model);stroke-width:4;stroke-linejoin:round");
+    txt(ch, X0 + 8, yv(15.6) + 26, "15.6%", "font:700 15px var(--f-mono);fill:var(--model)");
+    S.endLbl = txt(ch, X1, yv(77.9) + 30, "77.9%", "font:800 26px var(--f-display);fill:var(--model)", "end");
+    txt(ch, X1, 548, "curve shape illustrative; end points from arXiv 2501.12948 v2", "font:500 12px var(--f-mono);fill:var(--faint)", "end");
+    const mid = pts[27];
+
+    S.quote = mk("g", {}, svg);
+    mk("path", { d: `M370,326 C400,326 ${mid[0] - 40},${mid[1]} ${mid[0]},${mid[1]}` }, S.quote, "fill:none;stroke:var(--model);stroke-width:2;stroke-dasharray:4 5");
+    mk("circle", { cx: mid[0], cy: mid[1], r: 7 }, S.quote, "fill:var(--model)");
+    mk("rect", { x: 10, y: 262, width: 360, height: 128, rx: 14 }, S.quote, "fill:var(--surface-2);stroke:var(--model);stroke-width:2");
+    txt(S.quote, 28, 298, "“Wait, wait. Wait. That's an aha", "font:600 19px var(--f-display);fill:var(--ink)");
+    txt(S.quote, 28, 324, "moment I can flag here.”", "font:600 19px var(--f-display);fill:var(--ink)");
+    txt(S.quote, 28, 362, "R1-Zero output, during RL", "font:500 14px var(--f-mono);fill:var(--muted)");
+
+    S.pipe = mk("g", {}, svg);
+    ["R1 pipeline after R1-Zero", "1  cold-start long-CoT SFT", "2  reasoning RL", "3  rejection sampling + SFT, ~800K", "4  RL: rules + helpful / harmless RMs", "5  distill into Qwen and Llama"].forEach((s, k) =>
+      txt(S.pipe, 12, 428 + k * 23, s, k ? "font:500 15px var(--f-mono);fill:var(--ink-2)" : "font:700 15px var(--f-mono);fill:var(--ink)"));
+    S.pipeLines = [...S.pipe.children];
+  }
+
+  const on = (el) => gsap.set(el, { autoAlpha: 1 });
+  const off = (el) => gsap.set(el, { autoAlpha: 0 });
+
+  function render(slide, n, animate) {
+    build(slide);
+    const A = (k) => animate && n === k;
+    const all = [S.prompt, S.critic, ...S.fan, ...S.cards, ...S.stamps, ...S.bars, ...S.arrows, S.axis, S.chart, S.quote, S.pipe, S.endLbl, S.sc, S.scLbl, ...S.pipeLines, ...S.cross];
+    gsap.killTweensOf(all);
+    gsap.killTweensOf(S.main);
+    gsap.killTweensOf([S.curve, S.meanLine]);
+    gsap.set(S.meanLine, { autoAlpha: 1, scaleX: 1 });
+    gsap.set([S.curve, ...S.fan, ...S.cross], { clearProps: "strokeDasharray,strokeDashoffset" });
+
+    // step 0: prompt
+    on(S.prompt);
+    if (A(0)) gsap.fromTo(S.prompt, { autoAlpha: 0, y: -12 }, { autoAlpha: 1, y: 0, duration: 0.6, delay: 0.3, ease: "back.out(1.8)" });
+
+    // step 1: group of 8 answers
+    if (n >= 1) {
+      S.fan.forEach(on); S.cards.forEach(on);
+      if (A(1)) {
+        S.fan.forEach((p, i) => drawIn(p, 0.6, i * 0.05));
+        gsap.fromTo(S.cards, { autoAlpha: 0, y: -24 }, { autoAlpha: 1, y: 0, duration: 0.5, stagger: 0.07, delay: 0.3, ease: "back.out(1.6)" });
+      } else gsap.set(S.cards, { y: 0 });
+    } else { S.fan.forEach(off); S.cards.forEach(off); }
+
+    // step 2: verifier stamps
+    if (n >= 2) {
+      S.stamps.forEach(on);
+      if (A(2)) gsap.fromTo(S.stamps, { autoAlpha: 0, scale: 2.4, transformOrigin: "50% 50%" }, { autoAlpha: 1, scale: 1, duration: 0.35, stagger: 0.12, ease: "power3.in" });
+      else gsap.set(S.stamps, { scale: 1 });
+    } else S.stamps.forEach(off);
+
+    // step 3: rewards, mean, advantages
+    if (n >= 3) {
+      on(S.axis); S.bars.forEach(on); S.arrows.forEach(on);
+      if (A(3)) {
+        gsap.fromTo(S.bars, { scaleY: 0, transformOrigin: "50% 100%" }, { scaleY: 1, duration: 0.7, stagger: 0.06, ease: "power3.out" });
+        gsap.fromTo(S.meanLine, { autoAlpha: 0, scaleX: 0, transformOrigin: "0% 50%" }, { autoAlpha: 1, scaleX: 1, duration: 0.8, delay: 0.6 });
+        gsap.fromTo(S.arrows, { autoAlpha: 0, y: 0 }, { autoAlpha: 1, duration: 0.5, stagger: 0.08, delay: 1.2 });
+      } else gsap.set(S.bars, { scaleY: 1 });
+    } else { off(S.axis); S.bars.forEach(off); S.arrows.forEach(off); }
+
+    // step 4: the critic leaves
+    if (n >= 4) {
+      on(S.critic); S.cross.forEach(on);
+      if (A(4)) {
+        gsap.fromTo(S.critic, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.4 });
+        S.cross.forEach((l, i) => drawIn(l, 0.4, 0.5 + i * 0.25));
+        gsap.to(S.critic, { autoAlpha: 0.3, duration: 0.8, delay: 1.6 });
+      } else gsap.set(S.critic, { autoAlpha: 0.3 });
+    } else { off(S.critic); }
+
+    // step 5: shrink the group, draw the R1-Zero curve
+    if (n >= 5) {
+      [S.chart, S.quote, S.pipe, S.sc, S.scLbl, S.endLbl, ...S.pipeLines].forEach(on);
+      if (A(5)) {
+        gsap.to(S.main, { scale: 0.42, svgOrigin: "0 0", duration: 0.9, ease: "power3.inOut" });
+        gsap.fromTo(S.chart, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.4, delay: 0.6 });
+        drawIn(S.curve, 1.8, 0.9);
+        const p = { v: 15.6 };
+        S.endLbl.textContent = "15.6%";
+        gsap.to(p, { v: 77.9, duration: 1.8, delay: 0.9, ease: "power1.inOut", onUpdate: () => (S.endLbl.textContent = p.v.toFixed(1) + "%") });
+        gsap.fromTo([S.sc, S.scLbl], { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.5, delay: 2.8 });
+        gsap.fromTo(S.quote, { autoAlpha: 0, scale: 0.7, transformOrigin: "50% 50%" }, { autoAlpha: 1, scale: 1, duration: 0.55, delay: 1.7, ease: "back.out(1.8)" });
+        gsap.fromTo(S.pipeLines, { autoAlpha: 0, x: -14 }, { autoAlpha: 1, x: 0, duration: 0.4, stagger: 0.12, delay: 2.2 });
+      } else {
+        gsap.set(S.main, { scale: 0.42, svgOrigin: "0 0" });
+        gsap.set(S.quote, { scale: 1 });
+        gsap.set(S.pipeLines, { x: 0 });
+        S.endLbl.textContent = "77.9%";
+      }
+    } else {
+      [S.chart, S.quote, S.pipe].forEach(off);
+      gsap.set(S.main, { scale: 1, svgOrigin: "0 0" });
+    }
+  }
+
+  Deck.register(ID, {
+    enter(slide) { build(slide); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { if (S.slide) gsap.killTweensOf(S.slide.querySelectorAll("#c03-grpo-svg *")); },
+  });
+})();
+</script>

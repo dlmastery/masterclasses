@@ -1,0 +1,113 @@
+<section class="slide" id="rag-c03-embedding-models" data-tone="state" data-title="Embedding models, Oct 2026">
+  <h2 class="title">Choose the embedding model on your own data, because MTEB ranks differ by sub-board</h2>
+  <div class="grid g-23 fill">
+    <div class="stack">
+      <svg class="interactive" id="rag-c03-em-svg" viewBox="0 0 547 176" width="547" height="176" aria-label="A query vector finds its five nearest chunk vectors by angle"></svg>
+      <div class="code-wrap"><div class="code-head">embed.py · Gemini API</div>
+<pre class="code xs" data-lang="python" data-focus="4:5-7, 5:10-12"><code>
+from google import genai
+client = genai.Client()
+q = client.models.embed_content(
+    model="gemini-embedding-2",
+    contents="task: question answering | "
+             "query: What is late chunking?",
+    config={"output_dimensionality": 768})  # MRL
+d = client.models.embed_content(
+    model="gemini-embedding-2",
+    contents="title: Late Chunking | "
+             "text: Late chunking pools ...",
+    config={"output_dimensionality": 768})
+</code></pre></div>
+      <div class="cites">
+        <a class="cite paper" href="https://arxiv.org/abs/2503.07891" target="_blank" rel="noopener"><b>Paper</b>&nbsp;2503.07891</a>
+        <a class="cite repo" href="https://github.com/QwenLM/Qwen3-Embedding" target="_blank" rel="noopener"><b>Repo</b>&nbsp;Qwen3-Embedding</a>
+      </div>
+    </div>
+    <div class="stack">
+      <table class="t">
+        <tr><th>Model</th><th>Dims · MRL</th><th>Input</th><th>Key fact</th></tr>
+        <tr data-step="3"><td style="white-space:nowrap">gemini-embedding-001</td><td>3072 · 128–3072</td><td>2,048</td><td>task_type; MMTEB 68.32, +5.09</td></tr>
+        <tr data-step="3" data-on="4:hot"><td style="white-space:nowrap">gemini-embedding-2</td><td>3072 · 128–3072</td><td>8,192</td><td>5 modalities; GA ~late Apr 2026</td></tr>
+        <tr data-step="3"><td style="white-space:nowrap">text-embedding-3-large</td><td style="white-space:nowrap">3072 · <code>dimensions</code></td><td>8,192</td><td>Jan 2024; MTEB 64.6</td></tr>
+        <tr data-step="3"><td style="white-space:nowrap">Voyage 4 family</td><td>1024 · 256–2048</td><td>32K</td><td>shared space; int8, binary</td></tr>
+        <tr data-step="3"><td style="white-space:nowrap">Cohere embed-v4.0</td><td>1536 · 256–1536</td><td>128K</td><td>text and images</td></tr>
+        <tr data-step="3"><td style="white-space:nowrap">Qwen3-Embedding-8B</td><td>4096 · MRL</td><td>32K</td><td>Apache-2.0; 70.58, #1 Jun 2025</td></tr>
+      </table>
+      <div class="callout pitfall" data-step="6"><div>A new model means a full re-embed. Never mix two models in one index.</div></div>
+      <p class="tiny" data-step="5">gemini-embedding-2: no <code>task_type</code>, so put the task in the text; not compatible with 001; Batch API at 50% price. MTEB sub-boards (Multilingual, Eng v2, Code) rank models differently, and Voyage does not submit. Vendor-reported (Google Dev Blog, 30 Apr 2026): Nuuly Match@20 60% → ~87%; Supermemory +40% Recall@1; Harvey +3% Recall@20. <a class="cite doc" href="https://ai.google.dev/gemini-api/docs/embeddings" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Gemini API embeddings</a> <a class="cite doc" href="https://huggingface.co/spaces/mteb/leaderboard" target="_blank" rel="noopener"><b>Board</b>&nbsp;MTEB leaderboard</a></p>
+    </div>
+  </div>
+  <aside class="notes">
+    Start with the picture: every chunk is a point, and the query is a new point in the same space. The index returns the five chunks with the smallest angle to the query, which is the highest cosine similarity. Then walk the table: Gemini Embedding 2 is the new default on Google because it puts five modalities in one space, but it uses text prefixes, not task_type, and it cannot share an index with 001. Analogy: two embedding models are two maps with different projections; a coordinate from one map points to the wrong place on the other. Likely question: "Which model is best?" Answer: the leaderboard sub-boards disagree and some vendors do not submit, so build a golden set from your own queries and measure recall@k before you choose.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "rag-c03-embedding-models";
+  const OX = 274, OY = 132, SX = 1.55, K = 5, QT = 62, QR = 108;
+  const rad = (a) => a * Math.PI / 180;
+  const pos = (th, r) => [OX + r * SX * Math.cos(rad(th)), OY - r * Math.sin(rad(th))];
+  const P = Array.from({ length: 60 }, (_, i) => ({ th: 10 + (i * 47) % 160, r: 30 + (i * 29) % 96 }));
+  const NN = P.map((p, i) => [Math.abs(p.th - QT), i]).sort((a, b) => a[0] - b[0]).slice(0, K).map((x) => x[1]);
+  let built = false, dots = [], q, qRay, rays = [], arc, arcLbl, all = [];
+  const mk = (tag, attrs, parent) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    parent.appendChild(e); return e;
+  };
+  function build(slide) {
+    const svg = slide.querySelector("#rag-c03-em-svg");
+    svg.innerHTML = "";
+    ["Training: contrastive InfoNCE with in-batch and hard negatives.", "Use asymmetric prompts for the query and the document."].forEach((l, k) => { const t = mk("text", { x: 0, y: 154 + k * 19, fill: "var(--muted)", style: "font: 500 13px var(--f-mono)" }, svg); t.textContent = l; });
+    mk("line", { x1: 40, y1: OY, x2: 510, y2: OY, stroke: "var(--line-2)", "stroke-width": 1.5 }, svg);
+    rays = NN.map((i) => {
+      const [x, y] = pos(P[i].th, P[i].r);
+      const l = mk("line", { x1: OX, y1: OY, x2: x, y2: y, stroke: "var(--state)", "stroke-width": 2.5 }, svg);
+      const len = Math.hypot(x - OX, y - OY);
+      l.setAttribute("stroke-dasharray", len); l._len = len; return l;
+    });
+    const [qx, qy] = pos(QT, QR);
+    qRay = mk("line", { x1: OX, y1: OY, x2: qx, y2: qy, stroke: "var(--agent)", "stroke-width": 3 }, svg);
+    const ql = Math.hypot(qx - OX, qy - OY); qRay.setAttribute("stroke-dasharray", ql); qRay._len = ql;
+    const far = NN.reduce((a, i) => (Math.abs(P[i].th - QT) > Math.abs(P[a].th - QT) ? i : a), NN[0]);
+    const a0 = Math.min(QT, P[far].th), a1 = Math.max(QT, P[far].th);
+    let d = "";
+    for (let s = 0; s <= 12; s++) { const [x, y] = pos(a0 + (a1 - a0) * s / 12, 60); d += (s ? "L" : "M") + x.toFixed(1) + " " + y.toFixed(1); }
+    arc = mk("path", { d, fill: "none", stroke: "var(--agent)", "stroke-width": 2.5 }, svg);
+    const [lx, ly] = pos(a1 + 6, 60); const lxx = lx - 6;
+    arcLbl = mk("text", { x: lxx, y: ly, "text-anchor": "end", fill: "var(--agent)", style: "font: 700 15px var(--f-mono)" }, svg);
+    arcLbl.textContent = "θ → cos θ";
+    dots = P.map((p, i) => {
+      const [x, y] = pos(p.th, p.r);
+      return mk("circle", { cx: x, cy: y, r: 6, fill: "var(--state)", opacity: 0.45 }, svg);
+    });
+    q = mk("circle", { cx: qx, cy: qy, r: 10, fill: "var(--agent)", stroke: "var(--surface)", "stroke-width": 3 }, svg);
+    const qt = mk("text", { x: qx + 16, y: qy + 5, fill: "var(--agent)", style: "font: 700 16px var(--f-mono)" }, svg);
+    qt.textContent = "query"; q._t = qt;
+    all = [...dots, ...rays, q, qt, qRay, arc, arcLbl];
+    built = true;
+  }
+  function render(n, animate) {
+    const d = animate ? 0.6 : 0;
+    gsap.to([q, q._t], { autoAlpha: n >= 1 ? 1 : 0, y: n >= 1 ? 0 : -60, duration: d, ease: n >= 1 ? "bounce.out" : "power2.in", overwrite: "auto" });
+    const on = n >= 2;
+    gsap.to(qRay, { attr: { "stroke-dashoffset": on ? 0 : qRay._len }, duration: d, overwrite: "auto" });
+    rays.forEach((r, k) => gsap.to(r, { attr: { "stroke-dashoffset": on ? 0 : r._len }, duration: d, delay: animate && on ? 0.25 + k * 0.08 : 0, overwrite: "auto" }));
+    gsap.to([arc, arcLbl], { autoAlpha: on ? 1 : 0, duration: d, delay: animate && on ? 0.7 : 0, overwrite: "auto" });
+    dots.forEach((c, i) => {
+      const hit = on && NN.includes(i);
+      gsap.to(c, { attr: { r: hit ? 9 : 6, opacity: hit ? 1 : (on ? 0.25 : 0.45) }, duration: d, delay: animate && hit ? 0.5 : 0, overwrite: "auto" });
+    });
+  }
+  Deck.register(ID, {
+    enter(slide, step) {
+      build(slide);
+      render(step, false);
+      if (step === 0) gsap.from(dots, { scale: 0, transformOrigin: "center", duration: 0.5, stagger: 0.012, ease: "back.out(2)" });
+    },
+    step(slide, n, animate) { if (built) render(n, animate); },
+    leave() { gsap.killTweensOf(all); built = false; }
+  });
+})();
+</script>

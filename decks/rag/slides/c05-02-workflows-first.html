@@ -1,0 +1,83 @@
+<section class="slide" id="rag-c05-workflows-first" data-tone="agent" data-title="Workflows first">
+  <style>
+    #rag-c05-workflows-first .mini h4 { font-size: 19px; }
+    #rag-c05-workflows-first .mini .node { min-width: 0; padding: 6px 8px; align-items: center; border-radius: 10px; }
+    #rag-c05-workflows-first .mini .node .nt { font-size: 16px; }
+    #rag-c05-workflows-first .mini .panel { height: 100%; }
+  </style>
+  <h2 class="title">Start with the simplest workflow, and add an autonomous loop only when one pass fails</h2>
+
+  <div class="grid g5 mini" style="gap:16px">
+    <div class="panel tight k-model" data-step="1">
+      <h4>Prompt chaining</h4>
+      <div class="diagram" style="width:220px;height:170px" data-wires="ch1>ch2@1; ch2>ch3@1">
+        <div class="node n-model" id="ch1" style="left:35px;top:0;width:150px"><span class="nt">Rewrite</span></div>
+        <div class="node n-agent" id="ch2" style="left:35px;top:69px;width:150px"><span class="nt">Retrieve</span></div>
+        <div class="node n-model" id="ch3" style="left:35px;top:138px;width:150px"><span class="nt">Answer</span></div>
+      </div>
+      <p class="small"><b>RAG:</b> rewrite → retrieve → answer</p>
+    </div>
+    <div class="panel tight k-agent" data-step="2">
+      <h4>Routing</h4>
+      <div class="diagram" style="width:220px;height:170px" data-wires="ro>rv@2:flow{state}; ro>rs@2; ro>rw@2">
+        <div class="node n-agent" id="ro" style="left:50px;top:0;width:120px"><span class="nt">Router</span></div>
+        <div class="node n-state" id="rv" style="left:0;top:138px;width:64px"><span class="nt">Vec</span></div>
+        <div class="node n-tool" id="rs" style="left:78px;top:138px;width:64px"><span class="nt">SQL</span></div>
+        <div class="node n-tool" id="rw" style="left:156px;top:138px;width:64px"><span class="nt">Web</span></div>
+      </div>
+      <p class="small"><b>RAG:</b> source router (vector, SQL, web)</p>
+    </div>
+    <div class="panel tight k-tool" data-step="3">
+      <h4>Parallelization</h4>
+      <div class="diagram" style="width:220px;height:170px" data-wires="pq>p1@3; pq>p2@3; pq>p3@3; p1>pf@3:flow; p2>pf@3; p3>pf@3">
+        <div class="node n-human" id="pq" style="left:55px;top:0;width:110px"><span class="nt">Query</span></div>
+        <div class="node n-agent" id="p1" style="left:0;top:69px;width:64px"><span class="nt">q1</span></div>
+        <div class="node n-agent" id="p2" style="left:78px;top:69px;width:64px"><span class="nt">q2</span></div>
+        <div class="node n-agent" id="p3" style="left:156px;top:69px;width:64px"><span class="nt">q3</span></div>
+        <div class="node n-state" id="pf" style="left:45px;top:138px;width:130px"><span class="nt">RRF fuse</span></div>
+      </div>
+      <p class="small"><b>RAG:</b> multi-query fan-out, then fuse</p>
+    </div>
+    <div class="panel tight k-agent" data-step="4">
+      <h4>Orchestrator-workers</h4>
+      <div class="diagram" style="width:220px;height:170px" data-wires="ol<>o1@4:flow; ol<>o2@4; ol<>o3@4">
+        <div class="node n-agent" id="ol" style="left:55px;top:0;width:110px"><span class="nt">Lead</span></div>
+        <div class="node n-agent" id="o1" style="left:0;top:138px;width:64px"><span class="nt">W1</span></div>
+        <div class="node n-agent" id="o2" style="left:78px;top:138px;width:64px"><span class="nt">W2</span></div>
+        <div class="node n-agent" id="o3" style="left:156px;top:138px;width:64px"><span class="nt">W3</span></div>
+      </div>
+      <p class="small"><b>RAG:</b> deep research (lead plans, workers search)</p>
+    </div>
+    <div class="panel tight k-risk" data-step="5">
+      <h4>Evaluator-optimizer</h4>
+      <div class="diagram" style="width:220px;height:170px" data-wires="eg>ev@5:bend70 [draft]; ev>eg@5:flow{risk}:bend-70 [rewrite]">
+        <div class="node n-agent" id="eg" style="left:45px;top:0;width:130px"><span class="nt">Retrieve</span></div>
+        <div class="node n-model" id="ev" style="left:45px;top:138px;width:130px"><span class="nt">Grade</span></div>
+      </div>
+      <p class="small"><b>RAG:</b> grade → rewrite loop (CRAG-style)</p>
+    </div>
+  </div>
+
+  <div class="grid" style="grid-template-columns:1.35fr 0.85fr 1fr;gap:20px">
+    <div class="panel tight k-agent">
+      <h4>A workflow first, an agent only when needed</h4>
+      <p class="small">A <b>workflow</b> is a fixed code path with LLM steps. An <b>agent</b> chooses its own path. When you know the path, use a workflow: it is cheaper to test, trace and cap.</p>
+      <p class="tiny">Survey taxonomy: 4 dimensions (agent cardinality, control structure, autonomy, knowledge representation) · 4 agentic patterns (reflection, planning, tool use, multi-agent collaboration) · 7 families (router, multi-agent, hierarchical, corrective, adaptive, graph-based such as Agent-G and GeAR, Agentic Document Workflows). The 5 workflow patterns above come from Anthropic's “Building effective agents”.</p>
+    </div>
+    <div class="stack" data-step="6" style="gap:10px">
+      <div class="grid g2" style="gap:12px">
+        <div class="stat"><span class="n" data-to="4" data-suf="×">0</span><span class="l">tokens of chat, one agent</span></div>
+        <div class="stat" style="--aurora:var(--risk)"><span class="n" data-to="15" data-suf="×">0</span><span class="l">tokens of chat, multi-agent</span></div>
+      </div>
+      <div class="cites"><a class="cite doc" href="https://www.anthropic.com/engineering/multi-agent-research-system" target="_blank" rel="noopener"><b>Blog</b>&nbsp;Anthropic: How we built our multi-agent research system (Jun 2025)</a></div>
+    </div>
+    <div class="stack" data-step="6" style="gap:10px">
+      <div class="callout pitfall"><div><b>Failure modes of loops:</b> endless loops, query drift after rewrites, a grader that says “relevant” to everything, context bloat, and prompt injection from retrieved pages.</div></div>
+      <div class="cites"><a class="cite repo" href="https://github.com/asinghcsu/AgenticRAG-Survey" target="_blank" rel="noopener"><b>Repo</b>&nbsp;asinghcsu/AgenticRAG-Survey</a></div>
+    </div>
+  </div>
+
+  <aside class="notes">
+    The survey by Singh et al. (arXiv 2501.09136, v4 April 2026) sorts agentic RAG by four dimensions and seven architecture families, but the practical lesson is simpler. Each of the five workflow patterns from Anthropic's "Building effective agents" maps to one RAG job: chaining is rewrite, retrieve, answer; routing picks the source; parallelization fans out queries and fuses them with RRF; orchestrator-workers is deep research; evaluator-optimizer is the grade-and-rewrite loop. A workflow is a fixed code path, so you can test it, trace it and put a cap on it. Use an autonomous agent only when one pass fails on real queries. Then show the cost: an agent uses about 4 times the tokens of chat, and a multi-agent system about 15 times (Anthropic, June 2025). Analogy: a workflow is a recipe, an agent is a chef who improvises; use the recipe until it fails. Likely question: "Where is the line between the two?" If code decides the next step, it is a workflow; if the model decides, it is an agent.
+  </aside>
+</section>

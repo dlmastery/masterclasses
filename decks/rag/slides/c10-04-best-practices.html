@@ -1,0 +1,79 @@
+<section class="slide" id="rag-c10-best-practices" data-tone="tool" data-title="Best practices, Oct 2026">
+  <style>
+    #rag-c10-best-practices .bp-grid { display: grid; grid-template-columns: 560px 808px; gap: 24px; }
+    #rag-c10-best-practices .diagram .node { padding: 10px 14px; }
+    #rag-c10-best-practices .diagram .node .nt { font-size: 17px; }
+    #rag-c10-best-practices .diagram .node .ns { font-size: 13px; }
+    #rag-c10-best-practices .loop-label { position: absolute; left: 160px; top: 86px; width: 240px; text-align: center; font: 600 15px/1.35 var(--f-mono); color: var(--muted); }
+    #rag-c10-best-practices ul.ticks { gap: 4px; }
+    #rag-c10-best-practices ul.ticks li { font-size: 17px; line-height: 1.34; }
+    #rag-c10-best-practices ul.ticks li b.k { color: var(--tool); font-family: var(--f-mono); font-size: 15px; margin-right: 4px; }
+    #rag-c10-best-practices .tag { font-size: 13.5px; padding: 6px 10px 6px 8px; }
+    #rag-c10-best-practices .tags { gap: 7px; }
+    #rag-c10-best-practices .cites { gap: 7px; }
+    #rag-c10-best-practices .cite { font-size: 14px; padding: 6px 11px 6px 9px; }
+  </style>
+  <h2 class="title">Best practice in Oct 2026: measure first, retrieve hybrid, rerank, and add agents only where they pay</h2>
+  <div class="bp-grid fill">
+    <div class="stack" style="gap:10px">
+      <div class="diagram" style="width:560px;height:222px"
+           data-wires="n1>n2@1:flow{state}; n2>n3@1:flow{tool}; n3>n4@1:flow{agent}; n4>n5@1:flow{model}; n5>n6@1:flow{human}; n6>n1@1:flow{risk}">
+        <div class="node n-state" id="n1" style="left:0;top:0;width:150px" data-step="1" data-fx="pop"><span class="nt">Golden set</span><span class="ns">100–500 Q/A/IDs</span></div>
+        <div class="node n-tool" id="n2" style="left:205px;top:0;width:150px" data-step="1" data-fx="pop"><span class="nt">CI gate</span><span class="ns">RAGAS · adk eval</span></div>
+        <div class="node n-agent" id="n3" style="left:410px;top:0;width:150px" data-step="1" data-fx="pop"><span class="nt">Ship + trace</span><span class="ns">OTel spans</span></div>
+        <div class="node n-model" id="n4" style="left:410px;top:156px;width:150px" data-step="1" data-fx="pop"><span class="nt">Online judges</span><span class="ns">+ user feedback</span></div>
+        <div class="node n-human" id="n5" style="left:205px;top:156px;width:150px" data-step="1" data-fx="pop"><span class="nt">Human labels</span><span class="ns">recalibrate judge</span></div>
+        <div class="node n-risk" id="n6" style="left:0;top:156px;width:150px" data-step="1" data-fx="pop"><span class="nt">Red-team</span><span class="ns">inject · ACL · PII</span></div>
+        <div class="loop-label" data-step="1" data-fx="fade">eval-driven lifecycle<br>every failure becomes a test</div>
+      </div>
+
+      <div class="panel tight k-risk" data-step="3" data-fx="pop">
+        <h4>Open challenges</h4>
+        <div class="tags">
+          <span class="tag t-risk">Agentic + deep-research eval</span><span class="tag t-risk">Scarce agent trajectories</span>
+          <span class="tag t-risk">Multi-agent token cost</span><span class="tag t-risk">Injection via tools / MCP</span>
+          <span class="tag t-risk">When graphs pay off</span><span class="tag t-risk">Context rot at 1M+ tokens</span>
+        </div>
+        <p class="tiny">The survey also lists coordination, memory, efficiency and governance. GraphRAG-Bench asks when graphs beat vanilla RAG.</p>
+        <div class="cites">
+          <a class="cite paper" href="https://arxiv.org/abs/2501.09136" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Agentic Retrieval-Augmented Generation: A Survey on Agentic RAG (v4)</a>
+          <a class="cite paper" href="https://preview.aclanthology.org/ingest-acl/2026.findings-acl.78/" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Data-Centric Perspectives on Agentic RAG: A Survey</a>
+          <a class="cite paper" href="https://research.trychroma.com/context-rot" target="_blank" rel="noopener"><b>Report</b>&nbsp;Context Rot</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="stack" style="gap:14px">
+      <ul class="ticks" data-step="2" data-fx="stagger">
+        <li><b class="k">01</b><b>Measure first.</b> Build a 100–500 item golden set. Gate every merge in CI (RAGAS, LangSmith experiments, <code>adk eval</code>).</li>
+        <li><b class="k">02</b><b>Parse well.</b> Use a layout parser for the bulk and a VLM tier for hard pages.</li>
+        <li><b class="k">03</b><b>Chunk simply.</b> Start with ~200-token recursive or structure-aware chunks. Add Contextual Retrieval.</li>
+        <li><b class="k">04</b><b>Retrieve hybrid.</b> Run BM25 + dense search and fuse the lists with RRF (k = 60).</li>
+        <li><b class="k">05</b><b>Rerank.</b> Cut ~150 candidates to ~20. Send few chunks. Put the best chunks first and last.</li>
+        <li><b class="k">06</b><b>Skip the index when you can.</b> Under ~200k static tokens, cache the whole corpus in the prompt.</li>
+        <li><b class="k">07</b><b>Workflows before agents.</b> Use a router, Adaptive-RAG or a corrective loop with <code>max_iterations</code>. Budget multi-agent search at ~15x tokens.</li>
+        <li><b class="k">08</b><b>Load context just in time.</b> Keep knowledge, instructions (skills) and tool context behind identifiers. Load them when a step needs them.</li>
+        <li><b class="k">09</b><b>Trust nothing retrieved.</b> Treat retrieved text and MCP tool output as data. Filter ACLs inside the query. Remove PII at ingest.</li>
+        <li><b class="k">10</b><b>Operate it.</b> Trace on OpenTelemetry. Set freshness SLOs. Re-embed blue/green.</li>
+      </ul>
+      <div class="push stack" style="gap:8px" data-step="4">
+        <div class="tiny"><b>Learn next</b></div>
+        <div class="cites">
+          <a class="cite video" href="https://www.youtube.com/playlist?list=PLfaIDFEXuae2LXbO1_PKyVJiQ23ZztA0x" target="_blank" rel="noopener"><b>Video</b>&nbsp;RAG From Scratch (LangChain)</a>
+          <a class="cite video" href="https://www.deeplearning.ai/courses/retrieval-augmented-generation-rag" target="_blank" rel="noopener"><b>Course</b>&nbsp;Retrieval Augmented Generation (RAG) (DeepLearning.AI)</a>
+          <a class="cite repo" href="https://github.com/NirDiamant/RAG_Techniques" target="_blank" rel="noopener"><b>Repo</b>&nbsp;NirDiamant/RAG_Techniques (30.0k stars)</a>
+          <a class="cite doc" href="https://hamel.dev/notes/llm/rag/not_dead.html" target="_blank" rel="noopener"><b>Series</b>&nbsp;Stop Saying RAG Is Dead (Hamel Husain)</a>
+          <a class="cite video" href="https://www.youtube.com/watch?v=RQi7x-navxU" target="_blank" rel="noopener"><b>Video</b>&nbsp;Building the Document Context Layer for AI Agents (Jerry Liu)</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <aside class="notes">
+    This is the one slide to photograph. Step 1 is the lifecycle: a golden set, a CI gate, shipping with traces, online judges plus user feedback, human labels that recalibrate the judge, and red-teaming that feeds new cases back into the golden set.
+    Step 2 is the ordered checklist. The order matters: measurement comes first, because every later choice (chunk size, hybrid weights, reranker, agents) is a guess without it. Item 7 answers the "workflows" question: a workflow is a fixed code path with LLM steps, so it is cheaper to test, trace and cap than an autonomous agent. Item 8 answers the "skills" question: load instructions and knowledge just in time by identifier, the same principle as retrieval.
+    Step 3 lists what is still open in October 2026: how to evaluate agentic and deep-research systems, the lack of agent trajectory data, the token cost of multi-agent search, injection through tools and MCP, when graphs pay off, and context rot at very long inputs.
+    Step 4 gives the best next resources. Analogy: the checklist is a pilot's pre-flight list; skipping item 1 is flying without instruments.
+    Likely question: "If I can do only three things this week?" Build the golden set, add hybrid search with RRF, and add a reranker.
+  </aside>
+</section>

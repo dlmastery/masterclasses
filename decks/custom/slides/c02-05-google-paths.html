@@ -1,0 +1,80 @@
+<section class="slide tight" id="custom-c02-google-paths" data-tone="model" data-title="Gemma and Gemini tuning on Google">
+  <style>
+    #custom-c02-google-paths .c02g-swap { display: grid; }
+    #custom-c02-google-paths .c02g-swap > * { grid-area: 1 / 1; }
+    #custom-c02-google-paths table.t { font-size: 14px; line-height: 1.35; }
+    #custom-c02-google-paths table.t td, #custom-c02-google-paths table.t th { padding: 6px 8px; }
+    #custom-c02-google-paths table.t td:first-child { width: 150px; }
+    #custom-c02-google-paths table.t code { font-size: 12.5px; white-space: normal; }
+    #custom-c02-google-paths .cite { font-size: 14px; padding: 6px 10px 6px 8px; }
+  </style>
+  <h2 class="title">On Google, tune Gemma with open tooling or tune Gemini with managed Vertex AI</h2>
+  <div class="grid fill" style="grid-template-columns: 700px 1fr; gap:28px">
+    <div class="stack" style="gap:14px">
+      <div class="diagram" style="width:700px;height:380px"
+           data-wires="colab>qlora@1:flow{model}; qlora>merge@1:flow{model}; merge>cloudrun@1:flow{tool}; merge>device@1:tb:flow{tool}; jsonl>tune@2:flow{state}; tune>ep@2:flow{model}">
+        <div class="group g-model" style="left:0;top:12px;width:700px;height:236px"><span class="gl">Gemma · open weights, open tooling</span></div>
+        <div class="group g-tool" style="left:0;top:272px;width:700px;height:106px"><span class="gl">Gemini · managed Vertex AI tuning</span></div>
+        <div class="node n-tool" id="colab" style="left:16px;top:40px;width:180px" data-step="1" data-fx="pop"><span class="nt">Colab / Kaggle</span><span class="ns">free T4 notebook</span></div>
+        <div class="node n-model" id="qlora" style="left:256px;top:40px;width:180px" data-step="1" data-fx="pop"><span class="nt">QLoRA</span><span class="ns">TRL or Unsloth</span></div>
+        <div class="node n-model" id="merge" style="left:500px;top:40px;width:184px" data-step="1" data-fx="pop"><span class="nt">merge + 4-bit</span><span class="ns">270M: &lt;300 MB</span></div>
+        <div class="node n-tool" id="cloudrun" style="left:256px;top:158px;width:200px" data-step="1" data-fx="pop"><span class="nt">Cloud Run + vLLM</span><span class="ns">serve the model</span></div>
+        <div class="node n-tool" id="device" style="left:500px;top:158px;width:184px" data-step="1" data-fx="pop"><span class="nt">On-device</span><span class="ns">LiteRT · WebGPU</span></div>
+        <div class="node n-state" id="jsonl" style="left:16px;top:292px;width:180px" data-step="2" data-fx="pop"><span class="nt">JSONL in GCS</span><span class="ns">100 to 500+ rows</span></div>
+        <div class="node n-tool" id="tune" style="left:256px;top:292px;width:200px" data-step="2" data-fx="pop"><span class="nt">tunings.tune</span><span class="ns">epoch_count …</span></div>
+        <div class="node n-model" id="ep" style="left:516px;top:292px;width:168px" data-step="2" data-fx="pop"><span class="nt">Tuned endpoint</span><span class="ns">generate_content</span></div>
+      </div>
+      <div class="cites">
+        <a class="cite codelab" href="https://codelabs.developers.google.com/codelabs/cloud-run/how-to-fine-tune-model-cloud-run-jobs" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;How to fine tune a LLM using Cloud Run Jobs</a>
+        <a class="cite doc" href="https://ai.google.dev/gemma/docs/core/huggingface_text_finetune_qlora" target="_blank" rel="noopener"><b>Doc</b>&nbsp;Fine-Tune Gemma using Hugging Face Transformers and QloRA</a>
+        <a class="cite doc" href="https://developers.googleblog.com/en/own-your-ai-fine-tune-gemma-3-270m-for-on-device/" target="_blank" rel="noopener"><b>Blog</b>&nbsp;Own your AI: fine-tune Gemma 3 270M on-device</a>
+        <a class="cite repo" href="https://colab.research.google.com/github/google-gemini/gemma-cookbook/blob/main/Demos/Emoji-Gemma-on-Web/resources/Fine_tune_Gemma_3_270M_for_emoji_generation.ipynb" target="_blank" rel="noopener"><b>Colab</b>&nbsp;Fine_tune_Gemma_3_270M_for_emoji_generation</a>
+        <a class="cite repo" href="https://www.kaggle.com/code/danielhanchen/gemma4-31b-unsloth" target="_blank" rel="noopener"><b>Kaggle</b>&nbsp;gemma4-31b-unsloth</a>
+        <a class="cite doc" href="https://docs.cloud.google.com/vertex-ai/generative-ai/docs/models/gemini-use-supervised-tuning" target="_blank" rel="noopener"><b>Doc</b>&nbsp;Vertex AI supervised tuning</a>
+        <a class="cite doc" href="https://googleapis.github.io/python-genai/" target="_blank" rel="noopener"><b>Doc</b>&nbsp;Google Gen AI Python SDK</a>
+      </div>
+    </div>
+
+    <div class="c02g-swap">
+      <div class="stack" data-until="3" style="gap:12px">
+        <div class="panel tight k-model" data-step="1">
+          <h4>Gemma lane: four starting points</h4>
+          <table class="t">
+            <tr><td>QLoRA page</td><td><code>google/gemma-4-E2B</code> (or E4B, 12B, 31B, 26B-A4B) · synthetic text-to-SQL data · r=16, α=16, dropout 0.05 · saves <code>lm_head</code> + <code>embed_tokens</code> · 3 epochs, LR 2e-4, constant schedule</td></tr>
+            <tr><td>Cloud Run Jobs codelab</td><td><code>gemma-3-1b-it</code> on Text2Emoji · one L4 GPU · r=8, α=16 on <code>q_proj</code>, <code>v_proj</code> · serve with vLLM on Cloud Run</td></tr>
+            <tr><td>Own your AI</td><td>Gemma 3 270M · QLoRA on a free T4 “in minutes” · 4-bit model under 300 MB · LiteRT / MediaPipe, or Transformers.js with WebGPU</td></tr>
+            <tr><td>Unsloth</td><td>“2× faster with 70% less VRAM” · r 16 or 32, α = r or 2r, LR 2e-4, 1–3 epochs · <code>train_on_responses_only</code> with <code>&lt;start_of_turn&gt;user</code> / <code>&lt;start_of_turn&gt;model</code></td></tr>
+          </table>
+          <p class="tiny">Gemma docs now point to gemma.ai. The Keras LoRA tutorial is marked deprecated.</p>
+        </div>
+        <div class="panel tight k-tool" data-step="2">
+          <h4>Gemini lane: Vertex AI supervised tuning</h4>
+          <p class="tiny">Models: Gemini 3.5 Flash-Lite, 3.5 Flash, 3.1 Flash-Lite, 2.5 Pro, 2.5 Flash-Lite, 2.5 Flash. Data: JSONL in Cloud Storage, “at least 100 to 500 examples”. Knobs: <code>epoch_count</code>, <code>adapter_size</code>, <code>learning_rate_multiplier</code> (default 1). Run the first job with the defaults. For tuned tasks, turn thinking off or use the minimum budget.</p>
+        </div>
+      </div>
+      <div class="stack" style="gap:14px">
+        <div class="code-wrap" data-step="3"><div class="code-head">vertex_tune.py · google-genai SDK (adapted)</div>
+<pre class="code xs" data-lang="python" data-focus="3:5-9, 4:10-14"><code>
+import time
+from google import genai
+from google.genai import types
+client = genai.Client(http_options=types.HttpOptions(api_version="v1"))
+job = client.tunings.tune(
+    base_model="gemini-3.5-flash",
+    training_dataset=types.TuningDataset(gcs_uri="gs://bucket/tune.jsonl"),
+    config=types.CreateTuningJobConfig(
+        tuned_model_display_name="support-tone-v1", epoch_count=1))
+done = {"JOB_STATE_SUCCEEDED", "JOB_STATE_FAILED", "JOB_STATE_CANCELLED"}
+while job.state not in done:
+    time.sleep(60); job = client.tunings.get(name=job.name)
+resp = client.models.generate_content(
+    model=job.tuned_model.endpoint, contents="why is the sky blue?")
+</code></pre></div>
+        <div class="callout tip" data-step="5" style="font-size:17px">
+          <div>The Gemini API and AI Studio have <b>no tuning</b>. Tune Gemini on Vertex AI, or tune open Gemma weights yourself.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Google gives two lanes. Step 1, the Gemma lane: you own the weights; you train with QLoRA in Colab or Kaggle using TRL or Unsloth, then merge, quantize and serve on Cloud Run with vLLM or on the device with LiteRT or WebGPU. The four starting points in the table are real, current Google and Unsloth materials. Step 2, the Gemini lane: you do not get the weights; you upload JSONL to Cloud Storage and Vertex AI trains an adapter and gives you an endpoint. Step 3 and 4: the whole managed job is one tune call and a polling loop. Step 5: remember that the Gemini API and AI Studio removed tuning, so tuning Gemini means Vertex. Analogy: Gemma is buying the car and servicing it yourself; Gemini on Vertex is a lease with a service plan. Likely question: "Which lane should a startup choose?" Choose Gemma if you need on-device, full control or portability; choose Vertex if you want Gemini quality and no GPU operations.</aside>
+</section>

@@ -1,0 +1,117 @@
+<section class="slide" id="rag-c05-langgraph" data-tone="agent" data-title="LangGraph corrective loop">
+  <style>
+    #rag-c05-langgraph .lgn { padding: 10px 16px; }
+    #rag-c05-langgraph .lgn.pill { min-width: 0; }
+    #rag-c05-langgraph .c05-lg-tok { position: absolute; left: 0; top: 0; z-index: 3; width: 22px; height: 22px; border-radius: 50%; background: var(--agent); box-shadow: 0 0 0 5px var(--agent-soft), 0 0 18px var(--agent); visibility: hidden; }
+  </style>
+  <h2 class="title">LangGraph builds the corrective loop as a graph: generate, retrieve, grade, rewrite</h2>
+  <div class="grid" style="grid-template-columns:1fr 740px;gap:24px">
+    <div class="stack" style="gap:14px">
+      <div class="diagram" id="c05-lg-dg" style="width:620px;height:270px"
+           data-wires="lgstart>lggen; lggen>lgend:dash [no tool call]; lggen>lgret [tool call]; lgret>lggrade; lggrade>lgans {state} [yes]; lggrade>lgrew {risk} [no]; lgrew>lggen:tr {risk} [loop]">
+        <div class="node ghost pill lgn" id="lgstart" style="left:0;top:12px;width:110px"><span class="nt">START</span></div>
+        <div class="node n-agent lgn" id="lggen" style="left:170px;top:0;width:230px"><span class="nt">generate</span><span class="ns">query_or_respond</span></div>
+        <div class="node ghost pill lgn" id="lgend" style="left:500px;top:12px;width:110px"><span class="nt">END</span></div>
+        <div class="node n-tool lgn" id="lgret" style="left:170px;top:104px;width:230px"><span class="nt">retrieve</span><span class="ns">ToolNode</span></div>
+        <div class="node n-model lgn" id="lggrade" style="left:170px;top:204px;width:230px"><span class="nt">grade_documents</span><span class="ns">structured yes / no</span></div>
+        <div class="node n-model lgn" id="lgrew" style="left:470px;top:104px;width:150px"><span class="nt">rewrite</span><span class="ns">question</span></div>
+        <div class="node n-model lgn" id="lgans" style="left:470px;top:204px;width:150px"><span class="nt">generate</span><span class="ns">answer → END</span></div>
+        <span class="tag" id="c05-lg-pass" style="position:absolute;left:0;top:120px;visibility:hidden">pass 1</span>
+        <span class="tag" id="c05-lg-verdict" style="position:absolute;left:0;top:222px;visibility:hidden">grade: no</span>
+        <span class="c05-lg-tok" id="c05-lg-tok"></span>
+      </div>
+      <ul class="ticks small" data-step="5" data-fx="stagger" style="gap:6px">
+        <li>Add a max-iterations counter to the state. Log each grade with the retrieved ids.</li>
+        <li>Use a different, cheaper model as the grader. Calibrate it on labels.</li>
+        <li>Put <code>graph.get_graph().draw_mermaid()</code> in the docs.</li>
+      </ul>
+      <div class="callout pitfall" data-step="5"><div><b>Pitfalls:</b> infinite loops, and query drift: after many rewrites the question means something else.</div></div>
+      <div class="cites push">
+        <a class="cite doc" href="https://docs.langchain.com/oss/python/langgraph/agentic-rag" target="_blank" rel="noopener"><b>Docs</b>&nbsp;LangGraph: Build a custom RAG agent</a>
+        <a class="cite repo" href="https://github.com/langchain-ai/rag-from-scratch" target="_blank" rel="noopener"><b>Repo</b>&nbsp;langchain-ai/rag-from-scratch</a>
+        <a class="cite video" href="https://www.youtube.com/playlist?list=PLfaIDFEXuae2LXbO1_PKyVJiQ23ZztA0x" target="_blank" rel="noopener"><b>Video</b>&nbsp;RAG From Scratch (CRAG, Adaptive RAG)</a>
+      </div>
+    </div>
+    <div class="code-wrap" data-fx="up"><div class="code-head">agentic_rag.py · langgraph 1.2.16 · langchain 1.4.7</div>
+<pre class="code xs" data-lang="python" data-focus="1:1-4, 2:5-12, 3:18-21, 4:22-22, 5:13-23"><code>
+@tool
+def retrieve_blog_posts(query: str) -> str:
+    """Search and return information about Lilian Weng blog posts."""
+    return "\n\n".join(d.page_content for d in _get_retriever().invoke(query))
+class GradeDocuments(BaseModel):
+    binary_score: str = Field(description="'yes' if relevant, 'no' if not")
+def grade_documents(state) -> Literal["generate_answer", "rewrite_question"]:
+    q, ctx = state["messages"][0].content, state["messages"][-1].content
+    msg = GRADE_PROMPT.format(question=q, context=ctx)
+    r = response_model.with_structured_output(GradeDocuments).invoke(
+        [{"role": "user", "content": msg}])
+    return "generate_answer" if r.binary_score == "yes" else "rewrite_question"
+wf = StateGraph(MessagesState)
+wf.add_node(generate_query_or_respond)
+wf.add_node("retrieve", ToolNode([retrieve_blog_posts]))
+wf.add_node(rewrite_question); wf.add_node(generate_answer)
+wf.add_edge(START, "generate_query_or_respond")
+wf.add_conditional_edges("generate_query_or_respond",
+    lambda s: "tools" if s["messages"][-1].tool_calls else END,
+    {"tools": "retrieve", END: END})
+wf.add_conditional_edges("retrieve", grade_documents)   # CRAG-style gate
+wf.add_edge("rewrite_question", "generate_query_or_respond")  # loop
+wf.add_edge("generate_answer", END); graph = wf.compile()
+</code></pre></div>
+  </div>
+  <aside class="notes">
+    This is the LangGraph docs example "Build a custom RAG agent", trimmed. Step one: the retriever is a plain function with the @tool decorator, so the LLM in generate_query_or_respond can choose to call it or to answer at once; that is the router. Step two: the grader uses with_structured_output and a Pydantic model, so it can only say yes or no, and grade_documents returns the name of the next node. Step three: the conditional edges make the graph a CRAG-style gate after retrieval. Step four: the rewrite edge goes back to generate, which closes the corrective loop; watch the token take the second pass. Analogy: a quality gate on a factory line that sends a bad part back to rework. Likely question: "What stops this loop?" Nothing in this sample; in production add an iteration counter to the state and route to a "not found" answer when it hits the cap.
+  </aside>
+</section>
+<script>
+(() => {
+  const PATHS = { 1: ["lgstart", "lggen", "lgret"], 2: ["lgret", "lggrade"], 3: ["lggrade", "lgrew"], 4: ["lgrew", "lggen", "lgret", "lggrade", "lgans"] };
+  const FINAL = ["lgstart", "lgret", "lggrade", "lgrew", "lgans", "lgans"];
+  let dg = null, tok = null, pass = null, ver = null, tl = null;
+  const at = (id) => { const e = dg.querySelector("#" + id); return { x: e.offsetLeft + e.offsetWidth / 2 - 11, y: e.offsetTop + e.offsetHeight / 2 - 11, e }; };
+  function badges(n) {
+    gsap.set(pass, { autoAlpha: n >= 1 ? 1 : 0 });
+    pass.textContent = n >= 4 ? "pass 2" : "pass 1";
+    pass.className = "tag " + (n >= 4 ? "t-risk" : "t-agent");
+    gsap.set(ver, { autoAlpha: n >= 2 ? 1 : 0 });
+    ver.textContent = n >= 4 ? "grade: yes" : "grade: no";
+    ver.className = "tag " + (n >= 4 ? "t-state" : "t-risk");
+  }
+  function lit(id) { dg.querySelectorAll(".node").forEach((e) => e.classList.toggle("lit", e.id === id)); }
+  function render(n, animate) {
+    if (!dg) return;
+    if (tl) { tl.kill(); tl = null; }
+    const k = Math.min(n, 5);
+    if (!animate || !PATHS[k]) {
+      const p = at(FINAL[k]);
+      gsap.set(tok, { x: p.x, y: p.y, autoAlpha: k >= 1 ? 1 : 0 });
+      lit(k >= 1 ? FINAL[k] : null); badges(k);
+      return;
+    }
+    badges(k - 1);
+    const seq = PATHS[k];
+    const p0 = at(seq[0]);
+    gsap.set(tok, { x: p0.x, y: p0.y, autoAlpha: 1 });
+    tl = gsap.timeline({ onComplete: () => badges(k) });
+    seq.slice(1).forEach((id) => {
+      const p = at(id);
+      tl.to(tok, { x: p.x, y: p.y, duration: 0.6, ease: "power2.inOut" }).add(() => {
+        lit(id);
+        if (id === "lggrade") badges(k);
+        if (id === "lggen" && k === 4) { pass.textContent = "pass 2"; pass.className = "tag t-risk"; }
+      }).to(tok, { scale: 1.35, duration: 0.15, yoyo: true, repeat: 1 });
+    });
+  }
+  Deck.register("rag-c05-langgraph", {
+    enter(slide, step) {
+      dg = slide.querySelector("#c05-lg-dg");
+      tok = slide.querySelector("#c05-lg-tok");
+      pass = slide.querySelector("#c05-lg-pass");
+      ver = slide.querySelector("#c05-lg-verdict");
+      render(step, false);
+    },
+    step(slide, n, animate) { render(n, animate); },
+    leave() { if (tl) tl.kill(); tl = null; dg = null; }
+  });
+})();
+</script>

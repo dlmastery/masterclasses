@@ -1,0 +1,208 @@
+<section class="slide" id="rag-c05-dynamic-retrieval" data-tone="agent" data-title="Dynamic retrieval: IRCoT, FLARE, DRAGIN, DRAG">
+  <h2 class="title sm">Dynamic RAG retrieves during generation: IRCoT, FLARE, DRAGIN and DRAG decide when and what to fetch</h2>
+  <div class="grid" style="grid-template-columns:820px 1fr;gap:24px">
+    <div class="stack" style="gap:14px">
+      <svg class="interactive" id="c05-dr-svg" viewBox="0 0 820 440" width="820" height="440" aria-label="Token stream that triggers retrieval during generation" style="overflow:visible"></svg>
+      <div class="cites">
+        <a class="cite paper" href="https://arxiv.org/abs/2212.10509" target="_blank" rel="noopener"><b>Paper</b>&nbsp;IRCoT (arXiv 2212.10509)</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2305.06983" target="_blank" rel="noopener"><b>Paper</b>&nbsp;FLARE (arXiv 2305.06983)</a>
+        <a class="cite paper" href="https://aclanthology.org/2024.acl-long.702" target="_blank" rel="noopener"><b>Paper</b>&nbsp;DRAGIN (ACL 2024)</a>
+        <a class="cite repo" href="https://github.com/oneal2000/DRAGIN" target="_blank" rel="noopener"><b>Repo</b>&nbsp;oneal2000/DRAGIN</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2410.04343" target="_blank" rel="noopener"><b>Paper</b>&nbsp;DRAG / IterDRAG (arXiv 2410.04343)</a>
+      </div>
+    </div>
+    <div class="stack" style="gap:14px">
+      <p class="small" data-step="1"><b class="c-agent">IRCoT</b> <span class="tiny">Trivedi et al., ACL 2023</span><br>Each new chain-of-thought sentence becomes the next query. Up to <b>+21</b> points retrieval and <b>+15</b> points QA on HotpotQA, 2WikiMultihopQA, MuSiQue and IIRC.</p>
+      <p class="small" data-step="2"><b class="c-agent">FLARE</b> <span class="tiny">Jiang et al., EMNLP 2023</span><br>Draft the next sentence. If a token has low confidence, use the draft as the query and regenerate the sentence.</p>
+      <p class="small" data-step="3"><b class="c-agent">DRAGIN</b> <span class="tiny">Su et al., ACL 2024</span><br><b>RIND</b> decides <i>when</i>: entropy × attention from later tokens × stopword filter &gt; θ. <b>QFS</b> decides <i>what</i>: the tokens in the whole context that the trigger token attends to most. It needs logits and attention, so it cannot run on a closed API.</p>
+      <p class="small" data-step="4"><b class="c-agent">DRAG / IterDRAG</b> <span class="tiny">Yue et al., Google DeepMind, ICLR 2025</span><br>DRAG adds many documents and in-context demos. IterDRAG splits the question into sub-queries with interleaved retrieval (max 5 iterations). Up to <b>58.9%</b> over standard RAG: spend inference compute on retrieval.</p>
+      <div class="callout pitfall small" data-step="5"><div><b>Acronym trap:</b> “DRAG” names at least four other papers. Always cite the arXiv ID, not the acronym.</div></div>
+    </div>
+  </div>
+  <aside class="notes">
+    Classic RAG retrieves once before generation. Dynamic RAG retrieves while the model writes. IRCoT uses each new chain-of-thought sentence as the next query, which gave up to 21 points better retrieval and 15 points better QA on four multi-hop sets. FLARE drafts the next sentence and retrieves only when a token has low confidence; the red token is the trigger. DRAGIN makes both decisions from the model's internals: RIND fires on an uncertain, important, non-stopword token, and QFS builds the query from the context tokens that this token attends to, not only from the last sentence. That is why DRAGIN needs logits and attention weights, which hosted APIs do not return. DRAG and IterDRAG from Google DeepMind show that RAG accuracy grows nearly linearly with effective context when you allocate compute well: up to 58.9 percent over standard RAG. Analogy: a student who checks the textbook each time she is unsure, not once at the start. Likely question: "Which of these works with Gemini or GPT through an API?" IRCoT and IterDRAG yes, FLARE only if the API returns token log-probabilities, DRAGIN no.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg", CW = 9.6, X0 = 110;
+  let S = null, tl = null;
+  const mk = (tag, attrs, parent, style) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (style) Object.assign(e.style, style);
+    if (parent) parent.appendChild(e);
+    return e;
+  };
+  const T = (parent, x, y, s, style, anchor) => {
+    const t = mk("text", { x, y, "text-anchor": anchor || "start" }, parent, Object.assign({ font: "500 16px var(--f-mono)", fill: "var(--ink)" }, style || {}));
+    t.textContent = s; return t;
+  };
+  function words(parent, list, y, x0) {
+    let x = x0;
+    return list.map((w) => { const o = { el: T(parent, x, y, w), x, w: w.length * CW, y }; x += w.length * CW + CW; return o; });
+  }
+  const lbl = (p, y, s) => T(p, 20, y, s, { font: "700 14px var(--f-mono)", fill: "var(--agent)" });
+  const Q = [["Q:", 0], ["What", .1], ["county", .85], ["is", .05], ["Erik", .5], ["Hort's", .7], ["birthplace", .8], ["a", .02], ["part", .3], ["of?", .05]];
+  const S1 = [["Erik", .45], ["Hort's", .6], ["birthplace", .65], ["is", .05], ["Montebello.", 1]];
+  const S2 = [["Montebello", .9], ["is", .05], ["a", .02], ["part", .3], ["of", .05], ["Rockland", .4], ["County.", .55]];
+  const CONF = [.9, .95, .9, .92, .25, .8];
+  const SUB = ["", "query = sentence 2", "query = FLARE draft", "query = QFS tokens"];
+  function build(slide) {
+    const svg = slide.querySelector("#c05-dr-svg");
+    svg.innerHTML = "";
+    const A = mk("g", {}, svg), B = mk("g", {}, svg), C = mk("g", {}, svg);
+    const heat = mk("g", {}, A);
+    // index node
+    mk("rect", { x: 690, y: 6, width: 120, height: 44, rx: 12 }, A, { fill: "var(--state-soft)", stroke: "var(--state)", strokeWidth: 2.2 });
+    T(A, 750, 34, "Index", { font: "700 17px var(--f-body)" }, "middle");
+    const sub = T(A, 810, 72, "", { font: "600 13px var(--f-mono)", fill: "var(--state)" }, "end");
+    const q = words(A, Q.map((w) => w[0]), 34, X0);
+    q.forEach((o) => o.el.style.fill = "var(--muted)");
+    // IRCoT
+    const l1 = lbl(A, 100, "IRCoT");
+    const s1 = words(A, S1.map((w) => w[0]), 100, X0), s2 = words(A, S2.map((w) => w[0]), 134, X0);
+    const path = (d) => mk("path", { d }, A, { fill: "none", stroke: "var(--line-2)", strokeWidth: 1.6, strokeDasharray: "4 6", opacity: 0 });
+    const e1 = s1[s1.length - 1], e2 = s2[s2.length - 1];
+    const p1 = path(`M${e1.x + e1.w + 8},95 C${e1.x + e1.w + 120},95 640,60 688,40`);
+    const p2 = path(`M${e2.x + e2.w + 8},129 C${e2.x + e2.w + 120},129 640,70 688,46`);
+    // FLARE
+    const l2 = lbl(A, 200, "FLARE");
+    const dw = ["So", "the", "answer", "is", "Orange", "County."];
+    let x = X0;
+    const draft = dw.map((w, i) => { const o = { el: T(A, x, 200, w), x, w: w.length * CW }; x += (i === 4 ? 8 : w.length) * CW + CW; return o; });
+    const slot = draft[4];
+    slot.el.style.fill = "var(--risk)";
+    const bars = draft.map((o, i) => mk("rect", { x: o.x, y: 242, width: (i === 4 ? 8 : dw[i].length) * CW - 2, height: 0, rx: 2 }, A, { fill: CONF[i] < .5 ? "var(--risk)" : "var(--state)", opacity: .75 }));
+    const theta = mk("g", {}, A);
+    mk("line", { x1: X0 - 6, y1: 227, x2: x, y2: 227 }, theta, { stroke: "var(--risk)", strokeWidth: 1.5, strokeDasharray: "5 5" });
+    T(theta, x + 6, 231, "θ confidence", { font: "600 13px var(--f-mono)", fill: "var(--risk)" });
+    const p3 = path(`M${slot.x + 40},186 C${slot.x + 80},120 650,90 700,52`);
+    // DRAGIN
+    const l3 = lbl(A, 290, "DRAGIN");
+    const rind = T(A, X0, 290, "RIND: entropy × attention × not-stopword > θ → fire", { font: "500 15px var(--f-mono)", fill: "var(--ink-2)" });
+    const trig = mk("rect", { x: slot.x - 5, y: 181, width: 8 * CW + 10, height: 27, rx: 6 }, A, { fill: "none", stroke: "var(--model)", strokeWidth: 2.4 });
+    const trigT = T(A, slot.x + 4 * CW, 176, "trigger token", { font: "600 13px var(--f-mono)", fill: "var(--model)" }, "middle");
+    const qfs = mk("g", {}, A);
+    T(qfs, X0, 334, "QFS query:", { font: "600 15px var(--f-mono)", fill: "var(--ink-2)" });
+    const ranked = [...Q.map((w, i) => ({ w: w[0], a: w[1], o: q[i] })), ...S1.map((w, i) => ({ w: w[0], a: w[1], o: s1[i] })), ...S2.map((w, i) => ({ w: w[0], a: w[1], o: s2[i] }))];
+    const heatR = ranked.map((r) => { const h = mk("rect", { x: r.o.x - 3, y: r.o.y - 17, width: r.o.w + 6, height: 23, rx: 4 }, heat, { fill: "var(--model)", opacity: 0 }); h._a = r.a; return h; });
+    const qwords = words(qfs, ["Montebello", "county", "birthplace", "Hort's"], 334, X0 + 11 * CW);
+    qwords.forEach((o) => { o.el.style.fill = "var(--model)"; o.el.style.fontWeight = 700; });
+    const qbox = mk("rect", { x: X0 + 11 * CW - 8, y: 314, width: 36 * CW + 8, height: 30, rx: 8 }, qfs, { fill: "none", stroke: "var(--model)", strokeWidth: 1.6 });
+    const p4 = path(`M${X0 + 47 * CW + 8},326 C620,326 760,200 750,54`);
+    const dot = mk("circle", { r: 6, cx: -20, cy: -20 }, A, { fill: "var(--state)", filter: "drop-shadow(0 0 6px var(--state))", opacity: 0 });
+    // scene B: inference scaling curve
+    mk("line", { x1: 110, y1: 390, x2: 790, y2: 390 }, B, { stroke: "var(--line-2)", strokeWidth: 2 });
+    mk("line", { x1: 110, y1: 390, x2: 110, y2: 50 }, B, { stroke: "var(--line-2)", strokeWidth: 2 });
+    T(B, 450, 422, "effective context length (log scale) →", { font: "600 14px var(--f-mono)", fill: "var(--muted)" }, "middle");
+    const yl = T(B, 0, 0, "RAG performance →", { font: "600 14px var(--f-mono)", fill: "var(--muted)" }, "middle");
+    yl.setAttribute("transform", "translate(88,220) rotate(-90)");
+    const std = mk("path", { d: "M110,372 C220,300 300,282 790,274" }, B, { fill: "none", stroke: "var(--faint)", strokeWidth: 3, strokeLinecap: "round" });
+    const lin = mk("path", { d: "M110,372 L250,320 L390,262 L530,205 L670,150 L790,104" }, B, { fill: "none", stroke: "var(--agent)", strokeWidth: 3.5, strokeLinecap: "round", strokeLinejoin: "round" });
+    const ptsB = [[250, 320], [390, 262], [530, 205], [670, 150], [790, 104]].map(([cx, cy]) => mk("circle", { cx, cy, r: 5 }, B, { fill: "var(--agent)" }));
+    const tB = [
+      T(B, 600, 300, "standard RAG plateaus early", { font: "600 15px var(--f-mono)", fill: "var(--muted)" }, "middle"),
+      T(B, 560, 128, "DRAG / IterDRAG: near-linear", { font: "700 16px var(--f-mono)", fill: "var(--agent)" }, "end"),
+      T(B, 130, 82, "up to 58.9% over standard RAG", { font: "700 26px var(--f-display)", fill: "var(--state)" }),
+      T(B, 130, 112, "IterDRAG: sub-query → retrieve → answer, max 5 iterations", { font: "500 14px var(--f-mono)", fill: "var(--ink-2)" }),
+    ];
+    // scene C: acronym wheel
+    const cx = 410, cy = 225;
+    const ITEMS = [["Demonstration-based RAG", "DeepMind · ICLR 2025 · 2410.04343", "agent"], ["Distilling RAG for SLMs", "ACL 2025 · 2506.01954", "model"], ["Debate-Augmented RAG", "ACL 2025 · 2505.18581", "human"], ["Dynamic RAG for code", "JetBrains · 2312.08976", "tool"], ["DRAGged into Conflicts", "Google · 2506.08500", "risk"]];
+    const POS = [[410, 62], [648, 182], [557, 375], [263, 375], [172, 182]];
+    const spokes = POS.map(([x2, y2]) => mk("line", { x1: cx, y1: cy, x2, y2 }, C, { stroke: "var(--line-2)", strokeWidth: 2 }));
+    mk("circle", { cx, cy, r: 64 }, C, { fill: "var(--surface-2)", stroke: "var(--agent)", strokeWidth: 3 });
+    const hub = T(C, cx, cy + 11, "DRAG", { font: "800 32px var(--f-display)", fill: "var(--ink)" }, "middle");
+    const tags = ITEMS.map(([a, b, tone], i) => {
+      const g = mk("g", {}, C);
+      mk("rect", { x: -120, y: -27, width: 240, height: 54, rx: 14 }, g, { fill: "var(--surface-2)", stroke: `var(--${tone})`, strokeWidth: 2 });
+      T(g, 0, -4, a, { font: "700 15px var(--f-body)" }, "middle");
+      T(g, 0, 16, b, { font: "500 12.5px var(--f-mono)", fill: "var(--muted)" }, "middle");
+      g._p = POS[i];
+      return g;
+    });
+    S = { svg, A, B, C, sub, q, s1, s2, l1, l2, l3, p1, p2, p3, p4, dot, draft, slot, bars, theta, rind, trig, trigT, qfs, qwords, qbox, heatR, std, lin, ptsB, tB, spokes, tags, hub };
+  }
+  const show = (els, v) => gsap.set(els, { autoAlpha: v ? 1 : 0 });
+  function apply(n) {
+    const s = S;
+    gsap.killTweensOf([s.A, s.B, s.C, s.dot, s.slot.el, s.std, s.lin, ...s.bars, ...s.heatR, ...s.tags, ...s.draft.map((o) => o.el), ...s.s1.map((o) => o.el), ...s.s2.map((o) => o.el)]);
+    show(s.A, n <= 3); show(s.B, n === 4); show(s.C, n >= 5);
+    s.sub.textContent = SUB[Math.min(n, 3)];
+    show([s.l1, ...s.s1.map((o) => o.el), ...s.s2.map((o) => o.el)], n >= 1);
+    show([s.p1, s.p2, s.p3, s.p4, s.dot], false);
+    show([s.l2, s.theta, ...s.draft.map((o) => o.el), ...s.bars], n >= 2);
+    s.slot.el.textContent = "Rockland"; s.slot.el.style.fill = "var(--state)";
+    s.bars.forEach((b, i) => { const c = i === 4 ? .85 : CONF[i]; gsap.set(b, { attr: { y: 242 - c * 30, height: c * 30 } }); b.style.fill = "var(--state)"; });
+    show([s.l3, s.rind, s.trig, s.trigT, s.qfs], n >= 3);
+    s.heatR.forEach((h) => gsap.set(h, { opacity: n >= 3 ? h._a * .55 : 0 }));
+    s.q.forEach((o) => o.el.style.fill = n >= 3 ? "var(--ink)" : "var(--muted)");
+    [s.std, s.lin].forEach((p) => gsap.set(p, { strokeDasharray: "none", strokeDashoffset: 0 }));
+    show([...s.ptsB, ...s.tB], true);
+    s.tags.forEach((g) => gsap.set(g, { x: g._p[0], y: g._p[1], scale: 1, autoAlpha: 1 }));
+  }
+  function pulse(t, p, at) {
+    const L = p.getTotalLength(), o = { k: 0 };
+    t.set(p, { autoAlpha: 1 }, at).set(S.dot, { autoAlpha: 1 }, "<")
+      .to(o, { k: 1, duration: 0.8, ease: "power1.inOut", onUpdate: () => { const pt = p.getPointAtLength(o.k * L); S.dot.setAttribute("cx", pt.x); S.dot.setAttribute("cy", pt.y); } })
+      .set([S.dot], { autoAlpha: 0 }).to(p, { autoAlpha: 0, duration: 0.3 });
+  }
+  const typeIn = (t, list, at) => t.fromTo(list.map((o) => o.el), { autoAlpha: 0, y: 6 }, { autoAlpha: 1, y: 0, duration: 0.25, stagger: 0.12 }, at);
+  function play(n) {
+    const s = S;
+    apply(n - 1);
+    tl = gsap.timeline({ onComplete: () => apply(n) });
+    if (n === 1) {
+      show([s.l1, ...s.s1.map((o) => o.el), ...s.s2.map((o) => o.el)], false);
+      tl.to(s.l1, { autoAlpha: 1, duration: 0.3 });
+      typeIn(tl, s.s1); tl.add(() => (s.sub.textContent = "query = sentence 1")); pulse(tl, s.p1);
+      typeIn(tl, s.s2); tl.add(() => (s.sub.textContent = "query = sentence 2")); pulse(tl, s.p2);
+    } else if (n === 2) {
+      show([s.l2, s.theta, ...s.draft.map((o) => o.el), ...s.bars], false);
+      s.slot.el.textContent = "Orange"; s.slot.el.style.fill = "var(--risk)";
+      s.bars.forEach((b, i) => { b.style.fill = CONF[i] < .5 ? "var(--risk)" : "var(--state)"; gsap.set(b, { attr: { y: 242, height: 0 } }); });
+      tl.to(s.l2, { autoAlpha: 1, duration: 0.3 });
+      typeIn(tl, s.draft);
+      tl.set(s.bars, { autoAlpha: 1 }).to(s.bars, { attr: { y: (i) => 242 - CONF[i] * 30, height: (i) => CONF[i] * 30 }, duration: 0.5, stagger: 0.06 })
+        .to(s.theta, { autoAlpha: 1, duration: 0.3 })
+        .to(s.slot.el, { scale: 1.25, transformOrigin: "50% 50%", duration: 0.2, yoyo: true, repeat: 3 });
+      tl.add(() => (s.sub.textContent = "query = FLARE draft")); pulse(tl, s.p3);
+      tl.to(s.slot.el, { autoAlpha: 0, duration: 0.2 })
+        .add(() => { s.slot.el.textContent = "Rockland"; s.slot.el.style.fill = "var(--state)"; s.bars[4].style.fill = "var(--state)"; })
+        .to(s.slot.el, { autoAlpha: 1, duration: 0.3 })
+        .to(s.bars[4], { attr: { y: 242 - .85 * 30, height: .85 * 30 }, duration: 0.5 }, "<");
+    } else if (n === 3) {
+      show([s.l3, s.rind, s.trig, s.trigT, s.qfs], false);
+      tl.to(s.l3, { autoAlpha: 1, duration: 0.3 })
+        .fromTo([s.trig, s.trigT], { autoAlpha: 0, scale: 0.6, transformOrigin: "50% 50%" }, { autoAlpha: 1, scale: 1, duration: 0.45, ease: "back.out(2)" })
+        .to(s.rind, { autoAlpha: 1, duration: 0.4 })
+        .add(() => s.q.forEach((o) => (o.el.style.fill = "var(--ink)")))
+        .to(s.heatR, { opacity: (i) => s.heatR[i]._a * .55, duration: 0.5, stagger: 0.03 })
+        .set(s.qfs, { autoAlpha: 1 })
+        .fromTo([s.qbox, ...s.qwords.map((o) => o.el)], { autoAlpha: 0, y: 8 }, { autoAlpha: 1, y: 0, duration: 0.3, stagger: 0.12 });
+      tl.add(() => (s.sub.textContent = "query = QFS tokens")); pulse(tl, s.p4);
+    } else if (n === 4) {
+      tl.to(s.A, { autoAlpha: 0, duration: 0.35 }).set(s.B, { autoAlpha: 1 })
+        .set([...s.ptsB, ...s.tB], { autoAlpha: 0 });
+      [s.std, s.lin].forEach((p, i) => { const L = p.getTotalLength(); tl.fromTo(p, { strokeDasharray: L, strokeDashoffset: L }, { strokeDashoffset: 0, duration: 1.2, ease: "power2.inOut" }, i ? "<0.3" : ">"); });
+      tl.to(s.ptsB, { autoAlpha: 1, duration: 0.2, stagger: 0.12 }, "<0.3").to(s.tB, { autoAlpha: 1, duration: 0.4, stagger: 0.2 });
+    } else if (n >= 5) {
+      tl.to(s.B, { autoAlpha: 0, duration: 0.35 }).set(s.C, { autoAlpha: 1 })
+        .fromTo(s.hub, { scale: 0.4, transformOrigin: "50% 50%" }, { scale: 1, duration: 0.6, ease: "back.out(2.5)" })
+        .fromTo(s.spokes, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.3, stagger: 0.08 }, "<0.2")
+        .fromTo(s.tags, { x: 410, y: 225, scale: 0.2, autoAlpha: 0 }, { x: (i) => s.tags[i]._p[0], y: (i) => s.tags[i]._p[1], scale: 1, autoAlpha: 1, duration: 0.7, ease: "back.out(1.6)", stagger: 0.12 }, "<");
+    }
+  }
+  function render(n, animate) {
+    if (!S) return;
+    if (tl) { tl.kill(); tl = null; }
+    if (animate && n >= 1) play(n); else apply(n);
+  }
+  Deck.register("rag-c05-dynamic-retrieval", {
+    enter(slide, step) { build(slide); render(step, false); },
+    step(slide, n, animate) { render(n, animate); },
+    leave() { if (tl) tl.kill(); tl = null; S = null; }
+  });
+})();
+</script>

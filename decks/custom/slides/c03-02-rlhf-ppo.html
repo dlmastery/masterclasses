@@ -1,0 +1,73 @@
+<section class="slide" id="custom-c03-rlhf-ppo" data-tone="model" data-title="RLHF with PPO">
+  <style>
+    #custom-c03-rlhf-ppo .ovl { position:absolute; left:40px; top:40px; width:780px; height:470px; z-index:3; }
+    #custom-c03-rlhf-ppo .mem { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+    #custom-c03-rlhf-ppo .mem > span { font:600 15px/1.2 var(--f-mono); padding:10px 8px; border-radius:10px; text-align:center; color:var(--ink); border:1.5px solid var(--model); background:var(--model-soft); }
+    #custom-c03-rlhf-ppo .mem > span.c { border-style:dashed; }
+    #custom-c03-rlhf-ppo .swap { display:grid; }
+    #custom-c03-rlhf-ppo .swap > * { grid-area:1/1; }
+  </style>
+  <h2 class="title">RLHF with PPO keeps four models in memory, and generation takes most of the time</h2>
+  <div class="row fill" style="gap:28px">
+    <div style="position:relative;width:860px;height:580px;flex:none">
+      <div class="diagram" style="width:860px;height:580px" data-on="5:dim"
+           data-wires="demo>sft@1:flow{human}; rank>rm@2:flow{human} [Bradley-Terry]; rm>rml@3:dash [frozen copy]; pol>roll@3:flow{model} [sample]; roll>rml@3:flow{tool}; rml>critic@3 [r]; critic>pol@3:flow{model} [advantage]; ref>pol@3:dash{risk} [KL]">
+        <div class="node n-human" id="demo" style="left:0;top:10px;width:220px" data-step="1" data-fx="pop"><span class="nt">Demonstrations</span><span class="ns">human-written</span></div>
+        <div class="node n-model" id="sft" style="left:330px;top:10px;width:220px" data-step="1" data-fx="pop"><span class="nt">SFT policy</span><span class="ns">step 1</span></div>
+        <div class="node n-human" id="rank" style="left:0;top:130px;width:220px" data-step="2" data-fx="pop"><span class="nt">Human rankings</span><span class="ns">K outputs per prompt</span></div>
+        <div class="node n-model" id="rm" style="left:330px;top:130px;width:220px" data-step="2" data-fx="pop"><span class="nt">Reward model</span><span class="ns">scalar head, step 2</span></div>
+        <div class="group g-model" style="left:0;top:262px;width:860px;height:312px" data-step="3"><span class="gl">PPO loop, step 3</span></div>
+        <div class="node n-model" id="pol" style="left:40px;top:300px;width:200px" data-step="3" data-fx="pop" data-on="4:hot"><span class="nt">Policy</span><span class="ns">init from SFT</span></div>
+        <div class="node n-tool" id="roll" style="left:330px;top:300px;width:200px" data-step="3" data-fx="pop" data-on="4:hot"><span class="nt">Rollouts</span><span class="ns">vLLM generation</span></div>
+        <div class="node n-model" id="rml" style="left:620px;top:300px;width:200px" data-step="3" data-fx="pop" data-on="4:hot"><span class="nt">Reward model</span><span class="ns">frozen</span></div>
+        <div class="node n-model" id="critic" style="left:330px;top:470px;width:200px" data-step="3" data-fx="pop" data-on="4:hot"><span class="nt">Critic</span><span class="ns">value model</span></div>
+        <div class="node n-model ghost" id="ref" style="left:40px;top:470px;width:200px" data-step="3" data-fx="pop" data-on="4:hot"><span class="nt">Reference</span><span class="ns">frozen SFT copy</span></div>
+      </div>
+      <svg class="ovl" data-step="5" data-fx="draw" viewBox="0 0 780 470">
+        <rect x="1" y="1" width="778" height="468" rx="18" style="fill:var(--surface-2);stroke:var(--line-2);stroke-width:1.5"/>
+        <line x1="70" y1="400" x2="740" y2="400" style="stroke:var(--line-2);stroke-width:2"/>
+        <line x1="70" y1="400" x2="70" y2="50" style="stroke:var(--line-2);stroke-width:2"/>
+        <path d="M70,390 C200,330 330,250 460,190 C560,145 650,110 740,80" style="fill:none;stroke:var(--tool);stroke-width:4"/>
+        <path d="M70,390 C180,300 260,215 352,215 C450,215 560,300 740,385" style="fill:none;stroke:var(--state);stroke-width:4"/>
+        <line x1="352" y1="70" x2="352" y2="400" style="stroke:var(--risk);stroke-width:2;stroke-dasharray:6 7"/>
+        <circle cx="352" cy="215" r="10" style="fill:var(--risk);stroke:var(--risk);stroke-width:2"/>
+        <text x="364" y="88" style="font:700 17px var(--f-mono);fill:var(--risk)">stop here</text>
+        <text x="600" y="72" style="font:600 17px var(--f-mono);fill:var(--tool)">proxy RM score</text>
+        <text x="580" y="350" style="font:600 17px var(--f-mono);fill:var(--state)">gold score</text>
+        <text x="405" y="432" text-anchor="middle" style="font:600 16px var(--f-mono);fill:var(--muted)">KL from the initial policy →</text>
+        <text x="34" y="225" text-anchor="middle" transform="rotate(-90 34 225)" style="font:600 16px var(--f-mono);fill:var(--muted)">score</text>
+        <text x="760" y="455" text-anchor="end" style="font:500 13px var(--f-mono);fill:var(--faint)">shape after Gao et al. 2022 (qualitative)</text>
+      </svg>
+    </div>
+    <div class="stack fill" style="gap:16px">
+      <p class="quote" style="font-size:22px;padding-left:18px">“outputs from the 1.3B parameter InstructGPT model are preferred to outputs from the 175B GPT-3”</p>
+      <div class="swap">
+        <ol class="seq small" data-until="4">
+          <li data-step="1">Fine-tune the base model on human demonstrations (SFT).</li>
+          <li data-step="2">Train a reward model on human rankings. Loss: <code>−log σ(r(x,y<sub>w</sub>) − r(x,y<sub>l</sub>))</code>.</li>
+          <li data-step="3">Run PPO against the reward model. A per-token KL penalty keeps the policy near the SFT model. PPO-ptx mixes in pretraining gradients to reduce the alignment tax.</li>
+        </ol>
+        <div class="stack" style="gap:14px">
+          <div class="panel tight k-model" data-step="4">
+            <h4>Four models live at once</h4>
+            <div class="mem" data-step="4" data-fx="stagger"><span>policy</span><span class="c">reference</span><span>reward</span><span>critic</span></div>
+            <div class="row middle" style="gap:14px;margin-top:6px">
+              <div class="stat" style="--aurora:var(--tool)"><span class="n" data-to="80" data-pre="~" data-suf="%" style="font-size:48px">0</span></div>
+              <div class="stack" style="gap:6px;flex:1">
+                <div class="bar" style="--v:80%;--aurora:var(--tool)" data-fx="bar"><i></i></div>
+                <span class="tiny">of RLHF time is generation (OpenRLHF README). Fast vLLM rollouts matter most.</span>
+              </div>
+            </div>
+          </div>
+          <div class="callout pitfall" data-step="5"><span>Overoptimization: the proxy score keeps rising with KL, but the gold score peaks and then falls (Goodhart). The reward model is the main surface for reward hacking. Stop at the gold peak.</span></div>
+        </div>
+      </div>
+      <div class="cites push">
+        <a class="cite paper" href="https://arxiv.org/abs/2203.02155" target="_blank" rel="noopener"><b>Paper</b>&nbsp;InstructGPT (Ouyang et al., 2022)</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2210.10760" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Scaling Laws for RM Overoptimization</a>
+        <a class="cite repo" href="https://github.com/OpenRLHF/OpenRLHF" target="_blank" rel="noopener"><b>Repo</b>&nbsp;OpenRLHF/OpenRLHF</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Walk the three InstructGPT steps one by one. Step 1 gives a starting policy, step 2 turns human rankings into a scalar score with the Bradley-Terry loss, step 3 optimizes that score with PPO while a KL penalty holds the policy near the SFT model. Then show the cost: four models in memory, and about 80% of the time spent on generation, which is why every modern framework uses vLLM for rollouts. Analogy: the reward model is an exam marker trained on a few hundred marked scripts; a student who practises only against that marker learns its blind spots. Likely question: "How do you know when to stop?" Answer: track a held-out gold signal (human or stronger judge) and stop near its peak, not when the proxy reward stops rising.</aside>
+</section>

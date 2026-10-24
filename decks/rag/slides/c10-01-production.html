@@ -1,0 +1,120 @@
+<section class="slide chapter" id="rag-c10-production" data-tone="tool" data-title="10 Production, managed RAG and best practices">
+  <style>
+    #rag-c10-production .gauges { width: 1010px; gap: 22px; }
+    #rag-c10-production .gauges .panel { gap: 6px; }
+    #rag-c10-production svg.gauge { display: block; width: 100%; height: 138px; overflow: visible; }
+    #rag-c10-production .gauges p.tiny { color: var(--ink-2); }
+  </style>
+  <div class="ch-num" data-fx="blur">10</div>
+
+  <div class="grid g3 gauges">
+    <div class="panel tight k-tool" data-on="1:hot">
+      <svg class="gauge" viewBox="0 0 260 140" aria-label="Latency gauge"></svg>
+      <h4>Latency budget</h4>
+      <p class="tiny">Embed query → ANN search → rerank → <b>LLM prefill</b> (grows with context) → decode.</p>
+    </div>
+    <div class="panel tight k-model" data-on="2:hot">
+      <svg class="gauge" viewBox="0 0 260 140" aria-label="Cost gauge"></svg>
+      <h4>Cost budget</h4>
+      <p class="tiny">Tokens in context → reranker calls → <b>agent loops</b>: agents use ~4x, multi-agent systems ~15x the tokens of chat.</p>
+    </div>
+    <div class="panel tight k-state" data-on="3:hot">
+      <svg class="gauge" viewBox="0 0 260 140" aria-label="Freshness gauge"></svg>
+      <h4>Freshness promise</h4>
+      <p class="tiny">Source changes → index lags → cache keeps the old answer. <b class="c-risk">Zombie chunks</b> answer from deleted or changed documents.</p>
+    </div>
+  </div>
+
+  <h2 class="display">Production, managed RAG and best practices</h2>
+  <p class="lede" data-fx="up">Every answer spends time, tokens and trust. This chapter covers tracing and caching, incremental indexing, managed RAG services, a best-practice checklist and open challenges.</p>
+
+  <aside class="notes">
+    A demo answers one question. A product answers a million questions, and each answer spends three budgets: time, money and trust in freshness.
+    Press three times: each gauge fills segment by segment and the needle passes its budget mark. The segment widths are illustrative, not measurements; the order is the point.
+    Latency: prefill grows with the context, so the number of chunks you send drives time. Cost: tokens in context and agent loops dominate; Anthropic reports about 4x the tokens of chat for agents and about 15x for multi-agent systems.
+    Freshness: a "zombie chunk" is a chunk whose source document was edited or deleted, but the chunk still answers. Analogy: a restaurant menu on the web that still shows last year's prices.
+    Likely question: "Which budget breaks first?" Usually latency on long contexts and cost on agent loops; freshness breaks silently, so you need an SLO for it.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const R = 96, CX = 130, CY = 124, L = Math.PI * R, MARK = 0.8;
+  const GAUGES = [
+    { tone: "tool",  segs: [0.06, 0.09, 0.15, 0.34, 0.24], mark: "budget", status: "over budget" },
+    { tone: "model", segs: [0.44, 0.12, 0.33],             mark: "budget", status: "over budget" },
+    { tone: "state", segs: [0.24, 0.32, 0.30],             mark: "SLO",    status: "zombie chunks" },
+  ];
+  const ARC = `M${CX - R},${CY} A${R},${R} 0 0 1 ${CX + R},${CY}`;
+  const tweens = [];
+  const mk = (tag, attrs, parent) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  };
+  const pt = (f, r) => [CX + Math.cos(Math.PI * (1 - f)) * r, CY - Math.sin(Math.PI * (1 - f)) * r];
+
+  function build(slide) {
+    slide.querySelectorAll("svg.gauge").forEach((svg, gi) => {
+      if (svg._built) return;
+      svg._built = true;
+      const g = GAUGES[gi];
+      mk("path", { d: ARC, fill: "none", stroke: "var(--line-2)", "stroke-width": 20 }, svg);
+      let start = 0;
+      svg._segs = g.segs.map((s, i) => {
+        const p = mk("path", { d: ARC, fill: "none", stroke: `var(--${g.tone})`, "stroke-width": 20,
+          opacity: (1 - i * 0.14).toFixed(2), "stroke-dasharray": `0 ${L}`, "stroke-dashoffset": (-start * L).toFixed(1) }, svg);
+        p._len = Math.max(0, s * L - 2.5);
+        p._px = { v: 0 };
+        start += s;
+        return p;
+      });
+      svg._total = start;
+      const [ax, ay] = pt(MARK, R - 15), [bx, by] = pt(MARK, R + 15), [tx, ty] = pt(MARK, R + 30);
+      mk("line", { x1: ax, y1: ay, x2: bx, y2: by, stroke: "var(--risk)", "stroke-width": 3, "stroke-linecap": "round" }, svg);
+      const t = mk("text", { x: tx, y: ty, "text-anchor": "middle", fill: "var(--risk)", "font-family": "var(--f-mono)", "font-size": 12, "font-weight": 600 }, svg);
+      t.textContent = g.mark;
+      const z = mk("text", { x: CX - R, y: CY + 18, "text-anchor": "middle", fill: "var(--muted)", "font-family": "var(--f-mono)", "font-size": 12 }, svg);
+      z.textContent = "0";
+      svg._needle = mk("g", {}, svg);
+      mk("line", { x1: CX, y1: CY, x2: CX, y2: CY - R + 26, stroke: "var(--ink)", "stroke-width": 4, "stroke-linecap": "round" }, svg._needle);
+      mk("circle", { cx: CX, cy: CY, r: 8, fill: "var(--ink)" }, svg);
+      svg._status = mk("text", { x: CX, y: CY - 30, "text-anchor": "middle", fill: "var(--risk)", "font-family": "var(--f-display)", "font-size": 17, "font-weight": 700, opacity: 0 }, svg);
+      svg._status.textContent = g.status;
+      gsap.set(svg._needle, { rotation: -90, svgOrigin: `${CX} ${CY}` });
+    });
+  }
+
+  function setSeg(p, v) { p._px.v = v; p.setAttribute("stroke-dasharray", `${v.toFixed(1)} ${L}`); }
+
+  function render(slide, n, animate) {
+    slide.querySelectorAll("svg.gauge").forEach((svg, gi) => {
+      if (!svg._built) return;
+      const on = n >= gi + 1;
+      const dur = 0.45, k = svg._segs.length;
+      svg._segs.forEach((p, i) => {
+        gsap.killTweensOf(p._px);
+        const to = on ? p._len : 0;
+        if (animate) tweens.push(gsap.to(p._px, { v: to, duration: dur, delay: on ? i * 0.3 : 0, ease: "power2.out", onUpdate: () => setSeg(p, p._px.v) }));
+        else setSeg(p, to);
+      });
+      const deg = -90 + 180 * (on ? svg._total : 0);
+      gsap.killTweensOf([svg._needle, svg._status]);
+      if (animate) {
+        tweens.push(gsap.to(svg._needle, { rotation: deg, svgOrigin: `${CX} ${CY}`, duration: on ? k * 0.3 + 0.5 : 0.4, ease: on ? "back.out(1.6)" : "power2.out" }));
+        tweens.push(gsap.to(svg._status, { opacity: on ? 1 : 0, duration: 0.4, delay: on ? k * 0.3 + 0.4 : 0 }));
+      } else {
+        gsap.set(svg._needle, { rotation: deg, svgOrigin: `${CX} ${CY}` });
+        gsap.set(svg._status, { opacity: on ? 1 : 0 });
+      }
+    });
+  }
+
+  Deck.register("rag-c10-production", {
+    enter(slide, step) { build(slide); render(slide, step, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { tweens.forEach((t) => t.kill()); tweens.length = 0; },
+  });
+})();
+</script>

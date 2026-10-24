@@ -1,0 +1,108 @@
+<section class="slide" id="rag-c05-router-adaptive" data-tone="agent" data-title="Router and Adaptive-RAG">
+  <style>
+    #rag-c05-router-adaptive .src { padding: 8px 14px; }
+    #rag-c05-router-adaptive .br { padding: 7px 14px; }
+    #rag-c05-router-adaptive .c05-tok { position: absolute; left: 0; top: 0; z-index: 3; visibility: hidden; }
+  </style>
+  <h2 class="title">A router picks the source, and Adaptive-RAG picks how much retrieval a question needs</h2>
+
+  <div class="row" style="gap:28px">
+    <div class="diagram" id="c05-ra-dg" style="width:830px;height:310px"
+         data-wires="rq>rr:flow{human}; rr>rvec:lr; rr>rsql:lr; rr>rweb:lr; rr>rnone:lr:dash">
+      <div class="node n-human pill" id="rq" style="left:0;top:128px;width:150px"><span class="nt">Question</span></div>
+      <div class="node n-agent" id="rr" style="left:240px;top:112px;width:210px"><span class="nt">Router LLM</span><span class="ns">structured output</span></div>
+      <span class="tag t-agent" id="c05-ra-out" style="position:absolute;left:240px;top:200px">{"source": "?"}</span>
+      <div class="node n-state src" id="rvec" style="left:580px;top:0;width:250px"><span class="nt">Vector DB</span><span class="ns">product docs</span></div>
+      <div class="node n-tool src" id="rsql" style="left:580px;top:82px;width:250px"><span class="nt">SQL</span><span class="ns">text-to-SQL · orders DB</span></div>
+      <div class="node n-tool src" id="rweb" style="left:580px;top:164px;width:250px"><span class="nt">Web</span><span class="ns">Google Search / Tavily</span></div>
+      <div class="node n-model src" id="rnone" style="left:580px;top:246px;width:250px"><span class="nt">None</span><span class="ns">answer directly</span></div>
+      <span class="tag t-human c05-tok" id="c05-ra-t1">refund policy?</span>
+      <span class="tag t-human c05-tok" id="c05-ra-t2">orders last week?</span>
+    </div>
+    <div class="stack" style="width:534px;gap:14px">
+      <div class="code-wrap"><div class="code-head">router.py · enum schema</div>
+<pre class="code sm" data-lang="python"><code>
+class Route(BaseModel):
+    source: Literal["vector", "sql", "web", "none"]
+
+route = llm.with_structured_output(Route).invoke(q)
+</code></pre></div>
+      <ul class="ticks small" data-step="4" data-fx="stagger" style="gap:8px">
+        <li>Constrain the router with an enum schema.</li>
+        <li>Log every route decision in the trace.</li>
+        <li>Fall back to <code>none</code> plus a clarifying question.</li>
+        <li>Measure routing accuracy on its own labels.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="grid g-32" style="gap:20px">
+    <div class="panel tight k-model" data-step="3" style="gap:6px">
+      <h4>Adaptive-RAG: a small classifier predicts question complexity <span class="tiny">(Jeong et al., NAACL 2024)</span></h4>
+      <div class="diagram" style="width:740px;height:136px"
+           data-wires="acls>aa@3:lr; acls>ab@3:lr; acls>ac@3:lr:flow; ab>aidx@3:lr [1 call]; ac<>aidx@3:flow{state}:bend-40 [loop ×3]">
+        <div class="node n-model" id="acls" style="left:0;top:37px;width:180px"><span class="nt">Classifier</span><span class="ns">T5-size</span></div>
+        <div class="node n-model br" id="aa" style="left:270px;top:0;width:250px"><span class="nt">A simple · LLM only</span></div>
+        <div class="node n-agent br" id="ab" style="left:270px;top:50px;width:250px"><span class="nt">B moderate · 1 retrieval</span></div>
+        <div class="node n-agent br" id="ac" style="left:270px;top:100px;width:250px"><span class="nt">C complex · multi-step</span></div>
+        <div class="node n-state br" id="aidx" style="left:620px;top:50px;width:120px"><span class="nt">Index</span></div>
+      </div>
+      <p class="tiny">Training labels come automatically: the label is the strategy that got the answer right. C runs an IRCoT-style loop. Self-Route uses the same idea to choose RAG or long context.</p>
+    </div>
+    <div class="stack" data-step="4" style="gap:10px">
+      <div class="callout pitfall"><div><b>Pitfall:</b> an unconstrained router invents a source name, for example <code>"docs_v2"</code>. The call fails or goes nowhere. An enum makes this impossible.</div></div>
+      <div class="cites" style="flex-direction:column;align-items:flex-start;gap:8px">
+        <a class="cite paper" href="https://arxiv.org/abs/2403.14403" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Adaptive-RAG (arXiv 2403.14403)</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2407.16833" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Self-Route: RAG or Long-Context LLMs? (arXiv 2407.16833)</a>
+        <a class="cite video" href="https://www.deeplearning.ai/short-courses/building-agentic-rag-with-llamaindex/" target="_blank" rel="noopener"><b>Course</b>&nbsp;Building Agentic RAG with LlamaIndex (router query engine)</a>
+      </div>
+    </div>
+  </div>
+
+  <aside class="notes">
+    The router is the simplest agentic RAG: one LLM call that returns structured output and picks a source. Step one: "refund policy?" goes to the vector DB of product docs. Step two: "orders last week?" goes to text-to-SQL over the orders database. The enum in the schema stops the model from inventing a source. Adaptive-RAG (Jeong et al., NAACL 2024) adds a second decision: how much retrieval. A small T5-size classifier sends simple questions to the LLM alone, moderate ones to one retrieval, and complex ones to a multi-step IRCoT-style loop; the training labels come from which strategy got the answer right. Analogy: a hospital triage desk sends a cold to the pharmacy and a fracture to surgery. Likely question: "How do you evaluate a router?" Keep a labeled set of questions with the correct source and measure routing accuracy apart from answer quality.
+  </aside>
+</section>
+<script>
+(() => {
+  let dg = null, toks = [], out = null;
+  const PLAN = { 1: { tok: 0, to: "rvec", src: "vector" }, 2: { tok: 1, to: "rsql", src: "sql" } };
+  const ctr = (el) => ({ x: el.offsetLeft + el.offsetWidth / 2, y: el.offsetTop + el.offsetHeight / 2 });
+  function place(t, p) { gsap.set(t, { x: p.x - t.offsetWidth / 2, y: p.y - t.offsetHeight / 2 }); }
+  function render(n, animate) {
+    if (!dg) return;
+    const k = Math.min(n, 2);
+    ["rvec", "rsql"].forEach((id) => dg.querySelector("#" + id).classList.remove("lit"));
+    dg.querySelector("#rr").classList.remove("lit");
+    toks.forEach((t) => { gsap.killTweensOf(t); gsap.set(t, { autoAlpha: 0 }); });
+    if (!k) { out.textContent = '{"source": "?"}'; return; }
+    const p = PLAN[k], t = toks[p.tok];
+    const target = dg.querySelector("#" + p.to);
+    const a = ctr(dg.querySelector("#rq")), b = ctr(dg.querySelector("#rr"));
+    const c = { x: target.offsetLeft - 70, y: target.offsetTop + target.offsetHeight / 2 };
+    const finish = () => { out.textContent = `{"source": "${p.src}"}`; target.classList.add("lit"); };
+    if (!animate) { finish(); return; }
+    out.textContent = '{"source": "?"}';
+    place(t, a);
+    const tl = gsap.timeline();
+    tl.to(t, { autoAlpha: 1, duration: 0.25 })
+      .to(t, { x: b.x - t.offsetWidth / 2, y: b.y - t.offsetHeight / 2, duration: 0.7, ease: "power2.inOut" })
+      .add(() => dg.querySelector("#rr").classList.add("lit"))
+      .to(t, { scale: 1.15, duration: 0.2, yoyo: true, repeat: 1 })
+      .add(() => { out.textContent = `{"source": "${p.src}"}`; dg.querySelector("#rr").classList.remove("lit"); })
+      .to(t, { x: c.x - t.offsetWidth / 2, y: c.y - t.offsetHeight / 2, duration: 0.7, ease: "power2.inOut" })
+      .add(finish)
+      .to(t, { autoAlpha: 0, duration: 0.3 });
+  }
+  Deck.register("rag-c05-router-adaptive", {
+    enter(slide, step) {
+      dg = slide.querySelector("#c05-ra-dg");
+      out = slide.querySelector("#c05-ra-out");
+      toks = [slide.querySelector("#c05-ra-t1"), slide.querySelector("#c05-ra-t2")];
+      render(step, false);
+    },
+    step(slide, n, animate) { render(n, animate); },
+    leave() { toks.forEach((t) => gsap.killTweensOf(t)); dg = null; }
+  });
+})();
+</script>
