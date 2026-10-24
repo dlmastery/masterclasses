@@ -1,0 +1,74 @@
+<section class="slide tight" id="custom-c05-data-contracts" data-tone="state" data-title="Data contracts in CI">
+  <style>
+    #custom-c05-data-contracts .part h4 { font-size: 18px; }
+    #custom-c05-data-contracts .part p { font-size: 15px; line-height: 1.35; color: var(--ink-2); }
+    #custom-c05-data-contracts .part { padding: 12px 16px; gap: 4px; }
+    #custom-c05-data-contracts table.t { font-size: 15px; }
+    #custom-c05-data-contracts table.t td, #custom-c05-data-contracts table.t th { padding: 5px 10px; }
+    #custom-c05-data-contracts table.t th { font-size: 13px; }
+    #custom-c05-data-contracts table.t code { font-size: 13px; }
+    #custom-c05-data-contracts .cites .cite { font-size: 14px; padding: 5px 10px 5px 7px; }
+    #custom-c05-data-contracts .cites .cite::before { width: 18px; height: 18px; }
+    #custom-c05-data-contracts .term pre.code { padding: 10px 16px; }
+  </style>
+  <h2 class="title">A data contract makes schema, semantics and SLAs executable in CI</h2>
+  <div class="grid fill" style="grid-template-columns: 700px 1fr; gap:28px">
+    <div class="stack" style="gap:12px">
+      <div class="grid g2" style="gap:10px">
+        <div class="panel tight k-state part" data-on="1:hot"><h4>1 · Schema</h4><p>Fields, types, nullability, keys.</p></div>
+        <div class="panel tight k-state part" data-on="2:hot"><h4>2 · Semantics</h4><p>Allowed values, ranges, formats, units, meaning: “<code>amount</code> is gross EUR incl. VAT”.</p></div>
+        <div class="panel tight k-state part" data-on="3:hot"><h4>3 · SLAs and quality</h4><p>Freshness, completeness, volume, uniqueness, an owner.</p></div>
+        <div class="panel tight k-state part" data-on="5:hot"><h4>4 · Change policy</h4><p>Versioned in git. CI finds breaking changes.</p></div>
+      </div>
+      <div class="code-wrap" data-fx="up"><div class="code-head">sft_contract.py · Pandera 0.34.1</div>
+<pre class="code sm" data-lang="python" data-focus="1:4-6, 2:7-8, 3:10-13, 4:6-6"><code>
+import pandas as pd
+import pandera.pandas as pa       # not: import pandera
+
+class SFTRow(pa.DataFrameModel):  # contract for an SFT shard
+    prompt: str   = pa.Field(str_length={"min_value": 1})
+    response: str = pa.Field(str_length={"min_value": 1})
+    lang: str     = pa.Field(isin=["en", "de", "fr"])
+    quality: float = pa.Field(ge=0.0, le=1.0)
+
+    class Config:
+        strict = True             # no unexpected columns
+
+SFTRow.validate(df, lazy=True)    # collect all failures
+</code></pre></div>
+    </div>
+    <div class="stack" style="gap:12px">
+      <div class="diagram" style="width:664px;height:160px" data-wires="gen>ct:flow{state} [rows]; ct>train [pass]; bad>ct@4:flow{risk}">
+        <div class="node n-model" id="gen" style="left:0;top:4px;width:180px"><span class="nt">Synthetic generator</span><span class="ns">LLM writes rows</span></div>
+        <div class="node n-tool" id="ct" style="left:262px;top:4px;width:176px" data-on="4:hot"><span class="nt">Contract test</span><span class="ns">SFTRow.validate</span></div>
+        <div class="node n-model" id="train" style="left:530px;top:4px;width:134px" data-on="4:dim"><span class="nt">Train</span><span class="ns">SFT job</span></div>
+        <div class="node n-risk" id="bad" style="left:0;top:100px;width:180px;padding:8px 14px" data-step="4" data-fx="pop"><span class="ns" style="color:var(--risk)">response: ""</span></div>
+        <div class="node n-risk pill" id="blk" style="left:420px;top:100px;width:160px;padding:8px 14px" data-step="4" data-fx="pop"><span class="nt" style="font-size:16px">✕ build blocked</span></div>
+      </div>
+      <div class="code-wrap term" data-step="5" data-fx="up"><div class="code-head">ODCS v3.1.0 · datacontract-cli</div>
+<pre class="code xs" data-lang="bash"><code>
+$ datacontract lint odcs.yaml
+$ datacontract test odcs.yaml       # schema + quality on the live source
+$ datacontract breaking v1.odcs.yaml v2.odcs.yaml
+# v2 removes a column -> breaking change -> the CI job fails
+</code></pre></div>
+      <table class="t" data-step="6">
+        <tr><th>Need</th><th>Best fit</th></tr>
+        <tr><td>Validate frames in Python training code</td><td><b>Pandera</b> 0.34.1</td></tr>
+        <tr><td>Expectation classes with <code>severity</code>, checkpoints</td><td><b>Great Expectations</b> 1.24.1</td></tr>
+        <tr><td>YAML contract on a table, <code>soda contract verify</code></td><td><b>Soda Core 4</b></td></tr>
+        <tr><td>SQL models: <code>enforced: true</code>, breaking-change gate</td><td><b>dbt</b> model contracts</td></tr>
+        <tr><td>Vendor-neutral spec, executable SLAs</td><td><b>ODCS v3.1.0</b> + datacontract-cli</td></tr>
+      </table>
+      <div class="cites push" data-step="6">
+        <a class="cite repo" href="https://pypi.org/project/pandera/" target="_blank" rel="noopener"><b>Repo</b>&nbsp;pandera 0.34.1</a>
+        <a class="cite repo" href="https://github.com/datacontract/datacontract-cli" target="_blank" rel="noopener"><b>Repo</b>&nbsp;datacontract-cli</a>
+        <a class="cite doc" href="https://docs.getdbt.com/docs/mesh/govern/model-contracts" target="_blank" rel="noopener"><b>Doc</b>&nbsp;Model contracts | dbt</a>
+        <a class="cite doc" href="https://docs.greatexpectations.io/docs/core/introduction/try_gx" target="_blank" rel="noopener"><b>Doc</b>&nbsp;Try GX Core</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    A data contract is an agreement between the team that makes the data and the teams that use it. It is versioned in git and CI runs it on every batch. For ML and LLM data, the consumer is the training or eval pipeline. Step 1: the field types are the schema. Step 2: isin, ge and le are semantics, the allowed values and ranges. Step 3: strict mode refuses unexpected columns, and lazy=True collects every failure in one report, which is the quality gate. Step 4: a synthetic generator sends a row with an empty response; the str_length rule catches it and the build stops before training. Step 5: the change policy; datacontract breaking compares two contract versions and fails when v2 removes a column. Step 6: the tool choice. Analogy: a contract is a type system for data that crosses a team boundary. Likely question: "Pandera or Great Expectations?" Pandera when the check lives inside Python training code; Great Expectations or Soda when the data lives in a warehouse and many teams read it. Pitfall: use import pandera.pandas as pa; the old top-level import gives a FutureWarning.
+  </aside>
+</section>

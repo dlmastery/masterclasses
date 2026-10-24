@@ -1,0 +1,29 @@
+<section class="slide" id="rag-c05-interview" data-tone="agent" data-title="Interview: agentic RAG">
+  <h2 class="title">Interview: designing agentic RAG</h2>
+  <div class="grid g2" style="gap:26px 36px">
+    <div class="qa">
+      <div class="q">Design a support assistant that sometimes needs SQL, sometimes docs and sometimes nothing.</div>
+      <div class="a" data-step="1">Put an <b>enum router</b> first: <code>vector | sql | web | none</code> with structured output, so it cannot invent a source. Add an <b>Adaptive-RAG complexity gate</b>: simple questions skip retrieval, complex ones get a multi-step loop. Trace every route and <b>evaluate routing accuracy separately</b> from answer quality.</div>
+    </div>
+    <div class="qa">
+      <div class="q">How do you stop an agentic RAG loop?</div>
+      <div class="a" data-step="2">Use four stops: a <b>max_iterations</b> cap in the state, a <b>sufficiency grader</b> that ends the loop when the evidence is enough, a <b>token or time budget</b>, and a <b>fallback answer</b> that says “not found” and cites what was searched. Log each pass to detect query drift.</div>
+    </div>
+    <div class="qa">
+      <div class="q">Self-RAG or CRAG for a closed API model?</div>
+      <div class="a" data-step="3"><b>CRAG.</b> It wraps any generator with a separate retrieval evaluator (T5-large, about 0.77B) and a web-search fallback. <b>Self-RAG</b> needs a fine-tuned model that emits reflection tokens (Retrieve, ISREL, ISSUP, ISUSE). You cannot train those into a hosted model.</div>
+    </div>
+    <div class="qa">
+      <div class="q">Why can DRAGIN not run on a hosted API?</div>
+      <div class="a" data-step="4"><b>RIND</b> needs token entropy from the logits and the attention that later tokens give each token. <b>QFS</b> needs the self-attention weights over the whole context. Closed APIs do not return attention weights. Use IRCoT or IterDRAG instead: they need only text.</div>
+    </div>
+  </div>
+  <div class="cites push" data-step="4">
+    <a class="cite paper" href="https://arxiv.org/abs/2401.15884" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Corrective Retrieval Augmented Generation (arXiv 2401.15884)</a>
+    <a class="cite paper" href="https://arxiv.org/abs/2310.11511" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Self-RAG (arXiv 2310.11511)</a>
+    <a class="cite paper" href="https://aclanthology.org/2024.acl-long.702" target="_blank" rel="noopener"><b>Paper</b>&nbsp;DRAGIN (ACL 2024)</a>
+  </div>
+  <aside class="notes">
+    Let the students answer each question before you show the model answer. Question one tests whether they start with the cheapest control: a constrained router and a complexity gate, not a free agent. Question two is the most common failure in production; a strong answer names more than one stop condition and a graceful "not found" path. Question three checks that they know the difference between a trained behaviour (Self-RAG) and a wrapper (CRAG). Question four checks white-box versus black-box access. Analogy for the whole slide: you can add a smoke detector to any house, but you cannot rewire the walls of a rented flat. Likely follow-up: "What do you measure first?" Retrieval recall and routing accuracy, before answer quality.
+  </aside>
+</section>

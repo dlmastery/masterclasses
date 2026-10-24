@@ -1,0 +1,57 @@
+<section class="slide tight" id="rag-c06-mcp" data-tone="tool" data-title="MCP as the retrieval interface">
+  <h2 class="title">MCP makes retrieval a standard search-and-fetch interface that any agent can call</h2>
+  <div class="grid fill" style="grid-template-columns:768px 600px;gap:24px">
+    <div class="stack" style="gap:14px">
+      <div class="diagram" style="width:768px;height:330px"
+           data-wires="a1>hub@2:flow{agent}; a2>hub@2; a3>hub@2:flow{agent}; a4>hub@2; hub<>s1@3:flow{state}; hub<>s2@3:flow{state}; hub<>s3@3:flow{state}">
+        <div class="node n-agent" id="a1" style="left:0;top:0;width:250px" data-step="1" data-fx="left"><span class="nt">ADK agent</span><span class="ns">McpToolset</span></div>
+        <div class="node n-agent" id="a2" style="left:0;top:85px;width:250px" data-step="1" data-fx="left"><span class="nt">LangGraph / Claude</span><span class="ns">any MCP client</span></div>
+        <div class="node n-agent" id="a3" style="left:0;top:170px;width:250px" data-step="1" data-fx="left"><span class="nt">Gemini Deep Research</span><span class="ns">MCP servers</span></div>
+        <div class="node n-agent" id="a4" style="left:0;top:255px;width:250px" data-step="1" data-fx="left" data-on="4:hot"><span class="nt">OpenAI deep research</span><span class="ns">needs search + fetch</span></div>
+        <div class="node n-tool" id="hub" style="left:330px;top:126px;width:170px" data-step="2" data-fx="pop" data-on="3:hot"><span class="nt">MCP server</span><span class="ns">search · fetch</span></div>
+        <div class="tags" data-step="3" data-fx="fade" style="position:absolute;left:330px;top:232px"><span class="tag t-risk">untrusted output</span></div>
+        <div class="node n-state" id="s1" style="left:560px;top:8px;width:208px" data-step="3" data-fx="right"><span class="nt">Knowledge base</span><span class="ns">Azure AI Search KB</span></div>
+        <div class="node n-state" id="s2" style="left:560px;top:128px;width:208px" data-step="3" data-fx="right"><span class="nt">MCP Toolbox</span><span class="ns">SQL databases</span></div>
+        <div class="node n-state" id="s3" style="left:560px;top:248px;width:208px" data-step="3" data-fx="right"><span class="nt">Graph retrieve</span><span class="ns">HippoRAG MCP tool</span></div>
+      </div>
+      <div class="panel tight k-tool" data-step="4" data-fx="fade">
+        <h4>MCP spec 2026-07-28 <span class="tiny">(prior revision 2025-11-25)</span></h4>
+        <ul class="ticks" data-step="4" data-fx="stagger" style="grid-template-columns:1fr 1fr;gap:8px 26px">
+          <li class="tiny" style="color:var(--ink-2)"><b>Stateless</b>: no <code>initialize</code> handshake; version and capabilities ride in <code>_meta</code>.</li>
+          <li class="tiny" style="color:var(--ink-2)">Servers MUST implement <code>server/discover</code>.</li>
+          <li class="tiny" style="color:var(--ink-2)">No <code>Mcp-Session-Id</code> in Streamable HTTP.</li>
+          <li class="tiny" style="color:var(--ink-2)"><code>subscriptions/listen</code> replaces the GET stream.</li>
+          <li class="tiny" style="color:var(--ink-2)">Multi Round-Trip Requests replace server-side sampling and elicitation.</li>
+          <li class="tiny" style="color:var(--ink-2)"><code>tools/list</code> carries <code>ttlMs</code> and <code>cacheScope</code>, in a fixed order. Roots, Sampling, Logging: deprecated.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="stack" style="gap:14px">
+      <div class="code-wrap"><div class="code-head">kb_agent.py · ADK McpToolset</div>
+<pre class="code xs" data-lang="python" data-focus="2:6-8, 3:11-13, 5:9-9"><code>
+from google.adk.agents import LlmAgent
+from google.adk.tools.mcp_tool import McpToolset
+from google.adk.tools.mcp_tool.mcp_session_manager import (
+    StreamableHTTPConnectionParams)
+
+kb = McpToolset(
+    connection_params=StreamableHTTPConnectionParams(
+        url="https://kb.example.com/mcp", timeout=5),
+    tool_filter=["search", "fetch"],  # retrieval surface only
+)
+root_agent = LlmAgent(model="gemini-flash-latest",
+    name="kb_agent", tools=[kb],
+    instruction="Search the KB. Cite the fetched docs.")
+</code></pre></div>
+      <div class="callout insight" data-step="4">A retrieval server is now a stateless, cacheable HTTP service. A search cursor travels as an explicit handle in the tool arguments.</div>
+      <div class="cites push" data-fx="fade">
+        <a class="cite doc" href="https://modelcontextprotocol.io/specification/latest/changelog" target="_blank" rel="noopener"><b>Docs</b>&nbsp;MCP spec changelog</a>
+        <a class="cite doc" href="https://adk.dev/tools-custom/mcp-tools/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;ADK MCP tools</a>
+        <a class="cite repo" href="https://github.com/googleapis/mcp-toolbox" target="_blank" rel="noopener"><b>Repo</b>&nbsp;googleapis/mcp-toolbox (ex genai-toolbox)</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    MCP turns a corpus into a tool server. ADK, LangGraph, Claude, ChatGPT and Gemini Deep Research all call the same search and fetch tools, so you write no glue per framework. OpenAI deep research accepts an mcp tool only if the server implements search and fetch and require_approval is "never"; that makes search plus fetch a de facto retrieval contract. The 2026-07-28 spec removes the initialize handshake and the session id, so each request stands alone, and tools/list is cacheable and comes in a fixed order, which helps prompt caching. Analogy: a USB-C port for knowledge; any laptop plugs into any drive. In ADK, use tool_filter to expose only search and fetch, not every tool on the server. Likely question: "Is MCP output safe to put in the prompt?" No. Tool output is untrusted input; chapter 9 covers indirect prompt injection.
+  </aside>
+</section>

@@ -1,0 +1,24 @@
+<section class="slide" id="rag-c04-interview" data-tone="agent" data-title="Interview: hybrid, rerank, long context">
+  <h2 class="title">Interview: hybrid search, reranking and long context</h2>
+  <div class="grid g2 fill" style="gap:28px 36px;align-content:start">
+    <div class="qa">
+      <div class="q">Why use RRF instead of averaging BM25 and cosine scores?</div>
+      <div class="a" data-step="1">The scores have different scales and distributions: BM25 is unbounded, cosine is −1..1. RRF uses <b>ranks only</b>, so it needs no calibration. <b>k = 60</b> is robust: pilot MAP was .2072 / .2145 / .2098 for k = 0 / 60 / 500. Use score fusion (Weaviate <code>alpha</code>, Qdrant DBSF) only when you can tune it on labels.</div>
+    </div>
+    <div class="qa">
+      <div class="q">You retrieve 150 and rerank to 20. What is the latency budget, and how do you cut it?</div>
+      <div class="a" data-step="2">The cost is one cross-encoder pass per pair, or one API round-trip. Cap the candidates. Truncate docs (Cohere <code>max_tokens_per_doc</code>, default 4096). Use a fast tier (<code>rerank-v5.0-fast</code>, <code>rerank-3-lite</code>). Batch the pairs on a GPU. Check that a smaller candidate set keeps recall.</div>
+    </div>
+    <div class="qa">
+      <div class="q">Your context has 30 chunks and accuracy fell. Why?</div>
+      <div class="a" data-step="3"><b>Lost in the middle</b> and <b>context rot</b>. GPT-3.5-Turbo with 30 docs and the answer in the middle scored 50.5%, below its closed-book 56.1%. Even one distractor hurts. Send fewer, reranked chunks. Put the best first and last, and remove near-duplicates.</div>
+    </div>
+    <div class="qa">
+      <div class="q">When would you skip RAG?</div>
+      <div class="a" data-step="4">When the corpus is under ~200k tokens, static, and has one permission level. Put it in the prompt with prompt caching: write 1.25× (5 min) or 2× (1 h), read <b>0.1×</b>. Anthropic reports &gt;2× lower latency and up to 90% lower cost. For large, changing or ACL'd corpora, retrieve.</div>
+    </div>
+  </div>
+  <aside class="notes">
+    Ask each question and give the class 20 seconds before you show the answer. For RRF, the strong answer names the calibration problem and quotes the flat MAP curve, then says when score fusion is still a good choice. For the reranker budget, the strong answer counts forward passes or round-trips and lists four ways to cut them, and it checks recall after each cut. For the 30-chunk question, name both effects and give the fix, with the striking number that 30 documents scored below no documents. For skipping RAG, give the size threshold, the static and single-permission conditions, and the cache price multipliers. Analogy for the whole chapter: recall is the net, precision is the sorting table, and context assembly is how you lay the catch out for the chef.
+  </aside>
+</section>

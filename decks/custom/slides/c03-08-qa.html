@@ -1,0 +1,28 @@
+<section class="slide" id="custom-c03-qa" data-tone="model" data-title="Interview: RL for LLMs">
+  <h2 class="title">Interview: reinforcement learning for LLMs</h2>
+  <div class="grid g2 fill" style="gap:28px 36px;align-content:start">
+    <div class="qa">
+      <div class="q">Why does GRPO not need a critic, and what does that cost?</div>
+      <div class="a" data-step="1">The mean and std of the rewards of G sampled answers act as the baseline. You save the value model, about half the memory of PPO. But you generate G completions per prompt, and groups with all-0 or all-1 rewards give no gradient. <b>DAPO dynamic sampling drops them.</b></div>
+    </div>
+    <div class="qa">
+      <div class="q">Reward goes up, but human-rated quality goes down. What happened?</div>
+      <div class="a" data-step="2">Overoptimization or reward hacking (Gao et al.). Read samples. Look for length inflation or edited tests. Add hidden tests, stop at the gold peak, use KL or early stopping, and rotate the judges. <b>Trust a held-out gold signal, not the proxy.</b></div>
+    </div>
+    <div class="qa">
+      <div class="q">DPO chosen log-probs fall during training. Is it a bug?</div>
+      <div class="a" data-step="3">Not necessarily. DPO mostly suppresses the rejected completions (TRL docs), so the margin can grow while both log-probs fall. Watch <code>rewards/margins</code> and an eval. <b>Add an SFT term (MPO) to anchor the chosen responses.</b></div>
+    </div>
+    <div class="qa">
+      <div class="q">You have 2,000 prompts and a unit-test harness. Which method?</div>
+      <div class="a" data-step="4">RLVR with a GRPO-family loss: TRL default <code>dapo</code>, <code>beta=0</code>, dynamic sampling. Run the tests in a sandbox and decontaminate the eval. Start from an SFT checkpoint of 1.5B or larger. <b>Expect the reward to rise only after about 300 steps.</b></div>
+    </div>
+  </div>
+  <div class="cites" data-step="4">
+    <a class="cite doc" href="https://huggingface.co/docs/trl/main/en/grpo_trainer" target="_blank" rel="noopener"><b>Docs</b>&nbsp;TRL GRPO Trainer</a>
+    <a class="cite doc" href="https://huggingface.co/docs/trl/main/en/dpo_trainer" target="_blank" rel="noopener"><b>Docs</b>&nbsp;TRL DPO Trainer</a>
+    <a class="cite paper" href="https://arxiv.org/abs/2210.10760" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Scaling Laws for RM Overoptimization</a>
+    <a class="cite doc" href="https://unsloth.ai/docs/basics/reinforcement-learning-rl-guide" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Unsloth RL guide</a>
+  </div>
+  <aside class="notes">Ask each question first and let the students answer before you reveal the model answer. Good answers name the mechanism, the cost and a concrete check. For question one, push for the zero-gradient case; for question two, push for "read the samples" before any metric; for question three, push for the margin metric; for question four, push for the sandbox and decontamination. Analogy for question two: a student who learns the marker's habits gets a higher mark without better answers. Likely follow-up: "When would you still pick PPO?" Answer: when you need a learned value baseline for long, dense-reward episodes and you can pay for four models in memory.</aside>
+</section>

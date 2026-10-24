@@ -3,12 +3,17 @@
     #custom-c02-trl-qlora .mini { display: flex; gap: 3px; margin-top: 2px; }
     #custom-c02-trl-qlora .mini i { width: 22px; height: 14px; border-radius: 3px; background: var(--surface-2); border: 1px solid var(--line-2); }
     #custom-c02-trl-qlora .mini i.on { background: var(--model); border-color: var(--model); }
+    #custom-c02-trl-qlora .c02t-swap { display: grid; }
+    #custom-c02-trl-qlora .c02t-swap > * { grid-area: 1 / 1; }
     #custom-c02-trl-qlora table.t { font-size: 15px; }
     #custom-c02-trl-qlora table.t td, #custom-c02-trl-qlora table.t th { padding: 6px 10px; }
     #custom-c02-trl-qlora table.t code { font-size: 13.5px; }
+    #custom-c02-trl-qlora .tiny li, #custom-c02-trl-qlora li.tiny { font-size: 16px; line-height: 1.4; }
+    #custom-c02-trl-qlora code, #custom-c02-trl-qlora pre.code { font-variant-ligatures: none; }
   </style>
   <h2 class="title">TRL v1.16 puts QLoRA, packing and assistant-only loss in one SFTConfig</h2>
-  <div class="grid fill" style="grid-template-columns: 790px 1fr; gap:24px">
+  <div class="grid fill" style="grid-template-columns: 790px minmax(0,1fr); gap:24px">
+    <div class="stack" style="gap:12px">
     <div class="code-wrap" data-fx="up"><div class="code-head">sft_qlora.py · TRL v1.16.0 (from the TRL SFT docs, combined)</div>
 <pre class="code xs" data-lang="python" data-focus="1:8-9, 2:10-10, 3:17-19, 4:11-11, 5:13-16"><code>
 from datasets import load_dataset
@@ -33,10 +38,17 @@ trainer = SFTTrainer(
 )
 trainer.train()
 </code></pre></div>
-    <div class="stack" style="gap:12px">
+      <div class="cites">
+        <a class="cite doc" href="https://huggingface.co/docs/trl/sft_trainer" target="_blank" rel="noopener"><b>Doc</b>&nbsp;TRL SFT Trainer</a>
+        <a class="cite repo" href="https://github.com/huggingface/trl/releases" target="_blank" rel="noopener"><b>Repo</b>&nbsp;huggingface/trl releases</a>
+      </div>
+    </div>
+    <div class="stack" style="gap:10px">
+     <div class="c02t-swap">
+      <div class="stack" data-until="5" style="gap:10px">
       <div class="panel tight k-state" data-step="1">
         <h4>Packing: BFD, padding-free</h4>
-        <p class="tiny">v1.13.0: chunked-CE lm_head, about 1.2–1.7× throughput. v1.15.0: fused LM head and selective activation checkpointing. v1.16.0: <code>pad_to_multiple_of="auto"</code>.</p>
+        <p class="tiny">v1.13.0: chunked-CE lm_head, 1.2–1.7× throughput. v1.15.0: fused LM head, selective activation checkpointing. v1.16.0: <code>pad_to_multiple_of="auto"</code>.</p>
       </div>
       <div class="panel tight k-model" data-step="2">
         <h4>Assistant-only loss</h4>
@@ -51,7 +63,8 @@ trainer.train()
         <h4>Learning rate: adapters about 1e-4</h4>
         <p class="tiny">SFTConfig defaults: <code>learning_rate=2e-5</code>, <code>gradient_checkpointing=True</code>, <code>bf16=True</code>, <code>logging_steps=10</code>. CLI: <code>trl sft …</code></p>
       </div>
-      <div class="callout pitfall" data-step="5" style="font-size:15px;padding:12px 14px">
+      </div>
+      <div class="callout pitfall" data-step="5" style="font-size:15px;padding:12px 14px;align-self:start">
         <div style="flex:1">
           <b>API drift.</b> The Cloud Run Jobs codelab uses the pre-1.0 style. Pin your versions.
           <table class="t" style="margin-top:6px">
@@ -60,13 +73,10 @@ trainer.train()
             <tr><td><code>dataset_text_field=</code>, <code>packing=</code></td><td>in <code>SFTConfig</code></td></tr>
             <tr><td><code>tokenizer=</code></td><td><code>processing_class=</code></td></tr>
           </table>
+          <div class="cites" style="margin-top:10px"><a class="cite codelab" href="https://codelabs.developers.google.com/codelabs/cloud-run/how-to-fine-tune-model-cloud-run-jobs" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;How to fine tune a LLM using Cloud Run Jobs</a></div>
         </div>
       </div>
-      <div class="cites push">
-        <a class="cite doc" href="https://huggingface.co/docs/trl/sft_trainer" target="_blank" rel="noopener"><b>Doc</b>&nbsp;TRL SFT Trainer</a>
-        <a class="cite repo" href="https://github.com/huggingface/trl/releases" target="_blank" rel="noopener"><b>Repo</b>&nbsp;huggingface/trl releases</a>
-        <a class="cite codelab" href="https://codelabs.developers.google.com/codelabs/cloud-run/how-to-fine-tune-model-cloud-run-jobs" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;How to fine tune a LLM using Cloud Run Jobs</a>
-      </div>
+     </div>
     </div>
   </div>
   <aside class="notes">This is the full SFT recipe in about twenty lines, current for TRL v1.16.0. Step 1: packing with best-fit decreasing; recent releases also made the LM head cheaper, with 1.2 to 1.7 times throughput from chunked cross-entropy. Step 2: assistant_only_loss gives the mask from the previous slide. Step 3: the peft_config and the quantization_config together make QLoRA: a 4-bit NF4 base and trainable LoRA matrices. Step 4: the default SFTConfig learning rate is 2e-5, which is right for full fine-tuning, but adapters want about 1e-4. Step 5: many tutorials, including the Google Cloud Run codelab, still use the pre-1.0 argument names; in TRL 1.x they move into SFTConfig and the tokenizer becomes processing_class. Analogy: SFTConfig is the recipe card, and SFTTrainer is the kitchen. Likely question: "Why does my old notebook fail with an unexpected keyword?" Because of this API drift; pin trl and move the arguments.</aside>

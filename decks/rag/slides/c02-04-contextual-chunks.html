@@ -1,30 +1,30 @@
 <section class="slide" id="rag-c02-contextual-chunks" data-tone="state" data-title="Late chunking and Contextual Retrieval">
   <h2 class="title">Chunks lose their context, and late chunking or Contextual Retrieval puts it back</h2>
-  <div class="grid fill" style="grid-template-columns:1fr 720px;gap:24px">
-    <div class="stack" style="gap:16px">
+  <div class="grid fill" style="grid-template-columns:minmax(0,1fr) 730px;gap:24px">
+    <div class="stack" style="gap:12px">
       <div class="panel tight k-model" style="gap:6px">
-        <div class="row" style="justify-content:space-between;align-items:center"><h4>Fix A · Late chunking <span class="tiny">Jina</span></h4>
-          <a class="cite paper" href="https://arxiv.org/abs/2409.04701" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Late Chunking (arXiv 2409.04701)</a></div>
-        <svg class="interactive" id="c02x-late" viewBox="0 0 620 140" width="620" height="140" aria-label="Late chunking: embed the whole document, then pool each chunk span"></svg>
+        <div class="row" style="justify-content:space-between;align-items:center"><h4>Fix A · Late chunking</h4>
+          <a class="cite paper" href="https://arxiv.org/abs/2409.04701" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Jina, arXiv 2409.04701</a></div>
+        <svg class="interactive" id="c02x-late" viewBox="0 0 620 140" width="590" height="133" aria-label="Late chunking: embed the whole document, then pool each chunk span"></svg>
         <div class="row" data-step="1" data-fx="up" style="gap:18px;align-items:center">
           <div class="stat" style="gap:2px;flex:none"><span class="n" style="font-size:40px" data-to="0.825" data-dec="3">0</span><span class="l tiny">“Its…” to “Berlin”, naive 0.708</span></div>
           <p class="tiny" style="margin:0">BEIR nDCG@10: NFCorpus 23.46 → 29.98, SciFact 64.20 → 66.10. No extra training. Needs token-level access to a long-context embedder.</p>
         </div>
       </div>
       <div class="panel tight k-model" style="gap:6px">
-        <div class="row" style="justify-content:space-between;align-items:center"><h4>Fix B · Contextual Retrieval <span class="tiny">Anthropic</span></h4>
-          <a class="cite repo" href="https://github.com/anthropics/anthropic-cookbook" target="_blank" rel="noopener"><b>Repo</b>&nbsp;anthropic-cookbook · contextual-embeddings</a></div>
-        <svg class="interactive" id="c02x-ctx" viewBox="0 0 620 140" width="620" height="140" aria-label="An LLM writes context and prepends it to the chunk before dense and BM25 indexing"></svg>
+        <div class="row" style="justify-content:space-between;align-items:center"><h4>Fix B · Contextual Retrieval</h4>
+          <a class="cite repo" href="https://github.com/anthropics/anthropic-cookbook" target="_blank" rel="noopener"><b>Repo</b>&nbsp;anthropic-cookbook</a></div>
+        <svg class="interactive" id="c02x-ctx" viewBox="0 0 620 140" width="590" height="133" aria-label="An LLM writes context and prepends it to the chunk before dense and BM25 indexing"></svg>
         <p class="tiny" data-step="2" data-fx="up" style="margin:0">The LLM reads the full document plus one chunk and writes 50–100 tokens of context. Prepend it before <b>both</b> embedding and BM25.</p>
       </div>
     </div>
-    <div class="stack" style="gap:16px">
-      <div class="panel tight k-risk" style="gap:6px">
+    <div class="stack" style="gap:16px;position:relative">
+      <div data-until="4"><div class="panel tight k-risk" style="gap:6px">
         <h4>The problem chunk</h4>
         <p class="mono" style="font-size:16px;color:var(--ink)">“The company's revenue grew by 3% over the previous quarter.”</p>
         <p class="tiny" style="margin:0">Which company? Which quarter? “traditional RAG solutions remove context when encoding information.”</p>
         <a class="cite doc" href="https://www.anthropic.com/news/contextual-retrieval" target="_blank" rel="noopener" style="align-self:flex-start"><b>Blog</b>&nbsp;Introducing Contextual Retrieval (19 Sep 2024)</a>
-      </div>
+      </div></div>
       <div class="fill" style="position:relative">
         <div data-until="4">
           <div class="panel tight k-state" data-step="3" data-fx="bar" style="gap:10px">
@@ -41,6 +41,8 @@
             </div>
           </div>
         </div>
+
+      </div>
         <div class="code-wrap" data-step="4" data-fx="up" style="position:absolute;top:0;left:0;right:0"><div class="code-head">situate.py · adapted from the blog prompt</div>
 <pre class="code xs" data-lang="python" data-focus="4:7-8, 5:16"><code>
 import anthropic
@@ -60,7 +62,6 @@ def situate(doc: str, chunk: str) -> str:
             "and nothing else."}])
     return msg.content[0].text + "\n\n" + chunk  # index for dense AND BM25
 </code></pre></div>
-      </div>
     </div>
   </div>
   <aside class="notes">Start with the problem chunk: alone, it does not say which company or which quarter, so neither the embedder nor BM25 can match a query that names them. Step 1, late chunking: run the long-context embedder over the whole document first, then mean-pool each chunk's token span; the token "Its" now carries attention from "Berlin", so the cosine rises from 0.708 to 0.825. Step 2, Contextual Retrieval: an LLM writes a short context note for each chunk, and you index note plus chunk in both the dense and the BM25 index. Step 3: the gains stack, from 5.7% to 1.9% failures with reranking. Steps 4 and 5: the cache_control block is the reason this is cheap, about $1.02 per million document tokens, because the document is written to the cache once and read for every chunk. Analogy: late chunking reads the whole book before it summarizes a page; Contextual Retrieval writes a header on each index card. Likely question: "Which fix do I choose?" Answer: late chunking needs an open long-context embedder with token outputs; Contextual Retrieval works with any embedder and also fixes BM25, but costs one LLM call per chunk.</aside>
@@ -127,7 +128,7 @@ def situate(doc: str, chunk: str) -> str:
     return g;
   });
 
-  const all = [...toks, arc, arcHead, band, ...brackets, llm, card, note, ...outs];
+  const all = [arc, arcHead, band, ...brackets, note, ...outs];
   const drawPath = (p, delay) => { const L = p.getTotalLength(); gsap.fromTo(p, { strokeDasharray: L, strokeDashoffset: L }, { strokeDashoffset: 0, duration: 0.6, delay, ease: "power2.inOut" }); };
 
   function render(n, animate) {
@@ -161,7 +162,7 @@ def situate(doc: str, chunk: str) -> str:
       }
     },
     step(slide, n, animate) { render(n, animate); },
-    leave() { gsap.killTweensOf(all); },
+    leave() { gsap.killTweensOf([...all, ...toks, llm, card]); },
   });
 })();
 </script>

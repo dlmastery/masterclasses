@@ -7,15 +7,15 @@
   <h2 class="title">A router picks the source, and Adaptive-RAG picks how much retrieval a question needs</h2>
 
   <div class="row" style="gap:28px">
-    <div class="diagram" id="c05-ra-dg" style="width:830px;height:310px"
-         data-wires="rq>rr:flow{human}; rr>rvec:lr; rr>rsql:lr; rr>rweb:lr; rr>rnone:lr:dash">
-      <div class="node n-human pill" id="rq" style="left:0;top:128px;width:150px"><span class="nt">Question</span></div>
-      <div class="node n-agent" id="rr" style="left:240px;top:112px;width:210px"><span class="nt">Router LLM</span><span class="ns">structured output</span></div>
-      <span class="tag t-agent" id="c05-ra-out" style="position:absolute;left:240px;top:200px">{"source": "?"}</span>
+    <div class="diagram" id="c05-ra-dg" style="width:830px;height:290px"
+         data-wires="rq>rr:flow{human}; rr>rvec:rl; rr>rsql:rl; rr>rweb:rl; rr>rnone:rl:dash">
+      <div class="node n-human pill" id="rq" style="left:0;top:118px;width:150px"><span class="nt">Question</span></div>
+      <div class="node n-agent" id="rr" style="left:240px;top:102px;width:210px"><span class="nt">Router LLM</span><span class="ns">structured output</span></div>
+      <span class="tag t-agent" id="c05-ra-out" style="position:absolute;left:240px;top:190px">{"source": "?"}</span>
       <div class="node n-state src" id="rvec" style="left:580px;top:0;width:250px"><span class="nt">Vector DB</span><span class="ns">product docs</span></div>
-      <div class="node n-tool src" id="rsql" style="left:580px;top:82px;width:250px"><span class="nt">SQL</span><span class="ns">text-to-SQL · orders DB</span></div>
-      <div class="node n-tool src" id="rweb" style="left:580px;top:164px;width:250px"><span class="nt">Web</span><span class="ns">Google Search / Tavily</span></div>
-      <div class="node n-model src" id="rnone" style="left:580px;top:246px;width:250px"><span class="nt">None</span><span class="ns">answer directly</span></div>
+      <div class="node n-tool src" id="rsql" style="left:580px;top:76px;width:250px"><span class="nt">SQL</span><span class="ns">text-to-SQL · orders DB</span></div>
+      <div class="node n-tool src" id="rweb" style="left:580px;top:152px;width:250px"><span class="nt">Web</span><span class="ns">Google Search / Tavily</span></div>
+      <div class="node n-model src" id="rnone" style="left:580px;top:228px;width:250px"><span class="nt">None</span><span class="ns">answer directly</span></div>
       <span class="tag t-human c05-tok" id="c05-ra-t1">refund policy?</span>
       <span class="tag t-human c05-tok" id="c05-ra-t2">orders last week?</span>
     </div>
@@ -38,23 +38,23 @@ route = llm.with_structured_output(Route).invoke(q)
 
   <div class="grid g-32" style="gap:20px">
     <div class="panel tight k-model" data-step="3" style="gap:6px">
-      <h4>Adaptive-RAG: a small classifier predicts question complexity <span class="tiny">(Jeong et al., NAACL 2024)</span></h4>
+      <h4>Adaptive-RAG: a classifier predicts complexity <span class="tiny">Jeong et al., NAACL 2024</span></h4>
       <div class="diagram" style="width:740px;height:136px"
-           data-wires="acls>aa@3:lr; acls>ab@3:lr; acls>ac@3:lr:flow; ab>aidx@3:lr [1 call]; ac<>aidx@3:flow{state}:bend-40 [loop ×3]">
+           data-wires="acls>aa@3:rl; acls>ab@3:rl; acls>ac@3:rl:flow; ab>aidx@3:rl [1 call]; ac<>aidx@3:flow{state}:bend60 [loop ×3]">
         <div class="node n-model" id="acls" style="left:0;top:37px;width:180px"><span class="nt">Classifier</span><span class="ns">T5-size</span></div>
         <div class="node n-model br" id="aa" style="left:270px;top:0;width:250px"><span class="nt">A simple · LLM only</span></div>
         <div class="node n-agent br" id="ab" style="left:270px;top:50px;width:250px"><span class="nt">B moderate · 1 retrieval</span></div>
         <div class="node n-agent br" id="ac" style="left:270px;top:100px;width:250px"><span class="nt">C complex · multi-step</span></div>
         <div class="node n-state br" id="aidx" style="left:620px;top:50px;width:120px"><span class="nt">Index</span></div>
       </div>
-      <p class="tiny">Training labels come automatically: the label is the strategy that got the answer right. C runs an IRCoT-style loop. Self-Route uses the same idea to choose RAG or long context.</p>
+      <p class="tiny">Labels come automatically from the strategy that got the answer right. Self-Route does the same for RAG vs long context.</p>
     </div>
     <div class="stack" data-step="4" style="gap:10px">
-      <div class="callout pitfall"><div><b>Pitfall:</b> an unconstrained router invents a source name, for example <code>"docs_v2"</code>. The call fails or goes nowhere. An enum makes this impossible.</div></div>
-      <div class="cites" style="flex-direction:column;align-items:flex-start;gap:8px">
-        <a class="cite paper" href="https://arxiv.org/abs/2403.14403" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Adaptive-RAG (arXiv 2403.14403)</a>
-        <a class="cite paper" href="https://arxiv.org/abs/2407.16833" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Self-Route: RAG or Long-Context LLMs? (arXiv 2407.16833)</a>
-        <a class="cite video" href="https://www.deeplearning.ai/short-courses/building-agentic-rag-with-llamaindex/" target="_blank" rel="noopener"><b>Course</b>&nbsp;Building Agentic RAG with LlamaIndex (router query engine)</a>
+      <div class="callout pitfall"><div><b>Pitfall:</b> a free-text router invents a source name, for example <code>"docs_v2"</code>, and the call fails. An enum stops this.</div></div>
+      <div class="cites" style="gap:8px">
+        <a class="cite paper" href="https://arxiv.org/abs/2403.14403" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Adaptive-RAG (2403.14403)</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2407.16833" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Self-Route (2407.16833)</a>
+        <a class="cite video" href="https://www.deeplearning.ai/short-courses/building-agentic-rag-with-llamaindex/" target="_blank" rel="noopener"><b>Course</b>&nbsp;Building Agentic RAG with LlamaIndex</a>
       </div>
     </div>
   </div>

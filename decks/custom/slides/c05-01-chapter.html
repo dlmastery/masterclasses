@@ -1,0 +1,108 @@
+<section class="slide chapter tight" id="custom-c05-chapter" data-tone="state" data-title="05 Dataset design, contracts, coverage and drift">
+  <svg class="c05ch-grid" id="c05ch-grid" viewBox="0 0 1600 900" width="1600" height="900" aria-hidden="true" style="position:absolute;inset:0;z-index:-1;pointer-events:none;opacity:0"></svg>
+  <div class="ch-num" data-fx="blur">05</div>
+  <svg class="interactive" id="c05ch-svg" viewBox="0 0 1392 128" width="1392" height="128" aria-label="The data lifecycle: design, generate, select, curate, label, denoise, quality card. The design cell is lit."></svg>
+  <h2 class="display" style="font-size:66px">The dataset is the spec: design it before you generate it</h2>
+  <p class="lede" data-fx="up">The model learns what the data covers. Gaps in coverage become gaps in capability, and missing provenance becomes legal risk.</p>
+  <div class="tags" data-step="1" data-fx="stagger">
+    <span class="tag t-human">Data Cards</span>
+    <span class="tag t-tool new">Croissant 1.1</span>
+    <span class="tag t-state new">ODCS v3.1.0</span>
+    <span class="tag t-state">Pandera 0.34.1</span>
+    <span class="tag t-state">Great Expectations 1.24.1</span>
+    <span class="tag t-tool">Evidently 0.7.23</span>
+  </div>
+  <p class="small" data-step="2" style="max-width:1200px"><b>In this chapter:</b> document the data for people, machines and CI. Make the contract executable. Measure coverage against a taxonomy and name the gaps as slices. Then compare live data with a reference to find drift.</p>
+  <aside class="notes">
+    This chapter opens the data half of the course. The strip shows the full lifecycle that the next chapters follow: design, generate, select, curate, label, denoise, and the quality card at the end. We stay in the first cell, design, because every later step inherits its mistakes. Analogy: the dataset is the building plan; generation and labeling are the construction crew, and a crew cannot fix a plan that has no room for the kitchen. Step 1 shows the current tools with their October 2026 versions. Step 2 is the plan for the chapter: documentation, contracts, coverage and slices, then drift. A likely student question: "Why design first when synthetic data is cheap?" Because cheap generation fills the leaves you asked for and nothing else; the taxonomy decides what gets generated.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c05-chapter";
+  const STAGES = ["DESIGN", "GENERATE", "SELECT", "CURATE", "LABEL", "DENOISE", "QUALITY CARD"];
+  const W = 176, GAP = 26, H = 76, Y = 26;
+  let tl = null, cells = [], grid = null;
+
+  function el(tag, attrs, parent) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+
+  function buildGrid(svg) {
+    svg.innerHTML = "";
+    const g = el("g", { stroke: "var(--state)", "stroke-width": 1 }, svg);
+    for (let x = 0; x <= 1600; x += 40) el("line", { x1: x, y1: 0, x2: x, y2: 900, opacity: x % 200 === 0 ? 0.16 : 0.06 }, g);
+    for (let y = 0; y <= 900; y += 40) el("line", { x1: 0, y1: y, x2: 1600, y2: y, opacity: y % 200 === 0 ? 0.16 : 0.06 }, g);
+    return svg;
+  }
+
+  function build(svg) {
+    svg.innerHTML = "";
+    cells = STAGES.map((name, i) => {
+      const x = i * (W + GAP);
+      const g = el("g", {}, svg);
+      const r = el("rect", { x: x + 1, y: Y, width: W - 2, height: H, rx: 14, fill: "var(--surface-2)", stroke: "var(--line-2)", "stroke-width": 2 }, g);
+      const len = 2 * (W - 2 + H);
+      r.style.strokeDasharray = len; r.style.strokeDashoffset = len;
+      const t = el("text", { x: x + W / 2, y: Y + H / 2 + 6, "text-anchor": "middle", fill: "var(--ink-2)", "font-family": "var(--f-mono)", "font-size": 17, "font-weight": 700, opacity: 0 }, g);
+      t.textContent = name;
+      let a = null;
+      if (i < STAGES.length - 1) a = el("path", { d: `M${x + W + 6},${Y + H / 2 - 7} l8,7 l-8,7`, fill: "none", stroke: "var(--faint)", "stroke-width": 2.5, opacity: 0 }, svg);
+      return { g, r, t, a, len };
+    });
+    const sub = el("text", { x: W / 2, y: Y + H + 22, "text-anchor": "middle", fill: "var(--state)", "font-family": "var(--f-mono)", "font-size": 14, "font-weight": 600, opacity: 0 }, svg);
+    sub.textContent = "taxonomy · contract · slices";
+    cells[0].sub = sub;
+  }
+
+  function finalState() {
+    cells.forEach((c, i) => {
+      c.r.style.strokeDashoffset = 0;
+      c.t.setAttribute("opacity", 1);
+      if (c.a) c.a.setAttribute("opacity", 1);
+      const on = i === 0;
+      c.r.setAttribute("fill", on ? "var(--state-soft)" : "var(--surface-2)");
+      c.r.setAttribute("stroke", on ? "var(--state)" : "var(--line-2)");
+      c.r.setAttribute("stroke-width", on ? 3 : 2);
+      c.t.setAttribute("fill", on ? "var(--state)" : "var(--ink-2)");
+      c.g.setAttribute("opacity", on ? 1 : 0.38);
+    });
+    cells[0].sub.setAttribute("opacity", 1);
+    cells[0].r.style.filter = "drop-shadow(0 0 14px var(--state))";
+    if (grid) grid.style.opacity = 1;
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) {
+      grid = buildGrid(slide.querySelector("#c05ch-grid"));
+      build(slide.querySelector("#c05ch-svg"));
+      if (step >= 1) { finalState(); return; }
+      tl = gsap.timeline({ delay: 0.2 });
+      tl.to(grid, { opacity: 1, duration: 1.2, ease: "power1.out" }, 0);
+      cells.forEach((c, i) => {
+        tl.to(c.r, { strokeDashoffset: 0, duration: 0.5, ease: "power2.out" }, 0.15 + i * 0.12);
+        tl.to(c.t, { attr: { opacity: 1 }, duration: 0.3 }, 0.4 + i * 0.12);
+        if (c.a) tl.to(c.a, { attr: { opacity: 1 }, duration: 0.25 }, 0.5 + i * 0.12);
+      });
+      tl.to(cells.slice(1).map((c) => c.g), { attr: { opacity: 0.38 }, duration: 0.6 }, "+=0.2");
+      tl.to(cells[0].r, { attr: { fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 3 }, duration: 0.5 }, "<");
+      tl.to(cells[0].t, { attr: { fill: "var(--state)" }, duration: 0.5 }, "<");
+      tl.to(cells[0].sub, { attr: { opacity: 1 }, duration: 0.4 }, "<0.2");
+      tl.call(() => { cells[0].r.style.filter = "drop-shadow(0 0 14px var(--state))"; });
+    },
+    step(slide, n) {
+      if (!cells.length) return;
+      if (n >= 1 && tl && tl.isActive()) { tl.progress(1); }
+    },
+    leave() {
+      if (tl) tl.kill(); tl = null;
+      cells.forEach((c) => gsap.killTweensOf([c.r, c.t, c.a, c.g, c.sub].filter(Boolean)));
+      if (grid) gsap.killTweensOf(grid);
+    },
+  });
+})();
+</script>

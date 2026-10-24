@@ -1,0 +1,181 @@
+<section class="slide tight" id="custom-c05-drift" data-tone="state" data-title="Drift statistics">
+  <style>
+    #custom-c05-drift table.t { font-size: 15px; line-height: 1.3; }
+    #custom-c05-drift table.t td, #custom-c05-drift table.t th { padding: 5px 9px; }
+    #custom-c05-drift table.t th { font-size: 13px; }
+    #custom-c05-drift table.t code { font-size: 13px; }
+    #custom-c05-drift .cites .cite { font-size: 14px; padding: 5px 10px 5px 7px; }
+    #custom-c05-drift .cites .cite::before { width: 18px; height: 18px; }
+    #custom-c05-drift .callout { font-size: 15px; line-height: 1.38; padding: 10px 14px; }
+    #custom-c05-drift pre.code { padding: 10px 16px 12px; }
+  </style>
+  <h2 class="title sm">Drift tests compare today’s data with a reference, and the right statistic depends on type and sample size</h2>
+  <div class="grid fill" style="grid-template-columns: 720px 1fr; gap:28px">
+    <div class="stack" style="gap:10px">
+      <svg class="interactive" id="c05drift-svg" viewBox="0 0 720 290" width="720" height="290" aria-label="Reference and current histograms of prompt length; PSI per bin; then the two CDFs with the KS distance as the largest vertical gap"></svg>
+      <table class="t" data-step="4">
+        <tr><th>Evidently 0.7.23 default</th><th>n ≤ 1000</th><th>n &gt; 1000</th></tr>
+        <tr><td>Numerical</td><td><code>ks</code> (p &lt; 0.05)</td><td><code>wasserstein</code> (≥ 0.1)</td></tr>
+        <tr><td>Categorical</td><td><code>chisquare</code> (<code>z</code> if binary)</td><td><code>jensenshannon</code> (≥ 0.1)</td></tr>
+        <tr><td>Text</td><td>domain classifier (95th pct)</td><td>domain classifier (ROC AUC 0.55)</td></tr>
+      </table>
+      <p class="tiny" data-step="4">Dataset drift: the share of drifted columns ≥ <code>drift_share</code> (default 0.5). Embedding drift (legacy API): <code>model</code> AUC 0.55, <code>ratio</code> 0.2, <code>distance</code> 0.2, <code>mmd</code>.</p>
+      <div class="callout tip" data-step="6"><div><b>LLM and RAG data:</b> test descriptors, not raw text: length, language, toxicity, taxonomy leaf, retrieval-hit rate, refusal rate. Embedding drift between the RAG corpus and live queries shows topics the index does not cover. Compare SFT data with production prompts (skew) and week N with week N−1 (drift).</div></div>
+      <p class="tiny" data-step="6">whylogs 1.6.4 keeps mergeable profiles. WhyLabs’ hosted platform was discontinued and its code opened, so keep profiles in open formats.</p>
+    </div>
+    <div class="stack" style="gap:10px">
+      <table class="t">
+        <tr><th>Statistic</th><th>Definition</th><th>Default</th></tr>
+        <tr data-step="2" data-on="2:hot"><td>PSI</td><td>Σ (a<sub>i</sub> − e<sub>i</sub>) · ln(a<sub>i</sub> / e<sub>i</sub>), 10 bins. Convention: &lt; 0.1 stable, 0.1–0.25 moderate, &gt; 0.25 major</td><td>0.1</td></tr>
+        <tr data-step="3"><td>KS</td><td>D = sup |F<sub>ref</sub>(x) − F<sub>cur</sub>(x)|, gives a p-value. Numeric only</td><td>p &lt; 0.05</td></tr>
+        <tr data-step="3"><td>Jensen-Shannon</td><td>Distance: symmetric and bounded</td><td>0.1</td></tr>
+        <tr data-step="3"><td>Wasserstein</td><td>Earth mover’s distance ÷ reference std</td><td>0.1</td></tr>
+      </table>
+      <div class="callout pitfall" data-step="3"><div><b>Large n:</b> p-values flag tiny shifts. Use distances when n &gt; 1000.</div></div>
+      <div class="code-wrap" data-step="5" data-fx="up"><div class="code-head">drift.py · Evidently 0.7.23</div>
+<pre class="code xs" data-lang="python" data-focus="5:8-9, 6:10-12"><code>
+from sklearn import datasets
+from evidently import Report
+from evidently.presets import DataDriftPreset
+from evidently.metrics import ValueDrift
+
+iris = datasets.load_iris(as_frame=True).frame
+report = Report([
+    DataDriftPreset(method="psi", drift_share=0.7),
+    ValueDrift(column="sepal length (cm)", method="ks"),
+], include_tests=True)
+my_eval = report.run(iris.iloc[:60], iris.iloc[60:])  # cur, ref
+my_eval.save_html("drift.html")
+</code></pre></div>
+      <div class="cites push" data-step="5">
+        <a class="cite doc" href="https://docs.evidentlyai.com/metrics/customize_data_drift" target="_blank" rel="noopener"><b>Doc</b>&nbsp;Evidently: Customize data drift</a>
+        <a class="cite repo" href="https://pypi.org/project/evidently/" target="_blank" rel="noopener"><b>Repo</b>&nbsp;pypi: evidently 0.7.23</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    Drift is a comparison between a reference window and a current window, column by column. Step 1: the descriptor here is prompt length in 10 bins; the current week moves to the right. Step 2: PSI adds one term per bin, (a minus e) times the log of a over e; the bins in the tails contribute most, and the total is 0.226, which the credit-risk convention calls a moderate shift. These cut-offs are an industry habit, not a standard. Step 3: the same data as two cumulative curves; KS is the largest vertical gap, 0.19 here. With a large n, the KS p-value is tiny even for a shift nobody cares about, so Evidently uses distances such as Wasserstein above 1000 rows. Step 4: the defaults table; know it for interviews. Step 5 and 6: the code sets PSI for all columns and KS for one column, and runs current against reference. For LLM and RAG data, compute descriptors first and run these tests on the descriptors. Analogy: a p-value with a million rows is a smoke alarm that goes off when you make toast. Likely question: "Which threshold do I alert on?" Tie the alert to a slice metric that drops, not only to the statistic.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c05-drift";
+  const REF = [0.02, 0.05, 0.10, 0.15, 0.18, 0.18, 0.15, 0.10, 0.05, 0.02];
+  const CUR = [0.01, 0.02, 0.05, 0.09, 0.14, 0.18, 0.19, 0.16, 0.10, 0.06];
+  const X0 = 50, BW = 64, YB = 250, YT = 50, HMAX = 0.2;
+  let S = null, tl = null, loops = [];
+
+  function el(tag, attrs, parent) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  const h = (p) => (p / HMAX) * (YB - YT);
+  const cum = (a) => { let s = 0; return a.map((v) => (s += v)); };
+  const cy = (c) => YB - c * (YB - YT);
+
+  function build(svg) {
+    svg.innerHTML = "";
+    S = { ref: [], cur: [], psiBg: [], psiTx: [] };
+    const terms = REF.map((e, i) => (CUR[i] - e) * Math.log(CUR[i] / e));
+    S.psi = terms.reduce((a, b) => a + b, 0);
+    const cr = cum(REF), cc = cum(CUR);
+    let ks = 0, ki = 0; cr.forEach((v, i) => { const g = Math.abs(v - cc[i]); if (g > ks + 1e-9) { ks = g; ki = i; } });
+    S.ks = ks; S.ki = ki;
+    const tmax = Math.max(...terms);
+    // psi background per bin
+    REF.forEach((e, i) => {
+      S.psiBg.push(el("rect", { x: X0 + i * BW + 1, y: YT - 10, width: BW - 2, height: YB - YT + 10, fill: "var(--risk)", "fill-opacity": 0.04 + 0.22 * (terms[i] / tmax), opacity: 0 }, svg));
+      const t = el("text", { x: X0 + i * BW + BW / 2, y: YT - 16, "text-anchor": "middle", fill: "var(--risk)", "font-family": "var(--f-mono)", "font-size": 12, "font-weight": 600, opacity: 0 }, svg);
+      t.textContent = terms[i].toFixed(3).replace(/^0/, "");
+      S.psiTx.push(t);
+    });
+    // axes
+    el("line", { x1: X0 - 4, y1: YB, x2: X0 + 10 * BW + 6, y2: YB, stroke: "var(--line-2)", "stroke-width": 2 }, svg);
+    S.xl = el("text", { x: X0 + 5 * BW, y: YB + 24, "text-anchor": "middle", fill: "var(--muted)", "font-family": "var(--f-mono)", "font-size": 13 }, svg);
+    S.xl.textContent = "prompt length (tokens), 10 bins →";
+    S.yl = el("text", { x: 14, y: YT + 6, fill: "var(--muted)", "font-family": "var(--f-mono)", "font-size": 12 }, svg);
+    S.yl.textContent = "share";
+    // bars
+    REF.forEach((e, i) => {
+      const x = X0 + i * BW;
+      S.ref.push(el("rect", { x: x + 6, y: YB, width: 25, height: 0, rx: 3, fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 2 }, svg));
+      S.cur.push(el("rect", { x: x + 33, y: YB, width: 25, height: 0, rx: 3, fill: "var(--tool-soft)", stroke: "var(--tool)", "stroke-width": 2 }, svg));
+    });
+    // cdf lines
+    const pts = (c) => [`${X0},${YB}`, ...c.map((v, i) => `${X0 + (i + 1) * BW},${cy(v)}`)].join(" ");
+    S.cdfR = el("polyline", { points: pts(cr), fill: "none", stroke: "var(--state)", "stroke-width": 3, opacity: 0 }, svg);
+    S.cdfC = el("polyline", { points: pts(cc), fill: "none", stroke: "var(--tool)", "stroke-width": 3, opacity: 0 }, svg);
+    const kx = X0 + (ki + 1) * BW;
+    S.ksL = el("line", { x1: kx, y1: cy(cr[ki]), x2: kx, y2: cy(cc[ki]), stroke: "var(--risk)", "stroke-width": 4, opacity: 0 }, svg);
+    S.ksT = el("text", { x: kx + 10, y: (cy(cr[ki]) + cy(cc[ki])) / 2 + 5, fill: "var(--risk)", "font-family": "var(--f-mono)", "font-size": 15, "font-weight": 700, opacity: 0 }, svg);
+    S.ksT.textContent = "KS D = " + ks.toFixed(2);
+    // legend
+    const lg = el("g", { "font-family": "var(--f-mono)", "font-size": 13, "font-weight": 600 }, svg);
+    el("rect", { x: X0, y: 4, width: 14, height: 14, rx: 3, fill: "var(--state)" }, lg);
+    el("text", { x: X0 + 20, y: 16, fill: "var(--ink-2)" }, lg).textContent = "reference (week N−1)";
+    el("rect", { x: X0 + 210, y: 4, width: 14, height: 14, rx: 3, fill: "var(--tool)" }, lg);
+    el("text", { x: X0 + 230, y: 16, fill: "var(--ink-2)" }, lg).textContent = "current (week N)";
+    S.psiN = el("text", { x: 700, y: 16, "text-anchor": "end", fill: "var(--risk)", "font-family": "var(--f-mono)", "font-size": 16, "font-weight": 700, opacity: 0 }, svg);
+    S.psiN.textContent = "PSI = 0.000";
+  }
+
+  function render(n, animate) {
+    if (!S) return;
+    if (tl) { tl.progress(1); tl.kill(); tl = null; }
+    loops.forEach((t) => t.kill()); loops = [];
+    const d = animate ? 0.8 : 0;
+    const to = (t, v, x) => (d ? gsap.to(t, { attr: v, duration: d, ease: "power3.inOut", ...(x || {}) }) : gsap.set(t, { attr: v }));
+    const barsOn = n >= 1, cdf = n >= 3;
+    // bars: before step 1 they are flat; at step 1 current shifts right from the reference shape
+    S.ref.forEach((r, i) => to(r, { y: YB - (barsOn ? h(REF[i]) : 0), height: barsOn ? h(REF[i]) : 0, opacity: cdf ? 0.18 : 1 }, { delay: d ? 0.04 * i : 0 }));
+    S.cur.forEach((r, i) => {
+      const v = barsOn ? CUR[i] : 0;
+      if (d && n === 1) {
+        gsap.set(r, { attr: { y: YB, height: 0 } });
+        const t = gsap.timeline();
+        t.to(r, { attr: { y: YB - h(REF[i]), height: h(REF[i]) }, duration: 0.6, delay: 0.04 * i, ease: "power2.out" });
+        t.to(r, { attr: { y: YB - h(v), height: h(v) }, duration: 0.9, ease: "power3.inOut" }, 1.1);
+        loops.push(t);
+      } else to(r, { y: YB - h(v), height: h(v), opacity: cdf ? 0.18 : 1 });
+    });
+    const psiOn = n === 2;
+    S.psiBg.forEach((r) => to(r, { opacity: psiOn ? 1 : 0 }));
+    S.psiTx.forEach((t) => to(t, { opacity: psiOn ? 1 : 0 }));
+    to(S.psiN, { opacity: n >= 2 ? 1 : 0 });
+    if (d && n === 2) {
+      const p = { v: 0 };
+      loops.push(gsap.to(p, { v: S.psi, duration: 1.3, delay: 0.3, ease: "power2.out", onUpdate: () => (S.psiN.textContent = "PSI = " + p.v.toFixed(3)) }));
+    } else S.psiN.textContent = "PSI = " + (n >= 2 ? S.psi : 0).toFixed(3) + (n >= 3 ? " · moderate" : "");
+    if (d && n === 2) loops.push(gsap.delayedCall(1.7, () => (S.psiN.textContent = "PSI = " + S.psi.toFixed(3) + " · moderate")));
+    S.xl.textContent = cdf ? "prompt length (tokens): cumulative share →" : "prompt length (tokens), 10 bins →";
+    S.yl.textContent = cdf ? "F(x)" : "share";
+    [S.cdfR, S.cdfC].forEach((pl) => {
+      if (d && n === 3) {
+        const L = pl.getTotalLength();
+        gsap.set(pl, { attr: { opacity: 1 }, strokeDasharray: L, strokeDashoffset: L });
+        loops.push(gsap.to(pl, { strokeDashoffset: 0, duration: 1.2, ease: "power2.inOut", delay: 0.3 }));
+      } else { gsap.set(pl, { attr: { opacity: cdf ? 1 : 0 }, strokeDasharray: "none", strokeDashoffset: 0 }); }
+    });
+    if (d && n === 3) {
+      gsap.set([S.ksL, S.ksT], { attr: { opacity: 0 } });
+      loops.push(gsap.to([S.ksL, S.ksT], { attr: { opacity: 1 }, duration: 0.5, delay: 1.5 }));
+    } else gsap.set([S.ksL, S.ksT], { attr: { opacity: cdf ? 1 : 0 } });
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) {
+      build(slide.querySelector("#c05drift-svg"));
+      render(step, false);
+    },
+    step(slide, n, animate) { render(n, animate); },
+    leave() {
+      if (tl) tl.kill(); tl = null;
+      loops.forEach((t) => t.kill()); loops = [];
+      if (S) gsap.killTweensOf([...S.ref, ...S.cur, ...S.psiBg, ...S.psiTx, S.psiN, S.cdfR, S.cdfC, S.ksL, S.ksT]);
+    },
+  });
+})();
+</script>

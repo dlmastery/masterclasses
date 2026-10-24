@@ -1,0 +1,120 @@
+<section class="slide chapter" id="custom-c06-chapter" data-tone="human" data-title="06 Labels, noise, active learning and leakage">
+  <style>
+    #custom-c06-chapter .c06ch-strip { display:flex; gap:8px; flex-wrap:nowrap; }
+    #custom-c06-chapter .c06ch-strip span { font:600 15px/1 var(--f-mono); padding:10px 12px; border-radius:10px; border:1.5px solid var(--line-2); color:var(--muted); background:var(--surface); white-space:nowrap; }
+    #custom-c06-chapter .c06ch-strip span.lit { color:var(--ink); border-color:var(--human); background:var(--human-soft); box-shadow:0 0 0 3px color-mix(in oklab, var(--human) 22%, transparent); }
+    #custom-c06-chapter .c06ch-strip span.lit.dn { border-color:var(--state); background:var(--state-soft); box-shadow:0 0 0 3px color-mix(in oklab, var(--state) 22%, transparent); }
+    #custom-c06-chapter .c06ch-strip i { font-style:normal; color:var(--faint); align-self:center; font-size:15px; }
+    #custom-c06-chapter #c06ch-svg text { font-family:var(--f-mono); }
+    #custom-c06-chapter .stat .n { font-size:84px; color:var(--risk); }
+  </style>
+  <div class="ch-num" data-fx="blur">06</div>
+  <div class="row" style="gap:56px;align-items:flex-end">
+    <div class="stack lg" style="width:800px;flex:none">
+      <h2 class="display" style="font-size:62px;line-height:1.03">Labels are measurements: check their agreement, their noise and their splits</h2>
+      <p class="lede" data-fx="up" style="font-size:25px">Test sets contain errors, annotators disagree, and leaked splits inflate scores. Measure each one before you trust a number.</p>
+      <div class="c06ch-strip" data-fx="stagger">
+        <span>design</span><i>›</i><span>generate</span><i>›</i><span>select</span><i>›</i><span>curate</span><i>›</i><span class="lit">label</span><i>›</i><span class="lit dn">denoise</span><i>›</i><span>quality card</span>
+      </div>
+      <div class="tags" data-step="2" data-fx="stagger">
+        <span class="tag t-human">Krippendorff α</span>
+        <span class="tag t-model">LLM-as-annotator</span>
+        <span class="tag t-tool new">cleanlab 2.9.0</span>
+        <span class="tag t-human">BADGE</span>
+        <span class="tag t-state">GroupKFold</span>
+        <span class="tag t-state">MinHash LSH</span>
+        <span class="tag t-risk">GSM1k</span>
+      </div>
+    </div>
+    <div class="stack" style="width:536px;flex:none;gap:18px">
+      <svg class="interactive" id="c06ch-svg" viewBox="0 0 536 316" width="536" height="316" aria-label="A grid of 24 labelled images; three labels flip to show a wrong label"></svg>
+      <div class="row" data-step="1" data-fx="count" style="gap:22px;align-items:flex-end">
+        <div class="stat"><span class="n" data-to="6" data-pre="≈" data-suf="%">0</span></div>
+        <p class="small" style="max-width:380px"><b>2,916 label errors</b> in the ImageNet validation set (Northcutt et al. 2021). Confident learning flagged them. Humans confirmed about half of the candidates.</p>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    This chapter treats labels as measurements. A measurement has error, and we must measure the error before we trust the result. Step 1 flips three tiles: in a real benchmark, ImageNet validation, about 6% of the labels are wrong, 2,916 images. One of the flipped tiles is the real confident-learning example: missile images that carry the parent label "projectile". Step 2 shows the tools of this chapter: agreement statistics, LLM annotators, cleanlab, active learning with BADGE, group-aware splits and MinHash deduplication, and fresh test sets such as GSM1k. Analogy: a thermometer that reads 2 degrees high still gives a number, but every decision you make with it is wrong. Likely question: "Six percent is small, why care?" Answer: on corrected labels, model rankings can flip, so a small error rate can change which model you ship.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c06-chapter";
+  const COLS = 6, ROWS = 4, TW = 82, TH = 70, GX = 9, GY = 12;
+  const LABELS = ["tabby", "goldfish", "tractor", "pelican", "violin", "tank",
+                  "lemon", "kayak", "missile", "heron", "anvil", "zebra",
+                  "teapot", "banjo", "otter", "canoe", "bison", "radio",
+                  "maple", "eagle", "lynx", "piano", "wolf", "ferry"];
+  const FLIP = { 8: "projectile", 14: "beaver", 21: "harp" };
+  let tiles = [], tl = null;
+
+  function el(tag, attrs, parent) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+
+  function build(svg) {
+    svg.innerHTML = "";
+    tiles = [];
+    for (let i = 0; i < COLS * ROWS; i++) {
+      const c = i % COLS, r = Math.floor(i / COLS);
+      const x = 4 + c * (TW + GX), y = 4 + r * (TH + GY);
+      const g = el("g", { transform: `translate(${x},${y})` }, svg);
+      const inner = el("g", {}, g);
+      const card = el("rect", { x: 0, y: 0, width: TW, height: TH, rx: 9, fill: "var(--surface)", stroke: "var(--line-2)", "stroke-width": 1.5 }, inner);
+      // a tiny "image": sun + hill, varied by index
+      const hx = 14 + (i * 13) % 40;
+      el("circle", { cx: 62 - (i * 7) % 30, cy: 15, r: 6, fill: "var(--faint)", opacity: 0.55 }, inner);
+      el("path", { d: `M6,40 Q${hx},${18 + (i * 5) % 10} ${hx + 26},40 Z`, fill: "var(--line-2)" }, inner);
+      const chip = el("rect", { x: 5, y: 46, width: TW - 10, height: 19, rx: 5, fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 1 }, inner);
+      const txt = el("text", { x: TW / 2, y: 60, "text-anchor": "middle", "font-size": 12.5, "font-weight": 600, fill: "var(--state)" }, inner);
+      txt.textContent = LABELS[i];
+      tiles.push({ g, inner, card, chip, txt, i, x, y });
+    }
+  }
+
+  function setTile(t, wrong) {
+    const w = wrong && FLIP[t.i];
+    t.txt.textContent = w ? FLIP[t.i] : LABELS[t.i];
+    t.chip.setAttribute("fill", w ? "var(--risk-soft)" : "var(--state-soft)");
+    t.chip.setAttribute("stroke", w ? "var(--risk)" : "var(--state)");
+    t.txt.setAttribute("fill", w ? "var(--risk)" : "var(--state)");
+    t.card.setAttribute("stroke", w ? "var(--risk)" : "var(--line-2)");
+    t.card.setAttribute("stroke-width", w ? 2.5 : 1.5);
+  }
+
+  function render(n, animate) {
+    if (tl) { tl.progress(1); tl.kill(); tl = null; }
+    const wrong = n >= 1;
+    const flips = tiles.filter((t) => FLIP[t.i]);
+    if (!animate) { flips.forEach((t) => { gsap.set(t.inner, { scaleX: 1 }); setTile(t, wrong); }); return; }
+    tl = gsap.timeline();
+    flips.forEach((t, k) => {
+      tl.to(t.inner, { scaleX: 0, transformOrigin: "50% 50%", duration: 0.22, ease: "power2.in" }, k * 0.28);
+      tl.call(() => setTile(t, wrong), null, k * 0.28 + 0.22);
+      tl.to(t.inner, { scaleX: 1, transformOrigin: "50% 50%", duration: 0.3, ease: "back.out(2)" }, k * 0.28 + 0.22);
+    });
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) {
+      build(slide.querySelector("#c06ch-svg"));
+      if (step >= 1) { render(step, false); return; }
+      tl = gsap.timeline({ delay: 0.25 });
+      tl.from(tiles.map((t) => t.inner), { opacity: 0, scale: 0.7, transformOrigin: "50% 50%", duration: 0.45, ease: "back.out(1.8)", stagger: 0.025 });
+    },
+    step(slide, n, animate) {
+      if (!tiles.length) return;
+      render(n, animate);
+    },
+    leave() {
+      if (tl) tl.kill(); tl = null;
+      gsap.killTweensOf(tiles.map((t) => t.inner));
+    },
+  });
+})();
+</script>

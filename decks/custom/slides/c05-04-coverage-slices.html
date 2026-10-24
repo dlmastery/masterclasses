@@ -1,0 +1,199 @@
+<section class="slide tight" id="custom-c05-coverage-slices" data-tone="state" data-title="Coverage and slices">
+  <style>
+    #custom-c05-coverage-slices .cites .cite { font-size: 14px; padding: 5px 10px 5px 7px; }
+    #custom-c05-coverage-slices .cites .cite::before { width: 18px; height: 18px; }
+    #custom-c05-coverage-slices .callout { font-size: 16px; line-height: 1.4; padding: 12px 16px; }
+    #custom-c05-coverage-slices pre.code { padding: 10px 16px 12px; }
+  </style>
+  <h2 class="title">Measure coverage against a taxonomy, and turn every gap into a named slice</h2>
+  <div class="grid fill" style="grid-template-columns: 760px 1fr; gap:28px">
+    <svg class="interactive" id="c05cov-svg" viewBox="0 0 760 560" width="760" height="560" aria-label="A taxonomy tree unfolds into a leaf by split heatmap. Thin cells turn red as holes. One hole becomes a slice."></svg>
+    <div class="stack" style="gap:10px">
+      <p class="small"><b>Taxonomy</b> = domain × task × skill × difficulty × language × format × risk category. Tag every row with its leaf ID.</p>
+      <div class="panel tight k-state" data-step="1" style="gap:4px">
+        <h4 style="font-size:18px">Design the tree first, then generate per leaf</h4>
+        <p class="tiny" style="color:var(--ink-2)"><b>GLAN</b> (Microsoft, 2024): the only input is a taxonomy, from fields to disciplines, subjects, syllabus, key concepts and instructions. To add a skill, insert a node. <b>#InsTag</b> (2023): 6.6K open-set tags. TagLM, tuned on 6K tag-selected samples, beats models tuned on far larger SFT sets on MT-Bench.</p>
+      </div>
+      <p class="tiny" data-step="2" style="color:var(--ink-2)"><b>Beyond counts:</b> embedding coverage (the share of production clusters with training mass), nearest-neighbour distance from production queries to find holes, and instruction diversity (InsTag tags, distinct n-grams, self-BLEU, semantic dedup ratio).</p>
+      <div class="code-wrap" data-step="4" data-fx="right"><div class="code-head">slices/shipping_customs.yaml (illustrative)</div>
+<pre class="code xs" data-lang="yaml"><code>
+slice: shipping_customs
+predicate: "domain == 'shipping' and task == 'customs'"
+min_eval_n: 200
+metric: [task_success, groundedness]
+gate: "task_success >= overall - 0.03"
+owner: support-ml@company
+</code></pre></div>
+      <div class="callout insight" data-step="5"><div><b>Find the slices you did not declare.</b> Slice Finder (ICDE 2019) searches for large, interpretable failing slices with statistical tests. Domino (ICLR 2022) clusters cross-modal embeddings: it finds <b>36%</b> of <b>1,235</b> planted slice settings (+12 pp) and names <b>35%</b> exactly. Then cluster failing production traffic and promote recurring clusters to declared slices.</div></div>
+      <div class="cites push" data-step="5">
+        <a class="cite paper" href="https://arxiv.org/abs/2402.13064" target="_blank" rel="noopener"><b>Paper</b>&nbsp;GLAN</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2308.07074" target="_blank" rel="noopener"><b>Paper</b>&nbsp;#InsTag</a>
+        <a class="cite paper" href="https://arxiv.org/abs/1807.06068" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Slice Finder</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2203.14960" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Domino</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    Coverage is a question about a taxonomy, not about a row count. Step 1: the tree for a support bot, three domains and twelve task leaves; GLAN shows that a taxonomy alone can drive generation, and InsTag shows that tag diversity predicts SFT value better than size. Step 2: each leaf becomes a row of a heatmap with train, dev and test columns; the colour is the example count. Step 3: a cell under k = 30 is a hole. Here 9 of 12 leaves are covered, the normalized entropy of the train mix is 0.83, and exp(H) says the data behaves like about 8 equal leaves, not 12. Step 4: a hole is not a to-do note; it becomes a named slice with a predicate, a minimum eval n of 200, a metric, a gate and an owner. Step 5: declared slices are not enough, so use discovery; Domino finds only 36 percent of planted slices, which tells you discovery is a help, not a guarantee. Analogy: the taxonomy is the map, the heatmap shows where you have roads, and a slice is a named road with a speed limit and an inspector. Likely question: "How big should k be?" Size it from the confidence interval you need on the eval split; 30 to 100 per leaf is a common start, and 200 for a slice gate.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c05-coverage-slices";
+  const DOM = ["billing", "account", "shipping"];
+  const LEAF = [["refund", "invoice", "dispute", "tax"], ["login", "delete", "plan", "privacy"], ["track", "delay", "address", "customs"]];
+  // fixed example counts per leaf: [train, dev, test]
+  const CNT = [[820, 90, 120], [610, 70, 85], [140, 31, 40], [22, 4, 6],
+               [700, 80, 95], [95, 12, 18], [430, 50, 60], [60, 35, 38],
+               [900, 100, 130], [380, 42, 55], [210, 33, 36], [0, 0, 0]];
+  const K = 30, SPLITS = ["train", "dev", "test"];
+  const RY0 = 76, RH = 36, CX0 = 196, CW = 100, CG = 6, LX = 96;
+  let S = null, loops = [], tl = null;
+
+  function el(tag, attrs, parent) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  const leafPos = (i) => { const d = Math.floor(i / 4), j = i % 4; return [d * 254 + 34 + j * 62, 250]; };
+  const domPos = (d) => [d * 254 + 127, 140];
+  const rowY = (i) => RY0 + i * RH;
+
+  function stats() {
+    const tr = CNT.map((c) => c[0]), s = tr.reduce((a, b) => a + b, 0);
+    let H = 0; tr.forEach((x) => { if (x > 0) { const p = x / s; H -= p * Math.log(p); } });
+    const covered = CNT.filter((c) => c.every((x) => x >= K)).length;
+    return { covered, H, norm: H / Math.log(CNT.length), eff: Math.exp(H) };
+  }
+
+  function build(svg) {
+    svg.innerHTML = "";
+    S = { edges: [], doms: [], leaves: [], cells: [], nums: [], heads: [], holes: [] };
+    const gT = el("g", {}, svg);
+    // root
+    S.root = el("g", {}, gT);
+    el("rect", { x: 300, y: 18, width: 160, height: 44, rx: 22, fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 2 }, S.root);
+    el("text", { x: 380, y: 46, "text-anchor": "middle", fill: "var(--state)", "font-family": "var(--f-mono)", "font-size": 16, "font-weight": 700 }, S.root).textContent = "support bot";
+    // edges
+    DOM.forEach((d, di) => {
+      const [dx, dy] = domPos(di);
+      S.edges.push(el("line", { x1: 380, y1: 62, x2: dx, y2: dy - 18, stroke: "var(--line-2)", "stroke-width": 2, opacity: 0 }, gT));
+      LEAF[di].forEach((l, j) => {
+        const [lx, ly] = leafPos(di * 4 + j);
+        S.edges.push(el("line", { x1: dx, y1: dy + 18, x2: lx, y2: ly - 14, stroke: "var(--line-2)", "stroke-width": 1.5, opacity: 0 }, gT));
+      });
+    });
+    DOM.forEach((d, di) => {
+      const [dx, dy] = domPos(di);
+      const g = el("g", { opacity: 0 }, gT);
+      el("rect", { x: dx - 62, y: dy - 18, width: 124, height: 36, rx: 10, fill: "var(--surface-2)", stroke: "var(--state)", "stroke-width": 1.5 }, g);
+      el("text", { x: dx, y: dy + 6, "text-anchor": "middle", fill: "var(--ink)", "font-family": "var(--f-mono)", "font-size": 15, "font-weight": 600 }, g).textContent = d;
+      S.doms.push(g);
+    });
+    // heatmap headers + cells
+    SPLITS.forEach((s, c) => {
+      S.heads.push(el("text", { x: CX0 + c * (CW + CG) + CW / 2, y: RY0 - 12, "text-anchor": "middle", fill: "var(--muted)", "font-family": "var(--f-mono)", "font-size": 14, "font-weight": 600, opacity: 0 }, svg));
+      S.heads[c].textContent = s;
+    });
+    CNT.forEach((row, i) => {
+      row.forEach((v, c) => {
+        const x = CX0 + c * (CW + CG), y = rowY(i) + 3;
+        const a = v === 0 ? 0 : Math.min(1, Math.log(v + 1) / Math.log(1000)) * 0.85;
+        const r = el("rect", { x, y, width: CW, height: RH - 6, rx: 6, fill: "var(--state)", "fill-opacity": a, stroke: "var(--line)", "stroke-width": 1.5, opacity: 0 }, svg);
+        r._a = a; r._hole = v < K;
+        const t = el("text", { x: x + CW / 2, y: y + 21, "text-anchor": "middle", fill: a > 0.6 ? "#fff" : "var(--ink-2)", "font-family": "var(--f-mono)", "font-size": 14, "font-weight": 600, opacity: 0 }, svg);
+        t.textContent = v;
+        S.cells.push(r); S.nums.push(t);
+        if (r._hole) S.holes.push(r);
+      });
+    });
+    // leaves (move from tree to row labels)
+    LEAF.flat().forEach((l, i) => {
+      const [x, y] = leafPos(i);
+      const t = el("text", { x, y, "text-anchor": "middle", fill: "var(--ink-2)", "font-family": "var(--f-mono)", "font-size": 13, "font-weight": 600, opacity: 0 }, svg);
+      t.textContent = l; t._short = l; t._long = DOM[Math.floor(i / 4)] + "/" + l;
+      S.leaves.push(t);
+    });
+    // counters
+    const st = stats();
+    S.counter = el("g", { opacity: 0 }, svg);
+    const tx = (x, y, s, size, fill, w) => { const e = el("text", { x, y, fill, "font-family": "var(--f-mono)", "font-size": size, "font-weight": w || 600 }, S.counter); e.textContent = s; return e; };
+    tx(540, RY0 + 4, "leaf coverage (k = 30)", 13, "var(--muted)");
+    S.cov = tx(540, RY0 + 42, "0 / 12", 34, "var(--state)", 700);
+    tx(540, RY0 + 66, "leaves with every cell ≥ k", 12, "var(--muted)", 500);
+    tx(540, RY0 + 112, "balance H(p) / log N", 13, "var(--muted)");
+    tx(540, RY0 + 142, st.norm.toFixed(2), 26, "var(--ink)", 700);
+    tx(540, RY0 + 186, "effective leaves exp(H)", 13, "var(--muted)");
+    tx(540, RY0 + 216, st.eff.toFixed(1) + " of 12", 26, "var(--ink)", 700);
+    tx(540, RY0 + 252, "train split, N = 12 leaves", 12, "var(--muted)", 500);
+    S.st = st;
+    // slice card
+    S.card = el("g", { opacity: 0 }, svg);
+    el("rect", { x: 0, y: 0, width: 214, height: 66, rx: 12, fill: "var(--risk-soft)", stroke: "var(--risk)", "stroke-width": 2 }, S.card);
+    el("text", { x: 14, y: 26, fill: "var(--risk)", "font-family": "var(--f-mono)", "font-size": 14, "font-weight": 700 }, S.card).textContent = "slice: shipping_customs";
+    el("text", { x: 14, y: 48, fill: "var(--ink-2)", "font-family": "var(--f-mono)", "font-size": 13 }, S.card).textContent = "min_eval_n: 200 · owner";
+    S.cardFrom = [CX0, rowY(11)];
+    S.cardTo = [540, 430];
+    S.caption = el("text", { x: 380, y: 545, "text-anchor": "middle", fill: "var(--muted)", "font-family": "var(--f-mono)", "font-size": 13 }, svg);
+  }
+
+  function killLoops() { loops.forEach((t) => t.kill()); loops = []; }
+
+  function render(n, animate) {
+    if (!S) return;
+    if (tl) { tl.progress(1); tl.kill(); tl = null; }
+    killLoops();
+    const d = animate ? 0.7 : 0;
+    const to = (t, v, extra) => (d ? gsap.to(t, { attr: v, duration: d, ease: "power3.inOut", ...(extra || {}) }) : gsap.set(t, { attr: v }));
+    const tree = n === 1;
+    to(S.root, { opacity: n >= 2 ? 0 : 1 });
+    S.edges.forEach((e) => to(e, { opacity: tree ? 1 : 0 }));
+    S.doms.forEach((g) => to(g, { opacity: tree ? 1 : 0 }));
+    S.leaves.forEach((t, i) => {
+      if (n >= 2) { t.textContent = t._long; to(t, { x: LX, y: rowY(i) + 24, opacity: 1 }, { delay: d ? 0.02 * i : 0 }); }
+      else { t.textContent = t._short; const [x, y] = leafPos(i); to(t, { x, y, opacity: tree ? 1 : 0 }); }
+    });
+    S.heads.forEach((h) => to(h, { opacity: n >= 2 ? 1 : 0 }));
+    S.cells.forEach((r, i) => {
+      const hole = n >= 3 && r._hole;
+      to(r, { opacity: n >= 2 ? 1 : 0, stroke: hole ? "var(--risk)" : "var(--line)", "stroke-width": hole ? 3 : 1.5 }, { delay: d && n === 2 ? 0.3 + 0.012 * i : 0 });
+      to(S.nums[i], { opacity: n >= 2 ? 1 : 0, fill: hole ? "var(--risk)" : (r._a > 0.6 ? "#fff" : "var(--ink-2)") }, { delay: d && n === 2 ? 0.3 + 0.012 * i : 0 });
+    });
+    if (n >= 3) {
+      S.holes.forEach((r, i) => loops.push(gsap.to(r, { attr: { "stroke-opacity": 0.25 }, duration: 0.7, repeat: -1, yoyo: true, ease: "sine.inOut", delay: 0.05 * i })));
+    } else S.holes.forEach((r) => r.setAttribute("stroke-opacity", 1));
+    to(S.counter, { opacity: n >= 3 ? 1 : 0 });
+    const target = n >= 3 ? S.st.covered : 0;
+    if (d && n === 3) { const p = { v: 0 }; loops.push(gsap.to(p, { v: target, duration: 1, delay: 0.3, ease: "power2.out", onUpdate: () => (S.cov.textContent = Math.round(p.v) + " / 12") })); }
+    else S.cov.textContent = target + " / 12";
+    const [fx, fy] = n >= 4 ? S.cardTo : S.cardFrom;
+    if (d && n === 4) {
+      gsap.set(S.card, { attr: { transform: `translate(${S.cardFrom[0]},${S.cardFrom[1]}) scale(0.4)`, opacity: 1 } });
+      tl = gsap.timeline();
+      tl.to(S.card, { attr: { transform: `translate(${fx},${fy}) scale(1)` }, duration: 0.9, ease: "power3.inOut" });
+    } else {
+      gsap.set(S.card, { attr: { transform: `translate(${fx},${fy})`, opacity: n >= 4 ? 1 : 0 } });
+    }
+    S.caption.textContent = ["taxonomy root", "step 1 · taxonomy tree: 3 domains × 4 tasks = 12 leaves", "step 2 · leaf × split heatmap (example counts)", "step 3 · red cells: fewer than k = 30 examples", "step 4 · a hole becomes a named slice", "step 4 · a hole becomes a named slice"][Math.min(n, 5)];
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) {
+      build(slide.querySelector("#c05cov-svg"));
+      render(step, false);
+      if (step === 0) {
+        tl = gsap.timeline({ delay: 0.3 });
+        tl.from(S.root, { attr: { opacity: 0 }, duration: 0.6 });
+      }
+    },
+    step(slide, n, animate) { render(n, animate); },
+    leave() {
+      if (tl) tl.kill(); tl = null;
+      killLoops();
+      if (S) gsap.killTweensOf([S.root, S.counter, S.card, ...S.edges, ...S.doms, ...S.leaves, ...S.cells, ...S.nums, ...S.heads]);
+    },
+  });
+})();
+</script>

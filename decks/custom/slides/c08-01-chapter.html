@@ -1,0 +1,140 @@
+<section class="slide chapter tight" id="custom-c08-chapter" data-tone="tool" data-title="08 AI eval design">
+  <style>
+    #custom-c08-chapter .top { display:grid; grid-template-columns:760px 1fr; gap:40px; align-items:end; }
+    #custom-c08-chapter .quote { font-size:30px; }
+    #custom-c08-chapter .strip text { font-family:var(--f-mono); }
+  </style>
+  <div class="ch-num" data-fx="blur">08</div>
+  <div class="top">
+    <svg class="interactive" id="c08ch-svg" viewBox="0 0 760 230" width="760" height="230" aria-label="One pass rate of 84.2 percent gets a confidence interval, then splits into six slice bars. One slice is much lower."></svg>
+    <div class="stack" style="gap:12px">
+      <p class="quote" data-fx="up">“Fundamentally, evaluations are experiments.”</p>
+      <div class="cites" data-fx="fade"><a class="cite paper" href="https://arxiv.org/abs/2411.00640" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Evan Miller, Adding Error Bars to Evals (arXiv 2411.00640)</a></div>
+    </div>
+  </div>
+  <h2 class="display" style="font-size:60px;max-width:1300px">An eval is an experiment: design it like a dataset and report it with error bars</h2>
+  <p class="lede" data-fx="up" style="max-width:1300px">The eval set decides what ships, so it needs more care than the training set.</p>
+  <div class="tags" data-step="1" data-fx="stagger">
+    <span class="tag t-human">error analysis</span>
+    <span class="tag t-state">golden sets</span>
+    <span class="tag t-tool">slice metrics</span>
+    <span class="tag t-tool">paired bootstrap</span>
+    <span class="tag t-model">LLM-as-judge</span>
+    <span class="tag t-model">calibration</span>
+    <span class="tag t-risk">cost-sensitive thresholds</span>
+  </div>
+  <svg class="strip" data-step="2" data-fx="draw" viewBox="0 0 1392 118" width="1392" height="118" aria-label="Lifecycle: design, generate, select, curate, label, denoise, quality card. An arrow labelled error analysis goes from the end back to design.">
+    <g fill="none" stroke-width="2">
+      <rect x="1" y="8" width="170" height="52" rx="12" stroke="var(--tool)" stroke-width="3" style="fill:var(--tool-soft)"/>
+      <rect x="203" y="8" width="170" height="52" rx="12" stroke="var(--line-2)"/>
+      <rect x="405" y="8" width="170" height="52" rx="12" stroke="var(--line-2)"/>
+      <rect x="607" y="8" width="170" height="52" rx="12" stroke="var(--line-2)"/>
+      <rect x="809" y="8" width="170" height="52" rx="12" stroke="var(--line-2)"/>
+      <rect x="1011" y="8" width="170" height="52" rx="12" stroke="var(--line-2)"/>
+      <rect x="1213" y="8" width="176" height="52" rx="12" stroke="var(--line-2)"/>
+      <path d="M176,34 h22 M378,34 h22 M580,34 h22 M782,34 h22 M984,34 h22 M1186,34 h22" stroke="var(--faint)"/>
+      <path d="M1300,62 C1300,112 1240,108 700,108 C140,108 86,112 86,66" stroke="var(--tool)" stroke-width="2.5" stroke-dasharray="7 6"/>
+      <path d="M78,76 L86,63 L94,76" stroke="var(--tool)" stroke-width="2.5"/>
+    </g>
+    <g font-size="16" font-weight="700" text-anchor="middle" fill="var(--ink-2)">
+      <text x="86" y="40" fill="var(--tool)">DESIGN</text><text x="288" y="40">GENERATE</text><text x="490" y="40">SELECT</text>
+      <text x="692" y="40">CURATE</text><text x="894" y="40">LABEL</text><text x="1096" y="40">DENOISE</text><text x="1301" y="40">QUALITY CARD</text>
+    </g>
+    <rect x="440" y="96" width="520" height="24" rx="6" style="fill:var(--bg)"/>
+    <text x="700" y="113" text-anchor="middle" font-size="15" font-weight="600" fill="var(--tool)">error analysis on failing traces → new failure modes → new slices</text>
+  </svg>
+  <aside class="notes">
+    This chapter treats the eval set as a dataset product. It is also the experiment that decides what ships. The animation shows the main idea: one score of 84 percent is not a result. It needs a confidence interval, and it needs a split by slice, because one slice can sit far below the average. Analogy: a doctor does not report "the average patient is fine"; she reads each patient's chart and states how sure the test is. Step 1 lists the tools of this chapter. Step 2 places the eval set in the same lifecycle as training data, with one change: error analysis feeds new failure modes back into design. A likely student question: "Why more care than the training set?" Because a noisy training example costs a little accuracy, but a wrong eval number can ship a regression to every user.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c08-chapter";
+  // Example values from the eval quality card template (07-eval-design.md section 11); other slices are illustrative.
+  const SL = [["bill", 88], ["ship", 86], ["acct", 90], ["ref-EN", 83], ["ref-ES", 71], ["safety", 85]];
+  const LO = 50, K = 3.4, BASE = 196, X0 = 300, BW = 56, PITCH = 76;
+  const xv = (v) => 30 + (v - 78) * 26; // whisker scale under the score
+  let tl = null, E = {};
+
+  function el(tag, attrs, parent) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+
+  function build(svg) {
+    svg.innerHTML = "";
+    E.score = el("text", { x: 130, y: 104, "text-anchor": "middle", fill: "var(--ink)", "font-family": "var(--f-display)", "font-size": 84, "font-weight": 600, "letter-spacing": "-3" }, svg);
+    E.score.textContent = "84.2%";
+    E.cap = el("text", { x: 130, y: 132, "text-anchor": "middle", fill: "var(--muted)", "font-family": "var(--f-mono)", "font-size": 14 }, svg);
+    E.cap.textContent = "pass rate · example";
+    const wy = 168;
+    E.wh = el("g", {}, svg);
+    E.whLine = el("line", { x1: xv(84.2), y1: wy, x2: xv(84.2), y2: wy, stroke: "var(--tool)", "stroke-width": 3 }, E.wh);
+    E.capL = el("line", { x1: xv(84.2), y1: wy - 10, x2: xv(84.2), y2: wy + 10, stroke: "var(--tool)", "stroke-width": 3 }, E.wh);
+    E.capR = el("line", { x1: xv(84.2), y1: wy - 10, x2: xv(84.2), y2: wy + 10, stroke: "var(--tool)", "stroke-width": 3 }, E.wh);
+    el("circle", { cx: xv(84.2), cy: wy, r: 6, fill: "var(--tool)" }, E.wh);
+    E.ci = el("text", { x: 130, y: 200, "text-anchor": "middle", fill: "var(--tool)", "font-family": "var(--f-mono)", "font-size": 14, "font-weight": 600, opacity: 0 }, svg);
+    E.ci.textContent = "95% CI [81.3, 86.9]";
+    // slice bars
+    E.base = el("line", { x1: X0 - 10, y1: BASE, x2: X0 + PITCH * 6 - 6, y2: BASE, stroke: "var(--line-2)", "stroke-width": 2, opacity: 0 }, svg);
+    const gy = BASE - (84.2 - LO) * K;
+    E.glob = el("line", { x1: X0 - 10, y1: gy, x2: X0 + PITCH * 6 - 6, y2: gy, stroke: "var(--ink-2)", "stroke-width": 1.5, "stroke-dasharray": "5 5", opacity: 0 }, svg);
+    E.globT = el("text", { x: X0 + PITCH * 6, y: gy + 5, fill: "var(--muted)", "font-family": "var(--f-mono)", "font-size": 13, opacity: 0 }, svg);
+    E.globT.textContent = "84.2";
+    E.bars = SL.map(([name, v], i) => {
+      const x = X0 + i * PITCH, worst = v === 71;
+      const r = el("rect", { x, y: BASE, width: BW, height: 0, rx: 6, fill: worst ? "var(--risk)" : "var(--tool)", opacity: worst ? 0.9 : 0.75 }, svg);
+      const t = el("text", { x: x + BW / 2, y: BASE - (v - LO) * K - 8, "text-anchor": "middle", fill: worst ? "var(--risk)" : "var(--ink-2)", "font-family": "var(--f-mono)", "font-size": 14, "font-weight": 700, opacity: 0 }, svg);
+      t.textContent = v;
+      const n = el("text", { x: x + BW / 2, y: BASE + 20, "text-anchor": "middle", fill: "var(--muted)", "font-family": "var(--f-mono)", "font-size": 13, opacity: 0 }, svg);
+      n.textContent = name;
+      return { r, t, n, v };
+    });
+    // worst-slice whisker [58, 81]
+    const wx = X0 + 4 * PITCH + BW / 2;
+    E.ww = el("path", { d: `M${wx},${BASE - (81 - LO) * K} V${BASE - (58 - LO) * K} M${wx - 8},${BASE - (81 - LO) * K} h16 M${wx - 8},${BASE - (58 - LO) * K} h16`, stroke: "var(--ink)", "stroke-width": 2, fill: "none", opacity: 0 }, svg);
+    E.note = el("text", { x: X0 + PITCH * 3, y: 18, "text-anchor": "middle", fill: "var(--muted)", "font-family": "var(--f-mono)", "font-size": 13, opacity: 0 }, svg);
+    E.note.textContent = "slices (illustrative) · worst: refunds-ES 71 [58, 81]";
+  }
+
+  function final() {
+    E.whLine.setAttribute("x1", xv(81.3)); E.whLine.setAttribute("x2", xv(86.9));
+    E.capL.setAttribute("x1", xv(81.3)); E.capL.setAttribute("x2", xv(81.3));
+    E.capR.setAttribute("x1", xv(86.9)); E.capR.setAttribute("x2", xv(86.9));
+    [E.ci, E.base, E.glob, E.globT, E.ww, E.note].forEach((e) => e.setAttribute("opacity", 1));
+    E.bars.forEach((b) => {
+      const h = (b.v - LO) * K;
+      b.r.setAttribute("y", BASE - h); b.r.setAttribute("height", h);
+      b.t.setAttribute("opacity", 1); b.n.setAttribute("opacity", 1);
+    });
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) {
+      build(slide.querySelector("#c08ch-svg"));
+      if (step > 0) { final(); return; }
+      tl = gsap.timeline({ delay: 0.4 });
+      tl.from(E.score, { opacity: 0, scale: 0.8, svgOrigin: "130 80", duration: 0.6, ease: "back.out(1.6)" });
+      tl.from(E.cap, { opacity: 0, duration: 0.3 }, "<0.2");
+      tl.to(E.whLine, { attr: { x1: xv(81.3), x2: xv(86.9) }, duration: 0.9, ease: "power3.out" }, "+=0.3");
+      tl.to(E.capL, { attr: { x1: xv(81.3), x2: xv(81.3) }, duration: 0.9, ease: "power3.out" }, "<");
+      tl.to(E.capR, { attr: { x1: xv(86.9), x2: xv(86.9) }, duration: 0.9, ease: "power3.out" }, "<");
+      tl.to(E.ci, { attr: { opacity: 1 }, duration: 0.3 });
+      tl.to([E.base, E.note], { attr: { opacity: 1 }, duration: 0.3 }, "+=0.2");
+      E.bars.forEach((b, i) => {
+        const h = (b.v - LO) * K;
+        tl.fromTo(b.r, { attr: { x: 150, width: 20, y: BASE - 70, height: 0 } }, { attr: { x: X0 + i * PITCH, width: BW, y: BASE - h, height: h }, duration: 0.7, ease: "power3.out" }, 2.4 + i * 0.1);
+        tl.to([b.t, b.n], { attr: { opacity: 1 }, duration: 0.3 }, 2.9 + i * 0.1);
+      });
+      tl.to([E.glob, E.globT], { attr: { opacity: 1 }, duration: 0.4 });
+      tl.to(E.ww, { attr: { opacity: 1 }, duration: 0.4 }, "<");
+      tl.fromTo(E.bars[4].r, { attr: { opacity: 0.9 } }, { attr: { opacity: 0.45 }, duration: 0.35, yoyo: true, repeat: 3 });
+    },
+    step() {},
+    leave() { if (tl) tl.kill(); tl = null; },
+  });
+})();
+</script>

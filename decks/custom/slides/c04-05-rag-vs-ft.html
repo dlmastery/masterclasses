@@ -1,0 +1,143 @@
+<section class="slide tight" id="custom-c04-rag-vs-ft" data-tone="agent" data-title="RAG vs fine-tuning">
+  <h2 class="title">Choose RAG for changing facts, fine-tuning for fixed behavior, and RAFT when you need both</h2>
+  <div class="row" style="gap:24px;align-items:stretch">
+    <div class="stack" style="width:480px;flex:none;gap:14px">
+      <svg class="interactive" id="c04s-svg" viewBox="-12 -34 504 264" width="480" height="230" aria-label="A balance scale: RAG on the left pan, fine-tuning on the right pan"></svg>
+      <div class="callout insight" data-step="6"><span><b>RAFT</b> trains with distractor documents. The model learns to ignore irrelevant chunks and cite the relevant one (PubMed, HotpotQA, Gorilla).</span></div>
+      <div class="cites" data-step="6"><a class="cite paper" href="https://arxiv.org/abs/2403.10131" target="_blank" rel="noopener"><b>Paper</b>&nbsp;RAFT (Zhang et al. 2024)</a></div>
+    </div>
+    <table class="t" style="flex:1">
+      <tr><th style="width:170px">Criterion</th><th class="c-agent">Choose RAG</th><th class="c-model">Choose fine-tuning</th></tr>
+      <tr data-step="1" data-fx="fade"><td>Freshness</td><td>Facts change often</td><td>The task spec is fixed</td></tr>
+      <tr data-step="2" data-fx="fade"><td>Corpus size</td><td>Over ~200k tokens</td><td>Knowledge is not the gap</td></tr>
+      <tr data-step="3" data-fx="fade"><td>Citations / ACL</td><td>Citations, audit trail, per-user ACLs</td><td>Not needed</td></tr>
+      <tr data-step="4" data-fx="fade"><td>Output format</td><td>Not the problem</td><td>Consistent format and style</td></tr>
+      <tr data-step="5" data-fx="fade"><td>Latency budget</td><td>+1 retrieval hop; more if agentic</td><td>Small model, short prompts</td></tr>
+      <tr data-step="6" data-fx="fade"><td>Data available</td><td>A corpus + eval Q/A pairs</td><td>Gold examples, pairs or a grader</td></tr>
+    </table>
+  </div>
+  <div class="grid g4" style="gap:16px">
+    <div class="panel tight k-agent" data-step="2">
+      <a class="cite paper" href="https://arxiv.org/abs/2312.05934" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Ovadia et al. 2023</a>
+      <p class="small">“RAG consistently outperforms” unsupervised FT for knowledge.</p>
+    </div>
+    <div class="panel tight k-risk" data-step="3">
+      <a class="cite paper" href="https://arxiv.org/abs/2405.05904" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Gekhman et al. 2024</a>
+      <p class="small">Fine-tuning on new facts makes hallucination rise.</p>
+    </div>
+    <div class="panel tight k-model" data-step="4">
+      <a class="cite doc" href="https://developers.openai.com/api/docs/guides/optimizing-llm-accuracy" target="_blank" rel="noopener"><b>Doc</b>&nbsp;OpenAI: LLM accuracy</a>
+      <p class="small">Behavior task: FT <b>87</b> BLEU; FT + RAG <b>83</b>.</p>
+    </div>
+    <div class="panel tight k-state" data-step="6">
+      <a class="cite paper" href="https://arxiv.org/abs/2401.08406" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Balaguer et al. 2024</a>
+      <p class="small">FT gave <b>+6 p.p.</b>, and RAG added <b>+5 p.p.</b> on top.</p>
+    </div>
+  </div>
+  <aside class="notes">
+    Put each criterion on the scale. Freshness, corpus size and citations with per-user ACLs all push toward RAG: the facts live outside the weights, so you update an index, not a model. Output format and latency push toward fine-tuning: a small tuned model with short prompts is faster and cheaper, and OpenAI's Icelandic example shows that RAG can even hurt a behavior task (87 down to 83 BLEU). Step 6 balances the beam: when you need both, combine them, as Balaguer et al. did (+6 then +5 points), or train the generator RAFT-style with distractor documents (arXiv 2403.10131). Also remember the cost view: fine-tuning adds training, hosting and a deprecation risk when the base model goes away. Analogy: RAG is a reference library, fine-tuning is a training course; a good expert uses both. Likely question: "Can fine-tuning teach new facts?" It can, slowly, and Gekhman et al. show that hallucination rises when it does — keep facts in retrieval.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c04-rag-vs-ft";
+  const P = { x: 240, y: 70 }, R = 170, DROP = 62;
+  const ANG = [0, -5, -9, -13, -8, -3, 0];
+  const CHIPS = [
+    { s: 1, side: "L", label: "freshness" },
+    { s: 2, side: "L", label: "large corpus" },
+    { s: 3, side: "L", label: "citations · ACL" },
+    { s: 4, side: "R", label: "format · style" },
+    { s: 5, side: "R", label: "latency · cost" },
+    { s: 6, side: "C", label: "both → RAFT" },
+  ];
+  let beam, panL, panR, chips = [], cur = 0, tws = [], proxy = { a: 0 };
+
+  function el(tag, attrs, parent) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+
+  function pan(parent, label, tone) {
+    const g = el("g", {}, parent);
+    el("line", { x1: -50, y1: DROP, x2: 0, y2: 0, stroke: "var(--muted)", "stroke-width": 1.5 }, g);
+    el("line", { x1: 50, y1: DROP, x2: 0, y2: 0, stroke: "var(--muted)", "stroke-width": 1.5 }, g);
+    el("path", { d: `M-64,${DROP} Q0,${DROP + 26} 64,${DROP} Z`, fill: `var(--${tone}-soft)`, stroke: `var(--${tone})`, "stroke-width": 2 }, g);
+    el("text", { x: 0, y: DROP + 44, "text-anchor": "middle", fill: `var(--${tone})`, "font-family": "var(--f-body)", "font-size": 18, "font-weight": 700 }, g).textContent = label;
+    g._stack = el("g", {}, g);
+    return g;
+  }
+
+  function build(slide) {
+    const svg = slide.querySelector("#c04s-svg");
+    svg.innerHTML = "";
+    el("path", { d: `M${P.x},${P.y} L${P.x - 34},222 L${P.x + 34},222 Z`, fill: "var(--surface-2)", stroke: "var(--line-2)", "stroke-width": 2 }, svg);
+    beam = el("g", {}, svg);
+    el("rect", { x: P.x - R, y: P.y - 4, width: 2 * R, height: 8, rx: 4, fill: "var(--ink-2)" }, beam);
+    el("circle", { cx: P.x, cy: P.y, r: 8, fill: "var(--surface-2)", stroke: "var(--ink-2)", "stroke-width": 2.5 }, svg);
+    panL = pan(svg, "RAG", "agent");
+    panR = pan(svg, "fine-tune", "model");
+    chips = CHIPS.map((c) => {
+      const side = c.side === "L" ? panL._stack : c.side === "R" ? panR._stack : svg;
+      const g = el("g", { opacity: 0 }, side);
+      const tone = c.side === "L" ? "agent" : c.side === "R" ? "model" : "state";
+      const w = c.side === "C" ? 136 : 118;
+      el("rect", { x: -w / 2, y: 0, width: w, height: 24, rx: 7, fill: "var(--surface-2)", stroke: `var(--${tone})`, "stroke-width": 2 }, g);
+      el("text", { x: 0, y: 17, "text-anchor": "middle", fill: `var(--${tone})`, "font-family": "var(--f-mono)", "font-size": 13, "font-weight": 600 }, g).textContent = c.label;
+      g._c = c;
+      return g;
+    });
+    // stack heights inside each pan: index within its side
+    let l = 0, r = 0;
+    chips.forEach((g) => {
+      const c = g._c;
+      if (c.side === "L") g._y = DROP - 26 - 26 * l++;
+      else if (c.side === "R") g._y = DROP - 26 - 26 * r++;
+      else { g._x = P.x; g._y = P.y - 44; }
+    });
+  }
+
+  function pose(a) {
+    beam.setAttribute("transform", `rotate(${a} ${P.x} ${P.y})`);
+    const t = (a * Math.PI) / 180;
+    panL.setAttribute("transform", `translate(${P.x - R * Math.cos(t)} ${P.y - R * Math.sin(t)})`);
+    panR.setAttribute("transform", `translate(${P.x + R * Math.cos(t)} ${P.y + R * Math.sin(t)})`);
+  }
+
+  function chipAt(g, on, animate, delay) {
+    const x = g._x ?? 0, y = g._y;
+    if (!animate) {
+      g.setAttribute("transform", `translate(${x} ${y})`);
+      g.setAttribute("opacity", on ? 1 : 0);
+      return;
+    }
+    if (on) {
+      const p = { y: y - 70, o: 0 };
+      tws.push(gsap.to(p, { y, o: 1, duration: 0.7, delay, ease: "bounce.out", onUpdate: () => { g.setAttribute("transform", `translate(${x} ${p.y})`); g.setAttribute("opacity", Math.min(1, p.o * 2)); } }));
+    } else g.setAttribute("opacity", 0);
+  }
+
+  function render(n, animate) {
+    tws.forEach((t) => t.kill()); tws = [];
+    n = Math.min(n, 6);
+    chips.forEach((g) => {
+      const on = n >= g._c.s;
+      const was = +g.getAttribute("opacity") > 0.5;
+      if (on && was && animate) return;
+      chipAt(g, on, animate && on && !was, 0);
+    });
+    const target = ANG[n];
+    if (!animate) { proxy.a = target; pose(target); return; }
+    tws.push(gsap.to(proxy, { a: target, duration: 1.1, delay: 0.45, ease: "elastic.out(1, 0.5)", onUpdate: () => pose(proxy.a) }));
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { build(slide); render(step, false); },
+    step(slide, n, animate) { if (beam && beam.isConnected) render(n, animate); },
+    leave() { tws.forEach((t) => t.kill()); tws = []; },
+  });
+})();
+</script>

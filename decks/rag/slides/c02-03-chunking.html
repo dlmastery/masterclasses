@@ -1,10 +1,10 @@
 <section class="slide" id="rag-c02-chunking" data-tone="state" data-title="Chunking strategies">
   <h2 class="title">Chunk boundaries move recall by up to 9 points, and recursive 200-token chunks are a strong default</h2>
   <div class="grid fill" style="grid-template-columns:800px 1fr;gap:28px">
-    <div class="stack" style="gap:14px">
+    <div class="stack" style="gap:14px;position:relative">
       <svg class="interactive" id="c02c-svg" viewBox="0 0 800 330" width="800" height="330" aria-label="A token strip cut by four chunking strategies"></svg>
-      <div class="panel tight k-state" data-step="5" data-fx="bar" style="gap:6px">
-        <div class="row" style="justify-content:space-between;align-items:baseline"><h4>Chroma eval: token-level recall and IoU</h4><span class="tiny">text-embedding-3-large · 5 chunks · overlap 0</span></div>
+      <div class="panel tight k-state" data-step="5" data-fx="bar" style="gap:6px;position:absolute;left:0;right:0;top:150px;background:var(--surface-2)">
+        <div class="row" style="justify-content:space-between;align-items:baseline"><h4>Chroma eval: token-level recall and IoU</h4><span class="tiny">text-embedding-3-large · 5 chunks</span></div>
         <div id="c02c-bars" style="display:grid;grid-template-columns:220px 1fr 52px 150px 40px;gap:6px 12px;align-items:center;font-size:15px">
           <span class="tiny">strategy</span><span class="tiny">recall (0–100)</span><span></span><span class="tiny">IoU (0–10)</span><span></span>
           <span class="mono" style="font-size:14px">Recursive 200</span><div class="bar"><i style="--v:88.1%"></i></div><b>88.1</b><div class="bar"><i style="--v:69%"></i></div><b>6.9</b>
@@ -16,10 +16,14 @@
           <p class="tiny" style="margin:0">“default settings for certain popular chunking strategies can lead to relatively poor performance.” Less overlap gives a better IoU.</p>
           <a class="cite paper" href="https://www.trychroma.com/research/evaluating-chunking" target="_blank" rel="noopener" style="flex:none"><b>Research</b>&nbsp;Evaluating Chunking Strategies for Retrieval</a>
         </div>
+        <div class="row" style="justify-content:space-between;align-items:center;gap:12px">
+          <p class="tiny" style="margin:0">2026: no single chunk size fits every query. AI21, “Stop Chunking Like It's 2022” (AI Engineer World's Fair 2026): keep several indexes.</p>
+          <a class="cite doc" href="https://developers.llamaindex.ai/python/framework/module_guides/loading/node_parsers/modules/" target="_blank" rel="noopener" style="flex:none"><b>Doc</b>&nbsp;LlamaIndex node parsers</a>
+        </div>
       </div>
     </div>
     <div class="stack" style="gap:14px">
-      <p class="small" data-fx="fade">Chunk because embedders take 2K–32K tokens, one vector averages away detail, context costs money, and precision needs passage-level units.</p>
+      <p class="tiny" data-fx="fade" style="margin:0">Why chunk: embedders take 2K–32K tokens, one vector averages away detail, context costs money, precision needs passage-level units.</p>
       <table class="t" id="c02c-table" style="font-size:15px;line-height:1.3" data-fx="up">
         <tr><th style="width:132px">Strategy</th><th>How it cuts · trade-off</th></tr>
         <tr data-k="1"><td>Fixed-size</td><td>Every N tokens, overlap O. Fast; cuts sentences and tables.</td></tr>
@@ -27,16 +31,13 @@
         <tr data-k="0"><td>Structure</td><td>Markdown/HTML headers, code AST, <code>by_title</code>. Needs a good parser.</td></tr>
         <tr data-k="3"><td>Semantic</td><td>Embed sentences; cut where adjacent similarity drops (95th-percentile breakpoint). Extra embedding cost.</td></tr>
         <tr data-k="0"><td>LLM-based</td><td>An LLM proposes the boundaries. Best recall in Chroma; slow, costly.</td></tr>
-        <tr data-k="4"><td>Parent-child</td><td>Index small, return the parent. <code>HierarchicalNodeParser([2048, 512, 128])</code> + <code>AutoMergingRetriever</code>; <code>SentenceWindowNodeParser</code> (window 3); LangChain <code>ParentDocumentRetriever</code>.</td></tr>
+        <tr data-k="4"><td>Parent-child</td><td>Index small, return the parent. LlamaIndex <code>HierarchicalNodeParser</code> [2048, 512, 128] + <code>AutoMergingRetriever</code>; sentence window 3; LangChain <code>ParentDocumentRetriever</code>.</td></tr>
       </table>
       <div class="callout pitfall" data-step="1" style="font-size:16px;padding:10px 14px">Copying 1,000-character chunks with 200 overlap from a tutorial. Measure recall and IoU on your own golden set.</div>
-      <div class="row" data-step="5" data-fx="fade" style="gap:10px;align-items:center">
-        <p class="tiny" style="margin:0">2026: no single chunk size fits every query. AI21, “Stop Chunking Like It's 2022” (World's Fair 2026): keep several indexes.</p>
-        <a class="cite doc" href="https://developers.llamaindex.ai/python/framework/module_guides/loading/node_parsers/modules/" target="_blank" rel="noopener" style="flex:none"><b>Doc</b>&nbsp;Node parsers</a>
-      </div>
     </div>
   </div>
-  <aside class="notes">One short text passes through four strategies. The first paragraph is the Berlin passage from the late-chunking paper; S1 to S9 are its sentences in three paragraphs. Step 1: fixed-size cuts every 16 tokens, and every cut lands inside a sentence. Step 2: recursive splitting tries paragraph breaks first, so the cuts move to paragraph ends. Step 3: semantic chunking embeds each sentence and cuts where the similarity of neighbours dips below the breakpoint; it finds a topic change inside paragraph 2 that the recursive splitter misses. Step 4: parent-child indexes small sentences for precise matching but sends the whole parent paragraph to the LLM. Step 5: the Chroma numbers. Recall changes by only a few points, but IoU changes by 2x, so token waste is the bigger difference. Analogy: cutting a newspaper with a ruler versus cutting it along the articles. Likely question: "Why not always use the LLM chunker, since it has the best recall?" Answer: one LLM call per document section, slower ingestion, and its IoU is among the worst.</aside>
+  <style>#rag-c02-chunking #c02c-table td,#rag-c02-chunking #c02c-table th{padding:7px 10px}</style>
+  <aside class="notes">One short text passes through four strategies. The first paragraph is the Berlin passage from the late-chunking paper; S1 to S9 are its sentences in three paragraphs. Step 1: fixed-size cuts every 16 tokens, and every cut lands inside a sentence. Step 2: recursive splitting tries paragraph breaks first, so the cuts move to paragraph ends. Step 3: semantic chunking embeds each sentence and cuts where the similarity of neighbours dips below the breakpoint; it finds a topic change inside paragraph 2 that the recursive splitter misses. Step 4: the query matches child S5; parent-child indexes small sentences for precise matching but sends the whole parent paragraph to the LLM. Step 5: the Chroma numbers. Recall changes by only a few points, but IoU changes by 2x, so token waste is the bigger difference. Analogy: cutting a newspaper with a ruler versus cutting it along the articles. Likely question: "Why not always use the LLM chunker, since it has the best recall?" Answer: one LLM call per document section, slower ingestion, and its IoU is among the worst.</aside>
 </section>
 <script>
 (() => {
@@ -100,16 +101,16 @@
     style: "fill:none;stroke:var(--state);stroke-width:1.4;stroke-dasharray:4 3" }, pc));
   const parents = PARA.map((p) => mk("rect", { x: X0 + p[0] * CW - 4, y: SY - 8, width: (p[1] - p[0]) * CW + 6, height: SH + 16, rx: 8,
     style: "fill:none;stroke:var(--state);stroke-width:2.4" }, pc));
-  const qx = X0 + (starts[1] + LENS[1] / 2) * CW;
+  const qx = X0 + (starts[4] + LENS[4] / 2) * CW;
   const qline = mk("path", { d: `M${qx} 214 L${qx} ${SY + SH + 4}`, style: "stroke:var(--agent);stroke-width:2.5;fill:none" }, pc);
   const qpill = mk("g", {}, pc);
   mk("rect", { x: qx - 50, y: 214, width: 100, height: 32, rx: 16, style: "fill:var(--agent-soft);stroke:var(--agent);stroke-width:1.6" }, qpill);
   const qt = mk("text", { x: qx, y: 235, "text-anchor": "middle", style: "font:700 13px var(--f-mono);fill:var(--agent)" }, qpill);
   qt.textContent = "query";
   const pcT1 = mk("text", { x: qx + 70, y: 228, style: "font:600 14px var(--f-body);fill:var(--ink)" }, pc);
-  pcT1.textContent = "1 · match the small child S2 (precise vector)";
+  pcT1.textContent = "1 · match child S5 (precise)";
   const pcT2 = mk("text", { x: qx + 70, y: 252, style: "font:600 14px var(--f-body);fill:var(--state)" }, pc);
-  pcT2.textContent = "2 · send its parent ¶1 to the LLM (full context)";
+  pcT2.textContent = "2 · send parent ¶2 to the LLM";
 
   const MODES = {
     1: { cuts: [16, 32, 48], color: "var(--risk)", text: "Fixed-size, 16 tokens: every cut lands inside a sentence." },
@@ -140,7 +141,7 @@
       const s = sentOf(t);
       const split = n === 1 && [16, 32, 48].some((c) => t === c - 1 || t === c);
       r.style.fill = split ? "color-mix(in oklab,var(--risk) 55%,transparent)" : `color-mix(in oklab,var(--state) ${s % 2 ? 28 : 48}%,transparent)`;
-      if (n === 4) r.style.fill = s === 1 ? "color-mix(in oklab,var(--agent) 55%,transparent)" : (t < 21 ? "color-mix(in oklab,var(--state) 60%,transparent)" : `color-mix(in oklab,var(--state) ${s % 2 ? 20 : 34}%,transparent)`);
+      if (n === 4) r.style.fill = s === 4 ? "color-mix(in oklab,var(--agent) 55%,transparent)" : (t >= 21 && t < 41 ? "color-mix(in oklab,var(--state) 60%,transparent)" : `color-mix(in oklab,var(--state) ${s % 2 ? 20 : 34}%,transparent)`);
     });
     // chart
     if (n === 3) {
@@ -155,18 +156,20 @@
     // parent-child
     if (n >= 4) {
       gsap.to(pc, { opacity: 1, duration: d * 0.5 });
-      kids.forEach((k, i) => { k.style.stroke = i === 1 ? "var(--agent)" : "var(--state)"; k.style.strokeWidth = i === 1 ? 2.6 : 1.4; });
-      parents.forEach((p, i) => { p.style.fill = i === 0 ? "color-mix(in oklab,var(--state) 10%,transparent)" : "none"; p.style.strokeWidth = i === 0 ? 3.2 : 1.6; p.style.opacity = i === 0 ? 1 : 0.5; });
+      kids.forEach((k, i) => { k.style.stroke = i === 4 ? "var(--agent)" : "var(--state)"; k.style.strokeWidth = i === 4 ? 2.6 : 1.4; });
+      parents.forEach((p, i) => { p.style.fill = i === 1 ? "color-mix(in oklab,var(--state) 10%,transparent)" : "none"; p.style.strokeWidth = i === 1 ? 3.2 : 1.6; p.style.opacity = i === 1 ? 1 : 0.5; });
       if (animate && n === 4) {
         gsap.fromTo(kids, { opacity: 0 }, { opacity: 1, duration: 0.3, stagger: 0.05 });
-        gsap.fromTo(parents, { opacity: 0 }, { opacity: (i) => (i === 0 ? 1 : 0.5), duration: 0.4, stagger: 0.1, delay: 0.4 });
+        gsap.fromTo(parents, { opacity: 0 }, { opacity: (i) => (i === 1 ? 1 : 0.5), duration: 0.4, stagger: 0.1, delay: 0.4 });
         gsap.fromTo(qpill, { y: 60, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, delay: 0.7 });
         const L = qline.getTotalLength();
         gsap.fromTo(qline, { strokeDasharray: L, strokeDashoffset: -L }, { strokeDashoffset: 0, duration: 0.5, delay: 1.1 });
         gsap.fromTo([pcT1, pcT2], { opacity: 0 }, { opacity: 1, duration: 0.4, stagger: 0.4, delay: 1.3 });
-        gsap.fromTo(parents[0], { scale: 1 }, { scale: 1.03, transformOrigin: "50% 50%", duration: 0.25, yoyo: true, repeat: 3, delay: 1.7 });
+        gsap.fromTo(parents[1], { scale: 1 }, { scale: 1.03, transformOrigin: "50% 50%", duration: 0.25, yoyo: true, repeat: 3, delay: 1.7 });
       } else gsap.set([qpill, pcT1, pcT2, ...kids], { opacity: 1, y: 0 });
     } else gsap.to(pc, { opacity: 0, duration: d * 0.5 });
+    if (n >= 5) gsap.to([pcT1, pcT2, qpill, qline], { opacity: 0, duration: d * 0.5 });
+    else if (n === 4 && !animate) gsap.set(qline, { opacity: 1, strokeDasharray: "none" });
     // table row highlight follows the step
     slide.querySelectorAll("#c02c-table tr[data-k]").forEach((tr) => tr.classList.toggle("hot", +tr.dataset.k === Math.min(n, 4) && n >= 1 && n <= 4));
   }

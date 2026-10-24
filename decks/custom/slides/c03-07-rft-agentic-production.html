@@ -1,0 +1,202 @@
+<section class="slide" id="custom-c03-rft-agentic-production" data-tone="model" data-title="RL in production and agentic RL">
+  <style>
+    #custom-c03-rft-agentic-production .stat .n { font-size:46px; }
+    #custom-c03-rft-agentic-production .stat .l { font-size:15px; }
+    #custom-c03-rft-agentic-production .cites .cite { font-size:14px; padding:6px 10px 6px 8px; }
+    #custom-c03-rft-agentic-production ul.clean li { font-size:15px; line-height:1.38; }
+    #custom-c03-rft-agentic-production .stamp { position:absolute; right:12px; top:-14px; transform:rotate(4deg); }
+  </style>
+  <h2 class="title sm">Production RL runs as online loops and multi-turn agent training on rented training APIs</h2>
+  <div class="row fill" style="gap:24px">
+    <div class="stack" style="width:820px;flex:none;gap:16px">
+      <svg class="interactive" id="c03-prod-svg" viewBox="0 0 820 310" width="820" height="310" style="overflow:visible"></svg>
+      <div class="code-wrap term" data-step="4"><div class="code-head">OpenRLHF README · PPO-family job on Ray + vLLM + DeepSpeed</div>
+<pre class="code xs" data-lang="bash" data-focus="4:6-7"><code>
+$ ray job submit --address="http://127.0.0.1:8265" \
+  --runtime-env-json='{"working_dir": "/openrlhf"}' \
+  -- python3 -m openrlhf.cli.train_ppo_ray \
+  --actor.model_name_or_path OpenRLHF/Llama-3-8b-sft-mixture \
+  --reward.model_name_or_path OpenRLHF/Llama-3-8b-rm-700k \
+  --algo.advantage.estimator reinforce_baseline \
+  --vllm.num_engines 4 --vllm.tensor_parallel_size 2 \
+  --train.colocate_all --ds.zero_stage 3 --ds.param_dtype bf16
+</code></pre></div>
+    </div>
+    <div class="stack fill" style="gap:12px">
+      <div class="stack" data-step="1" style="gap:8px">
+        <div class="grid g3" style="gap:12px">
+          <div class="stat"><span class="n" data-to="21" data-pre="−" data-suf="%">0</span><span class="l">suggestions</span></div>
+          <div class="stat" style="--aurora:var(--state)"><span class="n" data-to="28" data-pre="+" data-suf="%">0</span><span class="l">accept rate</span></div>
+          <div class="stat" style="--aurora:var(--agent)"><span class="n" data-to="400" data-pre="&gt;" data-suf="M">0</span><span class="l">requests / day</span></div>
+        </div>
+        <p class="tiny" style="color:var(--ink-2)">Cursor (2025-09-12): policy gradient on live accept and reject signals. “we learn a policy that targets a particular accept rate”</p>
+      </div>
+      <div class="stack" data-step="3" style="gap:6px">
+        <h4 style="font-size:18px">Agentic RL tooling, Oct 2026</h4>
+        <ul class="clean" style="gap:6px">
+          <li><b>TRL AsyncGRPO:</b> v1.14 LoRA + async tools; v1.15 OpenEnv harness; v1.16 tree attention, up to ~3× on shared-prompt rollouts.</li>
+          <li><b>verl</b> (HybridFlow): ReTool, uni-agent, Megatron MoE (DeepSeek-671B, Qwen3-235B); GRPO LoRA on a 1T model, 64 H800s.</li>
+          <li><b>OpenRLHF v0.10:</b> <code>AgentInstanceBase</code> <code>reset()</code>/<code>step()</code>, <code>--train.agent_func_path</code>, <code>--train.async_enable</code>.</li>
+          <li><b>Rented APIs:</b> Fireworks Training API (async GRPO, sandboxes); Tinker (<code>forward_backward</code>, <code>optim_step</code>).</li>
+        </ul>
+      </div>
+      <div class="panel tight k-tool" data-step="5" style="position:relative;gap:4px">
+        <span class="tag t-risk stamp" data-step="5" data-fx="pop">vendor-reported</span>
+        <h4 style="font-size:18px">Managed RFT results</h4>
+        <p class="tiny" style="color:var(--ink-2)">OpenAI RFT: Ambience ICD-10 0.39 → 0.57; Harvey citation F1 0.563 → 0.6765; SafetyKit F1 86% → 90%. Fireworks: Genspark +10% quality vs a SOTA closed model, +33% tool calls, ~50% cost cut.</p>
+      </div>
+      <div class="cites push">
+        <a class="cite doc" href="https://cursor.com/blog/tab-rl" target="_blank" rel="noopener"><b>Blog</b>&nbsp;Cursor Tab online RL</a>
+        <a class="cite repo" href="https://github.com/volcengine/verl" target="_blank" rel="noopener"><b>Repo</b>&nbsp;verl</a>
+        <a class="cite repo" href="https://github.com/OpenRLHF/OpenRLHF" target="_blank" rel="noopener"><b>Repo</b>&nbsp;OpenRLHF</a>
+        <a class="cite repo" href="https://github.com/huggingface/trl" target="_blank" rel="noopener"><b>Repo</b>&nbsp;trl</a>
+        <a class="cite doc" href="https://developers.openai.com/api/docs/guides/rft-use-cases" target="_blank" rel="noopener"><b>Docs</b>&nbsp;OpenAI RFT use cases</a>
+        <a class="cite doc" href="https://fireworks.ai/blog/fireworks-rft" target="_blank" rel="noopener"><b>Blog</b>&nbsp;Fireworks RFT</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Start with the cleanest production case: Cursor Tab ships a checkpoint, collects accept and reject signals from over 400M requests a day, and updates the policy in about 1.5 to 2 hours. The result is fewer suggestions with a higher accept rate, because the policy targets an accept rate, not a raw count. Then move to agentic RL: one rollout is a whole trajectory of model turns, tool calls and observations, and the reward comes at the end. Mask the tool-output tokens from the loss, because the model did not write them. Rollout lengths have a long tail, so frameworks run rollouts asynchronously and feed a buffer. Analogy: a restaurant kitchen does not stop all cooks while one slow dish finishes. Likely question: "Why mask observation tokens?" Answer: they come from the environment, so their gradient would teach the model to predict tool outputs instead of choosing actions. Treat every managed RFT number here as vendor-reported.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c03-rft-agentic-production";
+  const S = { loops: [] };
+  const CX = 185, CY = 162, RAD = 100;
+
+  function mk(tag, at, parent, css) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in at) e.setAttribute(k, at[k]);
+    if (css) e.setAttribute("style", css);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function txt(parent, x, y, str, css, anchor) {
+    const t = mk("text", { x, y, "text-anchor": anchor || "start" }, parent, css);
+    t.textContent = str;
+    return t;
+  }
+  const mono = (w, s, c) => `font:${w} ${s}px var(--f-mono);fill:var(--${c})`;
+  function pill(parent, cx, cy, w, label, tone) {
+    const g = mk("g", {}, parent);
+    mk("rect", { x: cx - w / 2, y: cy - 18, width: w, height: 36, rx: 18 }, g, `fill:var(--surface-2);stroke:var(--${tone});stroke-width:2`);
+    txt(g, cx, cy + 5, label, "font:700 14px var(--f-body);fill:var(--ink)", "middle");
+    return g;
+  }
+
+  function build(slide) {
+    if (S.slide === slide) return;
+    S.slide = slide;
+    const svg = slide.querySelector("#c03-prod-svg");
+    svg.innerHTML = "";
+    const defs = mk("defs", {}, svg);
+    const pat = mk("pattern", { id: "c03-hatch", width: 8, height: 8, patternUnits: "userSpaceOnUse", patternTransform: "rotate(45)" }, defs);
+    mk("line", { x1: 0, y1: 0, x2: 0, y2: 8 }, pat, "stroke:var(--faint);stroke-width:3");
+
+    // Cursor online loop
+    const cur = (S.cursor = mk("g", {}, svg));
+    txt(cur, 8, 18, "Cursor Tab: online RL", "font:700 16px var(--f-body);fill:var(--ink)");
+    S.ring = mk("circle", { cx: CX, cy: CY, r: RAD }, cur, "fill:none;stroke:var(--line-2);stroke-width:2.5;stroke-dasharray:3 7");
+    S.pills = [pill(cur, CX, CY - RAD, 160, "deploy checkpoint", "model"),
+               pill(cur, CX + RAD, CY, 168, "users accept / reject", "human"),
+               pill(cur, CX, CY + RAD, 110, "reward", "tool"),
+               pill(cur, CX - RAD, CY, 168, "policy-gradient step", "model")];
+    S.dot = mk("circle", { cx: CX, cy: CY - RAD, r: 7 }, cur, "fill:var(--model)");
+    S.clock = mk("g", {}, cur);
+    txt(S.clock, CX, CY - 2, "~1.5–2 h", "font:800 24px var(--f-display);fill:var(--model)", "middle");
+    txt(S.clock, CX, CY + 20, "per cycle", mono(500, 12, "muted"), "middle");
+
+    // agent trajectory strip
+    const tr = (S.traj = mk("g", {}, svg));
+    txt(tr, 397, 18, "Agent trajectory: one rollout", "font:700 16px var(--f-body);fill:var(--ink)");
+    const B = [[397, 52, "LLM", "model", ""], [455, 74, "tool call", "tool", ""], [535, 70, "sandbox", "tool", "dash"], [611, 84, "obs", "hatch", ""], [701, 52, "LLM", "model", ""], [759, 58, "reward", "state", ""]];
+    S.blocks = B.map(([x, w, label, tone, mod]) => {
+      const g = mk("g", {}, tr);
+      const fill = tone === "hatch" ? "fill:url(#c03-hatch);stroke:var(--faint)" : `fill:var(--${tone}-soft);stroke:var(--${tone})`;
+      mk("rect", { x, y: 38, width: w, height: 46, rx: 10 }, g, fill + ";stroke-width:2" + (mod === "dash" ? ";stroke-dasharray:5 4" : ""));
+      txt(g, x + w / 2, 66, label, "font:700 14px var(--f-body);fill:var(--ink)", "middle");
+      return g;
+    });
+    S.trNotes = [txt(tr, 653, 104, "masked from loss", mono(700, 12, "muted"), "middle"),
+                 txt(tr, 788, 104, "at the end", mono(700, 12, "state"), "middle"),
+                 txt(tr, 570, 104, "isolated", mono(700, 12, "tool"), "middle")];
+    S.token = mk("circle", { cx: 397, cy: 30, r: 6 }, tr, "fill:var(--model)");
+
+    // async rollout lanes
+    const as = (S.async = mk("g", {}, svg));
+    txt(as, 397, 152, "Async rollouts: no worker waits for the slowest", "font:700 16px var(--f-body);fill:var(--ink)");
+    S.lanes = [190, 228, 266].map((y, i) => {
+      txt(as, 397, y + 4, "worker " + (i + 1), mono(600, 12, "muted"));
+      mk("line", { x1: 470, y1: y, x2: 650, y2: y }, as, "stroke:var(--line-2);stroke-width:2;stroke-dasharray:4 5");
+      return mk("rect", { x: 470, y: y - 8, width: 40, height: 16, rx: 8 }, as, "fill:var(--model);opacity:.85");
+    });
+    mk("rect", { x: 664, y: 174, width: 62, height: 108, rx: 10 }, as, "fill:var(--state-soft);stroke:var(--state);stroke-width:2");
+    txt(as, 695, 232, "buffer", mono(700, 12, "state"), "middle");
+    mk("path", { d: "M726,228 L740,228" }, as, "stroke:var(--state);stroke-width:2.5");
+    mk("rect", { x: 742, y: 200, width: 76, height: 56, rx: 10 }, as, "fill:var(--model-soft);stroke:var(--model);stroke-width:2");
+    txt(as, 780, 233, "trainer", "font:700 14px var(--f-body);fill:var(--ink)", "middle");
+    txt(as, 397, 302, "long-tail latency → async; check train vs inference log-probs", mono(500, 12, "faint"));
+  }
+
+  function stopLoops() { S.loops.forEach((t) => t.kill()); S.loops = []; }
+  function startOrbit() {
+    const p = { a: -Math.PI / 2 };
+    S.loops.push(gsap.to(p, { a: (3 * Math.PI) / 2, duration: 4, ease: "none", repeat: -1, onUpdate: () => {
+      S.dot.setAttribute("cx", (CX + RAD * Math.cos(p.a)).toFixed(1));
+      S.dot.setAttribute("cy", (CY + RAD * Math.sin(p.a)).toFixed(1));
+    } }));
+  }
+  function startLanes() {
+    [1.6, 2.6, 4.4].forEach((d, i) => {
+      const r = S.lanes[i];
+      S.loops.push(gsap.fromTo(r, { x: 0, autoAlpha: 1 }, { x: 140, duration: d, ease: "none", repeat: -1, repeatDelay: 0.25, delay: i * 0.3 }));
+    });
+  }
+
+  const on = (el) => gsap.set(el, { autoAlpha: 1 });
+  const off = (el) => gsap.set(el, { autoAlpha: 0 });
+
+  function render(slide, n, animate) {
+    build(slide);
+    const A = (k) => animate && n === k;
+    const svg = slide.querySelector("#c03-prod-svg");
+    stopLoops();
+    gsap.killTweensOf(svg.querySelectorAll("*"));
+
+    // entry: the Cursor loop
+    on(S.cursor); S.pills.forEach(on);
+    gsap.set(S.pills, { scale: 1 });
+    if (A(0)) gsap.fromTo(S.pills, { autoAlpha: 0, scale: 0.5, transformOrigin: "50% 50%" }, { autoAlpha: 1, scale: 1, duration: 0.5, stagger: 0.14, delay: 0.4, ease: "back.out(2)" });
+    startOrbit();
+    gsap.set(S.cursor, { autoAlpha: n >= 2 ? 0.45 : 1 });
+    if (A(2)) gsap.fromTo(S.cursor, { autoAlpha: 1 }, { autoAlpha: 0.45, duration: 0.6 });
+
+    // step 1: cycle time
+    if (n >= 1) { on(S.clock); if (A(1)) gsap.fromTo(S.clock, { autoAlpha: 0, scale: 0.4, transformOrigin: "50% 50%" }, { autoAlpha: 1, scale: 1, duration: 0.6, ease: "back.out(2)" }); else gsap.set(S.clock, { scale: 1 }); }
+    else off(S.clock);
+
+    // step 2: trajectory
+    if (n >= 2) {
+      on(S.traj); S.blocks.forEach(on); S.trNotes.forEach(on);
+      if (A(2)) {
+        gsap.fromTo(S.blocks, { autoAlpha: 0, y: 12 }, { autoAlpha: 1, y: 0, duration: 0.4, stagger: 0.32, delay: 0.2 });
+        gsap.fromTo(S.trNotes, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.4, stagger: 0.3, delay: 1.6 });
+      } else gsap.set(S.blocks, { y: 0 });
+      S.loops.push(gsap.fromTo(S.token, { attr: { cx: 405 } }, { attr: { cx: 810 }, duration: 3.2, ease: "steps(6)", repeat: -1, repeatDelay: 0.6, delay: A(2) ? 2.2 : 0 }));
+    } else off(S.traj);
+
+    // step 3: async lanes
+    if (n >= 3) {
+      on(S.async);
+      if (A(3)) gsap.fromTo(S.async, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.5 });
+      startLanes();
+    } else off(S.async);
+  }
+
+  Deck.register(ID, {
+    enter(slide) { build(slide); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { stopLoops(); gsap.killTweensOf(slide.querySelectorAll("#c03-prod-svg *")); },
+  });
+})();
+</script>
