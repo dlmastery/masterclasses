@@ -199,3 +199,14 @@ The first version was rejected: "too much theory, no actual examples". Every dec
 
 - 20–30 slides. Chapter openers per topic area, then `.qa` slides with 3 Q&A pairs each (each answer is its own step), plus "whiteboard" slides: a system-design prompt and an animated reference architecture, and "debug this" slides: a code block with a bug, the answer step highlights it with `data-focus`.
 - Questions match what Google, Anthropic, OpenAI, Meta and top startups ask AI/ML engineers in 2026: trade-offs, failure modes, numbers to know, "how would you build…".
+
+### 9.7 What the zero-context panel caught in v1 (do not repeat)
+
+- **Animated state must match the code and the claim.** Counters only go up in a loop (round 1, 2, 3). A join shows 1/3, 2/3, 3/3. A concurrency cap of 2 shows 2 running and 2 queued. If the slide says "checks 10 rules", show 10 or say "5 of 10".
+- **Every name in a code block is defined or imported**, or stubbed in one visible line (`Feedback = ...`). No undefined `process_input`, `fallback` or `coder_agent`. Use one name per thing (not `make_uppercase` and `make_upper_case`).
+- **Loops in code really stop and re-check:** show the bound and the final verification.
+- **One caption per region per step.** When captions replace each other in the same place, give each `data-step="k" data-until="k+1"`. The engine now shows exactly one. Don't add a second pill on top of an existing wire label: highlight the wire instead.
+- **One slide = one idea.** Don't hide a second slide behind the last click. Split it.
+- **A "run it Monday" block on the first slide of every lab:** pinned install line, env vars, folder tree.
+- **Versions on slides match the version the chapter uses** (e.g. "tested on google-adk 2.13.0").
+- No meta text on slides ("pattern composed from verified APIs", "adapted, check kwargs").

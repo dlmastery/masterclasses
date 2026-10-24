@@ -356,18 +356,16 @@
 
   /* ---------- step application ---------- */
   function applyStep(slide, n, animate) {
-    // stepped elements
+    // stepped + until elements: ONE visibility rule, so the two attributes never fight.
+    // visible <=> (no data-step or step <= n) and (no data-until or n < until)
     let d = 0;
-    slide.querySelectorAll("[data-step]").forEach((el) => {
-      const s = +el.dataset.step;
-      if (s <= n && !el._shown) { el._shown = true; animate ? fxIn(el, (d++) * 0.08) : instant(el); }
-      else if (s > n && el._shown) { el._shown = false; fxOut(el); }
-    });
-    // until
-    slide.querySelectorAll("[data-until]").forEach((el) => {
-      const vis = n < +el.dataset.until;
-      if (!vis && el._gone !== true) { el._gone = true; G.to(el, { autoAlpha: 0, duration: D(0.3) }); }
-      else if (vis && el._gone) { el._gone = false; G.to(el, { autoAlpha: 1, duration: D(0.3) }); }
+    slide.querySelectorAll("[data-step], [data-until]").forEach((el) => {
+      const s = el.dataset.step !== undefined ? +el.dataset.step : -1;
+      const u = el.dataset.until !== undefined ? +el.dataset.until : Infinity;
+      const vis = s <= n && n < u;
+      if (vis && !el._shown) { el._shown = true; animate ? fxIn(el, (d++) * 0.08) : instant(el); }
+      else if (!vis && el._shown) { el._shown = false; animate ? fxOut(el) : (G.killTweensOf(el), G.set(el, { autoAlpha: 0 })); }
+      else if (!vis) G.set(el, { autoAlpha: 0 });
     });
     // class toggles
     slide.querySelectorAll("[data-on]").forEach((el) => el._on.forEach((o) => el.classList.toggle(o.cls, n >= o.n)));
@@ -455,7 +453,7 @@
     root.style.setProperty("--aurora", `var(--${tone})`);
 
     // reset reveal state
-    next.querySelectorAll("[data-step]").forEach((el) => { el._shown = false; G.set(el, { autoAlpha: 0 }); });
+    next.querySelectorAll("[data-step], [data-until]").forEach((el) => { el._shown = el.dataset.step === undefined; G.killTweensOf(el); G.set(el, { autoAlpha: el._shown ? 1 : 0 }); });
     next.querySelectorAll(".diagram[data-wires]").forEach(drawWires);
 
     const animate = toStep === 0 || dir > 0;

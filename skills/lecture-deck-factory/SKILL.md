@@ -141,3 +141,5 @@ Wired into `templates/generate-v2.workflow.js` as the `Panel` and `Fix` phases, 
 - Judges see every build step, not only the final frame. Motion is part of the quality.
 - Keep judging and fixing in separate agents. A judge that also fixes stops being critical.
 - Score scale: 7 = a solid conference talk, 9 = the best talk of the year. The pass mark is 8.
+
+**Calibration result (v1 ADK chapter 3):** the panel scored it 3.8–4.5/10, matching the user's verdict, while our own `qa.mjs` had passed it. It found an engine bug: `data-step` + `data-until` were tracked by two separate flags, so old captions stayed visible after going back or jumping to a step. That bug is now fixed with one visibility rule. It also found 15 factual or consistency errors and animations that contradicted the code. Its findings are now rules in AUTHORING.md section 9.7. **Always calibrate the panel on one existing chapter before a big run.**
