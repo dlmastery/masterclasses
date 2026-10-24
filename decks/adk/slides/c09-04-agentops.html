@@ -1,0 +1,264 @@
+<section class="slide" id="adk-c09-agentops" data-tone="state" data-title="AgentOps signals">
+  <style>
+    #adk-c09-agentops .f15, #adk-c09-agentops .f15 li { font-size: 15.5px; line-height: 1.38; color: var(--ink-2); }
+    #adk-c09-agentops ul.f15 { gap: 7px; }
+    #adk-c09-agentops ol.seq.f15 { gap: 9px; }
+    #adk-c09-agentops ol.seq.f15 > li { padding-left: 38px; }
+    #adk-c09-agentops ol.seq.f15 > li::before { width: 26px; height: 26px; font-size: 13px; top: 0; }
+    #adk-c09-agentops h4 { font-size: 18px; }
+    #adk-c09-agentops .callout { font-size: 16px; padding: 12px 16px; }
+    #adk-c09-agentops .sli { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 20px; }
+    #adk-c09-agentops .sli div { font-size: 15px; line-height: 1.35; color: var(--ink-2); }
+    #adk-c09-agentops .sli b { font-weight: 650; }
+    #adk-c09-agentops .layer { position: absolute; inset: 0; }
+    #adk-c09-agentops .cite { font-size: 14px; padding: 6px 12px 6px 8px; }
+  </style>
+  <h2 class="title sm">AgentOps watches tokens, tool errors and judge scores, not only HTTP status</h2>
+  <div class="grid fill" style="grid-template-columns:640px 1fr;gap:28px;align-items:start">
+    <svg id="c94-svg" class="interactive" viewBox="0 0 640 600" width="640" height="600" aria-label="A canary traffic dial with four guard meters; a token spike forces a rollback; then an OTel span waterfall and BigQuery agent_events rows"></svg>
+    <div style="position:relative;height:600px">
+      <div class="layer stack c94-l1" style="gap:16px">
+        <div>
+          <h4 style="margin-bottom:8px">Agent SLIs <span class="tiny">(illustrative SLOs)</span></h4>
+          <div class="sli">
+            <div><b>Availability</b> 99.5% over 28 days</div>
+            <div><b>p99 latency</b> &lt; 5 s (docs alert: 5000 ms)</div>
+            <div><b>TTFT</b> p95 &lt; 1.5 s for chat</div>
+            <div><b>Tokens per invocation</b> ≤ 1.3× baseline</div>
+            <div><b>Tool error rate</b> &lt; 1% per tool</div>
+            <div><b>Cost per resolved task</b> business budget</div>
+            <div><b>Online judge score</b> ≥ baseline − δ</div>
+            <div><b>Model Armor blocks</b> alert on a spike</div>
+          </div>
+        </div>
+        <div data-step="1">
+          <h4 style="margin-bottom:8px">Canary on Cloud Run <span class="tiny">(practice built on documented revisions)</span></h4>
+          <ol class="seq f15">
+            <li><code>gcloud run deploy … --no-traffic --tag cand</code>. The candidate gets its own URL and 0% traffic.</li>
+            <li><code>agents-cli eval run --url &lt;tag-url&gt;</code>. Evaluate the live candidate before users reach it.</li>
+            <li><code>update-traffic --to-revisions REV=1</code>, then 5, 25 and 100%. Hold each step. Keep sessions sticky.</li>
+            <li>A guard breaks: <code>--to-revisions PREV=100</code>. Shadow agents need stubbed or read-only tools.</li>
+          </ol>
+        </div>
+        <div class="stack" data-step="2" style="gap:10px">
+          <div class="callout insight"><span><b>Cost is a reliability metric.</b> A loop does not show up as an error. It shows up as tokens per invocation ×10.</span></div>
+          <p class="f15"><b>Runbook:</b> detect → triage by <code>trace_id</code> → contain (rollback, <code>FallbackModel</code>, lower <code>ADK_MAX_LLM_CALLS</code>, <code>ForceEscalationPlugin</code>, Model Armor fail-closed) → audit side effects (<code>TOOL_COMPLETED</code> rows) → learn: a new must-pass eval case before the fix ships.</p>
+        </div>
+      </div>
+      <div class="layer stack c94-l2" style="gap:14px">
+        <div data-step="3">
+          <h4 style="margin-bottom:8px">Traces follow the OTel GenAI conventions</h4>
+          <ul class="clean f15">
+            <li>The conventions now live in <code>open-telemetry/semantic-conventions-genai</code>, status Development. <code>input_tokens</code> includes cached tokens; <code>output_tokens</code> includes reasoning tokens.</li>
+            <li>Switches: <code>--otel_to_cloud</code> on <code>adk web</code> and <code>adk deploy</code>. On Agent Runtime: <code>GOOGLE_CLOUD_AGENT_ENGINE_ENABLE_TELEMETRY=true</code> and <code>OTEL_SEMCONV_STABILITY_OPT_IN=gen_ai_latest_experimental</code>. Tracing is on by default for new ADK deployments since 2026-06-18. <code>gen_ai</code> metrics come from ADK 2.6.</li>
+            <li><code>OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT</code> is opt-in. Get user consent first. agents-cli puts no content in spans and full content in access-controlled GCS and BigQuery.</li>
+            <li>BigQuery <code>agent_events</code>: partitioned by <code>DATE(timestamp)</code>, clustered by <code>event_type</code>, <code>agent</code>, <code>user_id</code>. Tool events carry <code>tool_origin</code>. The Storage Write API is paid. Deduplicate on <code>event_id</code>.</li>
+          </ul>
+        </div>
+        <div class="callout pitfall" data-step="3"><span><b>Breaking in ADK 2.13:</b> OTel GenAI v2 is the default and the <code>call_llm</code> span is gone. Dashboards keyed on it go blank. Update them, or set <code>ADK_TELEMETRY_SCHEMA_VERSION_OPT_IN=otel_semconv_1_36</code>.</span></div>
+      </div>
+      <div class="layer stack c94-l3" style="gap:12px">
+        <div class="code-wrap" data-step="4"><div class="code-head">app.py · adk.dev/integrations/bigquery-agent-analytics</div>
+<pre class="code xs" data-lang="python" data-focus="4:1-8, 5:10-16"><code>
+# pip install "google-adk[bigquery-analytics]>=2.7.0"
+from google.adk.apps import App
+from google.adk.plugins.bigquery_agent_analytics_plugin import (
+    BigQueryAgentAnalyticsPlugin)
+
+plugin = BigQueryAgentAnalyticsPlugin(project_id="your-gcp-project-id",
+                                      dataset_id="your-big-query-dataset-id")
+app = App(name="my_agent", root_agent=root_agent, plugins=[plugin])
+
+# daily token SLO per agent (a query over the documented view)
+P95_TOKENS = """
+SELECT DATE(timestamp) AS day, agent,
+  APPROX_QUANTILES(usage_total_tokens, 100)[OFFSET(95)] AS p95_tokens,
+  AVG(ttft_ms) AS avg_ttft_ms
+FROM `proj.agent_logs.v_llm_response`
+GROUP BY day, agent ORDER BY day DESC"""
+</code></pre></div>
+        <p class="f15" data-step="5">One view per event type: <code>v_llm_response</code> has <code>usage_total_tokens</code>, <code>ttft_ms</code> and <code>total_ms</code>; <code>v_tool_completed</code> has <code>tool_name</code>, <code>tool_origin</code> and <code>total_ms</code>. The identifiers are verbatim; the SQL is a composition.</p>
+        <div class="cites" data-step="4">
+          <a class="cite doc" href="https://adk.dev/integrations/bigquery-agent-analytics/" target="_blank" rel="noopener"><b>Doc</b>&nbsp;BigQuery Agent Analytics</a>
+          <a class="cite doc" href="https://docs.cloud.google.com/gemini-enterprise-agent-platform/scale/runtime/monitoring" target="_blank" rel="noopener"><b>Doc</b>&nbsp;Agent Runtime monitoring</a>
+          <a class="cite doc" href="https://docs.cloud.google.com/run/docs/rollouts-rollbacks-traffic-migration" target="_blank" rel="noopener"><b>Doc</b>&nbsp;Cloud Run rollouts and rollbacks</a>
+          <a class="cite repo" href="https://github.com/open-telemetry/semantic-conventions-genai" target="_blank" rel="noopener"><b>Repo</b>&nbsp;semantic-conventions-genai</a>
+        </div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    Open with the SLI list: a web SRE knows the first two rows; the tokens, judge-score and tool-error rows are new for agents. Step 1 runs a canary: the dial moves 1, 5 and 25 percent while four guards watch error rate, p99, tokens per invocation and judge score. Step 2 shows the failure that HTTP never reports: tokens per invocation jump past 1.5 times the baseline, which is the signature of a loop, and the dial snaps back with --to-revisions PREV=100; then walk the runbook, and stress that the incident ends with a new must-pass eval case. Step 3 opens the trace: invoke_agent contains invoke_workflow, then generate_content and execute_tool, and the BigQuery rows show the slowest tool came from an MCP server; warn about the 2.13 change that removed call_llm. Steps 4 and 5 show the plugin and an SLO query over v_llm_response. Analogy: a heart monitor that shows only "the patient is breathing" misses a fever; tokens and judge scores are the thermometer. Likely question: "Can Agent Runtime split traffic like Cloud Run?" The fetched docs show no such feature, so the practice is blue/green: deploy a second resource and switch the client.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  let svg = null, el = {}, tl = null, cur = -1;
+  const CX = 170, CY = 222, R = 140;
+  const TICKS = [[0, 0], [1, 0.2], [5, 0.42], [25, 0.68], [100, 1]];
+  const GUARDS = [
+    ["error rate", "< 1%", 0.62, 0.22],
+    ["p99 latency", "< 5 s", 0.7, 0.38],
+    ["tokens / invocation", "1.5× baseline", 0.6, 0.34],
+    ["judge score", "≥ baseline − δ", 0.45, 0.72],
+  ];
+  const SPANS = [
+    ["invoke_agent {agent}", 0, 300, "agent"],
+    ["invoke_workflow {workflow}", 14, 286, "agent"],
+    ["generate_content {model}", 28, 132, "model"],
+    ["execute_tool {tool}", 140, 282, "tool"],
+  ];
+  const ROWS = [
+    ["USER_MESSAGE_RECEIVED", ""],
+    ["LLM_REQUEST", ""],
+    ["LLM_RESPONSE", ""],
+    ["TOOL_STARTING", "MCP"],
+    ["TOOL_COMPLETED", "MCP"],
+    ["TOOL_COMPLETED", "LOCAL"],
+    ["NODE_OUTPUT", ""],
+  ];
+  const mk = (tag, a, p) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); (p || svg).appendChild(e); return e; };
+  const txt = (s, a, p) => { const t = mk("text", a, p); t.textContent = s; return t; };
+  const mono = (sz, w, c) => `font:${w} ${sz}px var(--f-mono);fill:${c}`;
+  const ang = (f) => Math.PI - f * Math.PI;
+  const pt = (f, r) => [CX + r * Math.cos(ang(f)), CY - r * Math.sin(ang(f))];
+
+  function build(slide) {
+    svg = slide.querySelector("#c94-svg");
+    svg.innerHTML = ""; el = { guards: [], spans: [], rows: [] }; cur = -1;
+    // ---- dial ----
+    el.dial = mk("g", {});
+    txt("CANARY · traffic to the new revision", { x: 0, y: 16, style: mono(12, 700, "var(--muted)") }, el.dial);
+    const arc = `M${CX - R},${CY} A${R},${R} 0 0 1 ${CX + R},${CY}`;
+    mk("path", { d: arc, style: "fill:none;stroke:var(--line);stroke-width:16;stroke-linecap:round" }, el.dial);
+    el.prog = mk("path", { d: arc, style: "fill:none;stroke:var(--state);stroke-width:16;stroke-linecap:round" }, el.dial);
+    el.arcLen = Math.PI * R;
+    el.prog.style.strokeDasharray = el.arcLen; el.prog.style.strokeDashoffset = el.arcLen;
+    TICKS.forEach(([v, f]) => {
+      const [x, y] = pt(f, R + 24);
+      txt(v + "%", { x, y: y + 4, "text-anchor": "middle", style: mono(12, 700, "var(--muted)") }, el.dial);
+    });
+    el.needle = mk("line", { x1: CX, y1: CY, x2: CX - R + 22, y2: CY, style: "stroke:var(--ink);stroke-width:4;stroke-linecap:round" }, el.dial);
+    mk("circle", { cx: CX, cy: CY, r: 8, style: "fill:var(--ink)" }, el.dial);
+    el.pct = txt("0%", { x: CX, y: CY - 34, "text-anchor": "middle", style: "font:700 34px var(--f-display);fill:var(--ink)" }, el.dial);
+    el.rb = txt("rollback: --to-revisions PREV=100", { x: CX, y: CY + 36, "text-anchor": "middle", style: mono(13, 700, "var(--risk)"), opacity: 0 }, el.dial);
+    el.dialState = { f: 0 };
+    GUARDS.forEach((g, i) => {
+      const y = 44 + i * 58;
+      txt(g[0], { x: 372, y, style: mono(12.5, 700, "var(--ink-2)") }, el.dial);
+      txt(g[1], { x: 630, y, "text-anchor": "end", style: mono(11, 600, "var(--muted)") }, el.dial);
+      mk("rect", { x: 372, y: y + 10, width: 258, height: 10, rx: 5, style: "fill:var(--surface);stroke:var(--line)" }, el.dial);
+      const tx = 372 + g[2] * 258;
+      mk("line", { x1: tx, x2: tx, y1: y + 4, y2: y + 26, style: "stroke:var(--risk);stroke-width:2;stroke-dasharray:3 3" }, el.dial);
+      const mark = mk("path", { d: "M0,0 L-7,-11 L7,-11 Z", style: "fill:var(--state)" }, el.dial);
+      gsap.set(mark, { x: 372 + g[3] * 258, y: y + 12 });
+      el.guards.push({ mark, base: g[3], y, thr: g[2] });
+    });
+    // ---- trace ----
+    el.trace = mk("g", { opacity: 0 });
+    txt("TRACE · span tree", { x: 0, y: 302, style: mono(12, 700, "var(--muted)") }, el.trace);
+    SPANS.forEach((s, i) => {
+      const y = 316 + i * 40;
+      const r = mk("rect", { x: s[1], y, width: s[2] - s[1], height: 28, rx: 6, style: `fill:var(--${s[3]}-soft);stroke:var(--${s[3]});stroke-width:1.5` }, el.trace);
+      txt(s[0], { x: s[1] + 8, y: y + 19, style: mono(11.5, 700, "var(--ink)") }, el.trace);
+      el.spans.push(r);
+    });
+    ["gen_ai.agent.name", "gen_ai.conversation.id", "gen_ai.request.model", "gen_ai.usage.input_tokens", "gen_ai.usage.output_tokens"].forEach((a, i) =>
+      txt(a, { x: 6, y: 498 + i * 20, style: mono(12, 500, "var(--muted)") }, el.trace));
+    txt("BIGQUERY · agent_events (sample rows)", { x: 322, y: 302, style: mono(12, 700, "var(--muted)") }, el.trace);
+    txt("event_type", { x: 330, y: 326, style: mono(11, 700, "var(--faint)") }, el.trace);
+    txt("tool_origin", { x: 548, y: 326, style: mono(11, 700, "var(--faint)") }, el.trace);
+    ROWS.forEach((r, i) => {
+      const y = 334 + i * 36;
+      const g = mk("g", { opacity: 0 }, el.trace);
+      const bg = mk("rect", { x: 322, y, width: 318, height: 30, rx: 6, style: "fill:var(--surface);stroke:var(--line)" }, g);
+      txt(r[0], { x: 332, y: y + 20, style: mono(12, 600, r[0].startsWith("TOOL") ? "var(--tool)" : r[0].startsWith("LLM") ? "var(--model)" : "var(--ink-2)") }, g);
+      txt(r[1] || "—", { x: 548, y: y + 20, style: mono(12, 700, r[1] === "MCP" ? "var(--risk)" : "var(--muted)") }, g);
+      el.rows.push({ g, bg });
+    });
+    el.slow = mk("g", { opacity: 0 }, el.trace);
+    mk("rect", { x: 320, y: 334 + 4 * 36 - 2, width: 322, height: 34, rx: 7, style: "fill:none;stroke:var(--risk);stroke-width:2.5" }, el.slow);
+    txt("slowest tool", { x: 636, y: 334 + 4 * 36 + 20, "text-anchor": "end", style: mono(11, 700, "var(--risk)") }, el.slow);
+    gsap.set(el.spans, { scaleX: 0, transformOrigin: "left center" });
+  }
+
+  function setDial(f, animate, dur) {
+    const a = ang(f), x2 = CX + (R - 22) * Math.cos(a), y2 = CY - (R - 22) * Math.sin(a);
+    const pctOf = (ff) => { for (let i = TICKS.length - 1; i >= 0; i--) if (ff >= TICKS[i][1] - 1e-6) return TICKS[i][0]; return 0; };
+    const o = el.dialState;
+    const apply = () => {
+      const aa = ang(o.f);
+      el.needle.setAttribute("x2", CX + (R - 22) * Math.cos(aa));
+      el.needle.setAttribute("y2", CY - (R - 22) * Math.sin(aa));
+      el.prog.style.strokeDashoffset = el.arcLen * (1 - o.f);
+    };
+    if (!animate) { o.f = f; apply(); el.pct.textContent = pctOf(f) + "%"; return null; }
+    return gsap.to(o, { f, duration: dur || 0.6, ease: "power2.inOut", onUpdate: apply, onComplete: () => (el.pct.textContent = pctOf(f) + "%") });
+  }
+  function guardsTo(vals, animate, d) {
+    el.guards.forEach((g, i) => {
+      const v = vals[i];
+      const bad = v > g.thr && i !== 3;
+      gsap.to(g.mark, { x: 372 + v * 258, duration: animate ? (d || 0.5) : 0, ease: "power2.out" });
+      g.mark.style.fill = bad ? "var(--risk)" : "var(--state)";
+    });
+  }
+  const BASE = () => el.guards.map((g) => g.base);
+
+  function render(n, animate) {
+    if (!svg) return;
+    const fwd = animate && n === cur + 1; cur = n;
+    if (tl) { tl.kill(); tl = null; }
+    // dial phase
+    gsap.to(el.dial, { opacity: n >= 3 ? 0.18 : 1, duration: animate ? 0.4 : 0 });
+    if (n === 0) { setDial(0, false); guardsTo(BASE(), false); gsap.set(el.rb, { opacity: 0 }); }
+    if (n === 1) {
+      gsap.set(el.rb, { opacity: 0 });
+      if (fwd) {
+        tl = gsap.timeline();
+        [[0.2, [0.25, 0.4, 0.36, 0.71]], [0.42, [0.24, 0.42, 0.37, 0.7]], [0.68, [0.27, 0.41, 0.39, 0.69]]].forEach(([f, gv]) => {
+          tl.add(setDial(f, true, 0.7)).call(() => guardsTo(gv, true, 0.4)).to({}, { duration: 0.7 });
+        });
+      } else { setDial(0.68, false); guardsTo([0.27, 0.41, 0.39, 0.69], false); }
+    }
+    if (n >= 2) {
+      const spike = [0.3, 0.5, 0.97, 0.66];
+      if (fwd && n === 2) {
+        setDial(0.68, false);
+        tl = gsap.timeline();
+        tl.call(() => guardsTo(spike, true, 0.6)).to({}, { duration: 0.9 })
+          .add(setDial(0, true, 0.45)).to(el.rb, { opacity: 1, duration: 0.3 });
+      } else { setDial(0, false); guardsTo(spike, false); gsap.set(el.rb, { opacity: 1 }); }
+    }
+    // trace phase
+    gsap.to(el.trace, { opacity: n >= 3 ? 1 : 0, duration: animate ? 0.4 : 0 });
+    if (n >= 3) {
+      if (fwd && n === 3) {
+        gsap.fromTo(el.spans, { scaleX: 0 }, { scaleX: 1, duration: 0.55, stagger: 0.25, ease: "power2.out", transformOrigin: "left center" });
+        gsap.fromTo(el.rows.map((r) => r.g), { opacity: 0, x: 16 }, { opacity: 1, x: 0, duration: 0.35, stagger: 0.14, delay: 0.5 });
+        gsap.fromTo(el.slow, { opacity: 0 }, { opacity: 1, duration: 0.4, delay: 1.7 });
+        gsap.to(el.spans[3], { strokeWidth: 3.5, duration: 0.3, delay: 1.7 });
+      } else {
+        gsap.set(el.spans, { scaleX: 1 }); gsap.set(el.rows.map((r) => r.g), { opacity: 1, x: 0 }); gsap.set(el.slow, { opacity: 1 });
+        el.spans[3].style.strokeWidth = 3.5;
+      }
+    } else {
+      gsap.set(el.spans, { scaleX: 0 }); gsap.set(el.rows.map((r) => r.g), { opacity: 0 }); gsap.set(el.slow, { opacity: 0 });
+    }
+  }
+
+  function layers(slide, n, animate) {
+    const d = animate ? 0.35 : 0;
+    gsap.to(slide.querySelector(".c94-l1"), { autoAlpha: n <= 2 ? 1 : 0, duration: d });
+    gsap.to(slide.querySelector(".c94-l2"), { autoAlpha: n === 3 ? 1 : 0, duration: d });
+    gsap.to(slide.querySelector(".c94-l3"), { autoAlpha: n >= 4 ? 1 : 0, duration: d });
+  }
+
+  Deck.register("adk-c09-agentops", {
+    enter(slide, step) { build(slide); render(step, false); layers(slide, step, false); },
+    step(slide, n, animate) { if (!svg) build(slide); render(n, animate); layers(slide, n, animate); },
+    leave() { if (tl) { tl.kill(); tl = null; } if (svg) gsap.killTweensOf(svg.querySelectorAll("*")); if (el.dialState) gsap.killTweensOf(el.dialState); }
+  });
+})();
+</script>

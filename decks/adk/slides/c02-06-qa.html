@@ -1,0 +1,29 @@
+<section class="slide" id="adk-c02-qa" data-tone="human" data-title="Interview drill: the ADK 2.0 runtime">
+  <h2 class="title">Interview drill: explain the ADK 2.0 runtime without hand-waving</h2>
+  <div class="grid g2 fill" style="gap:28px 36px;align-content:start" data-fx="stagger">
+    <div class="qa">
+      <div class="q">What is the difference between a plugin and a callback? What does a non-None return from <code>before_model_callback</code> do?</div>
+      <div class="a" data-step="1">A <b>callback</b> acts on one agent. A <b>plugin</b> is a named <code>BasePlugin</code> class on the App. It runs first, for every agent, model and tool call. A returned <code>LlmResponse</code> skips the LLM call, the later plugins and the agent callbacks. Use this for caches and guardrails.</div>
+    </div>
+    <div class="qa">
+      <div class="q">Which state prefix do you use for a user's cart and for scratch data? When is a write persisted?</div>
+      <div class="a" data-step="2">Use <code>user:cart</code>: all sessions of that user in the app share it. Use <code>temp:x</code> for scratch: ADK never persists it. A write is committed only after the Runner processes the yielded event that carries its <code>state_delta</code>. Before that, local code can see a dirty read.</div>
+    </div>
+    <div class="qa">
+      <div class="q">What breaks when you upgrade from ADK 1.x to 2.0?</div>
+      <div class="a" data-step="3">Events get <code>node_info</code> and <code>output</code>. Rigid DB tables and strict validators fail, so upgrade all readers first and use <code>adk migrate session</code>. Overrides of <code>_run_async_impl</code> are ignored. <code>session.events.append</code> breaks determinism: yield the event. A broad <code>except</code> stops retries, and catching <code>BaseException</code> traps <code>NodeInterruptedError</code>.</div>
+    </div>
+    <div class="qa">
+      <div class="q">Where do you register plugins in ADK 2.x Python? How do you add one to a YAML-only agent?</div>
+      <div class="a" data-step="4">Put them on <code>App(plugins=[...])</code>, then build <code>Runner(app=app)</code>. <code>Runner(plugins=)</code> is deprecated, and both together raise <code>ValueError</code>. AgentConfig has no plugins key, so pass <code>adk web --extra_plugins=…</code>. These plugins run after the App's own plugins.</div>
+    </div>
+  </div>
+  <div class="cites">
+    <a class="cite doc" href="https://adk.dev/2.0/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Welcome to ADK 2.0</a>
+    <a class="cite doc" href="https://adk.dev/plugins/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Plugins</a>
+    <a class="cite doc" href="https://adk.dev/sessions/state/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;State</a>
+  </div>
+  <aside class="notes">
+    Ask each question to the room before you reveal the answer. Good answers name the mechanism: who runs first, what a return value short-circuits, and when the Runner commits a write. For the upgrade question, push for the order of work: readers and schemas first, writers last, because ADK 1.28+ can read 2.0 sessions but older 1.x versions cannot. Analogy for the commit rule: a database transaction, where the event is the commit record. A common follow-up: "Why did my retry never fire?" Usually a broad except block swallowed the exception, so RetryConfig never saw it.
+  </aside>
+</section>

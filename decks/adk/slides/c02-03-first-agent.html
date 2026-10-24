@@ -1,0 +1,83 @@
+<section class="slide" id="adk-c02-first-agent" data-tone="agent" data-title="A first agent with three tool kinds">
+  <h2 class="title">A first ADK agent is a model, an instruction and tools whose docstrings the model reads</h2>
+  <div class="grid fill" style="grid-template-columns:680px 1fr;gap:32px;align-items:start">
+    <div class="stack">
+      <div style="position:relative;height:434px">
+        <div class="code-wrap term" data-until="2"><div class="code-head">Cloud Shell · scaffold and run</div>
+<pre class="code sm" data-lang="bash" data-step="1" data-fx="type"><code>
+$ uv pip install --no-cache google-adk
+$ adk create personal_assistant
+? model, backend, project, region
+$ cat personal_assistant/__init__.py
+from . import agent
+$ cat personal_assistant/.env
+GOOGLE_GENAI_USE_ENTERPRISE=1
+GOOGLE_CLOUD_PROJECT=&lt;project&gt;
+GOOGLE_CLOUD_LOCATION=&lt;region&gt;
+$ adk run personal_assistant
+$ adk web
+Dev UI: http://127.0.0.1:8000
+sessions: &lt;agents_dir&gt;/&lt;agent&gt;/.adk/session.db
+</code></pre></div>
+        <div class="code-wrap" data-step="2" style="position:absolute;left:0;right:0;top:0"><div class="code-head">travel_assistant/agent.py · three tool kinds</div>
+<pre class="code xs" data-lang="python" data-focus="2:13-15, 3:13-13, 4:15-15"><code>
+from google.adk.agents import Agent
+from google.adk.tools import FunctionTool, google_search
+from google.adk.tools.agent_tool import AgentTool
+from google.adk.tools.langchain_tool import LangchainTool
+from langchain_community.tools import WikipediaQueryRun
+from langchain_community.utilities import WikipediaAPIWrapper
+google_search_agent = Agent(
+    name="google_search_agent", tools=[google_search])
+wiki = WikipediaQueryRun(api_wrapper=WikipediaAPIWrapper(
+    top_k_results=1, doc_content_chars_max=3000))
+root_agent = Agent(
+    name="root_agent",
+    tools=[FunctionTool(get_fx_rate),     # plain def, calls an FX API
+           AgentTool(agent=google_search_agent),
+           LangchainTool(wiki)],
+)
+</code></pre></div>
+      </div>
+      <p class="quote" data-step="3">“The LLM uses the docstring to decide when and how to call the tool.”</p>
+      <div class="cites" data-step="3">
+        <a class="cite codelab" href="https://codelabs.developers.google.com/devsite/codelabs/build-agents-with-adk-empowering-with-tools" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;Building AI Agents with ADK: Empowering with Tools</a>
+      </div>
+    </div>
+    <div class="stack">
+      <div class="diagram" style="width:680px;height:400px" data-wires="c02f-u>c02f-root@3:flow{human}; c02f-root>c02f-fx@2:rb; c02f-root>c02f-ast@2; c02f-ast>c02f-gsa@2:dash; c02f-root>c02f-wiki@2:rt; c02f-root>c02f-fx@3:flow:rb{tool}; c02f-root>c02f-wiki@4:flow:rt{tool}; c02f-wiki>c02f-ev@4:dash{state} [event]">
+        <div class="node n-human pill" id="c02f-u" style="left:0;top:0;width:220px" data-step="3" data-fx="pop"><span class="nt">User</span><span class="ns c02f-prompt">“EUR to JPY?”</span></div>
+        <div class="node n-agent" id="c02f-root" style="left:0;top:170px;width:190px"><span class="nt">root_agent</span><span class="ns">Agent · model</span></div>
+        <div class="node n-tool" id="c02f-fx" style="left:260px;top:0;width:210px" data-step="2" data-fx="pop" data-on="3:hot 4:dim"><span class="nt">FunctionTool</span><span class="ns">get_fx_rate()</span></div>
+        <div class="node n-tool" id="c02f-ast" style="left:260px;top:170px;width:210px" data-step="2" data-fx="pop"><span class="nt">AgentTool</span><span class="ns">wraps a sub-agent</span></div>
+        <div class="node n-agent ghost" id="c02f-gsa" style="left:530px;top:170px;width:150px" data-step="2" data-fx="pop"><span class="nt">search agent</span><span class="ns">google_search</span></div>
+        <div class="node n-tool" id="c02f-wiki" style="left:260px;top:320px;width:210px" data-step="2" data-fx="pop" data-on="4:hot"><span class="nt">LangchainTool</span><span class="ns">WikipediaQueryRun</span></div>
+        <div class="node n-state" id="c02f-ev" style="left:0;top:320px;width:190px" data-step="4" data-fx="pop"><span class="nt">Events tab</span><span class="ns">which tool fired</span></div>
+      </div>
+      <div class="callout pitfall" data-step="4">Read the model ID from an environment variable. Codelab IDs change: <code>gemini-3.5-flash</code>, <code>gemini-3.8-flash</code>, <code>gemini-2.5-flash</code>.</div>
+      <div class="cites" data-step="1">
+        <a class="cite codelab" href="https://codelabs.developers.google.com/devsite/codelabs/build-agents-with-adk-foundation" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;Building AI Agents with ADK: The Foundation</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    Step one replays the Foundation codelab: adk create asks for the model, the backend, the project and the region, then writes agent.py, __init__.py and .env. adk web starts the Dev UI on 127.0.0.1 port 8000 and keeps sessions in SQLite under .adk. Step two is the Empowering with Tools codelab: one agent with a custom FunctionTool, the built-in google_search inside its own sub-agent behind AgentTool, and a LangChain Wikipedia tool. Analogy: the docstring is the label on a drawer, and the model opens only the drawer whose label matches the question. Watch the pulses: an FX question reaches only get_fx_rate, and a history question reaches only the Wikipedia tool, which you confirm in the Events tab. If you set no model, LlmAgent falls back to gemini-3.5-flash, so pin the model from an environment variable. Likely interview question: "Why wrap google_search in AgentTool instead of a transfer?" With AgentTool the caller keeps control, because "Agent A retains control and continues to handle future user input"; the search agent also stays isolated from the other tools.
+  </aside>
+</section>
+<script>
+(() => {
+  Deck.register("adk-c02-first-agent", {
+    step(slide, n) {
+      const p = slide.querySelector(".c02f-prompt");
+      if (p) p.textContent = n >= 4 ? "“Who founded Kyoto?”" : "“EUR to JPY?”";
+      const dg = slide.querySelector(".diagram");
+      const we = (dg && dg._wireEls || []).find((x) => x.w.from === "c02f-root" && x.w.to === "c02f-fx" && x.w.flow);
+      if (we && we.shown) gsap.to(we.g, { autoAlpha: n >= 4 ? 0 : 1, duration: 0.3 });
+    },
+    leave(slide) {
+      const dg = slide.querySelector(".diagram");
+      (dg && dg._wireEls || []).forEach((x) => gsap.killTweensOf(x.g));
+    },
+  });
+})();
+</script>

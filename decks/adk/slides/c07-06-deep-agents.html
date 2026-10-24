@@ -1,0 +1,196 @@
+<section class="slide" id="adk-c07-deep-agents" data-tone="agent" data-title="Deep agents and long-horizon harnesses">
+  <h2 class="title">Deep agents add a plan, a filesystem and subagents around the loop to work for hours</h2>
+  <div class="fill" style="display:grid;grid-template-columns:760px 1fr;gap:24px;min-height:0">
+    <div class="stack" style="gap:16px">
+      <svg id="c07-deep" viewBox="0 0 760 314" width="760" height="314" style="overflow:visible" aria-label="An initializer session writes three files; each later session starts empty, reads the files, runs a smoke test, finishes one feature and commits"></svg>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start;flex:1;min-height:0">
+        <div class="panel tight k-agent" data-step="1">
+          <h4>Deep agent: four parts</h4>
+          <ul class="ticks" style="gap:4px">
+            <li style="font-size:16px;line-height:1.38">A detailed system prompt</li>
+            <li style="font-size:16px;line-height:1.38">A planning tool, <code>write_todos</code>: its value is recitation</li>
+            <li style="font-size:16px;line-height:1.38">Subagents with isolated contexts</li>
+            <li style="font-size:16px;line-height:1.38">A filesystem for notes</li>
+          </ul>
+          <div class="cites"><a class="cite doc" href="https://www.langchain.com/blog/deep-agents" target="_blank" rel="noopener"><b>LangChain</b>&nbsp;Deep Agents (2025-07-30)</a></div>
+        </div>
+        <div class="panel tight k-state" data-step="3">
+          <h4>Manus context rules</h4>
+          <ul class="ticks" style="gap:4px">
+            <li style="font-size:16px;line-height:1.38">Recite the plan in <code>todo.md</code></li>
+            <li style="font-size:16px;line-height:1.38">Keep errors in the context</li>
+            <li style="font-size:16px;line-height:1.38">About 50 tool calls per task</li>
+            <li style="font-size:16px;line-height:1.38">Compress reversibly: keep the URL, drop the page</li>
+          </ul>
+          <div class="cites"><a class="cite doc" href="https://manus.im/blog/Context-Engineering-for-AI-Agents-Lessons-from-Building-Manus" target="_blank" rel="noopener"><b>Manus</b>&nbsp;Context Engineering for AI Agents</a></div>
+        </div>
+      </div>
+    </div>
+    <div class="stack" style="gap:16px">
+      <div class="code-wrap" data-fx="up"><div class="code-head">plan_and_execute.py · sketch from documented primitives</div>
+<pre class="code sm" data-lang="python" data-focus="2:3-4, 3:6-8, 4:9-10, 5:1-1"><code>
+@node(rerun_on_resume=True)
+async def plan_and_execute(ctx: Context, goal: str):
+    # planner_agent: output_schema=Plan(steps: list[str])
+    plan = await ctx.run_node(planner_agent, goal)
+    results = []
+    for step in plan.steps:
+        out = await ctx.run_node(executor_agent, step)
+        results.append(out)
+    return await ctx.run_node(synthesizer_agent,
+        {"goal": goal, "results": results})
+</code></pre></div>
+      <div style="position:relative;flex:1;min-height:0">
+        <div data-until="4" style="position:absolute;inset:0">
+          <div class="panel tight k-tool" data-step="2">
+            <h4>Long-horizon harness (Anthropic, 2025-11-26)</h4>
+            <p style="font-size:16px;line-height:1.4">Session 1 writes <code>init.sh</code>, <code>claude-progress.txt</code>, a JSON list of 200+ features (all <code>passes:false</code>) and a first commit. Each later session reads the progress file and the git log, runs a smoke test, builds ONE feature, tests it end to end, flips <code>passes</code> and commits. Why JSON: the model is "less likely to overwrite it".</p>
+            <div class="cites"><a class="cite doc" href="https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents" target="_blank" rel="noopener"><b>Anthropic</b>&nbsp;Effective harnesses for long-running agents</a></div>
+          </div>
+        </div>
+        <div data-until="5" style="position:absolute;inset:0">
+          <div class="panel tight k-state" data-step="4">
+            <h4>Durable session as a service</h4>
+            <p style="font-size:16px;line-height:1.4">Anthropic Managed Agents (2026-04-08) keep the brain (harness), the hands (sandbox) and the session (event log) apart. A crashed harness calls <code>wake(sessionId)</code> and replays the log. Lazy containers cut time to first token:</p>
+            <div class="row" style="gap:28px">
+              <div class="stat" style="--aurora:var(--state)"><span class="n" data-to="60" data-pre="−" data-suf="%" style="font-size:40px">0</span><span class="l" style="font-size:15px">p50 (about)</span></div>
+              <div class="stat" style="--aurora:var(--state)"><span class="n" data-to="90" data-pre="&gt;" data-suf="%" style="font-size:40px">0</span><span class="l" style="font-size:15px">p95 reduction</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="panel tight k-agent" data-step="5" style="position:absolute;inset:0;bottom:auto">
+          <h4>The same harness in ADK 2.0</h4>
+          <ul class="clean" style="gap:3px">
+            <li style="font-size:16px;line-height:1.36">Planner node, then a dynamic <code>@node</code> loop over the feature list</li>
+            <li style="font-size:16px;line-height:1.36">A verifier node after each feature</li>
+            <li style="font-size:16px;line-height:1.36"><code>ResumabilityConfig</code> and <code>rerun_on_resume</code> for durability</li>
+            <li style="font-size:16px;line-height:1.36"><code>AgentEngineSandboxCodeExecutor</code>: no network, 100 MB I/O, 14-day state</li>
+            <li style="font-size:16px;line-height:1.36">Agent Runtime: long-running operations up to 7 days</li>
+            <li style="font-size:16px;line-height:1.36"><code>adk deploy --trigger_sources pubsub,eventarc</code> for ambient agents</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    A plain tool loop gives a shallow agent: it plans badly and drifts on long tasks. Deep agents move state out of the prompt into files and a todo list, and move exploration into subagents. Press once: the initializer session writes the harness files, including a feature list where every feature fails. Press three times: each new session starts with an empty context, reads the files, runs a smoke test, finishes exactly one feature, turns one red dot green and commits. The last press maps this to ADK 2.0: a planner node, a dynamic loop, a sandbox and resume. Analogy: shift workers in a factory read the shift log, finish one job and write the log for the next shift. Interview question: "How do you keep a 6-hour agent on track?" Keep progress outside the context, do one feature per session, run a smoke test first, use a separate evaluator, and checkpoint every step.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const CX = [10, 200, 390, 580];
+  const FILES = [{ x: 40, w: 150, t: "init.sh" }, { x: 240, w: 170, t: "progress.txt" }, { x: 460, w: 280, t: "features.json (8 of 200+)" }];
+  let built = false, E = {}, tl = null;
+  const mk = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; };
+  const txt = (parent, x, y, s, font, fill, anchor = "middle") => { const t = mk("text", { x, y, "text-anchor": anchor, fill }, parent); t.style.font = font; t.textContent = s; return t; };
+
+  function build(slide) {
+    if (built) return;
+    built = true;
+    const svg = slide.querySelector("#c07-deep");
+    const wires = mk("g", {}, svg);
+    // initializer write arrows
+    E.wr = FILES.map((f) => mk("path", { d: `M95,160 C95,200 ${f.x + f.w / 2},190 ${f.x + f.w / 2},230`, fill: "none", stroke: "var(--tool)", "stroke-width": 2.2 }, wires));
+    // rehydrate arrows per coding session (index 1..3)
+    E.rh = [null, 1, 2, 3].map((k) => k && FILES.map((f) => mk("path", { d: `M${f.x + f.w / 2},230 C${f.x + f.w / 2},200 ${CX[k] + 85},196 ${CX[k] + 85},162`, fill: "none", stroke: "var(--state)", "stroke-width": 2, "stroke-dasharray": "5 6" }, wires)));
+    // cards
+    E.cards = CX.map((x, k) => {
+      const g = mk("g", {}, svg);
+      const r = mk("rect", { x, y: 10, width: 170, height: 150, rx: 14, fill: k ? "var(--agent-soft)" : "var(--tool-soft)", stroke: k ? "var(--agent)" : "var(--tool)", "stroke-width": 1.8 }, g);
+      txt(g, x + 85, 38, "session " + (k + 1), "700 18px var(--f-body)", "var(--ink)");
+      txt(g, x + 85, 58, k ? "coding agent" : "initializer", "500 13px var(--f-mono)", "var(--muted)");
+      const c = { g, r };
+      if (k) {
+        mk("rect", { x: x + 15, y: 80, width: 140, height: 12, rx: 6, fill: "var(--surface-2)", stroke: "var(--line-2)" }, g);
+        c.fill = mk("rect", { x: x + 15, y: 80, width: 0, height: 12, rx: 6, fill: "var(--state)" }, g);
+        c.smoke = mk("g", {}, g);
+        mk("circle", { cx: x + 24, cy: 116, r: 8, fill: "var(--state)" }, c.smoke);
+        mk("path", { d: `M${x + 20},116 L${x + 23},119 L${x + 28},112`, fill: "none", stroke: "#fff", "stroke-width": 2 }, c.smoke);
+        txt(c.smoke, x + 38, 121, "smoke test", "500 14px var(--f-mono)", "var(--ink-2)", "start");
+        c.commit = mk("g", {}, g);
+        mk("circle", { cx: x + 24, cy: 142, r: 6, fill: "none", stroke: "var(--agent)", "stroke-width": 2.4 }, c.commit);
+        mk("path", { d: `M${x + 14},142 L${x + 18},142 M${x + 30},142 L${x + 34},142`, stroke: "var(--agent)", "stroke-width": 2.4 }, c.commit);
+        txt(c.commit, x + 42, 147, "commit F" + k, "500 14px var(--f-mono)", "var(--ink-2)", "start");
+      } else {
+        txt(g, x + 85, 100, "writes the harness", "500 14px var(--f-mono)", "var(--ink-2)");
+        c.commit = mk("g", {}, g);
+        mk("circle", { cx: x + 30, cy: 132, r: 6, fill: "none", stroke: "var(--tool)", "stroke-width": 2.4 }, c.commit);
+        txt(c.commit, x + 44, 137, "first commit", "500 14px var(--f-mono)", "var(--ink-2)", "start");
+      }
+      return c;
+    });
+    // files
+    E.files = FILES.map((f) => {
+      const g = mk("g", {}, svg);
+      mk("path", { d: `M${f.x},230 h${f.w - 18} l18,18 v62 h-${f.w} Z`, fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 1.8 }, g);
+      txt(g, f.x + f.w / 2, 262, f.t, "700 15px var(--f-mono)", "var(--ink)");
+      return g;
+    });
+    E.dots = Array.from({ length: 8 }, (_, i) => mk("circle", { cx: 494 + i * 30, cy: 290, r: 8, fill: "var(--risk)" }, svg));
+    txt(svg, 600, 280, "", "500 13px var(--f-mono)", "var(--muted)");
+    E.cap = svg.lastChild;
+  }
+
+  const lineOn = (p, on, animate, t) => {
+    const L = p.getTotalLength();
+    if (!on) { gsap.set(p, { autoAlpha: 0 }); return; }
+    if (animate) tl.fromTo(p, { autoAlpha: 1, strokeDashoffset: L, strokeDasharray: L }, { strokeDashoffset: 0, duration: 0.6, ease: "power2.out", onComplete: () => p.style.strokeDasharray = "" }, t);
+    else { gsap.set(p, { autoAlpha: 1 }); p.style.strokeDasharray = ""; p.style.strokeDashoffset = ""; }
+  };
+
+  function render(n, animate) {
+    if (tl) tl.kill();
+    tl = gsap.timeline();
+    // cards: ghost until their session starts
+    E.cards.forEach((c, k) => {
+      const live = k === 0 || n >= k + 1;
+      c.r.setAttribute("stroke-dasharray", live ? "" : "6 6");
+      if (animate && k > 0 && n === k + 1) tl.fromTo(c.g, { opacity: 0.3 }, { opacity: 1, duration: 0.4 }, 0);
+      else gsap.set(c.g, { opacity: live ? 1 : 0.3 });
+      if (k) {
+        const done = n >= k + 1;
+        if (animate && n === k + 1) {
+          gsap.set(c.fill, { attr: { width: 0 } });
+          gsap.set([c.smoke, c.commit], { autoAlpha: 0 });
+          tl.to(c.fill, { attr: { width: 84 }, duration: 0.6 }, 0.9);
+          tl.fromTo(c.smoke, { autoAlpha: 0, x: -8 }, { autoAlpha: 1, x: 0, duration: 0.3 }, 1.5);
+          tl.fromTo(c.commit, { autoAlpha: 0, x: -8 }, { autoAlpha: 1, x: 0, duration: 0.3 }, 2.2);
+        } else {
+          gsap.set(c.fill, { attr: { width: done ? 84 : 0 } });
+          gsap.set([c.smoke, c.commit], { autoAlpha: done ? 1 : 0, x: 0 });
+        }
+      } else gsap.set(c.commit, { autoAlpha: n >= 1 ? 1 : 0 });
+    });
+    // initializer writes the files
+    E.wr.forEach((p, i) => lineOn(p, n >= 1, animate && n === 1, 0.1 + i * 0.15));
+    E.files.forEach((f, i) => {
+      if (n < 1) { gsap.set(f, { autoAlpha: 0 }); return; }
+      if (animate && n === 1) tl.fromTo(f, { autoAlpha: 0, scale: 0.7, transformOrigin: "50% 50%" }, { autoAlpha: 1, scale: 1, duration: 0.4, ease: "back.out(1.8)" }, 0.6 + i * 0.15);
+      else gsap.set(f, { autoAlpha: 1, scale: 1 });
+    });
+    if (animate && n === 1) { tl.fromTo(E.dots, { autoAlpha: 0, scale: 0, transformOrigin: "50% 50%" }, { autoAlpha: 1, scale: 1, duration: 0.25, stagger: 0.05 }, 1.1); tl.fromTo(E.cap, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.3 }, 1.4); }
+    else { gsap.set(E.dots, { autoAlpha: n >= 1 ? 1 : 0, scale: 1 }); gsap.set(E.cap, { autoAlpha: n >= 1 ? 1 : 0 }); }
+    // rehydrate lines: only the current session's lines are bright
+    [1, 2, 3].forEach((k) => E.rh[k].forEach((p, i) => {
+      const cur = n === k + 1 || (n >= 5 && k === 3);
+      if (n < k + 1) { gsap.set(p, { autoAlpha: 0 }); return; }
+      if (animate && n === k + 1) tl.fromTo(p, { autoAlpha: 1, strokeDashoffset: 60 }, { strokeDashoffset: 0, duration: 0.8, ease: "none" }, 0.2 + i * 0.12);
+      else gsap.set(p, { autoAlpha: cur ? 1 : 0.12 });
+      if (animate && n === k + 1 && k > 1) E.rh[k - 1].forEach((q) => tl.to(q, { autoAlpha: 0.12, duration: 0.3 }, 0));
+    }));
+    // dots flip red to green, one feature per session
+    E.dots.forEach((d, i) => {
+      const green = i < 3 && n >= i + 2;
+      if (animate && i < 3 && n === i + 2) tl.to(d, { attr: { fill: "var(--state)" }, duration: 0.01 }, 1.9).fromTo(d, { scale: 1.6, transformOrigin: "50% 50%" }, { scale: 1, duration: 0.4, ease: "back.out(2)" }, 1.9);
+      else d.setAttribute("fill", green ? "var(--state)" : "var(--risk)");
+    });
+  }
+
+  Deck.register("adk-c07-deep-agents", {
+    enter(slide, n) { build(slide); if (n) render(n, false); },
+    step(slide, n, animate) { build(slide); render(n, animate); },
+    leave() { if (tl) tl.kill(); }
+  });
+})();
+</script>

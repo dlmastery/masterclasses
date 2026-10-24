@@ -1,0 +1,35 @@
+<section class="slide" id="adk-c06-qa" data-tone="tool" data-title="Interview drill: connectors and payloads">
+  <h2 class="title">Interview drill: choose the right connector, payload and transport</h2>
+  <div class="grid g2 fill" style="gap:32px;align-content:start">
+    <div class="stack lg">
+      <div class="qa">
+        <div class="q">Another team owns billing. Do you connect to it with MCP or A2A?</div>
+        <div class="a" data-step="1">Ask what they expose. If they expose <b>tools and data</b> that you call as typed functions, use <b>MCP</b> (<code>McpToolset</code> with a <code>tool_filter</code>). If they expose an <b>opaque agent</b> with its own model, memory and policy that takes tasks, use <b>A2A</b> (<code>RemoteA2aAgent</code> on your side, <code>to_a2a</code> on theirs).</div>
+      </div>
+      <div class="qa">
+        <div class="q">Why store a generated image as an artifact, not in state or in the history?</div>
+        <div class="a" data-step="2">State is small JSON that is written into every event. History sends the bytes again on every turn. An <b>artifact</b> is a versioned Part in GCS. The model sees a filename, and <code>load_artifacts</code> attaches the bytes to <b>one request</b> only when the model needs them.</div>
+      </div>
+    </div>
+    <div class="stack lg">
+      <div class="qa">
+        <div class="q">How do you keep a live voice session running for one hour?</div>
+        <div class="a" data-step="3">Enable <code>context_window_compression</code>: it removes the <b>15-minute</b> audio and <b>2-minute</b> audio + video caps. Enable <code>session_resumption</code>: it survives the <b>~10-minute</b> connection resets. Handles stay valid for <b>2 h</b>, and ADK retries up to <b>5</b> times. Add your own cost budget, because <code>max_llm_calls</code> does not cap <code>run_live</code>.</div>
+      </div>
+      <div class="qa">
+        <div class="q">Why must the user identity come from trusted state, not from a tool argument?</div>
+        <div class="a" data-step="4">Prompt injection can change the arguments that the model writes. Read the identity from session state in a <code>before_tool_callback</code> (the <code>validate_tool_params</code> pattern on adk.dev/safety). Block the call when the argument does not match.</div>
+      </div>
+    </div>
+  </div>
+  <div class="panel tight k-tool" data-step="4" style="flex-direction:row;flex-wrap:wrap;gap:8px 22px;align-items:center">
+    <b style="font-size:16px">Numbers to know</b>
+    <span class="tiny" style="color:var(--ink-2)">16 kHz in · 24 kHz out · 100 ms = 3,200 B</span>
+    <span class="tiny" style="color:var(--ink-2)">inline ≤ ~20 MB · Files API 2 GB/file, 48 h</span>
+    <span class="tiny" style="color:var(--ink-2)">image 280 → 2,240 tokens</span>
+    <span class="tiny" style="color:var(--ink-2)">A2A v1.0.0 2026-03-12 · MCP 2026-07-28</span>
+  </div>
+  <aside class="notes">
+    Ask each question, let the room answer, then press to show the model answer. Question 1 tests the core distinction of the chapter: MCP gives you transparent functions, and A2A gives you a peer that you cannot see inside. Question 2 is about cost and correctness: binaries in history are resent and billed on every turn, and state is the wrong store for bytes. Question 3 has three numbers that interviewers like: 10 minutes per connection, 15 minutes for audio and 2 minutes for audio plus video without compression. Question 4 is a security question: treat every model argument as attacker-influenced, the same way you treat form input in a web app. Analogy for question 4: a bank teller checks your ID card, not the name you say.
+  </aside>
+</section>

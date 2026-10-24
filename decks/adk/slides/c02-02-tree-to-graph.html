@@ -1,0 +1,271 @@
+<section class="slide" id="adk-c02-tree-to-graph" data-tone="agent" data-title="From agent tree to graph engine">
+  <h2 class="title">ADK 2.0 replaced the agent tree with a graph engine and kept the 1.x features as its base</h2>
+  <div class="grid fill" style="grid-template-columns:740px 1fr;gap:28px;align-items:start">
+    <svg class="interactive" id="c02t2g-svg" viewBox="0 0 740 600" width="740" height="590" aria-label="A 1.x agent tree morphs into a 2.0 workflow graph, then a release timeline appears"></svg>
+    <div style="position:relative;height:590px">
+      <div class="stack" data-until="4">
+        <div class="panel tight k-agent">
+          <p class="small">The docs call 2.0 the move “<b>from a hierarchical agent executor to a graph-based execution engine</b>”. “Agents, Tools, and Functions are evaluated as individual <i>nodes</i> within a workflow graph.”</p>
+          <p class="small">In Python, <code>BaseAgent</code> subclasses <code>BaseNode</code>. One runtime runs every node.</p>
+        </div>
+        <ul class="ticks small">
+          <li data-step="1"><b>1.x:</b> a root <code>LlmAgent</code> holds <code>sub_agents</code>. The model picks the next agent with <code>transfer_to_agent</code>.</li>
+          <li data-step="2"><b>2.0:</b> code owns the edges. <code>START</code>, function nodes and routers sit between the agents. A return value is the next node's input.</li>
+        </ul>
+        <div class="tags" data-step="3" data-fx="stagger">
+          <span class="tag t-agent">Python 2.13.0</span>
+          <span class="tag t-agent">Go v2.6.0 · adk/v2</span>
+          <span class="tag t-agent">TypeScript adk-v2.3.0</span>
+          <span class="tag" style="--aurora:var(--faint)">Java v1.13 · no 2.0</span>
+          <span class="tag" style="--aurora:var(--faint)">Kotlin v1.4 · no 2.0</span>
+        </div>
+        <div class="callout tip" data-step="3">Stay on 1.x with <code>pip install "google-adk~=1.0"</code> (1.39.1, 2026-08-27). The 2.x line needs Python 3.11+.</div>
+        <div class="cites">
+          <a class="cite doc" href="https://adk.dev/2.0/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Welcome to ADK 2.0</a>
+          <a class="cite repo" href="https://github.com/google/adk-python/blob/main/CHANGELOG.md" target="_blank" rel="noopener"><b>Repo</b>&nbsp;google/adk-python CHANGELOG.md</a>
+        </div>
+      </div>
+      <div class="stack" data-step="4" data-fx="right" style="position:absolute;left:0;right:0;top:0">
+        <div class="code-wrap"><div class="code-head">my_agent/agent.py · README quickstart</div>
+<pre class="code xs" data-lang="python" data-focus="4:13-16"><code>
+from google.adk import Agent, Workflow
+
+generate_fruit_agent = Agent(
+    name="generate_fruit_agent",
+    instruction="Return the name of a random fruit. "
+                "Return only the name.",
+)
+generate_benefit_agent = Agent(
+    name="generate_benefit_agent",
+    instruction="Tell me a health benefit about "
+                "the specified fruit.",
+)
+root_agent = Workflow(
+    name="root_agent",
+    edges=[("START", generate_fruit_agent,
+            generate_benefit_agent)],
+)
+</code></pre></div>
+        <div class="code-wrap term"><div class="code-head">terminal</div>
+<pre class="code xs" data-lang="bash"><code>
+$ pip install google-adk
+$ adk run path/to/my_agent
+$ adk web path/to/agents_dir
+</code></pre></div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    Start with the 1.x picture: a root LlmAgent with sub_agents, where the model decides each handoff with transfer_to_agent. Press once more and the same boxes become nodes in a Workflow graph. Code now owns every edge, and the agents keep only the judgment inside their node. Analogy: 1.x is a manager who improvises who works next; 2.0 is a written process map where people still do the thinking at each station. The timeline makes one point: App, plugins, caching, compaction and resume all shipped in 1.x and are now the base of the graph engine. Version 2.12 also made the first model request about 40% faster in long sessions. Likely question: "Must I migrate now?" No. Pin google-adk~=1.0, which is still patched, and plan the move with the breaking-change list on the last slide of this chapter.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "adk-c02-tree-to-graph";
+  let S = null;
+  let tl = null;
+  let shown = -1;
+
+  const mk = (tag, attrs, parent, css) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (css) e.style.cssText = css;
+    if (parent) parent.appendChild(e);
+    return e;
+  };
+  const tx = (parent, x, y, s, css, anchor) => {
+    const t = mk("text", { x, y, "text-anchor": anchor || "middle" }, parent, css);
+    t.textContent = s;
+    return t;
+  };
+  const MONO = "font-family:var(--f-mono);";
+  const F15 = MONO + "font-size:15px;font-weight:700;fill:var(--ink)";
+  const F13 = MONO + "font-size:13px;font-weight:500;fill:var(--muted)";
+
+  const TREE = {
+    root: { x: 280, y: 50, width: 180, height: 56, rx: 14, "fill-opacity": 1, "stroke-dasharray": "8 0" },
+    a: { x: 60, y: 240, width: 180, height: 56, rx: 14 },
+    b: { x: 500, y: 240, width: 180, height: 56, rx: 14 },
+    aT: { x: 150, y: 266 }, bT: { x: 590, y: 266 },
+    e1: "M370,106 C370,170 150,180 150,238",
+    e2: "M370,106 C370,170 590,180 590,238",
+  };
+  const GRAPH = {
+    root: { x: 2, y: 34, width: 736, height: 322, rx: 22, "fill-opacity": 0.35, "stroke-dasharray": "8 7" },
+    a: { x: 540, y: 86, width: 180, height: 44, rx: 22 },
+    b: { x: 540, y: 246, width: 180, height: 44, rx: 22 },
+    aT: { x: 630, y: 113 }, bT: { x: 630, y: 273 },
+    e1: "M460,188 C500,188 500,108 536,108",
+    e2: "M460,188 C500,188 500,268 536,268",
+  };
+  const ITEMS = [
+    { v: "0.0.1", f: ["Mar 2025", "first PyPI upload"] },
+    { v: "1.0.0", f: ["May 2025", "1.x GA"] },
+    { v: "1.7", f: ["Jul 2025", "Plugins"] },
+    { v: "1.12–1.14", f: ["Aug–Sep 2025", "YAML Agent Config", "App, tool confirm"] },
+    { v: "1.15–1.18", f: ["Sep–Nov 2025", "context caching", "compaction, resume", "Visual Builder"] },
+    { v: "2.0.0 GA", f: ["19 May 2026", "graph engine", "BaseAgent → BaseNode"], hot: true },
+    { v: "2.4–2.9", f: ["Jul–Sep 2026", "Workflow as Tool", "ManagedAgent", "YAML graphs"] },
+    { v: "2.11–2.13", f: ["Oct 2026", "abort_signal", "ClassifierNode", "OTel GenAI v2"] },
+  ];
+
+  function build(slide) {
+    const svg = slide.querySelector("#c02t2g-svg");
+    if (S && S.svg === svg && svg.childNodes.length) return;
+    svg.innerHTML = "";
+    S = { svg };
+    const defs = mk("defs", {}, svg);
+    const mA = mk("marker", { id: "c02t2g-arr", viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto-start-reverse" }, defs);
+    mk("path", { d: "M0,0 L10,5 L0,10 z" }, mA, "fill:var(--muted)");
+    const mM = mk("marker", { id: "c02t2g-arrm", viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto-start-reverse" }, defs);
+    mk("path", { d: "M0,0 L10,5 L0,10 z" }, mM, "fill:var(--model)");
+
+    // headers
+    S.hTree = tx(svg, 0, 18, "ADK 1.x · agent tree · the LLM routes", MONO + "font-size:14px;font-weight:700;fill:var(--muted)", "start");
+    S.hGraph = tx(svg, 0, 18, "ADK 2.0 · Workflow graph · code routes", MONO + "font-size:14px;font-weight:700;fill:var(--agent)", "start");
+
+    // shared shapes (morph)
+    S.root = mk("rect", TREE.root, svg, "fill:var(--agent-soft);stroke:var(--agent);stroke-width:2");
+    S.rootTree = mk("g", {}, svg);
+    tx(S.rootTree, 370, 76, "root_agent", F15);
+    tx(S.rootTree, 370, 96, "LlmAgent · sub_agents", F13);
+    S.rootGraph = tx(svg, 22, 62, "Workflow(name=\"root_agent\")", MONO + "font-size:15px;font-weight:700;fill:var(--agent)", "start");
+
+    S.e1 = mk("path", { d: TREE.e1, "marker-end": "url(#c02t2g-arr)" }, svg, "fill:none;stroke:var(--muted);stroke-width:2.2");
+    S.e2 = mk("path", { d: TREE.e2, "marker-end": "url(#c02t2g-arr)" }, svg, "fill:none;stroke:var(--muted);stroke-width:2.2");
+
+    S.a = mk("rect", TREE.a, svg, "fill:var(--agent-soft);stroke:var(--agent);stroke-width:2");
+    S.b = mk("rect", TREE.b, svg, "fill:var(--agent-soft);stroke:var(--agent);stroke-width:2");
+    S.aT = tx(svg, TREE.aT.x, TREE.aT.y, "bug_agent", F15);
+    S.bT = tx(svg, TREE.bT.x, TREE.bT.y, "support_agent", F15);
+
+    // tree-only decorations
+    S.treeOnly = mk("g", {}, svg);
+    tx(S.treeOnly, 150, 286, "LlmAgent", F13);
+    tx(S.treeOnly, 590, 286, "LlmAgent", F13);
+    mk("path", { d: "M280,80 C180,80 110,150 110,236", "marker-end": "url(#c02t2g-arrm)" }, S.treeOnly, "fill:none;stroke:var(--model);stroke-width:2;stroke-dasharray:6 6");
+    mk("path", { d: "M640,238 C640,150 560,80 464,80", "marker-end": "url(#c02t2g-arrm)" }, S.treeOnly, "fill:none;stroke:var(--model);stroke-width:2;stroke-dasharray:6 6");
+    tx(S.treeOnly, 370, 214, "the model calls", MONO + "font-size:13px;font-weight:600;fill:var(--model)");
+    tx(S.treeOnly, 370, 232, "transfer_to_agent", MONO + "font-size:13px;font-weight:600;fill:var(--model)");
+
+    // graph-only nodes
+    S.graphOnly = mk("g", {}, svg);
+    const chip = (x, w, label, tone) => {
+      const g = mk("g", {}, S.graphOnly);
+      const css = tone === "tool" ? "fill:var(--tool-soft);stroke:var(--tool);stroke-width:2" : "fill:var(--surface);stroke:var(--ink-2);stroke-width:2";
+      mk("rect", { x, y: 166, width: w, height: 44, rx: 22 }, g, css);
+      tx(g, x + w / 2, 193, label, F15);
+      return g;
+    };
+    S.start = chip(20, 96, "START", "plain");
+    S.proc = chip(160, 130, "process", "tool");
+    S.router = chip(340, 120, "router", "tool");
+    S.ge1 = mk("path", { d: "M116,188 L156,188", "marker-end": "url(#c02t2g-arr)" }, S.graphOnly, "fill:none;stroke:var(--muted);stroke-width:2.2");
+    S.ge2 = mk("path", { d: "M290,188 L336,188", "marker-end": "url(#c02t2g-arr)" }, S.graphOnly, "fill:none;stroke:var(--muted);stroke-width:2.2");
+    tx(S.graphOnly, 488, 132, "BUG", MONO + "font-size:13px;font-weight:700;fill:var(--tool)", "end");
+    tx(S.graphOnly, 488, 258, "SUPPORT", MONO + "font-size:13px;font-weight:700;fill:var(--tool)", "end");
+    [[225, 228], [400, 228], [630, 148], [630, 308]].forEach(([x, y]) => tx(S.graphOnly, x, y, "BaseNode", MONO + "font-size:12px;fill:var(--muted)"));
+    tx(S.graphOnly, 370, 340, "each chip is a BaseNode · a return value is the next node's input", MONO + "font-size:13px;fill:var(--ink-2)");
+
+    // timeline
+    S.tl = mk("g", {}, svg);
+    tx(S.tl, 0, 404, "1.x features became the 2.0 base", MONO + "font-size:14px;font-weight:700;fill:var(--muted)", "start");
+    S.axis = mk("line", { x1: 20, y1: 500, x2: 720, y2: 500 }, S.tl, "stroke:var(--line-2);stroke-width:2.5");
+    S.items = ITEMS.map((it, i) => {
+      const x = 60 + i * 88, up = i % 2 === 0;
+      const g = mk("g", {}, S.tl);
+      mk("circle", { cx: x, cy: 500, r: it.hot ? 9 : 6 }, g, it.hot ? "fill:var(--agent)" : "fill:var(--surface-2);stroke:var(--agent);stroke-width:2");
+      const vCss = MONO + "font-size:14px;font-weight:700;fill:" + (it.hot ? "var(--agent)" : "var(--ink)");
+      const fCss = (k) => MONO + "font-size:13px;fill:" + (k === 0 ? "var(--muted)" : "var(--ink-2)");
+      if (up) {
+        const n = it.f.length;
+        it.f.forEach((s, k) => tx(g, x, 482 - (n - 1 - k) * 16, s, fCss(k)));
+        tx(g, x, 482 - n * 16 - 1, it.v, vCss);
+      } else {
+        tx(g, x, 526, it.v, vCss);
+        it.f.forEach((s, k) => tx(g, x, 543 + k * 16, s, fCss(k)));
+      }
+      g._up = up;
+      return g;
+    });
+  }
+
+  function render(n, animate) {
+    const prev = shown;
+    shown = n;
+    if (animate && prev !== n - 1) animate = false;
+    if (tl) tl.kill();
+    const all = [S.root, S.rootTree, S.rootGraph, S.e1, S.e2, S.a, S.b, S.aT, S.bT, S.treeOnly, S.graphOnly, S.hTree, S.hGraph, S.tl, S.axis, ...S.items, S.start, S.proc, S.router, S.ge1, S.ge2];
+    gsap.killTweensOf(all);
+    const set = (el, v) => gsap.set(el, v);
+    if (n < 1) {
+      set(S.root, { attr: TREE.root }); set(S.a, { attr: TREE.a }); set(S.b, { attr: TREE.b });
+      set(S.aT, { attr: TREE.aT }); set(S.bT, { attr: TREE.bT });
+      set(S.e1, { attr: { d: TREE.e1 } }); set(S.e2, { attr: { d: TREE.e2 } });
+      set(all, { opacity: 0 });
+      return;
+    }
+    const G = n >= 2, P = G ? GRAPH : TREE;
+    const shared = [S.root, S.e1, S.e2, S.a, S.b, S.aT, S.bT];
+    tl = gsap.timeline();
+    if (!animate) {
+      set(S.root, { attr: P.root }); set(S.a, { attr: P.a }); set(S.b, { attr: P.b });
+      set(S.aT, { attr: P.aT }); set(S.bT, { attr: P.bT });
+      set(S.e1, { attr: { d: P.e1 } }); set(S.e2, { attr: { d: P.e2 } });
+      set(shared, { opacity: 1 });
+      set([S.rootTree, S.treeOnly, S.hTree], { opacity: G ? 0 : 1 });
+      set([S.rootGraph, S.graphOnly, S.hGraph], { opacity: G ? 1 : 0 });
+      set([S.start, S.proc, S.router], { scale: 1, transformOrigin: "50% 50%" });
+      set(S.tl, { opacity: n >= 3 ? 1 : 0 });
+      set(S.items, { opacity: n >= 3 ? 1 : 0, y: 0 });
+      set(S.axis, { opacity: 1 });
+      return;
+    }
+    if (n === 1) {
+      // draw the tree from nothing
+      set(S.root, { attr: TREE.root }); set(S.a, { attr: TREE.a }); set(S.b, { attr: TREE.b });
+      set(S.aT, { attr: TREE.aT }); set(S.bT, { attr: TREE.bT });
+      set(S.e1, { attr: { d: TREE.e1 } }); set(S.e2, { attr: { d: TREE.e2 } });
+      set([S.rootGraph, S.graphOnly, S.hGraph, S.tl], { opacity: 0 });
+      tl.fromTo(S.hTree, { opacity: 0 }, { opacity: 1, duration: 0.4 })
+        .fromTo([S.root, S.rootTree], { opacity: 0, y: -14 }, { opacity: 1, y: 0, duration: 0.5, ease: "back.out(1.6)" }, 0.1)
+        .fromTo([S.e1, S.e2], { opacity: 0 }, { opacity: 1, duration: 0.5 }, 0.45)
+        .fromTo([S.a, S.aT, S.b, S.bT], { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.5, stagger: 0.06, ease: "back.out(1.6)" }, 0.6)
+        .fromTo(S.treeOnly, { opacity: 0 }, { opacity: 1, duration: 0.6 }, 1.1);
+      return;
+    }
+    if (n === 2) {
+      set(shared, { opacity: 1 });
+      set(S.tl, { opacity: 0 });
+      tl.to([S.treeOnly, S.rootTree, S.hTree], { opacity: 0, duration: 0.35 }, 0)
+        .to(S.root, { attr: GRAPH.root, duration: 1.1, ease: "power3.inOut" }, 0.2)
+        .to(S.a, { attr: GRAPH.a, duration: 1.1, ease: "power3.inOut" }, 0.2)
+        .to(S.b, { attr: GRAPH.b, duration: 1.1, ease: "power3.inOut" }, 0.28)
+        .to(S.aT, { attr: GRAPH.aT, duration: 1.1, ease: "power3.inOut" }, 0.2)
+        .to(S.bT, { attr: GRAPH.bT, duration: 1.1, ease: "power3.inOut" }, 0.28)
+        .to(S.e1, { attr: { d: GRAPH.e1 }, duration: 1.1, ease: "power3.inOut" }, 0.2)
+        .to(S.e2, { attr: { d: GRAPH.e2 }, duration: 1.1, ease: "power3.inOut" }, 0.28)
+        .set(S.graphOnly, { opacity: 1 }, 1.0)
+        .fromTo([S.start, S.proc, S.router], { scale: 0, transformOrigin: "50% 50%" }, { scale: 1, duration: 0.55, stagger: 0.12, ease: "back.out(2)" }, 1.0)
+        .fromTo([S.ge1, S.ge2], { opacity: 0 }, { opacity: 1, duration: 0.4, stagger: 0.12 }, 1.3)
+        .fromTo([S.rootGraph, S.hGraph], { opacity: 0 }, { opacity: 1, duration: 0.5 }, 1.2);
+      return;
+    }
+    // n >= 3: graph is final, timeline drops in
+    render(2, false);
+    shown = n;
+    tl = gsap.timeline();
+    set(S.tl, { opacity: 1 });
+    const L = 700;
+    tl.fromTo(S.axis, { strokeDasharray: L, strokeDashoffset: L }, { strokeDashoffset: 0, duration: 0.9, ease: "power2.inOut" })
+      .fromTo(S.items, { opacity: 0, y: (i) => (S.items[i]._up ? -16 : 16) }, { opacity: 1, y: 0, duration: 0.45, stagger: 0.16, ease: "back.out(1.7)" }, 0.35);
+  }
+
+  Deck.register(ID, {
+    enter(slide, n) { build(slide); render(n, false); },
+    step(slide, n, animate) { build(slide); render(n, animate); },
+    leave() { if (tl) tl.kill(); if (S) gsap.killTweensOf(S.svg.querySelectorAll("*")); },
+  });
+})();
+</script>

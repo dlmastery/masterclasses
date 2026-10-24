@@ -1,0 +1,209 @@
+<section class="slide" id="adk-c08-harness-verifiers" data-tone="risk" data-title="Harness and verifiers">
+  <style>
+    #adk-c08-harness-verifiers .lay { display: grid; align-items: start; }
+    #adk-c08-harness-verifiers .lay > * { grid-area: 1 / 1; }
+    #adk-c08-harness-verifiers table.t { font-size: 15px; line-height: 1.34; }
+    #adk-c08-harness-verifiers table.t th, #adk-c08-harness-verifiers table.t td { padding: 7px 9px; }
+  </style>
+  <h2 class="title sm">Put the cheapest reliable verifier after every risky step, and turn every failure into a sensor</h2>
+  <div class="grid fill" style="grid-template-columns:740px 620px;gap:32px">
+    <div class="stack" style="gap:14px">
+      <svg class="interactive" id="c83-svg" viewBox="0 0 740 430" width="740" height="430" aria-label="A harness ring: guides on the left steer the agent before it acts, sensors on the right check it after it acts. A production failure becomes a new eval sensor. A six-rung verifier ladder shows cost rising per rung."></svg>
+      <div class="cites">
+        <a class="cite doc" href="https://martinfowler.com/articles/exploring-gen-ai/harness-engineering.html" target="_blank" rel="noopener"><b>Doc</b>&nbsp;Böckeler, Harness engineering for coding agent users, 2026-04-02</a>
+        <a class="cite doc" data-step="3" href="https://mitchellh.com/writing/my-ai-adoption-journey" target="_blank" rel="noopener"><b>Doc</b>&nbsp;Hashimoto, My AI Adoption Journey, 2026-02-05</a>
+        <a class="cite doc" data-step="4" href="https://claude.com/blog/building-agents-with-the-claude-agent-sdk" target="_blank" rel="noopener"><b>Doc</b>&nbsp;Building agents with the Claude Agent SDK</a>
+        <a class="cite doc" data-step="5" href="https://antigravity.google/docs/hooks" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Antigravity: hooks</a>
+      </div>
+    </div>
+    <div class="lay">
+      <!-- layer A: guides and sensors -->
+      <div class="stack" data-until="4" style="gap:12px">
+        <p class="small">A harness is everything around the model. <b>Guides</b> steer the agent before it acts (feedforward). <b>Sensors</b> check its work after it acts (feedback). Each control is <b>computational</b> (code) or <b>inferential</b> (a model).</p>
+        <table class="t">
+          <tr><th style="width:112px"></th><th>Computational</th><th>Inferential</th></tr>
+          <tr data-step="1"><td class="c-state">Guides</td><td><code>output_schema</code>, <code>input_schema</code>, <code>state_schema</code>, graph topology</td><td><code>instruction</code>, <code>static_instruction</code>, Agent Skills (<code>SkillToolset</code>)</td></tr>
+          <tr data-step="2"><td class="c-risk">Sensors</td><td>function nodes (lint, tests, SQL dry run), <code>RetryConfig</code>, <code>ToolCallIntegrityPlugin</code></td><td>critic nodes, <code>ClassifierNode</code>, <code>ModelArmorPlugin</code>; <code>AutoTracingPlugin</code> for traces</td></tr>
+        </table>
+        <p class="tiny" data-step="2"><code>ToolCallIntegrityPlugin</code> (2.11) stamps each function call with <code>"v1:"</code> + HMAC-SHA256 and blocks tampered or replayed calls. It does not check tools that run as workflow nodes: the graph gives their arguments.</p>
+        <div class="stack" data-step="3" style="gap:10px">
+          <p class="quote" style="font-size:22px">It is the idea that anytime you find an agent makes a mistake, you take the time to engineer a solution…</p>
+          <p class="small"><b>The Hashimoto loop in ADK:</b> each production failure → <code>adk eval_set add_eval_case</code> → a CI gate with <code>adk eval</code> or <code>AgentEvaluator.evaluate</code>. If the same failure comes back, the build fails.</p>
+        </div>
+      </div>
+      <!-- layer B: ladder rule and the dev-time harness -->
+      <div class="stack" data-step="4" style="gap:11px">
+        <p class="small"><b>Use the lowest rung that catches the error.</b> Cost and latency rise with each rung. Anthropic's Agent SDK post uses the same order: rules, visual feedback, then LLM-as-judge ("not very robust").</p>
+        <div class="stack" data-step="5" style="gap:10px">
+          <p class="tiny"><b>Antigravity is the dev-time harness.</b> Hook events: <code>SessionStart</code> <code>PreToolUse</code> <code>PostToolUse</code> <code>PreInvocation</code> <code>PostInvocation</code> <code>Stop</code>.</p>
+          <div class="code-wrap"><div class="code-head">.agents/hooks.json · sketch: documented schema, illustrative scripts</div>
+<pre class="code xs" data-lang="json" style="line-height:1.45" data-focus="5:4-5, 6:6-7"><code>
+{
+  "verify-tests": {
+    "enabled": true,
+    "Stop": [{ "type": "command", "timeout": 120,
+               "command": "python .agents/verify.py" }],
+    "PreToolUse": [{ "matcher": "run_command",
+      "hooks": [{ "command": "python .agents/guard.py" }] }]
+  }
+}
+</code></pre></div>
+          <p class="tiny"><code>verify.py</code> runs <code>pytest</code> or <code>agents-cli eval run</code>. On failure it prints <code>{"decision": "continue", "reason": "3 eval cases failed: ..."}</code>, and the agent keeps working.</p>
+        </div>
+        <ul class="ticks tiny" data-step="6" style="gap:6px">
+          <li><code>PreToolUse</code> prints <code>deny</code>, <code>ask</code>, <code>force_ask</code> or an argument <code>overwrite</code>.</li>
+          <li>A read-only verifier agent (<code>permissionMode: plan</code>) ends each report with <b>APPROVED / CONDITIONAL / BLOCKED</b>.</li>
+          <li>ADK has no built-in process reward model (PRM). Wrap one as a guard node or a custom metric.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    Start with the agent alone in the ring. Step 1: the guides fly in from the left; they shape the agent before it acts. Step 2: the sensors fly in from the right, computational on top and inferential below; read the table row with them. Step 3 is the most important idea of the slide: a red mistake appears in a production trace, becomes an eval case, and the eval case becomes a new sensor on the ring; that is Mitchell Hashimoto's definition of harness engineering. Step 4 shows the verifier ladder: always try the cheapest rung that can catch the error, because a schema check costs nothing and a human costs hours. Steps 5 and 6 show the same idea at development time in Antigravity: a Stop hook that refuses to let the coding agent stop while evals fail, a PreToolUse guard, and a read-only verifier agent. Analogy: a car has a steering wheel and a road map (guides) and also a speedometer, an ABS sensor and a crash test (sensors). Likely question: "Does ADK ship a process reward model?" No; you wrap one as a guard node or a custom metric.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  let svg = null, guides = [], sensors = [], flyG, ladder = [], ladG, tl = null, shown = -1, ladTitle;
+  const mk = (t, a, p) => { const e = document.createElementNS(NS, t); for (const k in a) e.setAttribute(k, a[k]); p.appendChild(e); return e; };
+  const tx = (s, a, p) => { const e = mk("text", a, p); e.textContent = s; return e; };
+  const F = (sz, w, c, fam) => `font:${w} ${sz}px var(${fam || "--f-mono"});fill:${c}`;
+  const CX = 215, CY = 205, AR = 54;
+
+  const G = [["instruction", 80, 95], ["Agent Skills", 60, 165], ["output_schema", 60, 245], ["graph topology", 80, 315]];
+  const S = [["tests · lint", 320, 45], ["RetryConfig", 365, 105], ["HMAC integrity", 385, 165], ["critic node", 385, 245], ["ClassifierNode", 365, 305], ["ModelArmorPlugin", 320, 365]];
+  const L = [
+    ["schema", "output_schema · StateSchemaError", "0 tokens · µs", 0.05],
+    ["rule / function node", "regex · ID check · SQL dry run · tests", "0 tokens · ms to s", 0.13],
+    ["calibrated classifier", "ClassifierNode(threshold=0.7)", "one forward pass", 0.27],
+    ["LLM critic + rubric", "critic node · num_samples vote", "1+ LLM calls", 0.48],
+    ["stronger-model consult", "ModelConsultTool(max_uses=2)", "pro-model tokens", 0.72],
+    ["human", "RequestInput", "minutes to hours", 1.0],
+  ];
+
+  function box(label, cx, cy, tone, parent, w = 122) {
+    const g = mk("g", {}, parent);
+    mk("rect", { x: cx - w / 2, y: cy - 15, width: w, height: 30, rx: 9, style: `fill:var(--${tone}-soft);stroke:var(--${tone});stroke-width:1.6` }, g);
+    tx(label, { x: cx, y: cy + 4.5, "text-anchor": "middle", style: F(11.5, 700, "var(--ink)") }, g);
+    return g;
+  }
+  function arrow(x1, y1, tone, dash, parent) {
+    const a = Math.atan2(y1 - CY, x1 - CX);
+    const x2 = CX + (AR + 6) * Math.cos(a), y2 = CY + (AR + 6) * Math.sin(a);
+    return mk("line", { x1, y1, x2, y2, style: `stroke:var(--${tone});stroke-width:2;${dash ? "stroke-dasharray:5 5;" : ""}`, "marker-end": `url(#c83-m-${tone})` }, parent);
+  }
+
+  function build(slide) {
+    if (svg) return;
+    svg = slide.querySelector("#c83-svg");
+    svg.innerHTML = "";
+    const defs = mk("defs", {}, svg);
+    ["state", "risk"].forEach((c) => {
+      const m = mk("marker", { id: `c83-m-${c}`, viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 6, markerHeight: 6, orient: "auto" }, defs);
+      mk("path", { d: "M0,0 L10,5 L0,10 Z", style: `fill:var(--${c})` }, m);
+    });
+    // ring and agent
+    mk("circle", { cx: CX, cy: CY, r: 150, style: "fill:none;stroke:var(--line-2);stroke-width:2;stroke-dasharray:3 7" }, svg);
+    mk("circle", { cx: CX, cy: CY, r: AR, style: "fill:var(--agent-soft);stroke:var(--agent);stroke-width:3" }, svg);
+    tx("Agent", { x: CX, y: CY - 1, "text-anchor": "middle", style: F(19, 700, "var(--ink)", "--f-body") }, svg);
+    tx("model + loop", { x: CX, y: CY + 17, "text-anchor": "middle", style: F(11, 500, "var(--muted)") }, svg);
+
+    guides = G.map(([l, x, y]) => {
+      const g = mk("g", { opacity: 0 }, svg);
+      arrow(x + 61, y, "state", false, g);
+      box(l, x, y, "state", g);
+      return g;
+    });
+    const gl = mk("g", { opacity: 0 }, svg);
+    tx("guides · feedforward", { x: 80, y: 60, "text-anchor": "middle", style: F(11.5, 700, "var(--state)") }, gl);
+    guides.push(gl);
+
+    sensors = S.map(([l, x, y]) => {
+      const g = mk("g", { opacity: 0 }, svg);
+      arrow(x - 61, y, "risk", true, g);
+      box(l, x, y, "risk", g);
+      return g;
+    });
+    const sl = mk("g", { opacity: 0 }, svg);
+    tx("sensors · feedback", { x: 390, y: 20, "text-anchor": "middle", style: F(11.5, 700, "var(--risk)") }, sl);
+    tx("▲ computational", { x: 385, y: 199, "text-anchor": "middle", style: F(11, 700, "var(--ink-2)") }, sl);
+    tx("▼ inferential", { x: 385, y: 219, "text-anchor": "middle", style: F(11, 700, "var(--ink-2)") }, sl);
+    sensors.push(sl);
+
+    // Hashimoto loop: trace strip, mistake, new sensor
+    flyG = { trace: mk("g", { opacity: 0 }, svg) };
+    tx("prod trace", { x: 6, y: 418, style: F(11, 700, "var(--muted)") }, flyG.trace);
+    for (let i = 0; i < 7; i++) mk("rect", { x: 92 + i * 46, y: 408, width: 38, height: 12, rx: 3, style: "fill:var(--line-2)" }, flyG.trace);
+    flyG.dot = mk("circle", { cx: 299, cy: 414, r: 9, style: "fill:var(--risk)", opacity: 0 }, svg);
+    flyG.card = mk("g", { opacity: 0 }, svg);
+    mk("rect", { x: 130, y: 362, width: 120, height: 30, rx: 9, style: "fill:var(--risk);stroke:var(--risk);stroke-width:1.6" }, flyG.card);
+    tx("eval case #43", { x: 190, y: 381.5, "text-anchor": "middle", style: F(11.5, 700, "#fff") }, flyG.card);
+    flyG.arr = arrow(190, 362, "risk", true, svg);
+    flyG.arr.setAttribute("opacity", 0);
+
+    // verifier ladder
+    ladG = mk("g", {}, svg);
+    ladTitle = tx("verifier ladder · cheapest first", { x: 455, y: 18, style: F(11.5, 700, "var(--ink-2)"), opacity: 0 }, ladG);
+    ladder = L.map(([name, sub, lat, cost], i) => {
+      const y = 360 - i * 62;
+      const g = mk("g", { opacity: 0 }, ladG);
+      mk("rect", { x: 455, y, width: 285, height: 54, rx: 10, style: `fill:var(--surface-2);stroke:${i === 5 ? "var(--human)" : "var(--line-2)"};stroke-width:1.4` }, g);
+      mk("circle", { cx: 472, cy: y + 19, r: 10, style: "fill:var(--risk)" }, g);
+      tx(String(i + 1), { x: 472, y: y + 23, "text-anchor": "middle", style: F(11, 700, "#fff") }, g);
+      tx(name, { x: 490, y: y + 18, style: F(12.5, 700, "var(--ink)", "--f-body") }, g);
+      tx(sub, { x: 490, y: y + 33, style: F(10, 500, "var(--muted)") }, g);
+      mk("rect", { x: 490, y: y + 41, width: 130, height: 6, rx: 3, style: "fill:var(--line)" }, g);
+      const bar = mk("rect", { x: 490, y: y + 41, width: 130 * cost, height: 6, rx: 3, style: "fill:var(--risk)" }, g);
+      tx(lat, { x: 732, y: y + 48, "text-anchor": "end", style: F(10, 700, "var(--ink-2)") }, g);
+      return { g, bar };
+    });
+  }
+
+  function setAll(arr, o) { arr.forEach((g) => gsap.set(g, { opacity: o, x: 0, y: 0 })); }
+
+  function render(n, animate) {
+    if (!svg) return;
+    if (tl) { tl.kill(); tl = null; }
+    const fresh = (k) => animate && n === k && shown < k;
+    // guides
+    if (n >= 1) { if (fresh(1)) gsap.fromTo(guides, { opacity: 0, x: -140 }, { opacity: 1, x: 0, duration: 0.7, stagger: 0.12, ease: "power3.out" }); else setAll(guides, 1); }
+    else setAll(guides, 0);
+    // sensors
+    if (n >= 2) { if (fresh(2)) gsap.fromTo(sensors, { opacity: 0, x: 140 }, { opacity: 1, x: 0, duration: 0.7, stagger: 0.1, ease: "power3.out" }); else setAll(sensors, 1); }
+    else setAll(sensors, 0);
+    // Hashimoto loop
+    const { trace, dot, card, arr } = flyG;
+    if (n >= 3) {
+      if (fresh(3)) {
+        gsap.set(card, { opacity: 0, x: 109, y: 22 }); gsap.set(arr, { opacity: 0 }); gsap.set(dot, { opacity: 0, scale: 1, transformOrigin: "50% 50%" });
+        tl = gsap.timeline()
+          .to(trace, { opacity: 1, duration: 0.4 })
+          .to(dot, { opacity: 1, duration: 0.25 })
+          .to(dot, { scale: 1.6, duration: 0.25, yoyo: true, repeat: 3, transformOrigin: "50% 50%" })
+          .to(dot, { opacity: 0, duration: 0.2 })
+          .set(card, { opacity: 1 }, "<")
+          .to(card, { x: 0, y: 0, duration: 0.9, ease: "power2.inOut" })
+          .to(arr, { opacity: 1, duration: 0.4 });
+      } else { gsap.set(trace, { opacity: 1 }); gsap.set(dot, { opacity: 0 }); gsap.set(card, { opacity: 1, x: 0, y: 0 }); gsap.set(arr, { opacity: 1 }); }
+    } else { gsap.set([trace, dot, card, arr], { opacity: 0 }); }
+    // ladder
+    if (n >= 4) {
+      if (fresh(4)) {
+        gsap.fromTo(ladTitle, { opacity: 0 }, { opacity: 1, duration: 0.4 });
+        ladder.forEach((r, i) => {
+          gsap.fromTo(r.g, { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.45, delay: 0.15 + i * 0.22, ease: "power3.out" });
+          gsap.fromTo(r.bar, { attr: { width: 0 } }, { attr: { width: 130 * L[i][3] }, duration: 0.7, delay: 0.35 + i * 0.22, ease: "power2.out" });
+        });
+      } else { gsap.set(ladTitle, { opacity: 1 }); ladder.forEach((r, i) => { gsap.set(r.g, { opacity: 1, y: 0 }); gsap.set(r.bar, { attr: { width: 130 * L[i][3] } }); }); }
+    } else { gsap.set(ladTitle, { opacity: 0 }); ladder.forEach((r) => gsap.set(r.g, { opacity: 0 })); }
+    shown = n;
+  }
+
+  Deck.register("adk-c08-harness-verifiers", {
+    enter(slide, step) { build(slide); shown = -1; render(step, false); },
+    step(slide, n, animate) { build(slide); render(n, animate); },
+    leave() { if (tl) { tl.kill(); tl = null; } if (svg) gsap.killTweensOf(svg.querySelectorAll("*")); shown = -1; }
+  });
+})();
+</script>

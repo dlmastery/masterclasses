@@ -1,0 +1,320 @@
+<section class="slide" id="adk-c08-loop-graph-engineering" data-tone="risk" data-title="Loop and graph engineering">
+  <style>
+    #adk-c08-loop-graph-engineering .lay { display: grid; align-items: start; }
+    #adk-c08-loop-graph-engineering .lay > * { grid-area: 1 / 1; }
+    #adk-c08-loop-graph-engineering table.t { font-size: 14.5px; line-height: 1.32; }
+    #adk-c08-loop-graph-engineering table.t th { padding: 6px 9px; font-size: 13.5px; }
+    #adk-c08-loop-graph-engineering table.t td { padding: 6px 9px; }
+    #adk-c08-loop-graph-engineering .qs { list-style: none; padding: 0; margin: 0; display: grid; gap: 9px; }
+    #adk-c08-loop-graph-engineering .qs li { font-size: 17px; line-height: 1.35; display: grid; grid-template-columns: 30px 1fr; gap: 10px; align-items: start; transition: color .4s; }
+    #adk-c08-loop-graph-engineering .qs .qk { width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center; font: 700 13px/1 var(--f-mono); color: #fff; background: var(--faint); transition: background .4s, transform .4s; }
+    #adk-c08-loop-graph-engineering .qs li.res .qk { background: var(--ink-2); transform: scale(1.1); }
+    #adk-c08-loop-graph-engineering .qs li.llm.res .qk { background: var(--agent); }
+    #adk-c08-loop-graph-engineering .qs li.res { color: var(--ink); }
+  </style>
+  <h2 class="title sm">Loop engineering sets six levers, and graph engineering decides which edges code owns</h2>
+  <div class="grid fill" style="grid-template-columns:780px 580px;gap:32px">
+    <div class="stack" style="gap:12px">
+      <svg class="interactive" id="c82-svg" viewBox="0 0 780 430" width="780" height="430" aria-label="Step 1: an agent loop with six control levers. Later steps: a hybrid support graph where code owns some edges and an LLM chooses others"></svg>
+      <div class="legend" data-step="5" data-fx="fade">
+        <span style="--lc:var(--ink-2)">code-owned edge</span>
+        <span class="l-agent">LLM-chosen edge</span>
+        <span style="--lc:var(--faint)">not decided yet</span>
+        <span class="l-human">human gate</span>
+      </div>
+      <div class="cites">
+        <a class="cite doc" data-step="4" href="https://developers.googleblog.com/en/why-we-built-adk-20/" target="_blank" rel="noopener"><b>Doc</b>&nbsp;Why we built ADK 2.0, 2026-07-01</a>
+        <a class="cite doc" data-step="4" href="https://adk.dev/graphs/routes/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;adk.dev: graph routes</a>
+        <a class="cite repo" data-step="3" href="https://github.com/google/adk-python" target="_blank" rel="noopener"><b>Repo</b>&nbsp;google/adk-python, CHANGELOG 2.2 to 2.13</a>
+      </div>
+    </div>
+    <div class="lay">
+      <!-- layer 0: the naive loop -->
+      <div class="stack" data-until="1" style="gap:16px">
+        <p class="small">The agent loop is <b>gather context → take action → verify work → repeat</b>. Every agent in this course has this loop at its core.</p>
+        <div class="code-wrap term"><div class="code-head">ralph.sh · Huntley, 2025-07-14</div>
+<pre class="code sm" data-lang="bash"><code>
+$ while :; do cat PROMPT.md | claude-code ; done
+</code></pre></div>
+        <p class="small">This loop has no stop condition, no budget, no verifier and no escalation. It works only because a person watches it and edits <code>PROMPT.md</code> after each failure.</p>
+        <p class="small"><b>Loop engineering</b> sets each lever on purpose, in code. Press next to attach the six levers.</p>
+        <div class="cites">
+          <a class="cite doc" href="https://ghuntley.com/ralph/" target="_blank" rel="noopener"><b>Doc</b>&nbsp;Huntley, Ralph Wiggum as a "software engineer"</a>
+          <a class="cite doc" href="https://claude.com/blog/building-agents-with-the-claude-agent-sdk" target="_blank" rel="noopener"><b>Doc</b>&nbsp;Building agents with the Claude Agent SDK</a>
+        </div>
+      </div>
+      <!-- layer A: six levers table -->
+      <div class="stack" data-step="1" data-until="2" style="gap:10px">
+        <table class="t">
+          <tr><th style="width:118px">Lever</th><th>ADK 2.0 primitive</th></tr>
+          <tr><td>Stop condition</td><td>verifier route <code>pass</code> · terminal route · <code>escalate</code></td></tr>
+          <tr><td>Budget</td><td><code>RunConfig.max_llm_calls</code>: default <b>500</b>, then <code>LlmCallsLimitExceededError</code>; env <code>ADK_MAX_LLM_CALLS</code> (2.8). <code>@node(timeout=)</code>. A round counter in state.</td></tr>
+          <tr><td>Feedback shape</td><td>Write the failure reason to state. Read it with <code>{feedback?}</code> in the generator instruction.</td></tr>
+          <tr><td>Retry policy</td><td><code>RetryConfig</code> for transient faults. <code>ReflectAndRetryToolPlugin</code> and <code>ReflectAndRetryModelPlugin</code> for semantic faults.</td></tr>
+          <tr><td>Escalation</td><td><code>ModelConsultTool</code> (2.11, <code>max_uses=2</code>, <code>session_max_uses=5</code>): <code>gemini-3.5-flash</code> asks a stronger model. <code>ForceEscalationPlugin</code> (2.13). <code>RequestInput</code>. <code>abort_signal</code>.</td></tr>
+          <tr><td>Durability</td><td>Checkpoints · <code>rerun_on_resume</code> · idempotent nodes. Since 2.9 a failed node runs again on resume.</td></tr>
+        </table>
+        <p class="tiny">A graph cycle has no built-in <code>max_iterations</code>. You bound it in the router, or in a <code>while</code> loop inside a dynamic <code>@node</code>.</p>
+      </div>
+      <!-- layer B: plugin wiring and real loop bugs -->
+      <div class="stack" data-step="2" data-until="4" style="gap:12px">
+        <div class="code-wrap"><div class="code-head">app.py · verified signatures</div>
+<pre class="code xs" data-lang="python" data-focus="2:6-9, 3:10-11"><code>
+from google.adk.apps import App
+from google.adk.plugins import (
+    ReflectAndRetryToolPlugin, ReflectAndRetryModelPlugin)
+from google.adk.agents.run_config import RunConfig
+
+app = App(name="coder", root_agent=root_agent, plugins=[
+    ReflectAndRetryToolPlugin(max_retries=3),   # tool errors
+    ReflectAndRetryModelPlugin(max_retries=2),  # bad model output
+])
+# per-run budget (or: export ADK_MAX_LLM_CALLS=60)
+run_config = RunConfig(max_llm_calls=60)
+</code></pre></div>
+        <p class="tiny"><b>Retry is not reflection.</b> <code>RetryConfig</code> runs the node again with backoff, and the model sees nothing. The reflect plugins send the error back to the model, so the next call can change.</p>
+        <div class="callout pitfall" data-step="3"><span style="font-size:15.5px;line-height:1.4"><b>Real loop bugs in ADK's own CHANGELOG.</b><br>
+          2.2: infinite retry in <code>LoadSkillResourceTool</code> on <code>RESOURCE_NOT_FOUND</code>. A non-retriable error came back as retriable.<br>
+          2.6: <code>transfer_to_agent</code> ping-pong between agents (2.9 adds <code>transfer_reason</code>).<br>
+          2.12: a <code>SetModelResponseTool</code> repair loop. 2.13: <code>JoinNode</code> inside a loop, and <code>interrupt_id</code> reused across iterations.</span></div>
+      </div>
+      <!-- layer C: graph engineering decision rule -->
+      <div class="stack" data-step="4" style="gap:12px">
+        <h4>Hard-code the edge if one answer is yes</h4>
+        <ol class="qs">
+          <li id="c82-q1"><span class="qk">1</span><span>Is the next step <b>data-determined</b>? A field, a threshold or a status code decides it.</span></li>
+          <li id="c82-q2"><span class="qk">2</span><span>Does the step have an <b>irreversible side effect</b>? A payment, an email or a deploy.</span></li>
+          <li id="c82-q3"><span class="qk">3</span><span>Does compliance need an <b>auditable path</b>?</span></li>
+          <li id="c82-q4"><span class="qk">4</span><span>Does a <b>cheap verifier</b> already decide it? Tests pass or fail.</span></li>
+          <li id="c82-q5" class="llm"><span class="qk">?</span><span>The input is <b>unstructured intent</b>: use an LLM router, a <code>ClassifierNode</code> or <code>output_schema</code> with a <code>Literal</code> route.</span></li>
+        </ol>
+        <p class="small">Allow an autonomous loop only inside one node. The graph bounds its blast radius.</p>
+        <div class="stack" data-step="6" style="gap:10px">
+          <p class="quote" style="font-size:24px">If you can clearly map the workflow, use determinism.</p>
+          <div class="cites"><a class="cite doc" href="https://developers.googleblog.com/en/why-we-built-adk-20/" target="_blank" rel="noopener"><b>Doc</b>&nbsp;Agarwal, Blount, Guan: Why we built ADK 2.0</a></div>
+          <div class="row" style="gap:28px">
+            <div class="stat"><span class="n" style="font-size:44px" data-to="2265" data-suf=" tok">0</span><span class="l tiny">per run, down from 5,152 (tool-calling agent)</span></div>
+            <div class="stat"><span class="n" style="font-size:44px" data-to="5.7" data-dec="1" data-suf=" s">0</span><span class="l tiny">down from 7.2 s · refund example, gemini-3.5-flash, mock APIs</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    Step 0 shows the Ralph loop: one line of Bash and no levers. It works only while a human watches it. Step 1 attaches the six levers, and the table gives the ADK 2.0 primitive for each; stress that a graph cycle has no built-in max_iterations, so the router must count. Steps 2 and 3 show the plugin wiring and the run budget, then four real loop bugs that the ADK team fixed in its own releases: a non-retriable error reported as retriable, agents that hand a task back and forth, a repair loop, and state from one iteration leaking into the next. Step 4 switches to graph engineering on a support graph; at step 5 the four questions resolve and the edges turn grey where code owns them and blue where the model chooses. Step 6 boxes the autonomous island and quotes the ADK 2.0 blog; the token and latency numbers are Google's illustrative refund benchmark, not a general law. Analogy: a train network; the tracks are fixed in steel, and only the switch at the junction reads the passenger's ticket. Likely question: "Why not let one strong agent do everything?" The blog's answer: agents in long loops get stuck, repeat tool calls and cost more, so map the parts you can map.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  let svg = null, slideEl = null, loopG, graphG, island, orbit = null, tl = null, shown = -1;
+  let dials = [], edges = {}, nodes = {};
+  const mk = (t, a, p) => { const e = document.createElementNS(NS, t); for (const k in a) e.setAttribute(k, a[k]); p.appendChild(e); return e; };
+  const tx = (s, a, p) => { const e = mk("text", a, p); e.textContent = s; return e; };
+  const F = (sz, w, c, fam) => `font:${w} ${sz}px var(${fam || "--f-mono"});fill:${c}`;
+  const CX = 390, CY = 215, R = 100;
+
+  // lever name, ADK label, box x, box y, needle angle
+  const LEVERS = [
+    ["stop condition", "route pass · give_up", 0, 30, 35],
+    ["budget", "max_llm_calls=500", 0, 183, 70],
+    ["feedback shape", "{feedback?} in instruction", 0, 336, 10],
+    ["retry policy", "RetryConfig · Reflect*Plugin", 530, 30, -20],
+    ["escalation", "ModelConsultTool · HITL", 530, 183, 55],
+    ["durability", "checkpoint · rerun_on_resume", 530, 336, -45],
+  ];
+
+  function arcPath(a0, a1, r) {
+    const p = (a) => [CX + r * Math.cos(a * Math.PI / 180), CY + r * Math.sin(a * Math.PI / 180)];
+    const [x0, y0] = p(a0), [x1, y1] = p(a1);
+    return `M${x0.toFixed(1)},${y0.toFixed(1)} A${r},${r} 0 0,1 ${x1.toFixed(1)},${y1.toFixed(1)}`;
+  }
+
+  function node(id, x, y, w, h, t1, t2, tone, pill) {
+    const g = mk("g", {}, graphG);
+    const r = mk("rect", { x, y, width: w, height: h, rx: pill ? h / 2 : 10, style: `fill:${tone ? `var(--${tone}-soft)` : "var(--surface-2)"};stroke:${tone ? `var(--${tone})` : "var(--line-2)"};stroke-width:1.8;transition:stroke-width .4s` }, g);
+    if (t2) {
+      tx(t1, { x: x + w / 2, y: y + h / 2 - 3, "text-anchor": "middle", style: F(12.5, 700, "var(--ink)") }, g);
+      tx(t2, { x: x + w / 2, y: y + h / 2 + 13, "text-anchor": "middle", style: F(10.5, 500, "var(--muted)") }, g);
+    } else {
+      tx(t1, { x: x + w / 2, y: y + h / 2 + 4.5, "text-anchor": "middle", style: F(12.5, 700, pill ? "var(--muted)" : "var(--ink)") }, g);
+    }
+    nodes[id] = { g, r };
+  }
+  function edge(id, d, two) {
+    const p = mk("path", { d, style: "fill:none;stroke-width:2.4;stroke-linecap:round" }, graphG);
+    edges[id] = { p, two };
+    setEdge(id, "u");
+  }
+  function setEdge(id, st) {
+    const e = edges[id];
+    const col = st === "c" ? "ink" : st === "l" ? "agent" : "faint";
+    e.p.style.stroke = `var(--${col})`;
+    e.p.style.strokeDasharray = st === "u" ? "5 6" : "none";
+    e.p.style.strokeWidth = st === "u" ? 2 : 3;
+    e.p.setAttribute("marker-end", `url(#c82-m-${col})`);
+    if (e.two) e.p.setAttribute("marker-start", `url(#c82-m-${col})`);
+    e.st = st;
+  }
+
+  function build(slide) {
+    if (svg) return;
+    slideEl = slide;
+    svg = slide.querySelector("#c82-svg");
+    svg.innerHTML = "";
+    const defs = mk("defs", {}, svg);
+    ["ink", "agent", "faint", "line-2"].forEach((c) => {
+      const m = mk("marker", { id: `c82-m-${c}`, viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 6.5, markerHeight: 6.5, orient: "auto-start-reverse" }, defs);
+      mk("path", { d: "M0,0 L10,5 L0,10 Z", style: `fill:var(--${c})` }, m);
+    });
+
+    /* ---------- loop phase ---------- */
+    loopG = mk("g", {}, svg);
+    mk("circle", { cx: CX, cy: CY, r: R, style: "fill:var(--agent-soft);stroke:none" }, loopG);
+    [[-80, -10], [10, 80], [100, 170], [190, 260]].forEach(([a, b]) => mk("path", { d: arcPath(a, b, R), style: "fill:none;stroke:var(--agent);stroke-width:5;stroke-linecap:round", "marker-end": "url(#c82-m-line-2)" }, loopG));
+    [["gather", -90], ["act", 0], ["verify", 90], ["repeat", 180]].forEach(([s, a]) => {
+      const x = CX + R * Math.cos(a * Math.PI / 180), y = CY + R * Math.sin(a * Math.PI / 180);
+      const w = s.length * 8 + 18;
+      mk("rect", { x: x - w / 2, y: y - 12, width: w, height: 24, rx: 12, style: "fill:var(--bg);stroke:var(--agent);stroke-width:1.5" }, loopG);
+      tx(s, { x, y: y + 4.5, "text-anchor": "middle", style: F(12.5, 700, "var(--agent)") }, loopG);
+    });
+    tx("the loop", { x: CX, y: CY - 2, "text-anchor": "middle", style: F(24, 600, "var(--ink)", "--f-display") }, loopG);
+    tx("Agent + tools", { x: CX, y: CY + 20, "text-anchor": "middle", style: F(12, 500, "var(--muted)") }, loopG);
+    const og = mk("g", { id: "c82-orbit" }, loopG);
+    mk("circle", { cx: CX, cy: CY, r: R, style: "fill:none;stroke:none" }, og);
+    mk("circle", { cx: CX, cy: CY - R, r: 8, style: "fill:var(--model)" }, og);
+
+    dials = LEVERS.map(([name, label, x, y, ang], i) => {
+      const g = mk("g", { opacity: 0 }, loopG);
+      const left = x === 0, w = 250;
+      const bx = left ? x + w : x, by = y + 32;
+      const a = Math.atan2(by - CY, bx - CX);
+      mk("line", { x1: bx, y1: by, x2: CX + (R + 4) * Math.cos(a), y2: CY + (R + 4) * Math.sin(a), style: "stroke:var(--line-2);stroke-width:1.6;stroke-dasharray:4 5" }, g);
+      mk("rect", { x, y, width: w, height: 64, rx: 12, style: "fill:var(--surface-2);stroke:var(--line-2);stroke-width:1.4" }, g);
+      const dx = x + 34, dy = y + 32;
+      mk("path", { d: `M${dx - 15.6},${dy + 15.6} A22,22 0 1,1 ${dx + 15.6},${dy + 15.6}`, style: "fill:none;stroke:var(--risk);stroke-width:3;stroke-linecap:round" }, g);
+      const nd = mk("line", { x1: dx, y1: dy, x2: dx, y2: dy - 16, style: "stroke:var(--ink);stroke-width:3;stroke-linecap:round" }, g);
+      mk("circle", { cx: dx, cy: dy, r: 3.5, style: "fill:var(--ink)" }, g);
+      tx(name, { x: x + 68, y: y + 27, style: F(13.5, 700, "var(--ink)", "--f-body") }, g);
+      const lab = tx(label, { x: x + 68, y: y + 47, style: F(11.5, 600, "var(--agent)"), opacity: 0 }, g);
+      return { g, nd, lab, ang, dx, dy };
+    });
+
+    /* ---------- graph phase ---------- */
+    graphG = mk("g", { opacity: 0 }, svg);
+    island = mk("g", { opacity: 0 }, graphG);
+    mk("rect", { x: 248, y: 286, width: 308, height: 92, rx: 16, style: "fill:color-mix(in oklab, var(--agent) 6%, transparent);stroke:var(--agent);stroke-width:1.6;stroke-dasharray:7 6" }, island);
+    mk("rect", { x: 262, y: 276, width: 266, height: 20, rx: 6, style: "fill:var(--bg)" }, island);
+    tx("LLM island · bounded by max_llm_calls", { x: 268, y: 290, style: F(11.5, 700, "var(--agent)") }, island);
+
+    edge("e1", "M72,206 L94,206");
+    edge("e2", "M224,192 C248,192 236,56 254,56");
+    edge("e3", "M374,56 L396,56");
+    edge("e4", "M550,56 L574,56");
+    edge("e5", "M660,78 L660,126");
+    edge("e6", "M660,172 L660,224");
+    edge("e7", "M224,220 C250,220 238,328 264,328");
+    edge("e8", "M408,328 L442,328", true);
+    edge("e9", "M336,300 C336,252 470,248 574,248");
+    edge("e10", "M660,270 L660,328");
+    tx("billing", { x: 246, y: 132, style: F(11.5, 700, "var(--muted)") }, graphG);
+    tx("general", { x: 156, y: 270, style: F(11.5, 700, "var(--muted)") }, graphG);
+
+    node("start", 10, 190, 62, 32, "START", null, null, true);
+    node("classify", 96, 178, 128, 56, "classify", "ClassifierNode", "model");
+    node("lookup", 256, 34, 118, 44, "lookup_invoice", null, "tool");
+    node("policy", 398, 34, 152, 44, "refund_policy_check", null, "tool");
+    node("confirm", 576, 34, 168, 44, "require_confirmation", null, "human");
+    node("issue", 576, 128, 168, 44, "issue_refund", null, "tool");
+    node("format", 576, 226, 168, 44, "format_reply", null, "tool");
+    node("end", 620, 330, 80, 32, "END", null, null, true);
+    node("agent", 266, 300, 142, 56, "research_agent", "Agent · picks tools", "agent");
+    node("search", 444, 306, 96, 44, "search", null, "tool");
+  }
+
+  const RES = [
+    { q: 1, e: ["e3"] },
+    { q: 2, e: ["e5"], n: "confirm" },
+    { q: 3, e: ["e1", "e6", "e9", "e10"] },
+    { q: 4, e: ["e4"], n: "policy" },
+    { q: 5, e: ["e2", "e7", "e8"], llm: true },
+  ];
+  const qEl = (i) => slideEl.querySelector("#c82-q" + i);
+
+  function resolveAll(on) {
+    RES.forEach((r) => {
+      r.e.forEach((id) => setEdge(id, on ? (r.llm ? "l" : "c") : "u"));
+      const li = qEl(r.q); if (li) li.classList.toggle("res", on);
+      if (r.n) nodes[r.n].r.style.strokeWidth = 1.8;
+    });
+  }
+
+  function render(n, animate) {
+    if (!svg) return;
+    if (tl) { tl.kill(); tl = null; }
+    const d = animate ? 0.5 : 0;
+    gsap.to(loopG, { opacity: n < 4 ? 1 : 0, duration: d, overwrite: "auto" });
+    gsap.to(graphG, { opacity: n >= 4 ? 1 : 0, duration: d, overwrite: "auto" });
+    gsap.to(island, { opacity: n >= 6 ? 1 : 0, duration: d, overwrite: "auto" });
+
+    // dials
+    dials.forEach((dl, i) => {
+      gsap.killTweensOf([dl.g, dl.nd, dl.lab]);
+      if (n >= 1) {
+        if (animate && n === 1 && shown < 1) {
+          gsap.fromTo(dl.g, { opacity: 0, x: dl.dx < 300 ? -30 : 30 }, { opacity: 1, x: 0, duration: 0.5, delay: i * 0.28, ease: "power3.out" });
+          gsap.fromTo(dl.nd, { rotation: -130, svgOrigin: `${dl.dx} ${dl.dy}` }, { rotation: dl.ang, svgOrigin: `${dl.dx} ${dl.dy}`, duration: 0.7, delay: 0.25 + i * 0.28, ease: "back.out(2.6)" });
+          gsap.fromTo(dl.lab, { opacity: 0 }, { opacity: 1, duration: 0.35, delay: 0.7 + i * 0.28 });
+        } else {
+          gsap.set(dl.g, { opacity: 1, x: 0 });
+          gsap.set(dl.nd, { rotation: dl.ang, svgOrigin: `${dl.dx} ${dl.dy}` });
+          gsap.set(dl.lab, { opacity: 1 });
+        }
+      } else {
+        gsap.set(dl.g, { opacity: 0 });
+        gsap.set(dl.nd, { rotation: -130, svgOrigin: `${dl.dx} ${dl.dy}` });
+        gsap.set(dl.lab, { opacity: 0 });
+      }
+    });
+
+    // edges and questions
+    if (n >= 5) {
+      if (animate && n === 5 && shown < 5) {
+        resolveAll(false);
+        tl = gsap.timeline({ delay: 0.3 });
+        RES.forEach((r) => {
+          tl.call(() => {
+            r.e.forEach((id) => setEdge(id, r.llm ? "l" : "c"));
+            const li = qEl(r.q); if (li) li.classList.add("res");
+            if (r.n) { const rr = nodes[r.n].r; rr.style.strokeWidth = 4; gsap.delayedCall(0.6, () => (rr.style.strokeWidth = 1.8)); }
+            r.e.forEach((id) => gsap.fromTo(edges[id].p, { opacity: 0.2 }, { opacity: 1, duration: 0.45 }));
+          }).to({}, { duration: 0.85 });
+        });
+      } else resolveAll(true);
+    } else resolveAll(false);
+    if (animate && n === 4 && shown < 4) {
+      gsap.fromTo([...Object.values(nodes).map((x) => x.g)], { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.45, stagger: 0.06, delay: 0.2 });
+      gsap.fromTo(Object.values(edges).map((x) => x.p), { opacity: 0 }, { opacity: 1, duration: 0.4, stagger: 0.05, delay: 0.7 });
+    }
+    shown = n;
+  }
+
+  Deck.register("adk-c08-loop-graph-engineering", {
+    enter(slide, step) {
+      build(slide);
+      shown = -1; render(step, false);
+      const og = slide.querySelector("#c82-orbit");
+      if (orbit) orbit.kill();
+      gsap.set(og, { rotation: 0, transformOrigin: "50% 50%" });
+      orbit = gsap.to(og, { rotation: 360, transformOrigin: "50% 50%", duration: 5, ease: "none", repeat: -1 });
+    },
+    step(slide, n, animate) { build(slide); render(n, animate); },
+    leave() {
+      if (orbit) { orbit.kill(); orbit = null; }
+      if (tl) { tl.kill(); tl = null; }
+      if (svg) gsap.killTweensOf(svg.querySelectorAll("*"));
+      shown = -1;
+    }
+  });
+})();
+</script>

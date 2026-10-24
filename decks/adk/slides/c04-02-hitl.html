@@ -3,24 +3,23 @@
   <div class="grid fill" style="grid-template-columns:740px 620px;gap:32px;align-items:start">
     <div class="stack" style="gap:16px">
       <svg class="interactive" id="c4h-svg" viewBox="0 0 760 280" width="740" height="273" aria-label="Sequence of a RequestInput pause: the workflow emits a function call, the client shows it, the human answers, the workflow resumes"></svg>
-      <div class="grid g2" style="gap:16px">
+      <div class="grid" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px">
         <div class="panel tight k-human" data-step="3">
-          <h4><code>rerun_on_resume</code> decides who reads the reply</h4>
-          <p class="tiny"><b>False</b> (default for functions): the reply becomes the node's output. It goes to the successor.</p>
-          <p class="tiny"><b>True</b> (default for <code>LlmAgent</code> and <code>Workflow</code>): the node runs again from the top. It reads <code>ctx.resume_inputs[interrupt_id]</code>.</p>
-          <p class="tiny">Any client that can send a <code>FunctionResponse</code> can resume the run.</p>
+          <h4>rerun_on_resume</h4>
+          <p class="tiny"><b>False</b> (functions): the reply becomes the node's output and goes to the successor.</p>
+          <p class="tiny"><b>True</b> (<code>LlmAgent</code>, <code>Workflow</code>): the node runs again and reads <code>ctx.resume_inputs</code>.</p>
         </div>
         <div class="panel tight k-tool" data-step="5">
           <h4>Approval gates</h4>
-          <ul class="clean tiny" style="gap:5px">
-            <li><code>@node(require_confirmation=True | pred)</code>: 2.12, turns on <code>rerun_on_resume</code></li>
-            <li>Tool nodes pause through <code>RequestInput</code>: 2.11</li>
-            <li><code>FunctionTool(fn, require_confirmation=pred)</code>, e.g. <code>amount &gt; 1000</code></li>
-            <li><code>tool_context.request_confirmation(hint, payload)</code> for structured answers</li>
+          <ul class="clean" style="gap:4px">
+            <li class="tiny"><code>@node(require_confirmation=…)</code> 2.12</li>
+            <li class="tiny">tool nodes pause via <code>RequestInput</code> 2.11</li>
+            <li class="tiny"><code>FunctionTool(require_confirmation=…)</code></li>
+            <li class="tiny"><code>tool_context.request_confirmation()</code></li>
           </ul>
-          <p class="tiny"><b>ambient-expense-agent:</b> under $100 → <code>auto_approve</code>, no LLM call. $100 or more → <code>single_turn</code> <code>review_agent</code> → <code>RequestInput</code>.</p>
         </div>
       </div>
+      <p class="tiny" data-step="5"><b>Recipe ambient-expense-agent:</b> under $100 goes to <code>auto_approve</code> with no LLM call. $100 or more goes to a <code>single_turn</code> review agent, then to <code>RequestInput</code>.</p>
     </div>
     <div class="stack" style="gap:16px">
       <div class="code-wrap"><div class="code-head">samples/workflows/request_input/agent.py</div>
@@ -43,10 +42,9 @@ root_agent = Workflow(name="request_input", edges=[
   (handle_human_review, {"revise": draft_email,
     "approved": send_email, "rejected": reject_email})])
 </code></pre></div>
-      <div class="callout pitfall" data-step="3"><span><code>response_schema</code> does not reformat a free-text reply. Put an agent after the pause to normalize it.</span></div>
+      <div class="callout pitfall" data-step="3" style="font-size:17px;line-height:1.4"><span><code>response_schema</code> does not reformat a free-text reply. Put an agent after the pause to normalize it.</span></div>
       <div class="cites" data-step="5">
         <a class="cite codelab" href="https://codelabs.developers.google.com/vibecode-ambient-expense-agent" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;Vibecode an ADK 2.0 Ambient Agent with Antigravity and Agents CLI</a>
-        <a class="cite doc" href="https://adk.dev/graphs/human-input/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Human input for agent workflows</a>
       </div>
     </div>
   </div>
@@ -196,5 +194,7 @@ root_agent = Workflow(name="request_input", edges=[
     step(slide, n, animate) { if (!svg) build(slide); render(n, animate); },
     leave() { if (svg) gsap.killTweensOf(svg.querySelectorAll("*")); },
   });
+  const me = document.getElementById("adk-c04-hitl");
+  if (me && me.classList.contains("active")) { build(me); render(Deck.step, false); }
 })();
 </script>

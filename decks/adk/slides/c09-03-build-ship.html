@@ -1,0 +1,180 @@
+<section class="slide" id="adk-c09-build-ship" data-tone="state" data-title="Build, ship and publish">
+  <style>
+    #adk-c09-build-ship pre.code.xs { padding: 12px 18px 14px; }
+    #adk-c09-build-ship .code-wrap .code-head { padding: 8px 14px; font-size: 13.5px; }
+    #adk-c09-build-ship .callout { font-size: 15px; line-height: 1.4; padding: 11px 14px; gap: 10px; }
+    #adk-c09-build-ship .panel h4 { font-size: 17px; }
+    #adk-c09-build-ship .f15, #adk-c09-build-ship .f15 li { font-size: 15px; line-height: 1.38; color: var(--ink-2); }
+    #adk-c09-build-ship ul.f15 { gap: 5px; }
+    #adk-c09-build-ship table.t { font-size: 14.5px; line-height: 1.3; }
+    #adk-c09-build-ship table.t th { font-size: 13px; padding: 6px 8px; }
+    #adk-c09-build-ship table.t td { padding: 7px 8px; }
+    #adk-c09-build-ship .cite { font-size: 14px; padding: 6px 12px 6px 8px; }
+  </style>
+  <h2 class="title sm">Build with Antigravity and agents-cli, ship to Agent Runtime and publish to Gemini Enterprise</h2>
+  <div class="grid fill" style="grid-template-columns:994px 1fr;gap:24px;align-items:start">
+    <div class="stack" style="gap:16px">
+      <svg id="c93-belt" class="interactive" viewBox="0 0 994 130" width="994" height="130" aria-label="A conveyor belt moves an agent package through plan, code, eval gate, deploy and publish stations into the Gemini Enterprise Agent Gallery"></svg>
+      <div class="grid" style="grid-template-columns:500px 470px;gap:24px;align-items:start">
+        <div class="stack" style="gap:12px">
+          <div class="code-wrap term"><div class="code-head">terminal · agents-cli lifecycle (verbatim)</div>
+<pre class="code xs" data-lang="bash" data-focus="1:1-4, 2:5-6, 3:7-8, 4:9-9"><code>
+$ uvx google-agents-cli setup
+$ agents-cli scaffold create outage-recovery-bot \
+    --agent adk --deployment-target agent_runtime
+$ agents-cli playground
+$ agents-cli eval run
+$ agents-cli eval compare prev.json latest.json
+$ agents-cli deploy --dry-run
+$ agents-cli deploy
+$ agents-cli publish gemini
+</code></pre></div>
+          <div class="cites">
+            <a class="cite codelab" href="https://codelabs.developers.google.com/vibecode-ambient-expense-agent" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;Vibecode an ADK 2.0 Ambient Agent with Antigravity and Agents CLI</a>
+            <a class="cite codelab" href="https://codelabs.developers.google.com/getting-started-google-antigravity" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;Getting Started with Google Antigravity</a>
+            <a class="cite codelab" href="https://codelabs.developers.google.com/deploy-manage-observe-adk-cloud-run" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;Deploy, Manage, and Observe ADK Agent on Cloud Run</a>
+            <a class="cite doc" href="https://google.github.io/agents-cli/guide/lifecycle/" target="_blank" rel="noopener"><b>Doc</b>&nbsp;agents-cli lifecycle</a>
+          </div>
+        </div>
+        <div class="stack" style="gap:12px">
+          <div class="code-wrap term" data-step="3"><div class="code-head">the ADK CLI path · adk.dev/deploy/agent-runtime</div>
+<pre class="code xs" data-lang="bash"><code>
+$ adk deploy agent_engine \
+    --project=$PROJECT_ID --region=us-central1 \
+    --display_name="My First Agent" \
+    --otel_to_cloud multi_tool_agent
+</code></pre></div>
+          <div class="panel tight k-tool" data-step="3">
+            <h4>What <code>adk deploy agent_engine</code> does</h4>
+            <ul class="clean f15">
+              <li><b>1</b> Copies the agent. It honours <code>.gitignore</code>, <code>.gcloudignore</code> and <code>.ae_ignore</code>.</li>
+              <li><b>2</b> Reads <code>.agent_engine_config.json</code>. <code>{"identity_type": "AGENT_IDENTITY"}</code> there gives the agent its own identity.</li>
+              <li><b>3</b> Writes <code>requirements.txt</code> with version floors.</li>
+              <li><b>4</b> Generates a Dockerfile: <code>api_server</code> on port 8080 with <code>--a2a</code>.</li>
+              <li><b>5</b> Calls <code>client.runtimes.create()</code>, then <code>update()</code>.</li>
+            </ul>
+            <p class="f15">Flags: <code>--trigger_sources pubsub,eventarc</code>, <code>--session_service_uri</code>, <code>--artifact_service_uri</code>, <code>--service_account</code>. SDK: <code>AdkApp(agent=…)</code> + <code>client.agent_engines.create(…)</code>, or <code>agentplatform.Client().runtimes.create(…)</code> (SDK 2.0.1, 2026-09-18).</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="stack" style="gap:12px">
+      <div class="callout tip" data-step="1"><span>Agent Starter Pack is in maintenance mode: “Active development has moved to agents-cli, the next evolution of Agent Starter Pack.” <code>uvx google-agents-cli setup</code> also installs ADK skills into Antigravity CLI, Claude Code and Codex.</span></div>
+      <div class="callout pitfall" data-step="4"><span><code>AdkApp</code> keeps artifacts in memory by default. A GE app in <code>us</code> accepts only <code>us-*</code> runtimes; <code>eu</code> only <code>europe-*</code>. The <code>agents.create</code> quota (Standard 1, Plus 10 per user per day) returns 429 in CI. A replaced agent gets a new Agent Identity principal: grant the roles again. Source deploys over 8 MB fail.</span></div>
+      <div data-step="5">
+        <h4 style="font-size:17px;margin-bottom:6px">Where to host</h4>
+        <table class="t">
+          <tr><th>Host</th><th>Pick it for</th></tr>
+          <tr><td>Agent Runtime</td><td>Managed sessions, Memory Bank, identity, A2A, publish to GE, least ops</td></tr>
+          <tr><td>Cloud Run</td><td>Custom FastAPI, revision traffic splitting, your own DB</td></tr>
+          <tr><td>GKE</td><td>GPUs, self-hosted models, an existing Kubernetes platform</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    Follow the package on the belt. Step 1: in Antigravity, /grill-me asks clarifying questions, /plan writes implementation_plan.md, you comment on it, and the agent codes with the ADK skills that agents-cli setup installed; Agent Starter Pack now gets critical fixes only. Step 2: a Stop hook runs agents-cli eval run; on failure it prints decision "continue", so the coding agent cannot stop until the evals pass. Step 3: deploy; the package becomes a reasoningEngines resource, and the panel shows what adk deploy agent_engine really does, down to the Dockerfile with api_server on port 8080. Step 4: publish gemini registers the resource in the Gemini Enterprise Agent Gallery; read the pitfalls, because the location rule and the 429 quota break many CI pipelines. Step 5: where to host. Analogy: a factory line with a quality gate; a red light holds the box until it passes inspection. Likely question: "Why not just call adk deploy from CI?" You can, but agents-cli also sets up Terraform, CI/CD and publishing, and both paths end in the same reasoningEngines resource.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  let svg = null, st = {}, loops = [], cur = -1;
+  const CX = [75, 245, 415, 585, 755];
+  const ST = [
+    ["Plan", "/grill-me → /plan", "agent"],
+    ["Code", "Antigravity + skills", "agent"],
+    ["Eval gate", "Stop hook", "risk"],
+    ["Deploy", "Agent Runtime", "tool"],
+    ["Publish", "publish gemini", "human"],
+  ];
+  const mk = (tag, a, p) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); (p || svg).appendChild(e); return e; };
+  const txt = (s, a, p) => { const t = mk("text", a, p); t.textContent = s; return t; };
+  const mono = (sz, w, c) => `font:${w} ${sz}px var(--f-mono);fill:${c}`;
+
+  function build(slide) {
+    svg = slide.querySelector("#c93-belt");
+    svg.innerHTML = ""; st = { boxes: [] }; cur = -1;
+    // belt
+    mk("line", { x1: 4, x2: 836, y1: 100, y2: 100, style: "stroke:var(--line-2);stroke-width:8;stroke-linecap:round" });
+    st.belt = mk("line", { x1: 4, x2: 836, y1: 100, y2: 100, style: "stroke:var(--surface);stroke-width:2;stroke-dasharray:6 14" });
+    ST.forEach((s, i) => {
+      const x = CX[i] - 75;
+      const r = mk("rect", { x, y: 4, width: 150, height: 54, rx: 10, style: `fill:var(--${s[2]}-soft);stroke:var(--${s[2]});stroke-width:1.5;transition:stroke-width .3s` });
+      txt(s[0], { x: CX[i], y: 27, "text-anchor": "middle", style: "font:700 15px var(--f-body);fill:var(--ink)" });
+      txt(s[1], { x: CX[i], y: 46, "text-anchor": "middle", style: mono(11.5, 500, "var(--muted)") });
+      st.boxes.push(r);
+    });
+    // eval light
+    st.light = mk("circle", { cx: 478, cy: 15, r: 7, style: "fill:var(--faint);stroke:var(--bg);stroke-width:2" });
+    st.evalNote = txt("", { x: 415, y: 124, "text-anchor": "middle", style: mono(12, 700, "var(--risk)") });
+    st.pubNote = txt("", { x: 755, y: 124, "text-anchor": "middle", style: mono(12, 700, "var(--human)") });
+    // gallery tile
+    mk("rect", { x: 852, y: 4, width: 140, height: 122, rx: 12, style: "fill:var(--surface);stroke:var(--human);stroke-width:1.5" });
+    txt("Agent Gallery", { x: 922, y: 24, "text-anchor": "middle", style: mono(12, 700, "var(--human)") });
+    txt("Gemini Enterprise", { x: 922, y: 39, "text-anchor": "middle", style: mono(10.5, 500, "var(--muted)") });
+    [[866, 50], [926, 50], [866, 88]].forEach(([x, y]) => mk("rect", { x, y, width: 52, height: 30, rx: 6, style: "fill:var(--surface-2);stroke:var(--line-2)" }));
+    mk("rect", { x: 926, y: 88, width: 52, height: 30, rx: 6, style: "fill:none;stroke:var(--human);stroke-dasharray:4 4" });
+    st.slot = mk("g", { opacity: 0 });
+    mk("rect", { x: 926, y: 88, width: 52, height: 30, rx: 6, style: "fill:var(--agent-soft);stroke:var(--agent);stroke-width:2" }, st.slot);
+    txt("agent", { x: 952, y: 107, "text-anchor": "middle", style: mono(11, 700, "var(--agent)") }, st.slot);
+    // package
+    st.pkg = mk("g", {});
+    st.box = mk("g", {}, st.pkg);
+    mk("rect", { x: -24, y: -30, width: 48, height: 28, rx: 6, style: "fill:var(--agent-soft);stroke:var(--agent);stroke-width:2" }, st.box);
+    txt("agent", { x: 0, y: -11, "text-anchor": "middle", style: mono(11, 700, "var(--agent)") }, st.box);
+    st.card = mk("g", { opacity: 0 }, st.pkg);
+    mk("rect", { x: -118, y: -32, width: 236, height: 30, rx: 6, style: "fill:var(--tool-soft);stroke:var(--tool);stroke-width:2" }, st.card);
+    txt("reasoningEngines/751619551677906944", { x: 0, y: -12, "text-anchor": "middle", style: mono(11, 700, "var(--ink)") }, st.card);
+    gsap.set(st.pkg, { x: CX[0], y: 98 });
+    const o = { off: 0 };
+    loops.push(gsap.to(o, { off: -200, duration: 6, ease: "none", repeat: -1, onUpdate: () => st.belt.setAttribute("stroke-dashoffset", o.off) }));
+  }
+
+  function setLight(mode) {
+    const c = { off: "var(--faint)", red: "var(--risk)", green: "var(--state)" }[mode];
+    st.light.style.fill = c;
+    st.evalNote.textContent = mode === "red" ? '{"decision": "continue"}' : mode === "green" ? "eval passed" : "";
+    st.evalNote.style.fill = mode === "green" ? "var(--state)" : "var(--risk)";
+  }
+
+  function render(n, animate) {
+    if (!svg) return;
+    const prev = cur; cur = n;
+    gsap.killTweensOf([st.pkg, st.box, st.card, st.slot]);
+    st.boxes.forEach((b, i) => { b.style.strokeWidth = (Math.min(n, 4) === i) ? 3.5 : 1.5; });
+    st.pubNote.textContent = n >= 4 ? "registered in GE" : "";
+    const fwd = animate && n === prev + 1;
+    const x = CX[Math.min(n, 4)];
+    // eval light
+    if (n < 2) setLight("off");
+    else if (fwd && n === 2) { setLight("red"); gsap.delayedCall(1.6, () => { if (cur >= 2) setLight("green"); }); }
+    else setLight("green");
+    // package shape
+    const cardOn = n === 3;
+    if (fwd) {
+      const tl = gsap.timeline();
+      if (n === 2) tl.to(st.pkg, { x, duration: 0.9, ease: "power2.inOut" });
+      else tl.to(st.pkg, { x, opacity: 1, duration: 0.9, ease: "power2.inOut" });
+      tl.to(st.box, { opacity: cardOn ? 0 : 1, duration: 0.3 }, n === 3 ? 0.9 : 0);
+      tl.to(st.card, { opacity: cardOn ? 1 : 0, duration: 0.35 }, n === 3 ? 0.9 : 0);
+      if (n === 4) {
+        tl.to(st.pkg, { x: 952, y: 70, scale: 0.6, opacity: 0, duration: 0.8, ease: "power2.in" }, 1.0);
+        tl.fromTo(st.slot, { opacity: 0, scale: 0.4, svgOrigin: "952 103" }, { opacity: 1, scale: 1, svgOrigin: "952 103", duration: 0.5, ease: "back.out(2.2)" }, 1.7);
+      }
+    } else {
+      const gone = n >= 4;
+      gsap.set(st.pkg, { x, y: 98, scale: 1, opacity: gone ? 0 : 1 });
+      gsap.set(st.box, { opacity: cardOn ? 0 : 1 });
+      gsap.set(st.card, { opacity: cardOn ? 1 : 0 });
+      gsap.set(st.slot, { opacity: gone ? 1 : 0, scale: 1, svgOrigin: "952 103" });
+    }
+  }
+
+  Deck.register("adk-c09-build-ship", {
+    enter(slide, step) { loops.forEach((l) => l.kill()); loops = []; build(slide); render(step, false); },
+    step(slide, n, animate) { if (!svg) build(slide); render(n, animate); },
+    leave() { loops.forEach((l) => l.kill()); loops = []; if (svg) gsap.killTweensOf(svg.querySelectorAll("*")); gsap.killTweensOf([st.pkg, st.box, st.card, st.slot]); }
+  });
+})();
+</script>

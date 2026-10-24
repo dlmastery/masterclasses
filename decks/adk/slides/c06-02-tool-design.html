@@ -15,7 +15,8 @@
     #adk-c06-tool-design .c62-meter i { display: block; height: 100%; width: 0%; border-radius: inherit; }
     #adk-c06-tool-design .bad .c62-meter i { background: var(--risk); }
     #adk-c06-tool-design .good .c62-meter i { background: var(--state); }
-    #adk-c06-tool-design .c62-err { position: relative; height: 62px; border-radius: var(--r-m); }
+    #adk-c06-tool-design .c62-err { position: relative; height: 44px; border-radius: var(--r-m); }
+    #adk-c06-tool-design .good .c62-h.wrap { white-space: normal; font-size: 13px; }
     #adk-c06-tool-design .c62-err > div { position: absolute; inset: 0; padding: 9px 14px; border-radius: var(--r-m); font: 500 14px/1.4 var(--f-mono); box-sizing: border-box; }
     #adk-c06-tool-design .c62-trace { background: color-mix(in oklab, var(--risk) 8%, transparent); border: 1px solid color-mix(in oklab, var(--risk) 40%, transparent); color: var(--risk); }
     #adk-c06-tool-design .c62-fix { background: color-mix(in oklab, var(--state) 8%, transparent); border: 1px solid color-mix(in oklab, var(--state) 45%, transparent); color: var(--ink); }
@@ -23,7 +24,7 @@
     #adk-c06-tool-design ul.ticks.small { gap: 6px; }
     #adk-c06-tool-design .c62-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
     #adk-c06-tool-design .c62-stats .n { font-size: 40px; }
-    #adk-c06-tool-design .c62-stats .l { font-size: 15px; line-height: 1.3; }
+    #adk-c06-tool-design .c62-stats .l { font-size: 14px; line-height: 1.3; }
   </style>
   <h2 class="title">Design tools as an interface for the model: few, built for workflows and hard to misuse</h2>
   <div class="grid fill" style="grid-template-columns:1fr 616px;gap:28px">
@@ -42,7 +43,7 @@
           <div class="c62-meter"><i></i></div>
         </div>
         <div class="c62-card good">
-          <div class="c62-h"><span>search_contacts(name="Silva", response_format="concise")</span></div>
+          <div class="c62-h wrap"><span>search_contacts(name="Silva",<br>response_format="concise")</span></div>
           <div class="c62-rows">
             <div class="c62-row">Ana Silva · Sales · Lisbon</div>
             <div class="c62-row">Rui Silva · Legal · Porto</div>
@@ -53,7 +54,7 @@
         </div>
       </div>
       <div class="c62-err" data-step="2" data-fx="fade">
-        <div class="c62-trace">Traceback (most recent call last): … KeyError: 'Ana K'<br>contacts_api.py, line 212, in _lookup</div>
+        <div class="c62-trace">Traceback (most recent call last): … KeyError: 'Ana K'</div>
         <div class="c62-fix"><b>{"status": "error"}</b> No contact named Ana K. Try <b>search_contacts</b> with a partial name.</div>
       </div>
       <ul class="ticks small">
@@ -62,11 +63,11 @@
         <li data-step="2">Make wrong arguments hard to send (poka-yoke): ask for absolute paths. Keep the tool set small and without overlap.</li>
         <li data-step="5" class="c-risk">Take the user identity from trusted state, never from a model argument (<code>validate_tool_params</code>).</li>
       </ul>
-      <p class="small" data-step="3"><b>ADK tool families:</b> plain functions (auto-wrapped as <code>FunctionTool</code>) · <code>AgentTool</code> · <code>LongRunningFunctionTool</code> · <code>google_search</code> · <code>url_context</code> · code execution · <code>OpenAPIToolset</code> · <code>BigQueryToolset</code></p>
+      <div class="callout pitfall" data-step="4"><div><b>Pitfall: the tool raises on a business error.</b> Return <code>{"status": "error", ...}</code> instead. The model reads the dict and can try again.</div></div>
       <div class="c62-stats" data-step="6" data-fx="stagger">
-        <div class="stat" style="--aurora:var(--tool)"><span class="n" data-to="40" data-suf="%">0</span><span class="l">less task time after an agent rewrote one bad tool description</span></div>
-        <div class="stat" style="--aurora:var(--state)"><span class="n" data-to="85" data-pre="−" data-suf="%">0</span><span class="l">tool-definition tokens: Tool Search + <code>defer_loading</code>, 77K → 8.7K</span></div>
-        <div class="stat" style="--aurora:var(--state)"><span class="n" data-to="98.7" data-dec="1" data-pre="−" data-suf="%">0</span><span class="l">tokens with code execution over MCP, 150K → 2K (needs a sandbox)</span></div>
+        <div class="stat" style="--aurora:var(--tool)"><span class="n" data-to="40" data-suf="%">0</span><span class="l">task time cut after an agent rewrote a tool description</span></div>
+        <div class="stat" style="--aurora:var(--state)"><span class="n" data-to="85" data-pre="−" data-suf="%">0</span><span class="l">tool tokens with Tool Search + defer_loading: 77K → 8.7K</span></div>
+        <div class="stat" style="--aurora:var(--state)"><span class="n" data-to="98.7" data-dec="1" data-pre="−" data-suf="%">0</span><span class="l">tokens: code execution with MCP, 150K → 2K, needs a sandbox</span></div>
       </div>
     </div>
     <div class="stack" style="gap:12px">
@@ -89,7 +90,7 @@ tools = [FunctionTool(reimburse, require_confirmation=True),
          FunctionTool(reimburse_big,
                       require_confirmation=confirmation_threshold)]
 </code></pre></div>
-      <div class="callout pitfall" data-step="4"><div><b>Pitfall: the tool raises on a business error.</b> Return <code>{"status": "error", ...}</code> instead. The model reads the dict and can try again.</div></div>
+      <p class="tiny" data-step="3" style="color:var(--ink-2)"><b>ADK tool families:</b> plain functions (auto-wrapped as <b class="mono">FunctionTool</b>) · <b class="mono">AgentTool</b> · <b class="mono">LongRunningFunctionTool</b> · built-ins <b class="mono">google_search</b>, <b class="mono">url_context</b>, code execution · <b class="mono">OpenAPIToolset</b> · <b class="mono">BigQueryToolset</b></p>
       <div class="cites push">
         <a class="cite doc" href="https://www.anthropic.com/engineering/writing-tools-for-agents" target="_blank" rel="noopener"><b>Blog</b>&nbsp;Writing effective tools for agents — with agents</a>
         <a class="cite doc" href="https://adk.dev/tools-custom/confirmation/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;ADK tool confirmation</a>
@@ -105,6 +106,7 @@ tools = [FunctionTool(reimburse, require_confirmation=True),
 (() => {
   let S = null;
   function build(slide) {
+    if (S) S.tw.forEach((t) => t.kill());
     const bad = slide.querySelector(".c62-card.bad"), good = slide.querySelector(".c62-card.good");
     S = {
       badRows: [...bad.querySelectorAll(".c62-row")], goodRows: [...good.querySelectorAll(".c62-row")],

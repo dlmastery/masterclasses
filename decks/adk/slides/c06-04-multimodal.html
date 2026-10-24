@@ -19,9 +19,8 @@
   <h2 class="title">Every modality is a Part: keep the bytes in artifacts and pass references</h2>
   <div class="grid fill" style="grid-template-columns:1fr 612px;gap:24px">
     <div class="stack" style="gap:10px">
-      <p class="tiny" style="color:var(--ink-2)"><b>types.Part</b> holds one payload: <code>text</code> · <code>inline_data</code> (bytes + mime_type) · <code>file_data</code> (Files API URI, <code>gs://</code>, HTTPS, YouTube) · <code>function_response</code> (can carry images on Gemini 3+) · <code>thought</code> + <code>thought_signature</code>.</p>
-      <p class="tiny">Inline under ~20 MB is always safe. Files API above 100 MB per request (PDF 50 MB): 2 GB per file, 20 GB per project, 48 h, free. On Agent Platform, use <code>gs://</code> URIs.</p>
-      <svg id="c64-svg" viewBox="0 0 758 236" width="758" height="236" aria-label="Two context windows over five turns: bytes kept in history versus a pointer plus an artifact"></svg>
+      <p class="tiny" style="color:var(--ink-2)"><b>types.Part</b> holds one payload: <b class="mono">text</b> · <b class="mono">inline_data</b> (bytes + mime_type) · <b class="mono">file_data</b> (Files API URI, gs://, HTTPS, YouTube) · <b class="mono">function_call/response</b> (images on Gemini 3+) · <b class="mono">thought</b> + signature.<br>Inline under ~20 MB is always safe. Use the Files API above 100 MB (PDF 50 MB): 2 GB per file, 20 GB per project, 48 h, free. On Agent Platform, use gs:// URIs.</p>
+      <svg id="c64-svg" viewBox="0 0 758 212" width="758" height="212" aria-label="Two context windows over five turns: bytes kept in history versus a pointer plus an artifact"></svg>
       <div class="panel tight c64-res interactive" data-step="3">
         <div class="c64-top"><span class="lab">media_resolution</span>
           <button class="ctl" data-lv="0">low</button><button class="ctl" data-lv="1">medium</button><button class="ctl" data-lv="2">high</button><button class="ctl" data-lv="3">ultra_high</button>
@@ -37,14 +36,15 @@
             <div class="c64-r" data-k="img"><span>Image</span><span class="bar" style="--aurora:var(--tool)"><i></i></span><span class="v">1,120</span></div>
             <div class="c64-r" data-k="pdf"><span>PDF page</span><span class="bar" style="--aurora:var(--state)"><i></i></span><span class="v">560</span></div>
             <div class="c64-r" data-k="vid"><span>Video frame</span><span class="bar" style="--aurora:var(--agent)"><i></i></span><span class="v">70</span></div>
-            <div class="c64-note">tokens per item · images <b>high</b> · PDFs <span class="c64-sat">medium: "quality typically saturates here"</span> · video low/medium</div>
+            <div class="c64-note">tokens/item · images <b>high</b> · PDFs <span class="c64-sat">medium (quality saturates)</span> · video low/medium</div>
           </div>
         </div>
       </div>
+      <p class="tiny" data-step="4"><b>Model churn:</b> Imagen 4 and Veo 3.1 are shut down on the Gemini API (Veo on 2026-10-22). Images: <b class="mono">gemini-nano-banana-2.1</b>. Video: <b class="mono">gemini-omni-1.1-flash</b>. Read model IDs from env vars.</p>
       <div class="cites push">
         <a class="cite doc" href="https://adk.dev/artifacts/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;ADK artifacts</a>
         <a class="cite doc" href="https://ai.google.dev/gemini-api/docs/media-resolution" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Gemini media resolution</a>
-        <a class="cite codelab" href="https://codelabs.developers.google.com/personal-expense-assistant-multimodal-adk" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;Going Multimodal with ADK: Personal Expense Assistant (1.x)</a>
+        <a class="cite codelab" href="https://codelabs.developers.google.com/personal-expense-assistant-multimodal-adk" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;Going Multimodal with Agent Development Kit: Personal Expense Assistant (1.x era)</a>
       </div>
     </div>
     <div class="stack" style="gap:12px">
@@ -57,7 +57,7 @@ from google.genai import Client, types
 async def generate_image(prompt: str, tool_context: ToolContext):
   """Generates an image based on the prompt."""
   response = Client().models.generate_images(
-      model="imagen-3.0-generate-002",  # retired: port to Nano Banana
+      model="imagen-3.0-generate-002",  # retired model ID
       prompt=prompt, config={"number_of_images": 1})
   image_bytes = response.generated_images[0].image.image_bytes
   part = types.Part.from_bytes(data=image_bytes,
@@ -68,8 +68,7 @@ async def generate_image(prompt: str, tool_context: ToolContext):
 root_agent = Agent(name="root_agent",
                    tools=[generate_image, load_artifacts])
 </code></pre></div>
-      <div class="callout pitfall" data-step="4"><div><b>Pitfall: base64 media in history is resent every turn.</b> Also, on Agent Runtime <code>AdkApp</code> defaults to <code>InMemoryArtifactService</code>. Pass an <code>artifact_service_builder</code> for GCS.</div></div>
-      <p class="tiny" data-step="4"><b>Model churn:</b> Imagen 4 and Veo 3.1 are shut down on the Gemini API (Veo on 2026-10-22). Use <code>gemini-nano-banana-2.1</code> for images and <code>gemini-omni-1.1-flash</code> for video. Read model IDs from env vars.</p>
+      <div class="callout pitfall" data-step="4"><div><b>Pitfall: base64 media in history is resent every turn.</b> Also, on Agent Runtime AdkApp defaults to InMemoryArtifactService. Pass an artifact_service_builder for GCS.</div></div>
     </div>
   </div>
   <aside class="notes">
@@ -79,8 +78,8 @@ root_agent = Agent(name="root_agent",
 <script>
 (() => {
   const NS = "http://www.w3.org/2000/svg";
-  const IMG = 70, CHIP = 9, BASE = 196;
-  const TXT = (i) => 14 + i * 10;
+  const IMG = 58, CHIP = 8, BASE = 174;
+  const TXT = (i) => 12 + i * 8;
   const LV = [
     { img: 280, pdf: 280, vid: 70, blur: 2.6 },
     { img: 560, pdf: 560, vid: 70, blur: 1.4 },
@@ -93,11 +92,12 @@ root_agent = Agent(name="root_agent",
   const fmt = (v) => Math.round(v).toLocaleString("en-US");
 
   function build(slide) {
+    if (S) S.tw.forEach((t) => t.kill());
     const svg = slide.querySelector("#c64-svg");
     svg.innerHTML = "";
     const panels = [{ x: 0, name: "Bytes kept in history", tone: "risk" }, { x: 390, name: "Pointer + artifact", tone: "state" }];
     const P = panels.map((p, pi) => {
-      svg.appendChild(el("rect", { x: p.x, y: 0, width: 368, height: 236, rx: 14 }, `fill:color-mix(in oklab, var(--${p.tone}) 4%, transparent);stroke:color-mix(in oklab, var(--${p.tone}) 35%, transparent);stroke-width:1.5`));
+      svg.appendChild(el("rect", { x: p.x, y: 0, width: 368, height: 212, rx: 14 }, `fill:color-mix(in oklab, var(--${p.tone}) 4%, transparent);stroke:color-mix(in oklab, var(--${p.tone}) 35%, transparent);stroke-width:1.5`));
       txt(svg, p.x + 16, 22, p.name, `font:700 15px var(--f-body);fill:var(--${p.tone})`);
       svg.appendChild(el("line", { x1: p.x + 16, y1: BASE, x2: p.x + 352, y2: BASE }, "stroke:var(--line-2);stroke-width:1.5"));
       const bars = [];
@@ -126,15 +126,17 @@ root_agent = Agent(name="root_agent",
       const cnt = txt(svg, p.x + 352, 22, "", "font:700 14px var(--f-mono);fill:var(--ink)", "end");
       return { bars, cnt };
     });
-    txt(svg, 16, 229, "1 image at high = 1,120 tokens, sent again each turn", "font:500 11.5px var(--f-mono);fill:var(--muted)");
-    txt(svg, 406, 229, 'artifact_delta {"image.png": 0} · chip = pointer', "font:500 11.5px var(--f-mono);fill:var(--muted)");
+    txt(svg, 16, 205, "1 image (high) = 1,120 tok, resent each turn", "font:500 11.5px var(--f-mono);fill:var(--muted)");
+    txt(svg, 406, 205, 'chip = pointer · artifact_delta {"image.png": 0}', "font:500 11.5px var(--f-mono);fill:var(--muted)");
     // GCS store
     const store = el("g", {});
     store.appendChild(el("rect", { x: 610, y: 34, width: 134, height: 50, rx: 10 }, "fill:var(--state-soft);stroke:var(--state);stroke-width:1.5"));
     txt(store, 677, 54, "GcsArtifactService", "font:700 11.5px var(--f-mono);fill:var(--state)", "middle");
     txt(store, 677, 72, "image.png · v0", "font:500 11.5px var(--f-mono);fill:var(--ink-2)", "middle");
     svg.appendChild(store);
-    const lbl = txt(svg, 520, 104, "load_artifacts: this request only", "font:600 11.5px var(--f-mono);fill:var(--state);paint-order:stroke;stroke:var(--bg);stroke-width:4px", "middle");
+    const lbl = el("text", { x: 408, y: 96 }, "font:600 11.5px var(--f-mono);fill:var(--state)");
+    ["load_artifacts:", "this request only"].forEach((t, i) => { const ts = el("tspan", { x: 408, dy: i ? 14 : 0 }); ts.textContent = t; lbl.appendChild(ts); });
+    svg.appendChild(lbl);
     S = { slide, svg, P, store, lbl, tw: [], last: -1, lv: 2 };
     // resolution buttons
     slide.querySelectorAll(".c64-top button").forEach((b) => b.onclick = (e) => { e.stopPropagation(); setLv(+b.dataset.lv); });

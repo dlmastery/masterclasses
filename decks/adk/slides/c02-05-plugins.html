@@ -1,0 +1,187 @@
+<section class="slide" id="adk-c02-plugins" data-tone="agent" data-title="Plugins vs callbacks">
+  <h2 class="title">Plugins enforce one policy on every agent, model and tool call; callbacks act on one agent</h2>
+  <div class="grid fill" style="grid-template-columns:560px 1fr;gap:28px;align-items:start">
+    <div class="stack">
+      <div class="code-wrap"><div class="code-head">count_plugin.py · adk.dev/plugins</div>
+<pre class="code xs" data-lang="python" data-focus="1:6-8, 2:9-11, 3:13-15"><code>
+class CountInvocationPlugin(BasePlugin):
+  def __init__(self) -> None:
+    super().__init__(name="count_invocation")
+    self.agent_count = 0
+    self.llm_request_count = 0
+  async def before_agent_callback(
+      self, *, agent, callback_context) -> None:
+    self.agent_count += 1
+  async def before_model_callback(
+      self, *, callback_context, llm_request) -> None:
+    self.llm_request_count += 1   # Observe: return None
+
+app = App(name="test_app_with_plugin",
+          root_agent=root_agent,
+          plugins=[CountInvocationPlugin()])
+runner = InMemoryRunner(app=app)
+</code></pre></div>
+      <p class="tiny">Built-ins: ReflectAndRetryToolPlugin, ReflectAndRetryModelPlugin (2.6), ContextFilterPlugin, GlobalInstructionPlugin, BigQueryAgentAnalyticsPlugin, SaveFilesAsArtifactsPlugin, MultimodalToolResultsPlugin, AutoTracingPlugin (2.2), Model Armor (2.8), ToolCallIntegrityPlugin (2.11), ForceEscalationPlugin (2.13). 2.0 ignores <code>_run_async_impl()</code> overrides: use hooks.</p>
+    </div>
+    <div class="stack">
+      <svg class="interactive" id="c02pl-svg" viewBox="0 0 804 272" width="804" height="272" aria-label="A playhead sweeps across the plugin hook timeline; then plugin 2 returns a cached response and the rest of the chain is skipped"></svg>
+      <table class="t" data-step="3">
+        <tr><th></th><th>Agent callbacks</th><th>Plugins</th></tr>
+        <tr><td>Scope</td><td>one agent object</td><td>every agent, model and tool</td></tr>
+        <tr><td>Order</td><td>after the plugins</td><td>first; non-None skips the rest</td></tr>
+        <tr><td>Config</td><td>YAML <code>*_callbacks</code> keys</td><td><code>App(plugins=[…])</code>, <code>--extra_plugins</code></td></tr>
+        <tr class="hot"><td>Use for</td><td>per-agent logic, state seeding</td><td>security guardrails and policies</td></tr>
+      </table>
+      <div class="cites">
+        <a class="cite doc" href="https://adk.dev/plugins/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Plugins</a>
+        <a class="cite doc" href="https://adk.dev/callbacks/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Callbacks</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    A plugin is a BasePlugin subclass with a unique name. You register it once on App(plugins=[...]) and its hooks apply "globally to every agent, tool, and LLM call". Step one: the playhead walks the 14 hooks in lifecycle order, and the error hooks branch below in red. Step two: the PluginManager runs plugins in list order and the first non-None return wins, so a cache plugin can answer with a stored LlmResponse and skip the later plugins, the agent callback and the model call. A plugin that raises becomes a RuntimeError, and two plugins with the same name raise ValueError. Analogy: plugins are airport security that every passenger passes; a callback is the check at one gate. Likely question: "How do I add a plugin to a YAML-only agent?" AgentConfig has no plugins key, so use adk web --extra_plugins=google.adk.plugins.LoggingPlugin; Runner(plugins=) is deprecated, and passing it together with app raises ValueError.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  let S = null, tl = null, shown = -1;
+  const mk = (tag, attrs, parent, css) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (css) e.style.cssText = css;
+    if (parent) parent.appendChild(e);
+    return e;
+  };
+  const tx = (parent, x, y, s, css, anchor) => {
+    const t = mk("text", { x, y, "text-anchor": anchor || "middle" }, parent, css);
+    t.textContent = s;
+    return t;
+  };
+  const M = "font-family:var(--f-mono);";
+  const MAIN = ["on_user_message", "before_run", "before_agent", "before_model", "after_model", "before_tool", "after_tool", "after_agent", "on_event", "after_run", "close()"];
+  const ERR = [["on_model_error", 305], ["on_tool_error", 445], ["on_agent_error", 585], ["on_run_error", 725]];
+  const BOX = [
+    { x: 0, w: 128, label: "plugin 1", tone: "agent" },
+    { x: 160, w: 140, label: "plugin 2: cache", tone: "agent" },
+    { x: 332, w: 128, label: "plugin 3", tone: "agent" },
+    { x: 492, w: 140, label: "agent callback", tone: "agent" },
+    { x: 664, w: 140, label: "model call", tone: "model" },
+  ];
+
+  function build(slide) {
+    const svg = slide.querySelector("#c02pl-svg");
+    if (S && S.svg === svg && svg.childNodes.length) return;
+    svg.innerHTML = "";
+    S = { svg };
+    const defs = mk("defs", {}, svg);
+    const m = mk("marker", { id: "c02pl-arr", viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto" }, defs);
+    mk("path", { d: "M0,0 L10,5 L0,10 z" }, m, "fill:var(--muted)");
+    const m2 = mk("marker", { id: "c02pl-arrs", viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto" }, defs);
+    mk("path", { d: "M0,0 L10,5 L0,10 z" }, m2, "fill:var(--state)");
+
+    // lifecycle clock
+    S.clock = mk("g", {}, svg);
+    mk("line", { x1: 30, y1: 44, x2: 790, y2: 44 }, S.clock, "stroke:var(--line-2);stroke-width:2.5");
+    S.ticks = MAIN.map((s, i) => {
+      const x = 60 + i * 70, up = i % 2 === 0;
+      const dot = mk("circle", { cx: x, cy: 44, r: 6 }, S.clock, "fill:var(--surface-2);stroke:var(--agent);stroke-width:2");
+      const t = tx(S.clock, x, up ? 28 : 68, s, M + "font-size:12.5px;font-weight:600;fill:var(--ink-2)");
+      return { x, dot, t, err: false };
+    });
+    ERR.forEach(([s, x]) => {
+      mk("line", { x1: x, y1: 78, x2: x, y2: 98 }, S.clock, "stroke:var(--risk);stroke-width:2;stroke-dasharray:4 3");
+      const dot = mk("circle", { cx: x, cy: 78, r: 4 }, S.clock, "fill:var(--surface-2);stroke:var(--risk);stroke-width:2");
+      const t = tx(S.clock, x, 114, s, M + "font-size:12.5px;font-weight:600;fill:var(--risk)");
+      S.ticks.push({ x, dot, t, err: true });
+    });
+    tx(S.clock, 402, 136, "Observe: return None · Intervene: return a value · Amend: change it in place", M + "font-size:12.5px;fill:var(--muted)");
+    S.head = mk("g", {}, svg);
+    mk("line", { x1: 0, y1: 8, x2: 0, y2: 120 }, S.head, "stroke:var(--agent);stroke-width:2");
+    mk("path", { d: "M-7,2 L7,2 L0,12 z" }, S.head, "fill:var(--agent)");
+
+    // early-exit chain
+    S.chain = mk("g", {}, svg);
+    S.boxes = BOX.map((b) => {
+      const g = mk("g", {}, S.chain);
+      const r = mk("rect", { x: b.x + 1, y: 160, width: b.w - 2, height: 44, rx: 12 }, g, `fill:var(--${b.tone}-soft);stroke:var(--${b.tone});stroke-width:2`);
+      tx(g, b.x + b.w / 2, 187, b.label, M + "font-size:13px;font-weight:700;fill:var(--ink)");
+      g._r = r;
+      return g;
+    });
+    for (let i = 0; i < BOX.length - 1; i++) {
+      const a = BOX[i].x + BOX[i].w, b = BOX[i + 1].x;
+      mk("path", { d: `M${a},182 L${b - 2},182`, "marker-end": "url(#c02pl-arr)" }, S.chain, "fill:none;stroke:var(--muted);stroke-width:2");
+    }
+    S.back = mk("path", { d: "M230,206 C230,232 60,232 30,208", "marker-end": "url(#c02pl-arrs)" }, S.chain, "fill:none;stroke:var(--state);stroke-width:2.5");
+    S.backT = tx(S.chain, 128, 248, "returns a cached LlmResponse", M + "font-size:12.5px;font-weight:700;fill:var(--state)");
+    S.skip = tx(S.chain, 568, 152, "skipped", M + "font-size:12.5px;font-weight:700;fill:var(--muted)");
+    S.token = mk("circle", { cx: 0, cy: 182, r: 7 }, S.chain, "fill:var(--agent)");
+    tx(S.chain, 300, 248, "PluginManager: list order · first non-None wins", M + "font-size:12.5px;fill:var(--ink-2)", "start");
+    tx(S.chain, 300, 266, "later plugins + object callbacks skip", M + "font-size:12.5px;fill:var(--ink-2)", "start");
+  }
+
+  function light(tk, on) {
+    tk.dot.style.fill = on ? (tk.err ? "var(--risk)" : "var(--agent)") : "var(--surface-2)";
+    tk.t.style.fill = on ? (tk.err ? "var(--risk)" : "var(--ink)") : (tk.err ? "var(--risk)" : "var(--ink-2)");
+  }
+
+  function chainState(on, done) {
+    gsap.set(S.chain, { opacity: on ? 1 : 0 });
+    gsap.set([S.back, S.backT, S.skip], { opacity: done ? 1 : 0 });
+    gsap.set(S.back, { strokeDasharray: "none", strokeDashoffset: 0 });
+    gsap.set([S.boxes[2], S.boxes[3], S.boxes[4]], { opacity: done ? 0.28 : 1 });
+    gsap.set(S.token, { opacity: 0, attr: { cx: 0 } });
+    S.boxes[1]._r.style.strokeWidth = done ? "4" : "2";
+  }
+
+  function render(n, animate) {
+    const prev = shown;
+    shown = n;
+    if (animate && prev !== n - 1) animate = false;
+    if (tl) tl.kill();
+    gsap.killTweensOf(S.svg.querySelectorAll("*"));
+    gsap.set(S.head, { opacity: 0 });
+    if (!animate || n === 0 || n >= 3) {
+      S.ticks.forEach((tk) => light(tk, n >= 1));
+      chainState(n >= 2, n >= 2);
+      return;
+    }
+    tl = gsap.timeline();
+    if (n === 1) {
+      S.ticks.forEach((tk) => light(tk, false));
+      chainState(false, false);
+      const p = { x: 30 };
+      tl.set(S.head, { opacity: 1, x: 30 })
+        .to(p, {
+          x: 790, duration: 3.2, ease: "none",
+          onUpdate: () => {
+            gsap.set(S.head, { x: p.x });
+            S.ticks.forEach((tk) => light(tk, tk.x <= p.x));
+          },
+        })
+        .to(S.head, { opacity: 0, duration: 0.3 });
+      return;
+    }
+    // n === 2: early exit
+    S.ticks.forEach((tk) => light(tk, true));
+    chainState(true, false);
+    tl.fromTo(S.chain, { opacity: 0 }, { opacity: 1, duration: 0.4 })
+      .set(S.token, { opacity: 1, attr: { cx: 8 } })
+      .to(S.token, { attr: { cx: 64 }, duration: 0.4, ease: "power2.out" })
+      .to(S.token, { attr: { cx: 230 }, duration: 0.6, ease: "power2.inOut" })
+      .call(() => { S.boxes[1]._r.style.strokeWidth = "4"; })
+      .to(S.token, { opacity: 0, duration: 0.2 })
+      .fromTo(S.back, { opacity: 1, strokeDasharray: 260, strokeDashoffset: 260 }, { strokeDashoffset: 0, duration: 0.7, ease: "power2.inOut" })
+      .to(S.backT, { opacity: 1, duration: 0.35 }, "-=0.3")
+      .to([S.boxes[2], S.boxes[3], S.boxes[4]], { opacity: 0.28, duration: 0.5, stagger: 0.12 }, "-=0.2")
+      .to(S.skip, { opacity: 1, duration: 0.35 });
+  }
+
+  Deck.register("adk-c02-plugins", {
+    enter(slide, n) { build(slide); render(n, false); },
+    step(slide, n, animate) { build(slide); render(n, animate); },
+    leave() { if (tl) tl.kill(); if (S) gsap.killTweensOf(S.svg.querySelectorAll("*")); },
+  });
+})();
+</script>
