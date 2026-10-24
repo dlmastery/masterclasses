@@ -1,0 +1,29 @@
+<section class="slide" id="adk-c08-qa" data-tone="risk" data-title="Interview drill: reliable and safe">
+  <style>
+    #adk-c08-qa .qa { gap: 9px; }
+    #adk-c08-qa .qa .q { font-size: 22px; }
+    #adk-c08-qa .qa .a { font-size: 17px; line-height: 1.42; padding: 10px 16px; }
+  </style>
+  <h2 class="title">Interview drill: prove your agent is reliable and safe</h2>
+  <div class="stack" style="gap:16px" data-fx="stagger">
+    <div class="qa">
+      <div class="q">A step fails. Do you use <code>RetryConfig</code>, a routed back-edge or <code>ReflectAndRetryToolPlugin</code>?</div>
+      <div class="a" data-step="1"><b>RetryConfig</b> for exceptions and transient faults: backoff from 1 s to 60 s, completed children are replayed, and the model sees nothing. <b>A back-edge</b> for semantic failures, where the output is valid but wrong: it carries the verifier's reason as feedback and needs a round counter, because graph cycles are not bounded. <b>ReflectAndRetryToolPlugin</b> for tool errors that the model can fix: it sends <code>reflection_guidance</code>, allows 3 retries by default, and needs an <code>extract_error_from_result</code> override for soft errors like <code>{"status": "error"}</code>.</div>
+    </div>
+    <div class="qa">
+      <div class="q">What is the difference between <code>EXACT</code>, <code>IN_ORDER</code> and <code>ANY_ORDER</code> trajectory matching?</div>
+      <div class="a" data-step="2"><b>EXACT</b> allows no extra and no missing calls. <b>IN_ORDER</b> needs the expected calls in order but allows extra calls. <b>ANY_ORDER</b> ignores the order. EXACT fails on a harmless extra lookup and makes a better plan look worse, so keep it for strict, regulated flows. Add <code>ignore_args</code> or a rubric tool-use metric when the arguments can vary.</div>
+    </div>
+    <div class="qa">
+      <div class="q">For a customer-support agent, do you report pass@k or pass^k? Why?</div>
+      <div class="a" data-step="3"><b>pass^k</b>: every attempt must succeed, because each customer gets one attempt. At 75% per trial, pass^3 = 0.75³ ≈ <b>42%</b>, while pass@3 ≈ 98% looks fine. In ADK, set <code>multi_run_config</code> with <code>num_runs: 3</code> and <code>min_over_runs</code>, or <code>pass_rate</code> with a threshold when some flakiness is acceptable.</div>
+    </div>
+    <div class="qa">
+      <div class="q">Apply the Rule of Two to an email assistant that reads the inbox and can send mail.</div>
+      <div class="a" data-step="4">It has all three: untrusted email [A], private data [B] and an external send [C]. <b>Drop one per session</b>: a read-only summarizer, or a send tool limited to allow-listed recipients. If the task needs all three, put a <code>RequestInput</code> approval on each send. Then add layers: <code>ModelArmorPlugin</code>, user identity read from trusted state (never from model arguments), egress policy, and output escaping in the UI.</div>
+    </div>
+  </div>
+  <aside class="notes">
+    Ask each question and give the room ten seconds before you press. Question 1 tests whether students separate transient, semantic and tool-level failures; strong answers mention that a broad except Exception silently disables RetryConfig. Question 2 tests eval design: the over-strict trajectory is the most common reason a better model looks worse. Question 3 is a numbers question: candidates must compute 0.75 cubed and explain why the customer experiences pass^k. Question 4 is a design question; the best answers remove a capability before they add a filter, and they name a human approval only for the action that needs all three properties. Analogy for the whole chapter: a pilot's checklist does not make the pilot smarter; it makes the flight safe on the pilot's worst day. Likely follow-up from an interviewer: "Where would you put the cheapest verifier in this email agent?" A function node that checks the recipient against the allow-list before the send tool runs.
+  </aside>
+</section>

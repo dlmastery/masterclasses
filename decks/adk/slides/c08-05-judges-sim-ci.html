@@ -1,0 +1,263 @@
+<section class="slide" id="adk-c08-judges-sim-ci" data-tone="risk" data-title="Judges, simulation and CI gates">
+  <style>
+    #adk-c08-judges-sim-ci .lay { display: grid; align-items: start; }
+    #adk-c08-judges-sim-ci .lay > * { grid-area: 1 / 1; }
+    #adk-c08-judges-sim-ci .s17, #adk-c08-judges-sim-ci .s17 li { font-size: 17px; line-height: 1.4; }
+  </style>
+  <h2 class="title sm">Rubric judges, simulated users and pass^k turn evals into a release gate</h2>
+  <div class="grid fill" style="grid-template-columns:700px 660px;gap:32px">
+    <svg class="interactive" id="c85-svg" viewBox="0 0 700 600" width="700" height="600" aria-label="Top: pass@k rises toward 100% and pass^k falls toward 0 as k grows, with p = 0.75. Middle: a CI pipeline where a turnstile blocks a candidate that drops more than delta below the baseline. Bottom: a simulated novice user talks to the agent while a scoreboard fills."></svg>
+    <div class="lay">
+      <!-- L0: eval-driven development -->
+      <div class="stack" data-until="1" style="gap:14px">
+        <h4>Eval-driven development: the eval suite is the spec</h4>
+        <ul class="ticks small" style="gap:8px">
+          <li>Start with <b>20 to 50 tasks</b> taken from real failures.</li>
+          <li>Use one vocabulary: <b>task, trial, grader, transcript, outcome</b>.</li>
+          <li>Grade the outcome: the reservation exists in the database. Add trajectory checks only where the path matters.</li>
+          <li><b>Capability</b> evals start low. <b>Regression</b> evals stay near 100%.</li>
+          <li>Read the transcripts. A 0% pass@100 usually means a broken task, not a weak agent.</li>
+        </ul>
+        <div class="row" style="gap:36px;align-items:flex-end">
+          <div class="stat"><span class="n" style="font-size:60px;color:var(--faint)" data-to="42" data-suf="%">0</span><span class="l tiny">CORE-Bench, Opus 4.5, before grader fixes</span></div>
+          <div class="stat"><span class="n" style="font-size:60px" data-to="95" data-suf="%">0</span><span class="l tiny">after the grader bugs were fixed</span></div>
+        </div>
+        <p class="tiny">The eval was broken, not the model. Debug the grader before you debug the agent.</p>
+        <div class="cites"><a class="cite doc" href="https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents" target="_blank" rel="noopener"><b>Doc</b>&nbsp;Anthropic, Demystifying evals for AI agents, 2026-01-09</a></div>
+      </div>
+      <!-- L1: consistency and judges -->
+      <div class="stack" data-step="1" data-until="2" style="gap:12px">
+        <p class="small"><b>pass@k</b>: at least one of k trials succeeds. <b>pass^k</b>: all k trials succeed. At 75% per trial, pass^3 = 0.75³ ≈ 42%. A customer-facing agent needs pass^k.</p>
+        <p class="tiny">Rubric judges: <code>judge_model_options: {judge_model, num_samples: 5}</code> samples the judge five times and takes the majority vote. Per-case rubrics merge with criterion rubrics.</p>
+        <div class="code-wrap"><div class="code-head">eval_config.json · multi_run_config</div>
+<pre class="code xs" data-lang="json" style="line-height:1.45" data-focus="1:7-7"><code>
+{
+  "criteria": {"tool_trajectory_avg_score": 1.0,
+               "response_match_score": 0.8},
+  "multi_run_config": {
+    "num_runs": 3,
+    "cross_run_scoring_by_metric": {
+      "response_match_score": "min_over_runs",
+      "tool_trajectory_avg_score":
+        {"method": "pass_rate", "threshold": 0.9}
+    }
+  }
+}
+</code></pre></div>
+        <p class="tiny"><code>min_over_runs</code>: every run must pass (pass^k). <code>pass_rate</code>: some flaky runs are allowed. <code>max_crashed_runs</code> defaults to 0.</p>
+      </div>
+      <!-- L2: CI tiers -->
+      <div class="stack" data-step="2" data-until="3" style="gap:12px">
+        <ul class="ticks s17" style="gap:6px">
+          <li><b>Tier 1</b>, every PR: deterministic checks and trajectory.</li>
+          <li><b>Tier 2</b>, nightly or on release: rubric judges, multi-run.</li>
+          <li><b>Tier 3</b>, online: judges on sampled production traffic.</li>
+        </ul>
+        <p class="tiny">Judge scores are noisy. Gate on the <b>delta against the main baseline</b> (<code>agents-cli eval compare</code>). Keep absolute floors for safety and must-pass cases.</p>
+        <div class="callout pitfall" style="padding:10px 14px"><span class="tiny" style="color:var(--ink-2)">Do not change thresholds and prompts in the same PR.</span></div>
+        <div class="code-wrap"><div class="code-head">tests/test_agent_eval.py</div>
+<pre class="code xs" data-lang="python" style="line-height:1.45" data-focus="2:5-9"><code>
+import pytest
+from google.adk.evaluation.agent_evaluator import AgentEvaluator
+
+@pytest.mark.asyncio
+async def test_agent_regression():
+    await AgentEvaluator.evaluate(
+        agent_module="home_automation_agent",
+        eval_dataset_file_path_or_dir=(
+            "tests/integration/fixture/home_automation_agent/"),
+    )
+</code></pre></div>
+        <div class="cites"><a class="cite doc" href="https://google.github.io/agents-cli/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Agents CLI</a></div>
+      </div>
+      <!-- L3: user simulation, optimisation, adoption -->
+      <div class="stack" data-step="3" style="gap:12px">
+        <h4>Simulated users test the conversation, not one turn</h4>
+        <ul class="ticks s17" style="gap:7px">
+          <li><code>ConversationScenario</code> = <code>starting_prompt</code> + <code>conversation_plan</code> + <code>user_persona</code> (<code>NOVICE</code>, <code>EXPERT</code> or custom).</li>
+          <li>The simulator stops at its stop signal or at <code>max_allowed_invocations</code> (default 20).</li>
+          <li>Reference-based criteria do <b>not</b> work with simulation. Use task success, rubric and hallucination metrics.</li>
+          <li>tau2-bench adds dual control: the user also has tools. gpt-4.1 loses 18 pp, o4-mini 25 pp.</li>
+        </ul>
+        <div class="stack" data-step="4" style="gap:10px">
+          <p class="tiny"><b><code>adk optimize</code></b> runs GEPA on the eval set: <code>GEPARootAgentPromptOptimizer</code> (default), <code>max_metric_calls</code> 100, <code>reflection_minibatch_size</code> 3. Keep a held-out <code>validation_eval_set</code>. GEPA: +6% against GRPO on average, up to 35× fewer rollouts.</p>
+          <div class="row" style="gap:30px">
+            <div class="stat"><span class="n" style="font-size:46px" data-to="52.4" data-dec="1" data-suf="%">0</span><span class="l tiny">run offline evals</span></div>
+            <div class="stat"><span class="n" style="font-size:46px" data-to="37.3" data-dec="1" data-suf="%">0</span><span class="l tiny">run online evals</span></div>
+            <div class="stat"><span class="n" style="font-size:46px;color:var(--ink)" data-to="32" data-suf="%">0</span><span class="l tiny">name quality the #1 barrier</span></div>
+          </div>
+          <div class="cites">
+            <a class="cite doc" href="https://adk.dev/evaluate/user-sim/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;User simulation</a>
+            <a class="cite paper" href="https://arxiv.org/abs/2506.07982" target="_blank" rel="noopener"><b>Paper</b>&nbsp;τ²-Bench, 2506.07982</a>
+            <a class="cite paper" href="https://arxiv.org/abs/2507.19457" target="_blank" rel="noopener"><b>Paper</b>&nbsp;GEPA, 2507.19457</a>
+            <a class="cite doc" href="https://www.langchain.com/state-of-agent-engineering" target="_blank" rel="noopener"><b>Doc</b>&nbsp;LangChain, State of Agent Engineering, 2026-06-12</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    Step 0 is Anthropic's eval-driven development: a few dozen tasks from real failures, graded on the outcome. The CORE-Bench story is the warning: the score went from 42% to 95% when the graders were fixed, so read transcripts before you blame the agent. Step 1 animates k from 1 to 10: pass@k climbs, pass^k falls; at three trials a 75% agent completes all three only 42% of the time, and multi_run_config with min_over_runs is how ADK measures that. Step 2 is the release gate: cheap deterministic checks on every PR, noisy judges on a schedule, and a block when the candidate drops more than delta below the main baseline. Step 3 runs a simulated novice user; remind students that a simulation has no fixed script, so reference-based metrics do not apply. Step 4 closes with adk optimize and the adoption gap: about half of teams run offline evals, while quality is the top barrier. Analogy: pass@k is "the archer hit the target at least once"; pass^k is "the archer hit it every time", which is what a customer feels. Likely question: "Why gate on a delta, not an absolute score?" Judge scores move with judge noise and model versions; a delta against the same-day baseline cancels much of that drift.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  let svg = null, tl = null, shown = -1, R = {};
+  const mk = (t, a, p) => { const e = document.createElementNS(NS, t); for (const k in a) e.setAttribute(k, a[k]); p.appendChild(e); return e; };
+  const tx = (s, a, p) => { const e = mk("text", a, p); e.textContent = s; return e; };
+  const F = (sz, w, c, fam) => `font:${w} ${sz}px var(${fam || "--f-mono"});fill:${c}`;
+  const X0 = 70, X1 = 670, YT = 44, YB = 220;
+  const fx = (k) => X0 + (k - 1) * (X1 - X0) / 9, fy = (p) => YB - p * (YB - YT);
+  const at = (k) => 1 - Math.pow(0.25, k), hat = (k) => Math.pow(0.75, k);
+
+  function curve(fn, K) {
+    let d = "";
+    for (let k = 1; k <= K + 1e-9; k += 0.05) d += (d ? " L" : "M") + fx(k).toFixed(1) + "," + fy(fn(k)).toFixed(1);
+    if (K > 1) d += " L" + fx(K).toFixed(1) + "," + fy(fn(K)).toFixed(1);
+    return d || `M${fx(1)},${fy(fn(1))}`;
+  }
+
+  function build(slide) {
+    if (svg) return;
+    svg = slide.querySelector("#c85-svg");
+    svg.innerHTML = "";
+    /* ---- region 1: pass@k vs pass^k ---- */
+    const g1 = mk("g", {}, svg);
+    tx("per-trial success p = 0.75 · k independent trials", { x: 0, y: 16, style: F(12.5, 700, "var(--ink-2)") }, g1);
+    mk("line", { x1: X0, y1: YB, x2: X1, y2: YB, style: "stroke:var(--line-2);stroke-width:1.5" }, g1);
+    mk("line", { x1: X0, y1: YT, x2: X0, y2: YB, style: "stroke:var(--line-2);stroke-width:1.5" }, g1);
+    [0, 0.5, 1].forEach((p) => {
+      mk("line", { x1: X0, y1: fy(p), x2: X1, y2: fy(p), style: "stroke:var(--line);stroke-width:1" }, g1);
+      tx(Math.round(p * 100) + "%", { x: X0 - 10, y: fy(p) + 4, "text-anchor": "end", style: F(11, 500, "var(--muted)") }, g1);
+    });
+    for (let k = 1; k <= 10; k++) tx(String(k), { x: fx(k), y: YB + 18, "text-anchor": "middle", style: F(11, 500, "var(--muted)") }, g1);
+    mk("line", { x1: X0, y1: 256, x2: X1, y2: 256, style: "stroke:var(--line-2);stroke-width:4;stroke-linecap:round" }, g1);
+    R.knob = mk("circle", { cx: fx(1), cy: 256, r: 9, style: "fill:var(--risk);stroke:var(--bg);stroke-width:2" }, g1);
+    R.kl = tx("k = 1", { x: X1, y: 280, "text-anchor": "end", style: F(12, 700, "var(--ink)") }, g1);
+    R.at = mk("path", { d: "", style: "fill:none;stroke:var(--state);stroke-width:3.5;stroke-linecap:round" }, g1);
+    R.hat = mk("path", { d: "", style: "fill:none;stroke:var(--risk);stroke-width:3.5;stroke-linecap:round" }, g1);
+    R.atL = tx("pass@k", { x: 0, y: 0, style: F(12.5, 700, "var(--state)") }, g1);
+    R.hatL = tx("pass^k", { x: 0, y: 0, style: F(12.5, 700, "var(--risk)") }, g1);
+    R.m3 = mk("g", { opacity: 0 }, g1);
+    mk("line", { x1: fx(3), y1: fy(0.4219), x2: fx(3), y2: fy(at(3)), style: "stroke:var(--ink-2);stroke-width:1.2;stroke-dasharray:3 4" }, R.m3);
+    mk("circle", { cx: fx(3), cy: fy(0.4219), r: 6, style: "fill:var(--risk)" }, R.m3);
+    mk("circle", { cx: fx(3), cy: fy(at(3)), r: 6, style: "fill:var(--state)" }, R.m3);
+    R.m3t = tx("pass^3 = 42%", { x: fx(3) - 12, y: fy(0.4219) + 22, "text-anchor": "end", style: F(14, 700, "var(--risk)") }, R.m3);
+    tx("pass@3 = 98%", { x: fx(3) + 12, y: fy(at(3)) + 20, style: F(12, 700, "var(--state)") }, R.m3);
+
+    /* ---- region 2: CI gate ---- */
+    const g2 = R.g2 = mk("g", { opacity: 0 }, svg);
+    tx("CI gate · candidate against the main baseline", { x: 0, y: 306, style: F(12.5, 700, "var(--ink-2)") }, g2);
+    const bx = (x, w, t, tone) => { const r = mk("rect", { x, y: 318, width: w, height: 40, rx: 10, style: `fill:var(--${tone}-soft);stroke:var(--${tone});stroke-width:1.6;transition:stroke .4s` }, g2); tx(t, { x: x + w / 2, y: 343, "text-anchor": "middle", style: F(11.5, 700, "var(--ink)") }, g2); return r; };
+    bx(0, 56, "PR", "agent");
+    R.det = bx(84, 158, "deterministic gate", "tool");
+    R.rub = bx(270, 122, "rubric gate", "model");
+    bx(472, 96, "staging", "state");
+    bx(596, 104, "prod", "state");
+    [[56, 84], [242, 270], [392, 472], [568, 596]].forEach(([a, b]) => mk("line", { x1: a, y1: 338, x2: b - 2, y2: 338, style: "stroke:var(--line-2);stroke-width:2" }, g2));
+    mk("rect", { x: 428, y: 312, width: 6, height: 52, rx: 2, style: "fill:var(--ink-2)" }, g2);
+    R.arm = mk("line", { x1: 431, y1: 338, x2: 431, y2: 300, style: "stroke:var(--state);stroke-width:5;stroke-linecap:round" }, g2);
+    R.detOk = tx("✓", { x: 230, y: 314, "text-anchor": "middle", style: F(18, 700, "var(--state)", "--f-body"), opacity: 0 }, g2);
+    R.tok = mk("circle", { cx: 28, cy: 338, r: 8, style: "fill:var(--agent)", opacity: 0 }, g2);
+    tx("main", { x: 0, y: 388, style: F(11.5, 700, "var(--muted)") }, g2);
+    tx("PR", { x: 0, y: 410, style: F(11.5, 700, "var(--muted)") }, g2);
+    mk("rect", { x: 70, y: 378, width: 300, height: 12, rx: 6, style: "fill:var(--state)" }, g2);
+    R.cand = mk("rect", { x: 70, y: 400, width: 300, height: 12, rx: 6, style: "fill:var(--agent)" }, g2);
+    mk("line", { x1: 344, y1: 372, x2: 344, y2: 418, style: "stroke:var(--risk);stroke-width:2;stroke-dasharray:4 4" }, g2);
+    tx("−Δ", { x: 350, y: 372, style: F(12, 700, "var(--risk)") }, g2);
+    R.block = tx("drop > Δ → blocked", { x: 472, y: 400, style: F(13, 700, "var(--risk)"), opacity: 0 }, g2);
+
+    /* ---- region 3: user simulation ---- */
+    const g3 = R.g3 = mk("g", { opacity: 0 }, svg);
+    tx("user simulation · NOVICE persona · illustrative dialog", { x: 0, y: 448, style: F(12.5, 700, "var(--ink-2)") }, g3);
+    const said = [["user", "My internet keeps dropping."], ["agent", "Which router light is red?"], ["user", "The WAN light is red."], ["agent", "Please reboot the router."]];
+    R.bub = said.map(([who, s], i) => {
+      const g = mk("g", { opacity: 0 }, g3);
+      const w = s.length * 7.4 + 26, y = 460 + i * 31;
+      const x = who === "user" ? 0 : 400 - w;
+      const tone = who === "user" ? "human" : "agent";
+      mk("rect", { x, y, width: w, height: 26, rx: 13, style: `fill:var(--${tone}-soft);stroke:var(--${tone});stroke-width:1.5` }, g);
+      tx(s, { x: x + 13, y: y + 17.5, style: F(12, 600, "var(--ink)") }, g);
+      return g;
+    });
+    R.turn = tx("turn 0 of max_allowed_invocations 20", { x: 0, y: 596, style: F(11, 600, "var(--muted)") }, g3);
+    tx("scoreboard", { x: 440, y: 470, style: F(12, 700, "var(--ink-2)") }, g3);
+    const rows = [["multi_turn_task_success_v1", "state", 0.86], ["hallucinations_v1", "state", 0.92], ["per_turn_user_simulator_quality_v1", "human", 0.8], ["token_usage_v1 (informational)", "faint", 0.55]];
+    R.bars = rows.map(([l, tone, v], i) => {
+      const y = 488 + i * 28;
+      tx(l, { x: 440, y, style: F(10.5, 600, "var(--ink-2)") }, g3);
+      mk("rect", { x: 440, y: y + 6, width: 250, height: 7, rx: 3.5, style: "fill:var(--line)" }, g3);
+      const b = mk("rect", { x: 440, y: y + 6, width: 0, height: 7, rx: 3.5, style: `fill:var(--${tone})` }, g3);
+      return { b, v };
+    });
+  }
+
+  function setK(K) {
+    R.at.setAttribute("d", curve(at, K));
+    R.hat.setAttribute("d", curve(hat, K));
+    R.knob.setAttribute("cx", fx(K));
+    R.kl.textContent = "k = " + Math.round(K);
+    R.atL.setAttribute("x", fx(K) - 50); R.atL.setAttribute("y", fy(at(K)) - 10);
+    R.hatL.setAttribute("x", Math.min(fx(K) + 8, X1 - 44)); R.hatL.setAttribute("y", fy(hat(K)) - 10);
+    R.atL.setAttribute("opacity", K > 1.2 ? 1 : 0); R.hatL.setAttribute("opacity", K > 1.2 ? 1 : 0);
+  }
+
+  function render(n, animate) {
+    if (!svg) return;
+    if (tl) { tl.kill(); tl = null; }
+    const fresh = (k) => animate && n === k && shown < k;
+    // region 1
+    if (n >= 1) {
+      if (fresh(1)) {
+        const o = { K: 1 }; let shown3 = false;
+        gsap.set(R.m3, { opacity: 0 });
+        tl = gsap.timeline();
+        tl.to(o, { K: 10, duration: 3.6, ease: "none", onUpdate: () => {
+          setK(o.K);
+          if (!shown3 && o.K >= 3) {
+            shown3 = true;
+            gsap.to(R.m3, { opacity: 1, duration: 0.3 });
+            const c = { v: 0 };
+            gsap.to(c, { v: 42, duration: 0.9, ease: "power2.out", onUpdate: () => (R.m3t.textContent = `pass^3 = ${Math.round(c.v)}%`) });
+          }
+        } });
+      } else { setK(10); gsap.set(R.m3, { opacity: 1 }); R.m3t.textContent = "pass^3 = 42%"; }
+    } else { setK(1); gsap.set(R.m3, { opacity: 0 }); }
+    // region 2
+    const closed = () => { R.arm.setAttribute("x2", 456); R.arm.setAttribute("y2", 338); R.arm.style.stroke = "var(--risk)"; };
+    const open = () => { R.arm.setAttribute("x2", 431); R.arm.setAttribute("y2", 300); R.arm.style.stroke = "var(--state)"; };
+    if (n >= 2) {
+      if (fresh(2)) {
+        open(); gsap.set(R.cand, { attr: { width: 300 } }); gsap.set([R.detOk, R.block], { opacity: 0 }); gsap.set(R.tok, { opacity: 1, attr: { cx: 28 } });
+        R.rub.style.stroke = "var(--model)";
+        tl = gsap.timeline()
+          .to(R.g2, { opacity: 1, duration: 0.4 })
+          .to(R.tok, { attr: { cx: 163 }, duration: 0.7, ease: "power1.inOut" })
+          .to(R.detOk, { opacity: 1, duration: 0.25 })
+          .to(R.tok, { attr: { cx: 331 }, duration: 0.7, ease: "power1.inOut" })
+          .to(R.cand, { attr: { width: 236 }, duration: 1.0, ease: "power2.inOut" })
+          .to(R.arm, { attr: { x2: 456, y2: 338 }, duration: 0.35, ease: "back.out(2)", onStart: () => { R.arm.style.stroke = "var(--risk)"; R.rub.style.stroke = "var(--risk)"; } })
+          .to(R.block, { opacity: 1, duration: 0.3 }, "<")
+          .to(R.tok, { attr: { cx: 300 }, duration: 0.25, yoyo: true, repeat: 1 });
+      } else { gsap.set(R.g2, { opacity: 1 }); gsap.set(R.cand, { attr: { width: 236 } }); gsap.set([R.detOk, R.block, R.tok], { opacity: 1 }); gsap.set(R.tok, { attr: { cx: 331 } }); closed(); R.rub.style.stroke = "var(--risk)"; }
+    } else { gsap.set(R.g2, { opacity: 0 }); open(); }
+    // region 3
+    if (n >= 3) {
+      if (fresh(3)) {
+        gsap.set(R.bub, { opacity: 0 }); R.bars.forEach((b) => b.b.setAttribute("width", 0));
+        tl = gsap.timeline().to(R.g3, { opacity: 1, duration: 0.4 });
+        R.bub.forEach((b, i) => tl.fromTo(b, { opacity: 0, y: 8 }, { opacity: 1, y: 0, duration: 0.35, onStart: () => (R.turn.textContent = `turn ${Math.floor(i / 2) + 1} of max_allowed_invocations 20`) }, "+=0.35"));
+        R.bars.forEach((b, i) => tl.to(b.b, { attr: { width: 250 * b.v }, duration: 0.7, ease: "power2.out" }, i ? "<0.15" : "+=0.2"));
+      } else { gsap.set(R.g3, { opacity: 1 }); gsap.set(R.bub, { opacity: 1, y: 0 }); R.turn.textContent = "turn 2 of max_allowed_invocations 20"; R.bars.forEach((b) => b.b.setAttribute("width", 250 * b.v)); }
+    } else gsap.set(R.g3, { opacity: 0 });
+    shown = n;
+  }
+
+  Deck.register("adk-c08-judges-sim-ci", {
+    enter(slide, step) { build(slide); shown = -1; render(step, false); },
+    step(slide, n, animate) { build(slide); render(n, animate); },
+    leave() { if (tl) { tl.kill(); tl = null; } if (svg) gsap.killTweensOf(svg.querySelectorAll("*")); shown = -1; }
+  });
+})();
+</script>

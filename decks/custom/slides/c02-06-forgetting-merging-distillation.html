@@ -53,16 +53,21 @@
           <a class="cite repo" href="https://github.com/arcee-ai/mergekit" target="_blank" rel="noopener"><b>Repo</b>&nbsp;arcee-ai/mergekit</a>
         </div>
       </div>
-      <div class="stack" style="gap:12px">
-        <div class="panel tight k-model" data-step="5">
-          <h4>Distillation</h4>
-          <ul class="clean tiny" style="gap:8px">
-            <li><b>Off-policy:</b> SFT on teacher outputs, as in the DeepSeek-R1-Distill Qwen and Llama students.</li>
-            <li><b>On-policy (GKD, 2306.13649):</b> the student writes, and the teacher scores every token. This removes the train/inference mismatch.</li>
-            <li><b>TRL <code>DistillationTrainer</code></b>, stable since v1.10.0 (2026-08-13): <code>beta</code> 0.0 = forward KL, 0.5 = JSD, 1.0 = reverse KL (default). Teacher and student must share a vocabulary. Tool-result tokens are masked.</li>
-          </ul>
+      <div class="stack" style="gap:14px" data-step="5">
+        <h4>Distillation: a small student learns from a large teacher</h4>
+        <div class="panel tight k-human">
+          <h4>Off-policy</h4>
+          <p style="font-size:18px">SFT on teacher outputs, as in the DeepSeek-R1-Distill Qwen and Llama students. The student never sees its own mistakes.</p>
         </div>
-        <div class="cites" data-step="5">
+        <div class="panel tight k-model">
+          <h4>On-policy (GKD, 2306.13649)</h4>
+          <p style="font-size:18px">The student writes, and the teacher scores every token. This removes the train/inference mismatch.</p>
+        </div>
+        <div class="panel tight k-tool">
+          <h4>TRL <code>DistillationTrainer</code></h4>
+          <p style="font-size:18px">Stable since v1.10.0 (2026-08-13). <code>beta</code>: 0.0 = forward KL, 0.5 = JSD, 1.0 = reverse KL (default). Teacher and student must share a vocabulary. Tool-result tokens are masked.</p>
+        </div>
+        <div class="cites">
           <a class="cite doc" href="https://huggingface.co/docs/trl/main/en/distillation_trainer" target="_blank" rel="noopener"><b>Doc</b>&nbsp;TRL Distillation Trainer</a>
           <a class="cite paper" href="https://arxiv.org/abs/2306.13649" target="_blank" rel="noopener"><b>Paper</b>&nbsp;On-Policy Distillation (GKD)</a>
         </div>
@@ -114,20 +119,20 @@
     // --- TIES panels (appear at step 4) ---
     const tg = el("g", { opacity: 0 }, svg);
     S.tg = tg;
-    const PX = [300, 440, 580], PW = 130, PY = 30, MID = 120;
+    const PX = [8, 248, 488], PW = 226, PY = 40, MID = 120;
     const names = ["1 · trim", "2 · elect sign", "3 · disjoint mean"];
     S.bars = [];
     const sumSign = TV[0].map((_, j) => Math.sign(TV.reduce((s, v) => s + (Math.abs(v[j]) >= TRIM ? v[j] : 0), 0)));
     PX.forEach((x0, p) => {
       el("rect", { x: x0 - 6, y: PY - 6, width: PW + 6, height: 190, rx: 10, fill: "var(--surface)", stroke: "var(--line)" }, tg);
       el("line", { x1: x0, y1: PY + MID - 20, x2: x0 + PW - 6, y2: PY + MID - 20, stroke: "var(--line-2)" }, tg);
-      txt(tg, x0, PY + 178, names[p], { "font-size": 12, fill: "var(--ink-2)", "font-weight": 600 });
+      txt(tg, x0 + 6, PY + 172, names[p], { "font-size": 15, fill: "var(--ink-2)", "font-weight": 600 });
     });
     // panels 1 and 2: three tasks side by side per weight
     for (let p = 0; p < 2; p++) {
       TV.forEach((v, t) => v.forEach((val, j) => {
-        const x = PX[p] + j * 15 + t * 4, h = Math.abs(val) * 70, y0 = PY + MID - 20;
-        const r = el("rect", { x, y: val >= 0 ? y0 - h : y0, width: 3.5, height: h, fill: TONES[t] }, tg);
+        const x = PX[p] + 10 + j * 26 + t * 6, h = Math.abs(val) * 70, y0 = PY + MID - 20;
+        const r = el("rect", { x, y: val >= 0 ? y0 - h : y0, width: 5, height: h, fill: TONES[t] }, tg);
         S.bars.push({ r, p, t, j, val, trimmed: Math.abs(val) < TRIM, minority: Math.abs(val) >= TRIM && Math.sign(val) !== sumSign[j] });
       }));
     }
@@ -136,9 +141,9 @@
       const keep = TV.map((v) => v[j]).filter((x) => Math.abs(x) >= TRIM && Math.sign(x) === sumSign[j]);
       const m = keep.length ? keep.reduce((a, b) => a + b, 0) / keep.length : 0;
       const h = Math.abs(m) * 70, y0 = PY + MID - 20;
-      return el("rect", { x: PX[2] + j * 15 + 2, y: m >= 0 ? y0 - h : y0, width: 10, height: h, fill: "var(--state)", opacity: 0 }, tg);
+      return el("rect", { x: PX[2] + 10 + j * 26, y: m >= 0 ? y0 - h : y0, width: 17, height: h, fill: "var(--state)", opacity: 0 }, tg);
     });
-    txt(tg, 300, PY - 14, "TIES merging: 3 task vectors × 8 weights (toy values)", { "font-size": 13, fill: "var(--muted)" });
+    txt(tg, 8, PY - 16, "TIES merging: 3 task vectors × 8 weights (toy values)", { "font-size": 15, fill: "var(--muted)" });
 
     // --- distillation strip (appears at step 5) ---
     const dg = el("g", { opacity: 0 }, svg);
@@ -152,8 +157,8 @@
       el("rect", { x: 16 + i * 38, y: DY + 46, width: 32, height: 24, rx: 5, fill: "var(--human)", "fill-opacity": 0.5 }, dg);
       el("rect", { x: 16 + i * 38, y: DY + 92, width: 32, height: 24, rx: 5, fill: "var(--model)", "fill-opacity": 0.35 }, dg);
     }
-    txt(dg, 16, DY + 86, "teacher text  ↓  student imitates", { "font-size": 12, fill: "var(--muted)" });
-    txt(dg, 16, DY + 136, "student never sees its own errors", { "font-size": 12, fill: "var(--risk)" });
+    txt(dg, 16, DY + 86, "teacher text  ↓  student imitates", { "font-size": 13, fill: "var(--muted)" });
+    txt(dg, 16, DY + 136, "student never sees its own errors", { "font-size": 13, fill: "var(--risk)" });
     S.onTok = [];
     S.onScore = [];
     for (let i = 0; i < 8; i++) {
@@ -161,15 +166,15 @@
       const h = 8 + ((i * 29) % 26);
       S.onScore.push(el("rect", { x: 376 + i * 40 + 10, y: DY + 118 - h, width: 14, height: h, rx: 3, fill: "var(--human)", opacity: 0 }, dg));
     }
-    txt(dg, 376, DY + 140, "student writes → teacher scores each token", { "font-size": 12, fill: "var(--muted)" });
+    txt(dg, 376, DY + 140, "student writes → teacher scores each token", { "font-size": 13, fill: "var(--muted)" });
     // beta slider
     const SY = DY + 200;
     el("line", { x1: 40, y1: SY, x2: 680, y2: SY, stroke: "var(--line-2)", "stroke-width": 4, "stroke-linecap": "round" }, dg);
     [["0.0 forward KL", 40], ["0.5 JSD", 360], ["1.0 reverse KL (default)", 680]].forEach(([s, x]) => {
       el("line", { x1: x, y1: SY - 8, x2: x, y2: SY + 8, stroke: "var(--line-2)", "stroke-width": 2 }, dg);
-      txt(dg, x, SY + 30, s, { "font-size": 13, fill: "var(--ink-2)", "text-anchor": x === 40 ? "start" : x === 680 ? "end" : "middle" });
+      txt(dg, x, SY + 30, s, { "font-size": 15, fill: "var(--ink-2)", "text-anchor": x === 40 ? "start" : x === 680 ? "end" : "middle" });
     });
-    txt(dg, 40, SY - 18, "DistillationTrainer(beta=…)", { "font-size": 13, fill: "var(--model)", "font-weight": 600 });
+    txt(dg, 40, SY - 18, "DistillationTrainer(beta=…)", { "font-size": 15, fill: "var(--model)", "font-weight": 600 });
     S.knob = el("circle", { cx: 680, cy: SY, r: 11, fill: "var(--model)", stroke: "var(--bg)", "stroke-width": 3 }, dg);
   }
 
@@ -193,8 +198,8 @@
     T([S.fullDot, S.fullLab], { opacity: n >= 2 ? 1 : 0, delay: n === 2 ? 1.1 : 0, duration: 0.4 });
     T([S.loraDot, S.loraLab], { opacity: n >= 2 ? 1 : 0, delay: n === 2 ? 1.6 : 0, duration: 0.4 });
     T([S.mergeHead, S.mergeLab, S.mergeDot], { opacity: n >= 3 ? 1 : 0, delay: n === 3 ? 1.2 : 0, duration: 0.4 });
-    // shrink plot into the top-left corner from step 4
-    T(S.pl, { scale: n >= 4 ? 0.4 : 1, svgOrigin: "0 0", x: 0, y: n >= 4 ? 6 : 0, duration: 0.8, ease: "power3.inOut" });
+    // the plot makes room for TIES from step 4
+    T(S.pl, { opacity: n >= 4 ? 0 : 1, y: n >= 4 ? -20 : 0, duration: 0.5, ease: "power2.inOut" });
     // TIES
     T(S.tg, { opacity: n >= 4 ? 1 : 0, duration: 0.5, delay: n === 4 ? 0.5 : 0 });
     const tl = gsap.timeline({ paused: true });

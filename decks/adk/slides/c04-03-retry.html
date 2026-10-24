@@ -2,7 +2,7 @@
   <h2 class="title sm">RetryConfig handles transient faults, and a broad except silently disables it</h2>
   <div class="grid fill" style="grid-template-columns:720px 640px;gap:32px;align-items:start">
     <div class="stack" style="gap:16px">
-      <svg class="interactive" id="c4r-svg" viewBox="0 0 720 260" width="720" height="260" aria-label="Retry attempts on a time axis with exponential backoff and a 60 second cap"></svg>
+      <svg class="interactive" id="c4r-svg" viewBox="0 0 720 270" width="720" height="270" aria-label="Retry attempts on a time axis with exponential backoff and a 60 second cap"></svg>
       <div class="vs" data-step="3" style="gap:16px;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr)">
         <div class="panel tight k-tool">
           <h4>RetryConfig: transient</h4>
@@ -28,7 +28,7 @@
     </div>
     <div class="stack" style="gap:16px">
       <div class="code-wrap"><div class="code-head">samples/workflows/retry/agent.py</div>
-<pre class="code xs" data-lang="python" data-focus="1:2-3, 2:5-7, 3:4-4"><code>
+<pre class="code xs" style="line-height:1.4" data-lang="python" data-focus="1:2-3, 2:5-7, 3:4-4"><code>
 from google.adk.workflow import RetryConfig, node
 @node(retry_config=RetryConfig(max_attempts=5, initial_delay=1))
 def get_weather(ctx: Context) -> str:
@@ -39,21 +39,20 @@ def get_weather(ctx: Context) -> str:
   yield "sunny"
 </code></pre></div>
       <div class="code-wrap" data-step="2" style="--aurora:var(--risk)"><div class="code-head">pitfall.py</div>
-<pre class="code xs" data-lang="python" data-focus="2:3-4, 3:5-5"><code>
+<pre class="code xs" style="line-height:1.4" data-lang="python" data-focus="2:3-4, 3:5-5"><code>
 try:
     data = call_api()
 except Exception:          # masks the failure: retries never fire
     return {"status": "error"}
 except BaseException: ...  # traps NodeInterruptedError: breaks HITL
 </code></pre></div>
-      <div class="callout tip" data-step="4" style="font-size:16px;line-height:1.4"><span><b>Other levers.</b> <code>@node(timeout=30.0)</code> raises <code>NodeTimeoutError</code>, which counts as retryable. <code>abort_signal</code> (an <code>asyncio.Event</code>) stops a <code>Runner</code>, <code>Workflow</code> or node (2.11). <code>/run_sse</code> cancels when the client disconnects. <code>FallbackModel</code> fails over to another model (2.9).</span></div>
+      <div class="callout tip" data-step="4" style="font-size:16px;line-height:1.4"><span><b>Other levers.</b> <code>@node(timeout=30.0)</code> raises <code>NodeTimeoutError</code>, which is retryable. <code>abort_signal</code> stops a run (2.11). <code>FallbackModel</code> fails over to another model (2.9).</span></div>
       <div class="cites" data-step="4">
         <a class="cite doc" href="https://adk.dev/2.0/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Welcome to ADK 2.0 (breaking changes)</a>
-        <a class="cite repo" href="https://github.com/google/adk-python/tree/main/contributing/samples/workflows" target="_blank" rel="noopener"><b>Repo</b>&nbsp;adk-python workflow samples</a>
       </div>
     </div>
   </div>
-  <aside class="notes">Step 1: with the defaults, attempt 1 runs at 0 s and the retries wait 1, 2, 4 and 8 s; max_attempts=5 counts the first try. The bar chart shows why max_delay exists: if you raise max_attempts, the delay doubles until it hits the 60 s cap. Step 2 is the bug that students meet in real code: a broad except Exception returns an error dict, so the node looks successful and RetryConfig never sees a failure. Catching BaseException is worse, because the HITL pause travels as NodeInterruptedError. Step 3 separates two kinds of retry: RetryConfig repeats the same call for a transient fault, and ReflectAndRetryToolPlugin tells the model what went wrong so it can change the arguments. Analogy: RetryConfig redials a busy phone line; reflect-and-retry tells the caller that the number is wrong. Likely question: "Why did your retries never fire?" Answer: an except block swallowed the exception; let it propagate, or re-raise after logging.</aside>
+  <aside class="notes">Step 1: with the defaults, attempt 1 runs at 0 s and the retries wait 1, 2, 4 and 8 s; max_attempts=5 counts the first try. The bar chart shows why max_delay exists: if you raise max_attempts, the delay doubles until it hits the 60 s cap. Step 2 is the bug that students meet in real code: a broad except Exception returns an error dict, so the node looks successful and RetryConfig never sees a failure. Catching BaseException is worse, because the HITL pause travels as NodeInterruptedError. Step 3 separates two kinds of retry: RetryConfig repeats the same call for a transient fault, and ReflectAndRetryToolPlugin tells the model what went wrong so it can change the arguments. Analogy: RetryConfig redials a busy phone line; reflect-and-retry tells the caller that the number is wrong. Likely question: "Why did your retries never fire?" Answer: an except block swallowed the exception; let it propagate, or re-raise after logging. Also mention cancellation: abort_signal is an asyncio.Event on the Runner, the Workflow and nodes, and /run_sse cancels the run when the client disconnects.</aside>
 </section>
 <script>
 (() => {
@@ -111,7 +110,8 @@ except BaseException: ...  # traps NodeInterruptedError: breaks HITL
     }
     txt("r5 to r8 only if", { x: 530, y: 206, style: mono(11, 500, "var(--muted)") });
     txt("max_attempts > 5", { x: 530, y: 222, style: mono(11, 500, "var(--muted)") });
-    txt("jitter=1.0 · exceptions=None (all)", { x: 530, y: 254, style: mono(11, 500, "var(--muted)") });
+    txt("jitter=1.0", { x: 530, y: 246, style: mono(11, 500, "var(--muted)") });
+    txt("exceptions=None (all)", { x: 530, y: 262, style: mono(11, 500, "var(--muted)") });
   }
 
   function render(n, animate) {

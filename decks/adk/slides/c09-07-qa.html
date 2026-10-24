@@ -1,0 +1,42 @@
+<section class="slide" id="adk-c09-qa" data-tone="human" data-title="Interview drill: production on Google Cloud">
+  <style>
+    #adk-c09-qa .qa .a { font-size: 17.5px; line-height: 1.42; padding: 12px 16px; }
+    #adk-c09-qa .qa .q { font-size: 23px; }
+    #adk-c09-qa .cite { font-size: 14px; padding: 6px 12px 6px 8px; }
+  </style>
+  <h2 class="title">Interview drill: run an agent in production on Google Cloud</h2>
+  <div class="stack fill" style="gap:14px">
+    <div class="qa">
+      <div class="q">Agent Runtime, Cloud Run or GKE?</div>
+      <div class="a" data-step="1"><b>Agent Runtime</b> for managed sessions, Memory Bank, Agent Identity, A2A and publishing to Gemini Enterprise with the least ops. <b>Cloud Run</b> for a custom FastAPI surface and revision traffic splitting. <b>GKE</b> for GPUs or self-hosted models. Cloud Run and GKE can still use managed Sessions and Memory Bank through <code>agentengine://</code> URIs.</div>
+    </div>
+    <div class="qa">
+      <div class="q">How do you canary a new agent version safely?</div>
+      <div class="a" data-step="2">Deploy with <code>--no-traffic --tag</code>. Run the eval suite against the tag URL. Shift <b>1 → 5 → 25 → 100%</b> with session-sticky routing. Watch error rate, p99, tokens per invocation and judge score. Roll back with <code>--to-revisions PREV=100</code>. Never shadow with live write tools.</div>
+    </div>
+    <div class="qa">
+      <div class="q">Name three agent SLIs that a web SRE does not track.</div>
+      <div class="a" data-step="3"><b>Tokens per invocation</b>, <b>LLM calls per invocation</b> (the loop signature) and an <b>online judge or task-success score</b>. A fourth: tool error rate by <code>tool_origin</code> (LOCAL, MCP, SUB_AGENT, A2A), which blames an upstream MCP server.</div>
+    </div>
+    <div class="qa">
+      <div class="q">What in ADK 2.13 can silently break your monitoring?</div>
+      <div class="a" data-step="4">OTel GenAI v2 became the default, and the <code>call_llm</code> span was removed. Dashboards and alerts keyed on <code>call_llm</code> go blank, so detection itself fails. Update them to <code>generate_content</code>, or set <code>ADK_TELEMETRY_SCHEMA_VERSION_OPT_IN=otel_semconv_1_36</code>.</div>
+    </div>
+    <div class="row middle push" style="gap:16px">
+      <div class="row" style="gap:8px;flex:1">
+        <div class="bar" style="flex:1;background:var(--line)"><i data-step="1" data-fx="fade" style="--v:100%"></i></div>
+        <div class="bar" style="flex:1;background:var(--line)"><i data-step="2" data-fx="fade" style="--v:100%"></i></div>
+        <div class="bar" style="flex:1;background:var(--line)"><i data-step="3" data-fx="fade" style="--v:100%"></i></div>
+        <div class="bar" style="flex:1;background:var(--line)"><i data-step="4" data-fx="fade" style="--v:100%"></i></div>
+      </div>
+      <div class="cites">
+        <a class="cite doc" href="https://adk.dev/deploy/agent-runtime/" target="_blank" rel="noopener"><b>Doc</b>&nbsp;Deploy to Agent Runtime</a>
+        <a class="cite doc" href="https://google.github.io/agents-cli/guide/observability/" target="_blank" rel="noopener"><b>Doc</b>&nbsp;agents-cli observability</a>
+        <a class="cite doc" href="https://docs.cloud.google.com/run/docs/rollouts-rollbacks-traffic-migration" target="_blank" rel="noopener"><b>Doc</b>&nbsp;Cloud Run rollouts and rollbacks</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    Give students ten seconds per question before you reveal the answer. Question 1 tests the hosting trade-off; strong candidates add that hosting and state are separable, because Cloud Run and GKE can use managed Sessions and Memory Bank through agentengine:// URIs. Question 2 tests progressive delivery for stateful, side-effecting software: the tag URL lets you run evals on the live candidate, session-sticky routing stops one conversation from seeing two prompt versions, and shadow traffic needs stubbed tools. Question 3 tests whether the candidate knows that a loop returns HTTP 200 and shows up only in tokens and LLM calls. Question 4 is a recent-release trap: the 2.13 telemetry change can turn the monitoring off without any error. Analogy for question 2: a new drug goes to a small trial group first, with stop rules written before the trial starts. Likely follow-up: "How do you roll back on Agent Runtime?" Use blue/green: deploy a second resource and switch the client or the gateway to the new resource ID, then switch back to roll back.
+  </aside>
+</section>

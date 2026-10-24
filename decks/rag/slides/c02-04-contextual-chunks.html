@@ -44,21 +44,23 @@
 
       </div>
         <div class="code-wrap" data-step="4" data-fx="up" style="position:absolute;top:0;left:0;right:0"><div class="code-head">situate.py · adapted from the blog prompt</div>
-<pre class="code xs" data-lang="python" data-focus="4:7-8, 5:16"><code>
+<pre class="code xs" data-lang="python" data-focus="4:7-9, 5:18"><code>
 import anthropic
 client = anthropic.Anthropic()
 def situate(doc: str, chunk: str) -> str:
     msg = client.messages.create(
         model="claude-haiku-4-5",  # illustrative; blog used Claude 3 Haiku
         max_tokens=150,
-        system=[{"type": "text", "text": f"&lt;document>\n{doc}\n&lt;/document>",
+        system=[{"type": "text",
+                 "text": f"&lt;document>\n{doc}\n&lt;/document>",
                  "cache_control": {"type": "ephemeral"}}],  # cached once
         messages=[{"role": "user", "content":
-            f"Here is the chunk we want to situate within the whole document\n"
-            f"&lt;chunk>\n{chunk}\n&lt;/chunk>\n"
-            "Please give a short succinct context to situate this chunk within "
-            "the overall document for the purposes of improving search "
-            "retrieval of the chunk. Answer only with the succinct context "
+            f"Here is the chunk we want to situate within "
+            f"the whole document\n&lt;chunk>\n{chunk}\n&lt;/chunk>\n"
+            "Please give a short succinct context to situate "
+            "this chunk within the overall document for the "
+            "purposes of improving search retrieval of the "
+            "chunk. Answer only with the succinct context "
             "and nothing else."}])
     return msg.content[0].text + "\n\n" + chunk  # index for dense AND BM25
 </code></pre></div>
@@ -110,6 +112,9 @@ def situate(doc: str, chunk: str) -> str:
   mk(B, "rect", { x: 6, y: 34, width: 140, height: 66, rx: 12, style: "fill:var(--model-soft);stroke:var(--model);stroke-width:1.8" }, llm);
   mk(B, "text", { x: 76, y: 62, "text-anchor": "middle", style: "font:700 15px var(--f-body);fill:var(--ink)" }, llm, "LLM");
   mk(B, "text", { x: 76, y: 82, "text-anchor": "middle", style: MONO(500, 11, "var(--muted)") }, llm, "doc in cache");
+  const feed = mk(B, "g", {});
+  const feedP = mk(B, "path", { d: "M148 67 L176 67", style: "fill:none;stroke:var(--model);stroke-width:2.2" }, feed);
+  mk(B, "path", { d: "M176 61 L184 67 L176 73 Z", style: "fill:var(--model)" }, feed);
   const card = mk(B, "g", {});
   mk(B, "rect", { x: 266, y: 40, width: 170, height: 56, rx: 10, style: "fill:var(--surface-2);stroke:var(--state);stroke-width:1.8" }, card);
   mk(B, "text", { x: 276, y: 63, style: MONO(500, 11, "var(--ink-2)") }, card, "revenue grew by 3%");
@@ -128,7 +133,7 @@ def situate(doc: str, chunk: str) -> str:
     return g;
   });
 
-  const all = [arc, arcHead, band, ...brackets, note, ...outs];
+  const all = [arc, arcHead, band, ...brackets, note, feed, ...outs];
   const drawPath = (p, delay) => { const L = p.getTotalLength(); gsap.fromTo(p, { strokeDasharray: L, strokeDashoffset: L }, { strokeDashoffset: 0, duration: 0.6, delay, ease: "power2.inOut" }); };
 
   function render(n, animate) {
@@ -143,11 +148,13 @@ def situate(doc: str, chunk: str) -> str:
     // B: base = LLM + card; step >= 2 note attaches and arrows fan out
     const bOn = n >= 2;
     if (bOn && animate && n === 2) {
+      gsap.fromTo(feed, { opacity: 0 }, { opacity: 1, duration: 0.3 });
       gsap.fromTo(note, { opacity: 0, x: -120, y: 0, rotation: -8, transformOrigin: "50% 50%" }, { opacity: 1, x: 0, rotation: 0, duration: 0.8, ease: "power3.out" });
       gsap.fromTo(card, { x: 0 }, { x: 4, duration: 0.15, yoyo: true, repeat: 1, delay: 0.8 });
       outs.forEach((g, i) => { gsap.fromTo(g, { opacity: 0 }, { opacity: 1, duration: 0.3, delay: 1 + i * 0.2 }); drawPath(g._p, 1 + i * 0.2); });
     } else {
       gsap.set(note, { opacity: bOn ? 1 : 0, x: 0, rotation: 0 });
+      gsap.set(feed, { opacity: bOn ? 1 : 0 });
       gsap.set(outs, { opacity: bOn ? 1 : 0 });
       outs.forEach((g) => gsap.set(g._p, { strokeDasharray: "none" }));
     }

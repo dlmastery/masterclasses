@@ -1,0 +1,226 @@
+<section class="slide" id="adk-c08-guardrails" data-tone="risk" data-title="Guardrails: design for compromise">
+  <style>
+    #adk-c08-guardrails .lay { display: grid; align-items: start; }
+    #adk-c08-guardrails .lay > * { grid-area: 1 / 1; }
+  </style>
+  <h2 class="title sm">Design for compromise: limit what a successful prompt injection can do</h2>
+  <div class="grid fill" style="grid-template-columns:640px 720px;gap:32px">
+    <svg class="interactive" id="c86-svg" viewBox="0 0 640 600" width="640" height="600" aria-label="Rule of Two Venn diagram: untrusted input, private data and external action. With all three, an injected email exfiltrates data; without external action it bounces off; with human approval it stops. Then six defence rings each stop one attack."></svg>
+    <div class="lay">
+      <!-- L0: threat models and architecture -->
+      <div class="stack" data-until="4" style="gap:10px">
+        <p class="quote" style="font-size:21px">LLMs are unable to reliably distinguish the importance of instructions based on where they came from.</p>
+        <p class="small"><b>Lethal trifecta</b> (Willison, 2025-06-16): private data + untrusted content + external communication = exfiltration. <b>Agents Rule of Two</b> (Meta, 2025-10-31): one session may have at most two of [A], [B], [C]. All three → human approval or a fresh session.</p>
+        <div class="row" data-step="1" style="gap:30px">
+          <div class="stat"><span class="n" style="font-size:42px" data-to="12">0</span><span class="l tiny">published defences broken</span></div>
+          <div class="stat"><span class="n" style="font-size:42px" data-pre="&gt;" data-to="90" data-suf="%">0</span><span class="l tiny">adaptive attack success on most</span></div>
+          <div class="stat"><span class="n" style="font-size:42px" data-to="100" data-suf="%">0</span><span class="l tiny">human red-teamers (500 people)</span></div>
+        </div>
+        <div class="panel tight k-agent" data-step="2">
+          <h4 style="font-size:19px">Detection alone fails, so change the architecture</h4>
+          <p class="tiny"><b>CaMeL</b> (Google, Google DeepMind, ETH Zurich): a privileged LLM writes a program from the trusted query. A quarantined LLM with no tools parses the untrusted data. An interpreter tracks provenance at each tool call. <b>In ADK</b>, a <code>Workflow</code> is plan-then-execute: the LLM classifies, code decides what can run.</p>
+        </div>
+        <div class="code-wrap" data-step="3"><div class="code-head">callbacks.py · deterministic guard outside the model</div>
+<pre class="code xs" data-lang="python" style="line-height:1.45" data-focus="3:2-3"><code>
+def limit_refunds(tool, args, tool_context):
+    if tool.name == "refund" and args.get("amount", 0) &gt; 500:
+        return {"error": "Refunds &gt; $500 need human approval."}
+    return None  # None = let the tool run
+agent = Agent(..., before_tool_callback=limit_refunds)
+</code></pre></div>
+        <div class="cites">
+          <a class="cite doc" href="https://simonwillison.net/2025/Jun/16/the-lethal-trifecta/" target="_blank" rel="noopener"><b>Doc</b>&nbsp;Willison, The lethal trifecta for AI agents</a>
+          <a class="cite doc" href="https://ai.meta.com/blog/practical-ai-agent-security/" target="_blank" rel="noopener"><b>Doc</b>&nbsp;Meta, Agents Rule of Two</a>
+          <a class="cite doc" data-step="1" href="https://simonwillison.net/2025/Nov/2/new-prompt-injection-papers/" target="_blank" rel="noopener"><b>Doc</b>&nbsp;The Attacker Moves Second (2510.09023), via Willison</a>
+          <a class="cite paper" data-step="2" href="https://arxiv.org/abs/2503.18813" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Defeating Prompt Injections by Design, 2503.18813</a>
+        </div>
+      </div>
+      <!-- L1: defence in depth for ADK -->
+      <div class="stack" data-step="4" style="gap:10px">
+        <div class="code-wrap"><div class="code-head">app.py · adk.dev/integrations/model-armor (ADK 2.8+)</div>
+<pre class="code xs" data-lang="python" style="line-height:1.45" data-focus="5:3-8"><code>
+from google.adk.integrations.model_armor import (
+    ModelArmorConfig, ModelArmorPlugin)
+app = App(name="model_armor_demo", root_agent=agent, plugins=[
+    ModelArmorPlugin(config=ModelArmorConfig(
+        prompt_template_name="projects/my-project/locations/"
+            "us-central1/templates/my-prompt-template",
+        response_template_name="projects/my-project/locations/"
+            "us-central1/templates/my-response-template",
+    ))])
+</code></pre></div>
+        <p class="tiny"><code>ModelArmorPlugin</code> screens prompts and responses and <b>fails closed</b> by default. The templates must be in the same region. Agent Gateway adds egress allow and deny rules.</p>
+        <div class="callout pitfall" style="padding:12px 16px"><span class="tiny" style="color:var(--ink-2)"><b>Know the limits.</b> Model Armor screens one turn at a time. It does not decode Base64 and does not read audio or video. Documents stop at 4 MB. The console Model Armor settings in Gemini Enterprise do <b>not</b> protect ADK agents: configure it in code.</span></div>
+        <ul class="ticks tiny" data-step="5" style="gap:5px">
+          <li>ADK hardening: 2.8 fences relayed agent output so it can not pose as instructions. 2.9: A2A needs https for non-loopback agent cards. 2.11: <code>ToolCallIntegrityPlugin</code>.</li>
+          <li>Supply chain: LiteLLM 1.82.7 and 1.82.8 on PyPI held unauthorized code. Pin and hash every dependency.</li>
+          <li>The OWASP Top 10 for Agentic Applications for 2026 gives a shared threat list for reviews.</li>
+        </ul>
+        <div class="cites">
+          <a class="cite codelab" data-step="5" href="https://codelabs.developers.google.com/secure-customer-service-agent/instructions" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;Build a Secure Agent with Model Armor and Identity</a>
+          <a class="cite doc" href="https://adk.dev/safety/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;adk.dev: safety and security</a>
+          <a class="cite doc" data-step="5" href="https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/" target="_blank" rel="noopener"><b>Doc</b>&nbsp;OWASP Top 10 for Agentic Applications for 2026</a>
+        </div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    Open with the honest premise: no filter stops every injection, so we design for the day one gets through. Step 0 shows the three Rule-of-Two properties as circles. Step 1: an injected email enters through untrusted input, reaches private data and leaves through an external action; the stats show why detection alone is not the answer, because adaptive attacks broke twelve published defences. Step 2: remove external action for this session and the same attack has no way out; then CaMeL and plan-then-execute show how architecture, not a classifier, gives the guarantee. Step 3: if the task truly needs all three, a human approval sits in the overlap, and the callback shows a deterministic limit that the model can not argue with. Step 4: the defence rings; each attack stops at a different ring, from UI escaping outside to Agent Identity inside, and the Model Armor code shows the plugin layer. Step 5: release hardening, the LiteLLM supply-chain incident and the codelab that builds Model Armor, Agent Identity and a conditional IAM grant to one dataset. Analogy: a bank does not trust that no robber enters; it uses a vault, time locks and two-person rules so a robber inside still gets little. Likely question: "Is Model Armor enough?" No: it is one ring, it screens one turn at a time, and the console setting does not cover ADK agents.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  let svg = null, tl = null, shown = -1, V = {}, RG = {};
+  const mk = (t, a, p) => { const e = document.createElementNS(NS, t); for (const k in a) e.setAttribute(k, a[k]); p.appendChild(e); return e; };
+  const tx = (s, a, p) => { const e = mk("text", a, p); e.textContent = s; return e; };
+  const F = (sz, w, c, fam) => `font:${w} ${sz}px var(${fam || "--f-mono"});fill:${c}`;
+  const HALO = "paint-order:stroke;stroke:var(--bg);stroke-width:5px;stroke-linejoin:round;";
+  const RC = { x: 320, y: 300 };
+  // ring name, radius, attack angle (deg), attack label
+  const RINGS = [
+    ["escape model output", 268, -140, "injected <img> tag"],
+    ["sandbox, no network", 226, -40, "code calls the network"],
+    ["ModelArmorPlugin", 184, -90, "jailbreak in the prompt"],
+    ["before_tool_callback", 142, 35, "refund over the limit"],
+    ["SELECT-only policy", 100, 145, "DROP TABLE request"],
+    ["Agent Identity · IAM", 58, 90, "read the admin dataset"],
+  ];
+
+  function build(slide) {
+    if (svg) return;
+    svg = slide.querySelector("#c86-svg");
+    svg.innerHTML = "";
+    const defs = mk("defs", {}, svg);
+    const m = mk("marker", { id: "c86-m", viewBox: "0 0 10 10", refX: 8, refY: 5, markerWidth: 6, markerHeight: 6, orient: "auto" }, defs);
+    mk("path", { d: "M0,0 L10,5 L0,10 Z", style: "fill:var(--risk)" }, m);
+
+    /* ---------- Venn ---------- */
+    const vg = V.g = mk("g", {}, svg);
+    const circ = (cx, cy, tone) => mk("circle", { cx, cy, r: 128, style: `fill:color-mix(in oklab, var(--${tone}) 10%, transparent);stroke:var(--${tone});stroke-width:2.4` }, vg);
+    V.A = circ(230, 220, "risk"); V.B = circ(410, 220, "state");
+    V.Cg = mk("g", {}, vg);
+    mk("circle", { cx: 320, cy: 370, r: 128, style: "fill:color-mix(in oklab, var(--tool) 10%, transparent);stroke:var(--tool);stroke-width:2.4" }, V.Cg);
+    tx("[C] external action · state change", { x: 320, y: 524, "text-anchor": "middle", style: F(13, 700, "var(--tool)") }, V.Cg);
+    tx("[A] untrusted input", { x: 186, y: 78, "text-anchor": "middle", style: F(13, 700, "var(--risk)") }, vg);
+    tx("[B] private data · sensitive systems", { x: 452, y: 78, "text-anchor": "middle", style: F(13, 700, "var(--state)") }, vg);
+    // email icon
+    const em = mk("g", {}, vg);
+    mk("rect", { x: 14, y: 152, width: 58, height: 38, rx: 6, style: "fill:var(--bg);stroke:var(--risk);stroke-width:2" }, em);
+    mk("path", { d: "M16,155 L43,175 L70,155", style: "fill:none;stroke:var(--risk);stroke-width:2" }, em);
+    tx("injected email", { x: 8, y: 142, style: F(11.5, 700, "var(--risk)") }, em);
+    V.p1 = mk("path", { d: "M74,172 C170,172 250,250 318,268", style: "fill:none;stroke:var(--risk);stroke-width:3;stroke-linecap:round", "marker-end": "url(#c86-m)", opacity: 0 }, vg);
+    V.p2 = mk("path", { d: "M320,272 C380,300 470,430 556,548", style: "fill:none;stroke:var(--state);stroke-width:3;stroke-dasharray:6 6", opacity: 0 }, vg);
+    V.att = mk("g", { opacity: 0 }, vg);
+    mk("rect", { x: 540, y: 552, width: 92, height: 26, rx: 13, style: "fill:var(--risk);stroke:var(--risk)" }, V.att);
+    tx("attacker", { x: 586, y: 569.5, "text-anchor": "middle", style: F(12, 700, "#fff") }, V.att);
+    V.pkt = mk("circle", { cx: 320, cy: 272, r: 8, style: "fill:var(--state)", opacity: 0 }, vg);
+    V.cap = tx("", { x: 320, y: 570, "text-anchor": "middle", style: HALO + F(13, 700, "var(--ink)") }, vg);
+    V.stop = mk("g", { opacity: 0 }, vg);
+    mk("line", { x1: 300, y1: 250, x2: 316, y2: 290, style: "stroke:var(--ink);stroke-width:5;stroke-linecap:round" }, V.stop);
+    V.stamp = mk("g", { opacity: 0 }, vg);
+    const sg = mk("g", { transform: "rotate(-8 320 276)" }, V.stamp);
+    mk("rect", { x: 246, y: 252, width: 148, height: 48, rx: 10, style: "fill:var(--human-soft);stroke:var(--human);stroke-width:3" }, sg);
+    tx("human approval", { x: 320, y: 273, "text-anchor": "middle", style: F(13.5, 700, "var(--human)") }, sg);
+    tx("RequestInput", { x: 320, y: 290, "text-anchor": "middle", style: F(11, 600, "var(--human)") }, sg);
+
+    /* ---------- rings ---------- */
+    const rg = RG.g = mk("g", { opacity: 0 }, svg);
+    RG.rings = RINGS.map(([, r], i) => mk("circle", { cx: RC.x, cy: RC.y, r, style: `fill:color-mix(in oklab, var(--risk) ${3 + i * 1.2}%, transparent);stroke:var(--line-2);stroke-width:1.5` }, rg));
+    RG.core = mk("g", {}, rg);
+    mk("circle", { cx: RC.x, cy: RC.y, r: 30, style: "fill:var(--state-soft);stroke:var(--state);stroke-width:2" }, RG.core);
+    tx("data", { x: RC.x, y: RC.y - 2, "text-anchor": "middle", style: F(11, 700, "var(--state)") }, RG.core);
+    tx("+ tools", { x: RC.x, y: RC.y + 11, "text-anchor": "middle", style: F(10, 600, "var(--state)") }, RG.core);
+    RG.atk = RINGS.map(([name, r, ang, atk]) => {
+      const a = ang * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
+      const sx = RC.x + 292 * c, sy = RC.y + 292 * s, ex = RC.x + (r + 6) * c, ey = RC.y + (r + 6) * s;
+      const g = mk("g", { opacity: 0 }, rg);
+      const ln = mk("line", { x1: sx, y1: sy, x2: ex, y2: ey, style: "stroke:var(--risk);stroke-width:2.6;stroke-linecap:round", "marker-end": "url(#c86-m)" }, g);
+      // attack label at the start
+      let lx, ly, anc;
+      if (Math.abs(c) < 0.3) { lx = sx + 12; ly = s < 0 ? sy + 10 : sy + 4; anc = "start"; }
+      else { lx = c < 0 ? 8 : 632; ly = sy - 12; anc = c < 0 ? "start" : "end"; }
+      tx(atk, { x: lx, y: ly, "text-anchor": anc, style: HALO + F(11.5, 700, "var(--risk)") }, g);
+      // stop mark and ring name
+      const st = mk("g", { opacity: 0 }, g);
+      const px = RC.x + r * c, py = RC.y + r * s;
+      mk("circle", { cx: px, cy: py, r: 9, style: "fill:var(--risk)" }, st);
+      tx("✕", { x: px, y: py + 4.5, "text-anchor": "middle", style: F(12, 700, "#fff", "--f-body") }, st);
+      let nx = px, ny = py, na = "middle";
+      if (Math.abs(c) < 0.3) { nx = px + 14; ny = py + (s < 0 ? 26 : -16); na = "start"; }
+      else { nx = px + (c < 0 ? 14 : -14); ny = py + (s < 0 ? 24 : -14); na = c < 0 ? "start" : "end"; }
+      tx(name, { x: nx, y: ny, "text-anchor": na, style: HALO + F(11.5, 700, "var(--ink)") }, st);
+      return { g, ln, st, L: Math.hypot(sx - ex, sy - ey) };
+    });
+  }
+
+  function venn(n, animate) {
+    const d = animate ? 0.6 : 0;
+    gsap.to(V.g, { opacity: n < 4 ? 1 : 0, duration: d, overwrite: "auto" });
+    // C circle position and look
+    gsap.to(V.Cg, { y: n === 2 ? 110 : 0, opacity: n === 2 ? 0.22 : 1, duration: d, ease: "power3.inOut", overwrite: "auto" });
+    gsap.set(V.p1, { opacity: n >= 1 ? 1 : 0 });
+    gsap.set(V.p2, { opacity: n === 1 ? 1 : 0 });
+    gsap.set(V.att, { opacity: n === 1 ? 1 : 0 });
+    gsap.set(V.stop, { opacity: n === 2 ? 1 : 0 });
+    V.cap.textContent = ["", "all three: the data leaves", "[A] + [B] only: no way out", "all three: a human approves each action"][Math.min(n, 3)];
+    V.cap.style.fill = n === 1 ? "var(--risk)" : n === 3 ? "var(--human)" : "var(--ink)";
+    if (n === 3) {
+      if (animate && shown < 3) gsap.fromTo(V.stamp, { opacity: 0, y: -90 }, { opacity: 1, y: 0, duration: 0.6, delay: 0.5, ease: "bounce.out" });
+      else gsap.set(V.stamp, { opacity: 1, y: 0 });
+    } else gsap.set(V.stamp, { opacity: 0 });
+    gsap.set(V.pkt, { opacity: 0 });
+    if (!animate) return;
+    const L1 = V.p1.getTotalLength();
+    if (n >= 1 && n <= 3 && shown !== n) gsap.fromTo(V.p1, { strokeDasharray: L1, strokeDashoffset: L1 }, { strokeDashoffset: 0, duration: 0.9, ease: "power2.inOut", onComplete: () => gsap.set(V.p1, { clearProps: "strokeDasharray,strokeDashoffset" }) });
+    if (n === 1) {
+      const L2 = V.p2.getTotalLength(), o = { t: 0 };
+      tl = gsap.timeline({ delay: 1.0, repeat: -1, repeatDelay: 0.5 })
+        .set(V.pkt, { opacity: 1 })
+        .to(o, { t: 1, duration: 1.4, ease: "power1.in", onUpdate: () => { const p = V.p2.getPointAtLength(o.t * L2); V.pkt.setAttribute("cx", p.x); V.pkt.setAttribute("cy", p.y); } })
+        .set(V.pkt, { opacity: 0 });
+    }
+    if (n === 2) {
+      const o = { t: 0 };
+      tl = gsap.timeline({ delay: 1.0, repeat: -1, repeatDelay: 0.6 })
+        .set(V.pkt, { opacity: 1, attr: { cx: 74, cy: 172 } })
+        .to(o, { t: 1, duration: 0.9, ease: "power2.in", yoyo: true, repeat: 1, onUpdate: () => { const p = V.p1.getPointAtLength(o.t * L1 * 0.94); V.pkt.setAttribute("cx", p.x); V.pkt.setAttribute("cy", p.y); } })
+        .set(V.pkt, { opacity: 0 });
+      V.pkt.style.fill = "var(--risk)";
+    } else V.pkt.style.fill = "var(--state)";
+  }
+
+  function rings(n, animate) {
+    if (n < 4) { gsap.set(RG.g, { opacity: 0 }); return; }
+    if (!(animate && shown < 4)) {
+      gsap.set(RG.g, { opacity: 1 }); gsap.set(RG.rings, { opacity: 1, scale: 1 });
+      RG.atk.forEach((a) => { gsap.set(a.g, { opacity: 1 }); gsap.set(a.st, { opacity: 1 }); gsap.set(a.ln, { clearProps: "strokeDasharray,strokeDashoffset" }); });
+      return;
+    }
+    gsap.set(RG.g, { opacity: 1 });
+    RG.atk.forEach((a) => { gsap.set(a.g, { opacity: 0 }); gsap.set(a.st, { opacity: 0 }); });
+    tl = gsap.timeline({ delay: 0.4 });
+    tl.fromTo([RG.core, ...RG.rings.slice().reverse()], { opacity: 0, scale: 0.6, transformOrigin: "50% 50%" }, { opacity: 1, scale: 1, duration: 0.5, stagger: 0.08, ease: "power3.out" });
+    RG.atk.forEach((a) => {
+      tl.set(a.g, { opacity: 1 })
+        .fromTo(a.ln, { strokeDasharray: a.L, strokeDashoffset: a.L }, { strokeDashoffset: 0, duration: 0.55, ease: "power2.in" })
+        .fromTo(a.st, { opacity: 0, scale: 0.4, transformOrigin: "50% 50%" }, { opacity: 1, scale: 1, duration: 0.3, ease: "back.out(2.4)" })
+        .to({}, { duration: 0.2 });
+    });
+  }
+
+  function render(n, animate) {
+    if (!svg) return;
+    if (tl) { tl.kill(); tl = null; }
+    venn(n, animate);
+    rings(n, animate);
+    shown = n;
+  }
+
+  Deck.register("adk-c08-guardrails", {
+    enter(slide, step) { build(slide); shown = -1; render(step, false); },
+    step(slide, n, animate) { build(slide); render(n, animate); },
+    leave() { if (tl) { tl.kill(); tl = null; } if (svg) gsap.killTweensOf(svg.querySelectorAll("*")); shown = -1; }
+  });
+})();
+</script>

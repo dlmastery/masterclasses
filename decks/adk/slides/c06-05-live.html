@@ -12,7 +12,7 @@
     <div class="stack" style="gap:12px">
       <svg id="c65-svg" viewBox="0 0 700 366" width="700" height="366" aria-label="Two lanes of audio packets between browser, FastAPI, Runner.run_live and the Live API, and a timeline of connection and session limits"></svg>
       <p class="tiny" style="color:var(--ink-2)"><b>Voice budget:</b> a cascaded STT → LLM → TTS pipeline takes ~1.3 s voice-to-voice. Target 1.5 s, and measure mic-to-speaker, not model TTFB.</p>
-      <div class="callout pitfall" data-step="2"><div><b>Pitfall: the client ignores <code>interrupted</code>.</b> Then buffered audio plays over the user. Flush the player. Also call <code>close()</code> in <code>finally</code>, or zombie sessions stay on your quota.</div></div>
+      <div class="callout pitfall" data-step="2"><div><b>Pitfall: the client ignores <code>interrupted</code>.</b> Then old audio plays over the user. Flush the player, and call <code>close()</code> in <code>finally</code>.</div></div>
       <div class="cites push">
         <a class="cite codelab" href="https://codelabs.developers.google.com/way-back-home-level-3/instructions" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;Way Back Home - Building an ADK Bi-Directional Streaming Agent</a>
         <a class="cite doc" href="https://adk.dev/live/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;ADK Live and voice agents</a>
@@ -73,7 +73,7 @@ finally:
     { x: 550, w: 150, name: "Live API", sub: "Gemini Live", tone: "model" },
   ];
   const UY = 92, DY = 136, X0 = 75, X1 = 625;
-  const T0 = 120, TPX = 19;            // timeline: x of minute 0, px per minute
+  const T0 = 120, TPX = 18;            // timeline: x of minute 0, px per minute
   const ROWS = [{ y: 238, name: "connection" }, { y: 280, name: "audio only" }, { y: 322, name: "audio + video" }];
   let S = null;
   const el = (tag, attrs, style) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (style) e.setAttribute("style", style); return e; };
@@ -113,14 +113,14 @@ finally:
     gsap.set(ip, { x: X1, y: DY, autoAlpha: 0 });
     lanes.appendChild(ip);
     const flush = txt(lanes, 160, 174, "interrupted → buffer flushed", "font:700 11.5px var(--f-mono);fill:var(--risk)");
-    const talk = txt(lanes, 4, 72, "user talks over the agent", "font:700 11px var(--f-mono);fill:var(--human)");
+    const talk = txt(lanes, 4, 72, "user talks over the agent", "font:700 11px var(--f-mono);fill:var(--human);paint-order:stroke;stroke:var(--bg);stroke-width:4px");
 
     // timeline
     const tl = el("g", {}); svg.appendChild(tl);
     tl.appendChild(el("line", { x1: 0, y1: 200, x2: 700, y2: 200 }, "stroke:var(--line);stroke-width:1"));
     [0, 10, 20, 30].forEach((m) => {
       tl.appendChild(el("line", { x1: mx(m), y1: 214, x2: mx(m), y2: 340 }, "stroke:var(--line);stroke-width:1"));
-      txt(tl, mx(m), 224, m === 0 ? "0" : m + " min", "font:500 11px var(--f-mono);fill:var(--muted)", m === 30 ? "end" : "middle");
+      txt(tl, mx(m), 224, m === 0 ? "0" : m + " min", "font:500 11px var(--f-mono);fill:var(--muted)", "middle");
     });
     ROWS.forEach((r) => txt(tl, 0, r.y + 5, r.name, "font:600 12.5px var(--f-mono);fill:var(--ink)"));
     const segs = [[0, 10], [10, 20], [20, 30]].map(([a, b]) => { const s = el("rect", { x: mx(a) + (a ? 3 : 0), y: ROWS[0].y - 7, width: (b - a) * TPX - (a ? 3 : 0) - 3, height: 14, rx: 4 }, "fill:var(--agent);opacity:.8"); tl.appendChild(s); return s; });
