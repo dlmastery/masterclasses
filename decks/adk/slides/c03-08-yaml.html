@@ -15,21 +15,20 @@ edges:
   - - .agent.route_headline
     - unrelated: generate_headline.yaml
 </code></pre></div>
-      <div style="position:relative;height:232px">
+      <div style="position:relative;height:226px">
         <ul class="ticks small" style="position:absolute;inset:0;gap:8px" data-until="2">
-          <li>A <b>block list</b> is a chain: A→B→C.</li>
-          <li>An <b>inline list</b> <code>[a, b]</code> always means a fan-out.</li>
+          <li>A <b>block list</b> is a chain. An <b>inline list</b> <code>[a, b]</code> is a fan-out.</li>
           <li>A <b>mapping</b> is a routing map, keyed by <code>Event(route=...)</code>.</li>
-          <li><code>.agent.fn</code> is a function in the package, wrapped as a <code>FunctionNode</code>. <code>x.yaml</code> is an agent file.</li>
-          <li>Nodes are <b>cached by name</b>. The second <code>generate_headline.yaml</code> is the same instance, so the loop is a real cycle.</li>
+          <li><code>.agent.fn</code> is a Python function. <code>x.yaml</code> is an agent file.</li>
+          <li>Nodes are <b>cached by name</b>, so the second <code>generate_headline.yaml</code> makes a real cycle.</li>
         </ul>
         <div class="stack" style="position:absolute;inset:0;gap:10px" data-step="2" data-until="3">
           <div class="code-wrap term"><pre class="code xs" data-lang="bash"><code>
 $ adk create --type=config my_agent   # root_agent.yaml + .env
 $ adk web .
 </code></pre></div>
-          <p class="small">Keys include <code>agent_class</code>, <code>model</code>, <code>instruction</code>, <code>static_instruction</code>, <code>tools</code>, <code>sub_agents</code> (<code>config_path</code>), <code>output_schema</code>, <code>output_key</code>, <code>include_contents</code>, <code>*_callbacks</code>.</p>
-          <p class="tiny">Docs: “experimental and has some known limitations”. Only Gemini models; <code>A2aAgent</code> and <code>LangGraphAgent</code> are not supported. The Visual Builder in <code>adk web</code> writes Agent Config YAML.</p>
+          <p class="small">Keys include <code>agent_class</code>, <code>model</code>, <code>instruction</code>, <code>tools</code>, <code>sub_agents</code>, <code>output_schema</code> and <code>output_key</code>.</p>
+          <p class="tiny">Docs: “experimental and has some known limitations”. Only Gemini models.</p>
         </div>
         <ul class="ticks small" style="position:absolute;inset:0;gap:8px" data-step="3" data-until="4">
           <li>ADK parses with <code>yaml.safe_load</code> only.</li>
@@ -39,17 +38,16 @@ $ adk web .
         </ul>
         <div class="stack" style="position:absolute;inset:0;gap:10px" data-step="4">
           <div class="callout pitfall"><div>If <code>agent.py</code> or <code>__init__.py</code> exposes <code>root_agent</code>, <b>the Python wins</b> and ADK ignores your YAML edits.</div></div>
-          <div class="callout pitfall"><div><code>AgentConfig.json</code> is marked deprecated and has no <code>Workflow</code>, so editor warnings on graph YAML are wrong. AgentConfig has no <code>plugins</code> key: use <code>--extra_plugins</code>.</div></div>
+          <div class="callout pitfall"><div><code>AgentConfig.json</code> is deprecated and has no <code>Workflow</code>. Ignore its editor warnings on graph YAML.</div></div>
         </div>
       </div>
       <div class="cites push">
-        <a class="cite doc" href="https://adk.dev/agents/config/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;adk.dev/agents/config</a>
         <a class="cite codelab" href="https://codelabs.developers.google.com/codelabs/create-low-code-agent-with-ADK-visual-builder" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;Create and deploy low code ADK agents using ADK Visual Builder</a>
       </div>
     </div>
     <div class="stack" style="width:740px;flex:none">
-      <svg id="c38-svg" viewBox="0 0 740 260" width="740" height="260" aria-label="Each YAML line draws its node or edge on a canvas; the last line draws the back-edge"></svg>
-      <div style="position:relative;height:300px">
+      <svg id="c38-svg" viewBox="0 0 740 240" width="740" height="240" aria-label="Each YAML line draws its node or edge on a canvas; the last line draws the back-edge"></svg>
+      <div style="position:relative;height:264px">
         <div class="code-wrap" style="position:absolute;left:0;top:0;width:740px" data-until="2"><div class="code-head">agent.py · Python keeps the logic</div>
 <pre class="code xs" data-lang="python"><code>
 class Feedback(BaseModel):
@@ -76,10 +74,11 @@ output_key: feedback
           <svg id="c38-gate" viewBox="0 0 700 170" width="700" height="170" aria-label="A denylist wall stops os.system and lets my_pkg.tools.fn pass"></svg>
         </div>
       </div>
+      <div class="cites push"><a class="cite doc" href="https://adk.dev/agents/config/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;adk.dev/agents/config</a></div>
     </div>
   </div>
   <aside class="notes">
-    On entry the YAML types itself, and each line draws its node on the canvas: the chain from START to route_headline. Step 1 adds the last two lines. The routing map sends "unrelated" back to generate_headline.yaml, and because nodes are cached by name, that is the same agent instance, so the edge is a real cycle. Step 2 shows the verifier agent in YAML and the Agent Config basics; note that the docs still call the feature experimental. Step 3 is security: a YAML file can import Python, so ADK blocks the stdlib, yaml and ruamel, but the args denylist is still off. Step 4 lists the two errors that waste the most time. Analogy: YAML is the floor plan, Python is the plumbing. You can move walls without a plumber, but the plan can still name any pipe, so only trusted people may edit it. Likely question: "Can product managers edit graphs in production?" Yes, through CI, but treat the config as code: review it, and pin the trust boundary.
+    On entry the YAML types itself, and each line draws its node on the canvas: the chain from START to route_headline. Step 1 adds the last two lines. The routing map sends "unrelated" back to generate_headline.yaml, and because nodes are cached by name, that is the same agent instance, so the edge is a real cycle. Step 2 shows the verifier agent in YAML and the Agent Config basics; note that the docs still call the feature experimental. Step 3 is security: a YAML file can import Python, so ADK blocks the stdlib, yaml and ruamel, but the args denylist is still off. Step 4 lists the two errors that waste the most time. AgentConfig also has no plugins key; use --extra_plugins. A2aAgent and LangGraphAgent are not supported in YAML, and the Visual Builder in adk web writes Agent Config YAML. Analogy: YAML is the floor plan, Python is the plumbing. You can move walls without a plumber, but the plan can still name any pipe, so only trusted people may edit it. Likely question: "Can product managers edit graphs in production?" Yes, through CI, but treat the config as code: review it, and pin the trust boundary.
   </aside>
 </section>
 <script>
@@ -88,7 +87,7 @@ output_key: feedback
   const mk = (t, a, p) => { const e = document.createElementNS(NS, t); for (const k in a) e.setAttribute(k, a[k]); if (p) p.appendChild(e); return e; };
   const txt = (p, x, y, s, st, anchor) => { const e = mk("text", { x, y, style: st, ...(anchor ? { "text-anchor": anchor } : {}) }, p); e.textContent = s; return e; };
   const NODES = [["START", "", 16, 70, "line-2", true], ["process_input", ".agent.fn", 108, 146, "tool"], ["generate_headline", ".yaml agent", 272, 150, "agent"], ["evaluate_headline", ".yaml agent", 440, 150, "agent"], ["route_headline", ".agent.fn", 608, 124, "tool"]];
-  const NY = 130, NH = 52;
+  const NY = 120, NH = 52;
   let S = null, tws = [], loops = [];
 
   function wrapLines(slide) {
@@ -104,8 +103,8 @@ output_key: feedback
     svg.innerHTML = "";
     S = { lines: wrapLines(slide), nodes: [], edges: [] };
     S.frame = mk("g", { opacity: 0 }, svg);
-    mk("rect", { x: 3, y: 10, width: 734, height: 246, rx: 18, style: "fill:var(--agent-soft);stroke:var(--agent);stroke-width:1.5;stroke-dasharray:7 6" }, S.frame);
-    txt(S.frame, 20, 34, "Workflow · root_agent", "font:700 14px var(--f-mono);fill:var(--agent)");
+    mk("rect", { x: 3, y: 4, width: 734, height: 232, rx: 18, style: "fill:var(--agent-soft);stroke:var(--agent);stroke-width:1.5;stroke-dasharray:7 6" }, S.frame);
+    txt(S.frame, 20, 28, "Workflow · root_agent", "font:700 14px var(--f-mono);fill:var(--agent)");
     NODES.forEach(([t, s, x, w, tone, pill], i) => {
       if (i > 0) {
         const px = NODES[i - 1][2] + NODES[i - 1][3];
@@ -121,12 +120,12 @@ output_key: feedback
       S.nodes.push({ g, r });
     });
     S.back = mk("g", { opacity: 0 }, svg);
-    S.backP = mk("path", { d: "M670,130 C670,48 347,48 347,124", style: "fill:none;stroke:var(--risk);stroke-width:2.6;stroke-dasharray:8 7" }, S.back);
-    mk("path", { d: "M347,128 L342,118 L352,118 Z", style: "fill:var(--risk)" }, S.back);
-    txt(S.back, 508, 62, "unrelated → same cached instance", "font:700 12.5px var(--f-mono);fill:var(--risk)", "middle");
+    S.backP = mk("path", { d: "M670,120 C670,44 347,44 347,114", style: "fill:none;stroke:var(--risk);stroke-width:2.6;stroke-dasharray:8 7" }, S.back);
+    mk("path", { d: "M347,118 L342,108 L352,108 Z", style: "fill:var(--risk)" }, S.back);
+    txt(S.back, 508, 50, "unrelated → same cached instance", "font:700 12.5px var(--f-mono);fill:var(--risk)", "middle");
     S.badge = mk("g", { opacity: 0 }, svg);
-    mk("rect", { x: 425, y: 196, width: 180, height: 24, rx: 7, style: "fill:var(--state-soft);stroke:var(--state);stroke-width:1.2" }, S.badge);
-    txt(S.badge, 515, 212, "output_schema: Feedback", "font:700 12px var(--f-mono);fill:var(--state)", "middle");
+    mk("rect", { x: 425, y: 184, width: 180, height: 24, rx: 7, style: "fill:var(--state-soft);stroke:var(--state);stroke-width:1.2" }, S.badge);
+    txt(S.badge, 515, 200, "output_schema: Feedback", "font:700 12px var(--f-mono);fill:var(--state)", "middle");
     // trust gate
     const gs = slide.querySelector("#c38-gate");
     gs.innerHTML = "";
@@ -136,8 +135,8 @@ output_key: feedback
     const chip = (label, y, tone) => { const g = mk("g", {}, gs); const w = label.length * 8.2 + 22; mk("rect", { x: 0, y: y - 15, width: w, height: 30, rx: 8, style: `fill:var(--surface-2);stroke:var(--${tone});stroke-width:1.5` }, g); txt(g, w / 2, y + 5, label, `font:700 13px var(--f-mono);fill:var(--${tone})`, "middle"); return { g, w }; };
     S.bad = chip("tools: os.system", 57, "risk");
     S.good = chip("tools: my_pkg.tools.fn", 110, "state");
-    S.okMark = txt(gs, 640, 116, "✓ loaded", "font:700 14px var(--f-mono);fill:var(--state)", "middle");
-    S.noMark = txt(gs, 200, 30, "✗ blocked", "font:700 13px var(--f-mono);fill:var(--risk)", "middle");
+    S.okMark = txt(gs, 652, 116, "✓ loaded", "font:700 14px var(--f-mono);fill:var(--state)", "middle");
+    S.noMark = txt(gs, 196, 96, "✗ blocked", "font:700 13px var(--f-mono);fill:var(--risk)", "middle");
     S.lamp = mk("circle", { cx: 452, cy: 150, r: 8, style: "fill:var(--tool);filter:drop-shadow(0 0 6px var(--tool))" }, gs);
     txt(gs, 468, 155, "args denylist: OFF (default)", "font:700 12.5px var(--f-mono);fill:var(--tool)");
   }
@@ -177,8 +176,8 @@ output_key: feedback
       if (anim && n === 3) {
         gsap.set([S.okMark, S.noMark], { opacity: 0 });
         tws.push(gsap.timeline().to(S.bad.g, { x: 320 - S.bad.w - 4, duration: 0.9, ease: "power2.in" }).to(S.bad.g, { x: 120, duration: 0.6, ease: "back.out(1.4)" }).to(S.noMark, { opacity: 1, duration: 0.3 }));
-        tws.push(gsap.timeline({ delay: 0.5 }).to(S.good.g, { x: 470, duration: 1.4, ease: "power2.inOut" }).to(S.okMark, { opacity: 1, duration: 0.3 }));
-      } else { gsap.set(S.bad.g, { x: 120 }); gsap.set(S.good.g, { x: 470 }); }
+        tws.push(gsap.timeline({ delay: 0.5 }).to(S.good.g, { x: 396, duration: 1.4, ease: "power2.inOut" }).to(S.okMark, { opacity: 1, duration: 0.3 }));
+      } else { gsap.set(S.bad.g, { x: 120 }); gsap.set(S.good.g, { x: 396 }); }
       loops.push(gsap.fromTo(S.lamp, { opacity: 1 }, { opacity: 0.25, duration: 0.6, yoyo: true, repeat: -1 }));
     }
   }

@@ -21,13 +21,12 @@ async def code_workflow(ctx: Context, node_input: str):
       <ul class="ticks small">
         <li>Loops, recursion and <code>asyncio.gather</code> are ordinary Python. A parent that calls <code>ctx.run_node</code> <b>must</b> set <code>rerun_on_resume=True</code>.</li>
         <li><b>Graph</b>: declarative, checked by 10 rules, drawn in <code>adk web</code>. <b>Dynamic</b>: data-dependent loops and recursion.</li>
-        <li>Codelab L4b: <code>@node(parallel_worker=True, rerun_on_resume=True)</code> spawns deeper research only while <code>depth &lt; MAX_DEPTH</code>.</li>
-        <li class="tiny">Go: <code>workflow.NewDynamicNode</code>, <code>workflow.RunNode</code>. TS: <code>node(fn, {rerunOnResume: true})</code>, <code>ctx.runNode()</code>.</li>
+        <li>Codelab L4b recurses only while <code>depth &lt; MAX_DEPTH</code>.</li>
       </ul>
     </div>
     <div class="stack" style="width:628px;flex:none">
-      <svg id="c36-svg" viewBox="0 0 628 250" width="628" height="250" aria-label="Checkpoint list of child runs; after a crash, resume skips the completed children and re-runs the failed one"></svg>
-      <div style="position:relative;height:270px">
+      <svg id="c36-svg" viewBox="0 0 628 244" width="628" height="244" aria-label="Checkpoint list of child runs; after a crash, resume skips the completed children and re-runs the failed one"></svg>
+      <div style="position:relative;height:224px">
         <ul class="ticks small" style="position:absolute;inset:0" data-until="5">
           <li>Each child run gets a <b>deterministic id</b>: the parent id plus a counter <code>"1"</code>, <code>"2"</code>, … These ids are the checkpoint keys.</li>
           <li>A custom <code>run_id</code> must contain a non-numeric character. The docs discourage custom ids.</li>
@@ -43,7 +42,7 @@ async def code_workflow(ctx: Context, node_input: str):
 tasks = [ctx.run_node(real_node, item) for item in node_input]
 return await asyncio.gather(*tasks)   # resume: failed ones only
 </code></pre></div>
-          <div class="callout pitfall"><div><b>Pitfall:</b> the adk.dev Python “Loop route” sample uses <code>while check_resp.findings:</code> with no cap. The TypeScript sample sets <code>MAX_FIX_ROUNDS = 3</code>. Always bound the loop.</div></div>
+          <div class="callout pitfall"><div><b>Pitfall:</b> the adk.dev Python “Loop route” sample has no round cap. Always bound the loop.</div></div>
         </div>
       </div>
       <div class="cites push">
@@ -53,7 +52,7 @@ return await asyncio.gather(*tasks)   # resume: failed ones only
     </div>
   </div>
   <aside class="notes">
-    A dynamic workflow is a node whose body is Python: here a for loop calls three child nodes through ctx.run_node. Steps 1 to 4 walk the code and fill the checkpoint list on the right: the coder runs, the test finds problems, the fixer runs, and then the second test run crashes. Step 5 is the key idea: on resume, ADK replays the event log, skips children 1 to 3 because their ids already have results, and re-runs only child 4. That works because the child ids are deterministic counters, so never generate ids from random values or timestamps. Step 6 shows the parallel form with asyncio.gather and the pitfall: the official Python sample has no round cap. Analogy: a video game save point. You restart at the last checkpoint, not at level one. Likely question: "Why must the parent set rerun_on_resume=True?" Because the parent body must run again to reach the interrupted child; the completed children return their stored results instantly.
+    A dynamic workflow is a node whose body is Python: here a for loop calls three child nodes through ctx.run_node. Steps 1 to 4 walk the code and fill the checkpoint list on the right: the coder runs, the test finds problems, the fixer runs, and then the second test run crashes. Step 5 is the key idea: on resume, ADK replays the event log, skips children 1 to 3 because their ids already have results, and re-runs only child 4. That works because the child ids are deterministic counters, so never generate ids from random values or timestamps. Step 6 shows the parallel form with asyncio.gather and the pitfall: the official Python sample has no round cap. The Python sample "Loop route" uses while check_resp.findings with no cap; the TypeScript sample sets MAX_FIX_ROUNDS = 3. Go uses workflow.NewDynamicNode and workflow.RunNode; TypeScript uses node(fn, {rerunOnResume: true}) and ctx.runNode(). Analogy: a video game save point. You restart at the last checkpoint, not at level one. Likely question: "Why must the parent set rerun_on_resume=True?" Because the parent body must run again to reach the interrupted child; the completed children return their stored results instantly.
   </aside>
 </section>
 <script>
@@ -68,7 +67,7 @@ return await asyncio.gather(*tasks)   # resume: failed ones only
     const svg = slide.querySelector("#c36-svg");
     svg.innerHTML = "";
     S = { rows: [] };
-    mk("rect", { x: 1, y: 1, width: 626, height: 248, rx: 16, style: "fill:var(--surface);stroke:var(--line)" }, svg);
+    mk("rect", { x: 1, y: 1, width: 626, height: 242, rx: 16, style: "fill:var(--surface);stroke:var(--line)" }, svg);
     txt(svg, 22, 30, "child run id", "font:600 12.5px var(--f-mono);fill:var(--muted)");
     txt(svg, 130, 30, "node", "font:600 12.5px var(--f-mono);fill:var(--muted)");
     txt(svg, 420, 30, "status", "font:600 12.5px var(--f-mono);fill:var(--muted)");

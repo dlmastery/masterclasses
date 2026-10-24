@@ -5,17 +5,17 @@
       <svg class="interactive" id="c4s-svg" viewBox="0 0 760 294" width="760" height="294" aria-label="An event log and a five-node graph: a crash, a replay that skips finished nodes, a double charge, and an idempotency key that stops it"></svg>
       <div class="grid" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px">
         <div class="panel tight k-state" data-step="2">
-          <h4>Always on, inside one invocation</h4>
-          <p class="tiny">The <code>Workflow</code> scans the session events (<code>ReplayManager.scan_workflow_events</code>). It rebuilds the completed nodes, their outputs and the pending interrupts. Completed nodes fast-forward. The interrupted node runs again.</p>
-          <p class="tiny"><b>Limit:</b> node checkpoints are written but not read yet (TODO). Resume cost grows with history length.</p>
+          <h4 style="font-size:18px">Always on, in one invocation</h4>
+          <p class="tiny">The <code>Workflow</code> scans the session events (<code>ReplayManager.scan_workflow_events</code>) and rebuilds completed nodes, outputs and pending interrupts. Completed nodes fast-forward. The interrupted node runs again.</p>
+          <p class="tiny"><b>Limit:</b> checkpoints are written but not read yet. Resume cost grows with history length.</p>
         </div>
         <div class="panel tight k-human" data-step="5">
-          <h4><code>is_resumable=True</code> adds durability</h4>
+          <h4 style="font-size:18px"><code>is_resumable=True</code></h4>
           <ul class="clean" style="gap:5px">
-            <li class="tiny">Resume across separate runner calls, with no new message.</li>
+            <li class="tiny">Adds durability: resume across separate runner calls, with no new message.</li>
             <li class="tiny"><code>agent_state</code> / <code>end_of_agent</code> checkpoint events in the log.</li>
-            <li class="tiny">Function responses route to their originating invocation.</li>
-            <li class="tiny">Resume from the ADK Web UI or CLI: not supported.</li>
+            <li class="tiny">Function responses go to their original invocation.</li>
+            <li class="tiny">The ADK Web UI and CLI cannot resume.</li>
           </ul>
         </div>
       </div>
@@ -36,10 +36,11 @@ $ adk api_server my_resumable_agent/
 $ curl -X POST http://localhost:8000/run_sse \
     -H "Content-Type: application/json" \
     -d '{"app_name": "my_resumable_agent", "user_id": "u_123",
-         "session_id": "s_abc", "invocation_id": "invocation-123"}'
+         "session_id": "s_abc",
+         "invocation_id": "invocation-123"}'
 </code></pre></div>
       <div class="callout pitfall" data-step="5" style="font-size:17px;line-height:1.4"><span>Upgrade every reader of a shared session DB before you write 2.0 events. The new <code>node_info</code> and <code>output</code> fields break rigid schemas. Use <code>adk migrate session</code>.</span></div>
-      <p class="tiny" data-step="5"><b>Peers:</b> Temporal activities · Restate <code>ctx.run()</code> · DBOS steps · LangGraph checkpointers keyed by <code>thread_id</code> · Anthropic Managed Agents <code>wake(sessionId)</code> over an append-only log.</p>
+      <p class="tiny" data-step="5"><b>Peers:</b> Temporal activities · Restate <code>ctx.run()</code> · DBOS steps · LangGraph checkpointers by <code>thread_id</code> · Anthropic Managed Agents <code>wake(sessionId)</code>.</p>
     </div>
   </div>
   <aside class="notes">Step 1: the run completes fetch and analyze, then charge_card sends the payment and the process crashes before the node completes. Step 2: we resume with the same invocation id; ADK reads the log, skips the two finished nodes and runs charge_card again. Step 3 is the trap: execution is at-least-once, and since 2.9.0 a failed node runs again on resume, so the card is charged twice. Step 4: an idempotency key derived from the order makes the payment API refuse the repeat. Step 5: is_resumable adds checkpoint events and resume across separate runner calls. Analogy: a cashier who restarts a shift from the receipt roll; without receipt numbers, the cashier rings up the same sale twice. Likely question: "Can I change the graph while a run is paused?" Answer: no; a paused run can outlive a deploy, and checkpoint versioning is still an open item, so drain or finish paused runs before you change the graph.</aside>

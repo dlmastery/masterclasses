@@ -88,7 +88,7 @@ GROUP BY day, agent ORDER BY day DESC"""
     </div>
   </div>
   <aside class="notes">
-    Open with the SLI list: a web SRE knows the first two rows; the tokens, judge-score and tool-error rows are new for agents. Step 1 runs a canary: the dial moves 1, 5 and 25 percent while four guards watch error rate, p99, tokens per invocation and judge score. Step 2 shows the failure that HTTP never reports: tokens per invocation jump past 1.5 times the baseline, which is the signature of a loop, and the dial snaps back with --to-revisions PREV=100; then walk the runbook, and stress that the incident ends with a new must-pass eval case. Step 3 opens the trace: invoke_agent contains invoke_workflow, then generate_content and execute_tool, and the BigQuery rows show the slowest tool came from an MCP server; warn about the 2.13 change that removed call_llm. Steps 4 and 5 show the plugin and an SLO query over v_llm_response. Analogy: a heart monitor that shows only "the patient is breathing" misses a fever; tokens and judge scores are the thermometer. Likely question: "Can Agent Runtime split traffic like Cloud Run?" The fetched docs show no such feature, so the practice is blue/green: deploy a second resource and switch the client.
+    Open with the SLI list: a web SRE knows the first two rows; the tokens, judge-score and tool-error rows are new for agents. Step 1 runs a canary: the dial moves 1, 5 and 25 percent while four guards watch error rate, p99, tokens per invocation and judge score. Step 2 shows the failure that HTTP never reports: tokens per invocation jump past 1.5 times the baseline, which is the signature of a loop, and the dial snaps back with --to-revisions PREV=100; then walk the runbook, and stress that the incident ends with a new must-pass eval case. Step 3 opens the trace: invoke_agent contains invoke_workflow, then generate_content {model} and execute_tool {tool}, and the BigQuery rows show the slowest tool came from an MCP server; warn about the 2.13 change that removed call_llm. Steps 4 and 5 show the plugin and an SLO query over v_llm_response. Analogy: a heart monitor that shows only "the patient is breathing" misses a fever; tokens and judge scores are the thermometer. Likely question: "Can Agent Runtime split traffic like Cloud Run?" The fetched docs show no such feature, so the practice is blue/green: deploy a second resource and switch the client.
   </aside>
 </section>
 <script>
@@ -106,8 +106,8 @@ GROUP BY day, agent ORDER BY day DESC"""
   const SPANS = [
     ["invoke_agent {agent}", 0, 300, "agent"],
     ["invoke_workflow {workflow}", 14, 286, "agent"],
-    ["generate_content {model}", 28, 132, "model"],
-    ["execute_tool {tool}", 140, 282, "tool"],
+    ["generate_content", 28, 168, "model"],
+    ["execute_tool", 174, 290, "tool"],
   ];
   const ROWS = [
     ["USER_MESSAGE_RECEIVED", ""],
@@ -168,18 +168,18 @@ GROUP BY day, agent ORDER BY day DESC"""
       txt(a, { x: 6, y: 498 + i * 20, style: mono(12, 500, "var(--muted)") }, el.trace));
     txt("BIGQUERY · agent_events (sample rows)", { x: 322, y: 302, style: mono(12, 700, "var(--muted)") }, el.trace);
     txt("event_type", { x: 330, y: 326, style: mono(11, 700, "var(--faint)") }, el.trace);
-    txt("tool_origin", { x: 548, y: 326, style: mono(11, 700, "var(--faint)") }, el.trace);
+    txt("tool_origin", { x: 510, y: 326, style: mono(11, 700, "var(--faint)") }, el.trace);
     ROWS.forEach((r, i) => {
       const y = 334 + i * 36;
       const g = mk("g", { opacity: 0 }, el.trace);
       const bg = mk("rect", { x: 322, y, width: 318, height: 30, rx: 6, style: "fill:var(--surface);stroke:var(--line)" }, g);
       txt(r[0], { x: 332, y: y + 20, style: mono(12, 600, r[0].startsWith("TOOL") ? "var(--tool)" : r[0].startsWith("LLM") ? "var(--model)" : "var(--ink-2)") }, g);
-      txt(r[1] || "—", { x: 548, y: y + 20, style: mono(12, 700, r[1] === "MCP" ? "var(--risk)" : "var(--muted)") }, g);
+      txt(r[1] || "—", { x: 510, y: y + 20, style: mono(12, 700, r[1] === "MCP" ? "var(--risk)" : "var(--muted)") }, g);
       el.rows.push({ g, bg });
     });
     el.slow = mk("g", { opacity: 0 }, el.trace);
     mk("rect", { x: 320, y: 334 + 4 * 36 - 2, width: 322, height: 34, rx: 7, style: "fill:none;stroke:var(--risk);stroke-width:2.5" }, el.slow);
-    txt("slowest tool", { x: 636, y: 334 + 4 * 36 + 20, "text-anchor": "end", style: mono(11, 700, "var(--risk)") }, el.slow);
+    txt("slowest", { x: 634, y: 334 + 4 * 36 + 20, "text-anchor": "end", style: mono(11, 700, "var(--risk)") }, el.slow);
     gsap.set(el.spans, { scaleX: 0, transformOrigin: "left center" });
   }
 
@@ -211,7 +211,7 @@ GROUP BY day, agent ORDER BY day DESC"""
     const fwd = animate && n === cur + 1; cur = n;
     if (tl) { tl.kill(); tl = null; }
     // dial phase
-    gsap.to(el.dial, { opacity: n >= 3 ? 0.18 : 1, duration: animate ? 0.4 : 0 });
+    gsap.to(el.dial, { opacity: n >= 3 ? 0 : 1, duration: animate ? 0.4 : 0 });
     if (n === 0) { setDial(0, false); guardsTo(BASE(), false); gsap.set(el.rb, { opacity: 0 }); }
     if (n === 1) {
       gsap.set(el.rb, { opacity: 0 });
@@ -232,7 +232,7 @@ GROUP BY day, agent ORDER BY day DESC"""
       } else { setDial(0, false); guardsTo(spike, false); gsap.set(el.rb, { opacity: 1 }); }
     }
     // trace phase
-    gsap.to(el.trace, { opacity: n >= 3 ? 1 : 0, duration: animate ? 0.4 : 0 });
+    gsap.to(el.trace, { opacity: n >= 3 ? 1 : 0, y: n >= 3 ? -145 : 0, duration: animate ? 0.5 : 0, ease: "power2.out" });
     if (n >= 3) {
       if (fwd && n === 3) {
         gsap.fromTo(el.spans, { scaleX: 0 }, { scaleX: 1, duration: 0.55, stagger: 0.25, ease: "power2.out", transformOrigin: "left center" });

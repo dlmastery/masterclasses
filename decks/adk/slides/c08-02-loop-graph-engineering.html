@@ -66,15 +66,15 @@ from google.adk.plugins import (
 from google.adk.agents.run_config import RunConfig
 
 app = App(name="coder", root_agent=root_agent, plugins=[
-    ReflectAndRetryToolPlugin(max_retries=3),   # tool errors
-    ReflectAndRetryModelPlugin(max_retries=2),  # bad model output
+    ReflectAndRetryToolPlugin(max_retries=3),  # tools
+    ReflectAndRetryModelPlugin(max_retries=2), # model
 ])
-# per-run budget (or: export ADK_MAX_LLM_CALLS=60)
+# run budget, or: export ADK_MAX_LLM_CALLS=60
 run_config = RunConfig(max_llm_calls=60)
 </code></pre></div>
         <p class="tiny"><b>Retry is not reflection.</b> <code>RetryConfig</code> runs the node again with backoff, and the model sees nothing. The reflect plugins send the error back to the model, so the next call can change.</p>
-        <div class="callout pitfall" data-step="3"><span style="font-size:15.5px;line-height:1.4"><b>Real loop bugs in ADK's own CHANGELOG.</b><br>
-          2.2: infinite retry in <code>LoadSkillResourceTool</code> on <code>RESOURCE_NOT_FOUND</code>. A non-retriable error came back as retriable.<br>
+        <div class="callout pitfall" data-step="3"><span style="font-size:15px;line-height:1.36"><b>Real loop bugs in ADK's own CHANGELOG.</b><br>
+          2.2: infinite retry in <code>LoadSkillResourceTool</code> on <code>RESOURCE_NOT_FOUND</code>, a non-retriable error sent back as retriable.<br>
           2.6: <code>transfer_to_agent</code> ping-pong between agents (2.9 adds <code>transfer_reason</code>).<br>
           2.12: a <code>SetModelResponseTool</code> repair loop. 2.13: <code>JoinNode</code> inside a loop, and <code>interrupt_id</code> reused across iterations.</span></div>
       </div>
@@ -299,7 +299,7 @@ run_config = RunConfig(max_llm_calls=60)
     shown = n;
   }
 
-  Deck.register("adk-c08-loop-graph-engineering", {
+  const HOOK = {
     enter(slide, step) {
       build(slide);
       shown = -1; render(step, false);
@@ -315,6 +315,15 @@ run_config = RunConfig(max_llm_calls=60)
       if (svg) gsap.killTweensOf(svg.querySelectorAll("*"));
       shown = -1;
     }
-  });
+  };
+  Deck.register("adk-c08-loop-graph-engineering", HOOK);
+  // the engine may enter this slide before the hook exists (direct link): catch up
+  const me = document.getElementById("adk-c08-loop-graph-engineering");
+  if (me && me.classList.contains("active")) {
+    const [hid, hs] = decodeURIComponent(location.hash.slice(1)).split("/");
+    const st = hid === "adk-c08-loop-graph-engineering" ? (+hs || 0) : 0;
+    if (HOOK.step) HOOK.step(me, st, false);
+    if (HOOK.enter) HOOK.enter(me, st);
+  }
 })();
 </script>

@@ -2,23 +2,40 @@
   <style>
     #adk-c08-guardrails .lay { display: grid; align-items: start; }
     #adk-c08-guardrails .lay > * { grid-area: 1 / 1; }
+    #adk-c08-guardrails ul.tiny li { font-size: 16px; line-height: 1.4; color: var(--muted); }
+    #adk-c08-guardrails ul.tiny li code { font-size: 0.82em; }
   </style>
   <h2 class="title sm">Design for compromise: limit what a successful prompt injection can do</h2>
-  <div class="grid fill" style="grid-template-columns:640px 720px;gap:32px">
-    <svg class="interactive" id="c86-svg" viewBox="0 0 640 600" width="640" height="600" aria-label="Rule of Two Venn diagram: untrusted input, private data and external action. With all three, an injected email exfiltrates data; without external action it bounces off; with human approval it stops. Then six defence rings each stop one attack."></svg>
+  <div class="grid fill" style="grid-template-columns:640px 720px;gap:32px;align-items:start">
+    <div class="stack" style="gap:10px">
+      <svg class="interactive" id="c86-svg" viewBox="0 0 640 600" width="534" height="500" style="align-self:center" aria-label="Rule of Two Venn diagram: untrusted input, private data and external action. With all three, an injected email exfiltrates data; without external action it bounces off; with human approval it stops. Then six defence rings each stop one attack."></svg>
+      <div class="lay">
+        <div class="cites" data-until="4">
+          <a class="cite doc" href="https://simonwillison.net/2025/Jun/16/the-lethal-trifecta/" target="_blank" rel="noopener"><b>Doc</b>&nbsp;Willison, The lethal trifecta</a>
+          <a class="cite doc" href="https://ai.meta.com/blog/practical-ai-agent-security/" target="_blank" rel="noopener"><b>Doc</b>&nbsp;Meta, Agents Rule of Two</a>
+          <a class="cite doc" data-step="1" href="https://simonwillison.net/2025/Nov/2/new-prompt-injection-papers/" target="_blank" rel="noopener"><b>Doc</b>&nbsp;The Attacker Moves Second, via Willison</a>
+          <a class="cite paper" data-step="2" href="https://arxiv.org/abs/2503.18813" target="_blank" rel="noopener"><b>Paper</b>&nbsp;CaMeL, 2503.18813</a>
+        </div>
+        <div class="cites" data-step="4">
+          <a class="cite doc" href="https://adk.dev/safety/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;adk.dev: safety and security</a>
+          <a class="cite codelab" data-step="5" href="https://codelabs.developers.google.com/secure-customer-service-agent/instructions" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;Build a Secure Agent with Model Armor and Identity</a>
+          <a class="cite doc" data-step="5" href="https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/" target="_blank" rel="noopener"><b>Doc</b>&nbsp;OWASP Top 10 for Agentic Applications for 2026</a>
+        </div>
+      </div>
+    </div>
     <div class="lay">
       <!-- L0: threat models and architecture -->
       <div class="stack" data-until="4" style="gap:10px">
         <p class="quote" style="font-size:21px">LLMs are unable to reliably distinguish the importance of instructions based on where they came from.</p>
-        <p class="small"><b>Lethal trifecta</b> (Willison, 2025-06-16): private data + untrusted content + external communication = exfiltration. <b>Agents Rule of Two</b> (Meta, 2025-10-31): one session may have at most two of [A], [B], [C]. All three → human approval or a fresh session.</p>
+        <p class="small"><b>Lethal trifecta</b> (Willison, 2025-06-16): private data + untrusted content + external communication = exfiltration. <b>Rule of Two</b> (Meta, 2025-10-31): one session gets at most two of [A], [B], [C].</p>
         <div class="row" data-step="1" style="gap:30px">
-          <div class="stat"><span class="n" style="font-size:42px" data-to="12">0</span><span class="l tiny">published defences broken</span></div>
-          <div class="stat"><span class="n" style="font-size:42px" data-pre="&gt;" data-to="90" data-suf="%">0</span><span class="l tiny">adaptive attack success on most</span></div>
-          <div class="stat"><span class="n" style="font-size:42px" data-to="100" data-suf="%">0</span><span class="l tiny">human red-teamers (500 people)</span></div>
+          <div class="stat"><span class="n" style="font-size:42px" data-to="12">0</span><span class="l tiny">defences broken</span></div>
+          <div class="stat"><span class="n" style="font-size:42px" data-pre="&gt;" data-to="90" data-suf="%">0</span><span class="l tiny">adaptive attack success</span></div>
+          <div class="stat"><span class="n" style="font-size:42px" data-to="100" data-suf="%">0</span><span class="l tiny">500 human red-teamers</span></div>
         </div>
         <div class="panel tight k-agent" data-step="2">
           <h4 style="font-size:19px">Detection alone fails, so change the architecture</h4>
-          <p class="tiny"><b>CaMeL</b> (Google, Google DeepMind, ETH Zurich): a privileged LLM writes a program from the trusted query. A quarantined LLM with no tools parses the untrusted data. An interpreter tracks provenance at each tool call. <b>In ADK</b>, a <code>Workflow</code> is plan-then-execute: the LLM classifies, code decides what can run.</p>
+          <p class="tiny"><b>CaMeL</b> (Google, Google DeepMind, ETH Zurich): a privileged LLM writes a program from the trusted query, a tool-less quarantined LLM parses untrusted data, an interpreter tracks provenance. <b>In ADK</b> a <code>Workflow</code> is plan-then-execute: the LLM classifies, code decides what runs.</p>
         </div>
         <div class="code-wrap" data-step="3"><div class="code-head">callbacks.py · deterministic guard outside the model</div>
 <pre class="code xs" data-lang="python" style="line-height:1.45" data-focus="3:2-3"><code>
@@ -28,12 +45,6 @@ def limit_refunds(tool, args, tool_context):
     return None  # None = let the tool run
 agent = Agent(..., before_tool_callback=limit_refunds)
 </code></pre></div>
-        <div class="cites">
-          <a class="cite doc" href="https://simonwillison.net/2025/Jun/16/the-lethal-trifecta/" target="_blank" rel="noopener"><b>Doc</b>&nbsp;Willison, The lethal trifecta for AI agents</a>
-          <a class="cite doc" href="https://ai.meta.com/blog/practical-ai-agent-security/" target="_blank" rel="noopener"><b>Doc</b>&nbsp;Meta, Agents Rule of Two</a>
-          <a class="cite doc" data-step="1" href="https://simonwillison.net/2025/Nov/2/new-prompt-injection-papers/" target="_blank" rel="noopener"><b>Doc</b>&nbsp;The Attacker Moves Second (2510.09023), via Willison</a>
-          <a class="cite paper" data-step="2" href="https://arxiv.org/abs/2503.18813" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Defeating Prompt Injections by Design, 2503.18813</a>
-        </div>
       </div>
       <!-- L1: defence in depth for ADK -->
       <div class="stack" data-step="4" style="gap:10px">
@@ -56,11 +67,6 @@ app = App(name="model_armor_demo", root_agent=agent, plugins=[
           <li>Supply chain: LiteLLM 1.82.7 and 1.82.8 on PyPI held unauthorized code. Pin and hash every dependency.</li>
           <li>The OWASP Top 10 for Agentic Applications for 2026 gives a shared threat list for reviews.</li>
         </ul>
-        <div class="cites">
-          <a class="cite codelab" data-step="5" href="https://codelabs.developers.google.com/secure-customer-service-agent/instructions" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;Build a Secure Agent with Model Armor and Identity</a>
-          <a class="cite doc" href="https://adk.dev/safety/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;adk.dev: safety and security</a>
-          <a class="cite doc" data-step="5" href="https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/" target="_blank" rel="noopener"><b>Doc</b>&nbsp;OWASP Top 10 for Agentic Applications for 2026</a>
-        </div>
       </div>
     </div>
   </div>
@@ -120,7 +126,8 @@ app = App(name="model_armor_demo", root_agent=agent, plugins=[
     mk("line", { x1: 300, y1: 250, x2: 316, y2: 290, style: "stroke:var(--ink);stroke-width:5;stroke-linecap:round" }, V.stop);
     V.stamp = mk("g", { opacity: 0 }, vg);
     const sg = mk("g", { transform: "rotate(-8 320 276)" }, V.stamp);
-    mk("rect", { x: 246, y: 252, width: 148, height: 48, rx: 10, style: "fill:var(--human-soft);stroke:var(--human);stroke-width:3" }, sg);
+    mk("rect", { x: 246, y: 252, width: 148, height: 48, rx: 10, style: "fill:var(--bg);stroke:var(--human);stroke-width:3" }, sg);
+    mk("rect", { x: 246, y: 252, width: 148, height: 48, rx: 10, style: "fill:var(--human-soft);stroke:none" }, sg);
     tx("human approval", { x: 320, y: 273, "text-anchor": "middle", style: F(13.5, 700, "var(--human)") }, sg);
     tx("RequestInput", { x: 320, y: 290, "text-anchor": "middle", style: F(11, 600, "var(--human)") }, sg);
 
@@ -217,10 +224,19 @@ app = App(name="model_armor_demo", root_agent=agent, plugins=[
     shown = n;
   }
 
-  Deck.register("adk-c08-guardrails", {
+  const HOOK = {
     enter(slide, step) { build(slide); shown = -1; render(step, false); },
     step(slide, n, animate) { build(slide); render(n, animate); },
     leave() { if (tl) { tl.kill(); tl = null; } if (svg) gsap.killTweensOf(svg.querySelectorAll("*")); shown = -1; }
-  });
+  };
+  Deck.register("adk-c08-guardrails", HOOK);
+  // the engine may enter this slide before the hook exists (direct link): catch up
+  const me = document.getElementById("adk-c08-guardrails");
+  if (me && me.classList.contains("active")) {
+    const [hid, hs] = decodeURIComponent(location.hash.slice(1)).split("/");
+    const st = hid === "adk-c08-guardrails" ? (+hs || 0) : 0;
+    if (HOOK.step) HOOK.step(me, st, false);
+    if (HOOK.enter) HOOK.enter(me, st);
+  }
 })();
 </script>

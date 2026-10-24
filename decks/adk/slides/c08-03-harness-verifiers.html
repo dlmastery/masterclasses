@@ -4,6 +4,8 @@
     #adk-c08-harness-verifiers .lay > * { grid-area: 1 / 1; }
     #adk-c08-harness-verifiers table.t { font-size: 15px; line-height: 1.34; }
     #adk-c08-harness-verifiers table.t th, #adk-c08-harness-verifiers table.t td { padding: 7px 9px; }
+    #adk-c08-harness-verifiers ul.tiny li { font-size: 16px; line-height: 1.4; color: var(--muted); }
+    #adk-c08-harness-verifiers ul.tiny li code { font-size: 0.82em; }
   </style>
   <h2 class="title sm">Put the cheapest reliable verifier after every risky step, and turn every failure into a sensor</h2>
   <div class="grid fill" style="grid-template-columns:740px 620px;gap:32px">
@@ -33,10 +35,10 @@
       </div>
       <!-- layer B: ladder rule and the dev-time harness -->
       <div class="stack" data-step="4" style="gap:11px">
-        <p class="small"><b>Use the lowest rung that catches the error.</b> Cost and latency rise with each rung. Anthropic's Agent SDK post uses the same order: rules, visual feedback, then LLM-as-judge ("not very robust").</p>
+        <p class="small"><b>Use the lowest rung that catches the error.</b> Anthropic's Agent SDK post uses the same order: rules, visual feedback, then LLM-as-judge ("not very robust").</p>
         <div class="stack" data-step="5" style="gap:10px">
-          <p class="tiny"><b>Antigravity is the dev-time harness.</b> Hook events: <code>SessionStart</code> <code>PreToolUse</code> <code>PostToolUse</code> <code>PreInvocation</code> <code>PostInvocation</code> <code>Stop</code>.</p>
-          <div class="code-wrap"><div class="code-head">.agents/hooks.json · sketch: documented schema, illustrative scripts</div>
+          <p class="tiny"><b>Antigravity hooks</b> (dev-time harness): <code>SessionStart</code> <code>PreToolUse</code> <code>PostToolUse</code> <code>PreInvocation</code> <code>PostInvocation</code> <code>Stop</code>.</p>
+          <div class="code-wrap"><div class="code-head">.agents/hooks.json · sketch, illustrative scripts</div>
 <pre class="code xs" data-lang="json" style="line-height:1.45" data-focus="5:4-5, 6:6-7"><code>
 {
   "verify-tests": {
@@ -48,12 +50,12 @@
   }
 }
 </code></pre></div>
-          <p class="tiny"><code>verify.py</code> runs <code>pytest</code> or <code>agents-cli eval run</code>. On failure it prints <code>{"decision": "continue", "reason": "3 eval cases failed: ..."}</code>, and the agent keeps working.</p>
+          <p class="tiny"><code>verify.py</code> runs <code>agents-cli eval run</code>. On failure it prints <code>{"decision": "continue", "reason": "3 eval cases failed"}</code>.</p>
         </div>
         <ul class="ticks tiny" data-step="6" style="gap:6px">
           <li><code>PreToolUse</code> prints <code>deny</code>, <code>ask</code>, <code>force_ask</code> or an argument <code>overwrite</code>.</li>
-          <li>A read-only verifier agent (<code>permissionMode: plan</code>) ends each report with <b>APPROVED / CONDITIONAL / BLOCKED</b>.</li>
-          <li>ADK has no built-in process reward model (PRM). Wrap one as a guard node or a custom metric.</li>
+          <li>Read-only verifier agent (<code>permissionMode: plan</code>): <b>APPROVED / CONDITIONAL / BLOCKED</b>.</li>
+          <li>No built-in PRM in ADK: wrap one as a guard node or a custom metric.</li>
         </ul>
       </div>
     </div>
@@ -126,7 +128,7 @@
       return g;
     });
     const sl = mk("g", { opacity: 0 }, svg);
-    tx("sensors · feedback", { x: 390, y: 20, "text-anchor": "middle", style: F(11.5, 700, "var(--risk)") }, sl);
+    tx("sensors · feedback", { x: 318, y: 20, "text-anchor": "middle", style: F(11.5, 700, "var(--risk)") }, sl);
     tx("▲ computational", { x: 385, y: 199, "text-anchor": "middle", style: F(11, 700, "var(--ink-2)") }, sl);
     tx("▼ inferential", { x: 385, y: 219, "text-anchor": "middle", style: F(11, 700, "var(--ink-2)") }, sl);
     sensors.push(sl);
@@ -200,10 +202,19 @@
     shown = n;
   }
 
-  Deck.register("adk-c08-harness-verifiers", {
+  const HOOK = {
     enter(slide, step) { build(slide); shown = -1; render(step, false); },
     step(slide, n, animate) { build(slide); render(n, animate); },
     leave() { if (tl) { tl.kill(); tl = null; } if (svg) gsap.killTweensOf(svg.querySelectorAll("*")); shown = -1; }
-  });
+  };
+  Deck.register("adk-c08-harness-verifiers", HOOK);
+  // the engine may enter this slide before the hook exists (direct link): catch up
+  const me = document.getElementById("adk-c08-harness-verifiers");
+  if (me && me.classList.contains("active")) {
+    const [hid, hs] = decodeURIComponent(location.hash.slice(1)).split("/");
+    const st = hid === "adk-c08-harness-verifiers" ? (+hs || 0) : 0;
+    if (HOOK.step) HOOK.step(me, st, false);
+    if (HOOK.enter) HOOK.enter(me, st);
+  }
 })();
 </script>

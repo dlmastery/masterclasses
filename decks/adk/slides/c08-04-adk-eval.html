@@ -11,7 +11,7 @@
     #adk-c08-adk-eval .diagram .ns { font-size: 11.5px; }
     #adk-c08-adk-eval .diagram .nt { font-size: 17px; }
   </style>
-  <h2 class="title">adk eval scores the trajectory and the final answer against a golden set</h2>
+  <h2 class="title sm">adk eval scores the trajectory and the final answer against a golden set</h2>
   <div class="grid fill" style="grid-template-columns:720px 640px;gap:32px">
     <div class="stack" style="gap:16px">
       <div class="lay" style="height:330px">
@@ -21,7 +21,7 @@
           <div class="node n-state" id="c84-set" style="left:0;top:128px;width:180px"><span class="nt">*.evalset.json</span><span class="ns">eval_cases[]</span></div>
           <div class="node n-state" id="c84-case" style="left:240px;top:128px;width:196px"><span class="nt">eval case</span><span class="ns">eval_id</span></div>
           <div class="node n-model" id="c84-rub" style="left:240px;top:0;width:196px"><span class="nt">rubrics[]</span><span class="ns crit">rubric_based_*</span></div>
-          <div class="node n-human" id="c84-scn" style="left:240px;top:250px;width:196px"><span class="nt">scenario</span><span class="ns">conversation_scenario</span><span class="ns crit">user sim · multi_turn_*</span></div>
+          <div class="node n-human" id="c84-scn" style="left:240px;top:250px;width:196px"><span class="nt">scenario</span><span class="ns crit">user sim · multi_turn_*</span></div>
           <div class="node n-state" id="c84-conv" style="left:496px;top:0;width:224px"><span class="nt">conversation[]</span><span class="ns">final_response (reference)</span><span class="ns crit">response_match_score</span></div>
           <div class="node n-tool" id="c84-tools" style="left:496px;top:128px;width:224px"><span class="nt">intermediate_data</span><span class="ns">tool_uses[{name, args}]</span><span class="ns crit">tool_trajectory_avg_score</span></div>
           <div class="node n-state" id="c84-sess" style="left:496px;top:250px;width:224px"><span class="nt">session_input</span><span class="ns">app_name · user_id · state</span></div>
@@ -58,13 +58,13 @@ $ adk eval agent_dir file.evalset.json:eval_1,eval_2
         <tr id="c84-r-eff"><td>Efficiency</td><td><code>tool_call_count_v1</code>, <code>inference_call_count_v1</code>, <code>token_usage_v1</code>, <code>invocation_duration_v1</code>: informational only. A threshold is an error. 2.13 splits duration into model, tool and framework time.</td></tr>
       </table>
       <p class="tiny" data-step="5">Codelab: ROUGE at 0.5, because correct paraphrases scored 0.55 to 0.68.</p>
-      <div class="grid g2" data-step="6" style="gap:12px">
-        <div class="callout pitfall" style="padding:12px 14px"><span class="tiny" style="color:var(--ink-2)"><b>Green but empty.</b> 2.13: the <code>adk eval</code> exit code shows pass or fail. 2.10: zero cases run → <code>ValueError</code>.</span></div>
-        <div class="callout tip" style="padding:12px 14px"><span class="tiny" style="color:var(--ink-2)"><b>Test the checks.</b> Custom metric <code>temperature_safety</code>: fail outside 18 to 30 °C. Environment simulation (1.24+): seeded HTTP 503, latency, wrong data.</span></div>
+      <div class="stack" data-step="6" style="gap:8px">
+        <div class="callout pitfall" style="padding:10px 14px"><span class="tiny" style="color:var(--ink-2)"><b>Green but empty.</b> Since 2.13 the <code>adk eval</code> exit code shows pass or fail. Since 2.10 a run with zero cases raises <code>ValueError</code>.</span></div>
+        <p class="tiny"><b>Test the checks.</b> Custom metric <code>temperature_safety</code> fails any <code>set_temperature</code> call outside 18 to 30 °C. Environment simulation (1.24+) injects seeded HTTP 503, latency or wrong data.</p>
       </div>
       <div class="cites">
         <a class="cite codelab" data-step="5" href="https://codelabs.developers.google.com/adk-eval/instructions" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;Evaluating Agents with ADK</a>
-        <a class="cite doc" href="https://adk.dev/evaluate/criteria/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;adk.dev: evaluation criteria</a>
+        <a class="cite doc" href="https://adk.dev/evaluate/criteria/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;adk.dev criteria</a>
       </div>
     </div>
   </div>
@@ -190,10 +190,19 @@ $ adk eval agent_dir file.evalset.json:eval_1,eval_2
     shown = n;
   }
 
-  Deck.register("adk-c08-adk-eval", {
+  const HOOK = {
     enter(slide, step) { build(slide); shown = -1; render(step, false); },
     step(slide, n, animate) { build(slide); render(n, animate); },
     leave() { if (tl) { tl.kill(); tl = null; } if (svg) gsap.killTweensOf(svg.querySelectorAll("*")); shown = -1; }
-  });
+  };
+  Deck.register("adk-c08-adk-eval", HOOK);
+  // the engine may enter this slide before the hook exists (direct link): catch up
+  const me = document.getElementById("adk-c08-adk-eval");
+  if (me && me.classList.contains("active")) {
+    const [hid, hs] = decodeURIComponent(location.hash.slice(1)).split("/");
+    const st = hid === "adk-c08-adk-eval" ? (+hs || 0) : 0;
+    if (HOOK.step) HOOK.step(me, st, false);
+    if (HOOK.enter) HOOK.enter(me, st);
+  }
 })();
 </script>

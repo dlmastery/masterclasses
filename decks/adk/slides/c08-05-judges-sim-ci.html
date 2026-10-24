@@ -254,10 +254,19 @@ async def test_agent_regression():
     shown = n;
   }
 
-  Deck.register("adk-c08-judges-sim-ci", {
+  const HOOK = {
     enter(slide, step) { build(slide); shown = -1; render(step, false); },
     step(slide, n, animate) { build(slide); render(n, animate); },
     leave() { if (tl) { tl.kill(); tl = null; } if (svg) gsap.killTweensOf(svg.querySelectorAll("*")); shown = -1; }
-  });
+  };
+  Deck.register("adk-c08-judges-sim-ci", HOOK);
+  // the engine may enter this slide before the hook exists (direct link): catch up
+  const me = document.getElementById("adk-c08-judges-sim-ci");
+  if (me && me.classList.contains("active")) {
+    const [hid, hs] = decodeURIComponent(location.hash.slice(1)).split("/");
+    const st = hid === "adk-c08-judges-sim-ci" ? (+hs || 0) : 0;
+    if (HOOK.step) HOOK.step(me, st, false);
+    if (HOOK.enter) HOOK.enter(me, st);
+  }
 })();
 </script>

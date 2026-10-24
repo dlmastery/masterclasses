@@ -47,13 +47,12 @@ $ adk deploy agent_engine \
           <div class="panel tight k-tool" data-step="3">
             <h4>What <code>adk deploy agent_engine</code> does</h4>
             <ul class="clean f15">
-              <li><b>1</b> Copies the agent. It honours <code>.gitignore</code>, <code>.gcloudignore</code> and <code>.ae_ignore</code>.</li>
-              <li><b>2</b> Reads <code>.agent_engine_config.json</code>. <code>{"identity_type": "AGENT_IDENTITY"}</code> there gives the agent its own identity.</li>
-              <li><b>3</b> Writes <code>requirements.txt</code> with version floors.</li>
-              <li><b>4</b> Generates a Dockerfile: <code>api_server</code> on port 8080 with <code>--a2a</code>.</li>
-              <li><b>5</b> Calls <code>client.runtimes.create()</code>, then <code>update()</code>.</li>
+              <li><b>1</b> Copies the agent. It honours the <code>.gitignore</code> and <code>.ae_ignore</code> files.</li>
+              <li><b>2</b> Reads <code>.agent_engine_config.json</code>. Put <code>"identity_type": "AGENT_IDENTITY"</code> there.</li>
+                            <li><b>3</b> Writes version floors and a Dockerfile: <code>api_server</code> on port 8080 with <code>--a2a</code>.</li>
+              <li><b>4</b> Calls <code>client.runtimes.create()</code>, then <code>update()</code>.</li>
             </ul>
-            <p class="f15">Flags: <code>--trigger_sources pubsub,eventarc</code>, <code>--session_service_uri</code>, <code>--artifact_service_uri</code>, <code>--service_account</code>. SDK: <code>AdkApp(agent=…)</code> + <code>client.agent_engines.create(…)</code>, or <code>agentplatform.Client().runtimes.create(…)</code> (SDK 2.0.1, 2026-09-18).</p>
+            <p class="f15">SDK path: <code>agentplatform.Client().runtimes.create(…)</code> (SDK 2.0.1). Flags: <code>--trigger_sources</code>, <code>--session_service_uri</code>, <code>--service_account</code>.</p>
           </div>
         </div>
       </div>
@@ -73,13 +72,13 @@ $ adk deploy agent_engine \
     </div>
   </div>
   <aside class="notes">
-    Follow the package on the belt. Step 1: in Antigravity, /grill-me asks clarifying questions, /plan writes implementation_plan.md, you comment on it, and the agent codes with the ADK skills that agents-cli setup installed; Agent Starter Pack now gets critical fixes only. Step 2: a Stop hook runs agents-cli eval run; on failure it prints decision "continue", so the coding agent cannot stop until the evals pass. Step 3: deploy; the package becomes a reasoningEngines resource, and the panel shows what adk deploy agent_engine really does, down to the Dockerfile with api_server on port 8080. Step 4: publish gemini registers the resource in the Gemini Enterprise Agent Gallery; read the pitfalls, because the location rule and the 429 quota break many CI pipelines. Step 5: where to host. Analogy: a factory line with a quality gate; a red light holds the box until it passes inspection. Likely question: "Why not just call adk deploy from CI?" You can, but agents-cli also sets up Terraform, CI/CD and publishing, and both paths end in the same reasoningEngines resource.
+    Follow the package on the belt. Step 1: in Antigravity, /grill-me asks clarifying questions, /plan writes implementation_plan.md, you comment on it, and the agent codes with the ADK skills that agents-cli setup installed; Agent Starter Pack now gets critical fixes only. Step 2: a Stop hook runs agents-cli eval run; on failure it prints decision "continue", so the coding agent cannot stop until the evals pass. Step 3: deploy; the package becomes a reasoningEngines resource, and the panel shows what adk deploy agent_engine really does, down to the Dockerfile with api_server on port 8080. Step 4: publish gemini registers the resource in the Gemini Enterprise Agent Gallery; read the pitfalls, because the location rule and the 429 quota break many CI pipelines. Also mention the other flags (--otel_to_cloud, --trigger_sources pubsub,eventarc, --artifact_service_uri) and the older SDK path: AdkApp(agent=...) plus client.agent_engines.create(...) in the vertexai namespace, which agentplatform.Client().runtimes.create(...) replaces from SDK 2.0.1 (2026-09-18). Step 5: where to host. Analogy: a factory line with a quality gate; a red light holds the box until it passes inspection. Likely question: "Why not just call adk deploy from CI?" You can, but agents-cli also sets up Terraform, CI/CD and publishing, and both paths end in the same reasoningEngines resource.
   </aside>
 </section>
 <script>
 (() => {
   const NS = "http://www.w3.org/2000/svg";
-  let svg = null, st = {}, loops = [], cur = -1;
+  let svg = null, st = {}, loops = [], cur = -1, tl = null;
   const CX = [75, 245, 415, 585, 755];
   const ST = [
     ["Plan", "/grill-me → /plan", "agent"],
@@ -141,10 +140,11 @@ $ adk deploy agent_engine \
   function render(n, animate) {
     if (!svg) return;
     const prev = cur; cur = n;
+    if (tl) { tl.kill(); tl = null; }
     gsap.killTweensOf([st.pkg, st.box, st.card, st.slot]);
     st.boxes.forEach((b, i) => { b.style.strokeWidth = (Math.min(n, 4) === i) ? 3.5 : 1.5; });
     st.pubNote.textContent = n >= 4 ? "registered in GE" : "";
-    const fwd = animate && n === prev + 1;
+    const fwd = animate && n === prev + 1 && n <= 4;
     const x = CX[Math.min(n, 4)];
     // eval light
     if (n < 2) setLight("off");
@@ -153,9 +153,9 @@ $ adk deploy agent_engine \
     // package shape
     const cardOn = n === 3;
     if (fwd) {
-      const tl = gsap.timeline();
+      tl = gsap.timeline();
       if (n === 2) tl.to(st.pkg, { x, duration: 0.9, ease: "power2.inOut" });
-      else tl.to(st.pkg, { x, opacity: 1, duration: 0.9, ease: "power2.inOut" });
+      else tl.set(st.pkg, { visibility: "visible" }).to(st.pkg, { x, opacity: 1, duration: 0.9, ease: "power2.inOut" });
       tl.to(st.box, { opacity: cardOn ? 0 : 1, duration: 0.3 }, n === 3 ? 0.9 : 0);
       tl.to(st.card, { opacity: cardOn ? 1 : 0, duration: 0.35 }, n === 3 ? 0.9 : 0);
       if (n === 4) {
@@ -164,7 +164,7 @@ $ adk deploy agent_engine \
       }
     } else {
       const gone = n >= 4;
-      gsap.set(st.pkg, { x, y: 98, scale: 1, opacity: gone ? 0 : 1 });
+      gsap.set(st.pkg, { x, y: 98, scale: 1, opacity: gone ? 0 : 1, visibility: gone ? "hidden" : "visible" });
       gsap.set(st.box, { opacity: cardOn ? 0 : 1 });
       gsap.set(st.card, { opacity: cardOn ? 1 : 0 });
       gsap.set(st.slot, { opacity: gone ? 1 : 0, scale: 1, svgOrigin: "952 103" });
@@ -174,7 +174,7 @@ $ adk deploy agent_engine \
   Deck.register("adk-c09-build-ship", {
     enter(slide, step) { loops.forEach((l) => l.kill()); loops = []; build(slide); render(step, false); },
     step(slide, n, animate) { if (!svg) build(slide); render(n, animate); },
-    leave() { loops.forEach((l) => l.kill()); loops = []; if (svg) gsap.killTweensOf(svg.querySelectorAll("*")); gsap.killTweensOf([st.pkg, st.box, st.card, st.slot]); }
+    leave() { if (tl) { tl.kill(); tl = null; } loops.forEach((l) => l.kill()); loops = []; if (svg) gsap.killTweensOf(svg.querySelectorAll("*")); gsap.killTweensOf([st.pkg, st.box, st.card, st.slot]); }
   });
 })();
 </script>
