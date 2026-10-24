@@ -1,0 +1,211 @@
+<section class="slide" id="custom-c08-calibration-thresholds" data-tone="tool" data-title="Calibration and cost thresholds">
+  <style>
+    #custom-c08-calibration-thresholds .body { display:grid; grid-template-columns:800px 1fr; gap:32px; }
+    #custom-c08-calibration-thresholds .swap { display:grid; }
+    #custom-c08-calibration-thresholds .swap > * { grid-area:1/1; min-height:0; }
+    #custom-c08-calibration-thresholds .quote { font-size:22px; padding-left:20px; }
+    #custom-c08-calibration-thresholds .formula { font:600 17px/1.4 var(--f-mono); color:var(--ink); }
+    #custom-c08-calibration-thresholds .panel p.tiny { color:var(--ink-2); }
+    #custom-c08-calibration-thresholds .callout { font-size:17px; padding:12px 16px; }
+    #custom-c08-calibration-thresholds svg text { font-family:var(--f-mono); }
+  </style>
+  <h2 class="title">Calibrate the scores, then pick the threshold with the cost of each error</h2>
+  <div class="body fill">
+    <svg class="interactive" id="c08ct-svg" viewBox="0 0 800 560" width="800" height="560" aria-label="Left: a reliability diagram whose bars sit below the diagonal, then move onto it after temperature scaling, and the ECE drops. Right: a ROC curve with an iso-cost line; the operating point moves as the cost ratio goes from 1 to 5 to 20."></svg>
+    <div class="swap">
+      <div class="stack" data-until="3" style="gap:14px">
+        <p class="quote">“Modern neural networks, unlike those from a decade ago, are poorly calibrated.”</p>
+        <div class="cites"><a class="cite paper" href="https://arxiv.org/abs/1706.04599" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Guo et al., On Calibration of Modern Neural Networks (ICML 2017)</a></div>
+        <div class="panel tight k-tool" data-step="1">
+          <h4 style="font-size:18px">Expected calibration error (ECE)</h4>
+          <p class="formula">ECE = Σ<sub>b</sub> (|B<sub>b</sub>| / n) · |acc(B<sub>b</sub>) − conf(B<sub>b</sub>)|</p>
+          <p class="tiny">Use 10 or 15 equal-width bins. ECE depends on the binning, so also report the Brier score or log loss, and show a reliability diagram.</p>
+        </div>
+        <div class="panel tight k-state" data-step="2">
+          <h4 style="font-size:18px">Fix it on a held-out split</h4>
+          <p class="tiny">Temperature scaling, a one-parameter form of Platt scaling, “is surprisingly effective”. Or use <code>CalibratedClassifierCV(method="sigmoid")</code> or <code>"isotonic"</code>.</p>
+          <p class="tiny"><b>LLM uses:</b> guardrail and classifier heads; verbalized or token-probability confidence for abstention; judge confidence to send hard items to humans.</p>
+        </div>
+      </div>
+      <div class="stack" data-step="3" data-until="5" style="gap:14px">
+        <h4 style="font-size:21px">A score is not a decision</h4>
+        <div class="panel tight k-tool">
+          <p class="small">With <b>calibrated</b> p, flag when</p>
+          <p class="formula" style="font-size:20px">p &gt; t* = C<sub>FP</sub> / (C<sub>FP</sub> + C<sub>FN</sub>)</p>
+          <p class="tiny">A miss costs 20× a false alarm → t* = 1/21 ≈ 0.048.</p>
+        </div>
+        <div class="panel tight k-tool" data-step="4">
+          <p class="formula">EC(t) = π·FNR(t)·C<sub>FN</sub> + (1 − π)·FPR(t)·C<sub>FP</sub></p>
+          <p class="tiny">π is the prevalence in <b>production</b>. On the ROC curve, the optimum touches an iso-cost line of slope C<sub>FP</sub>(1 − π) / (C<sub>FN</sub>·π).</p>
+        </div>
+        <div class="callout pitfall" data-step="4"><span>Golden sets are enriched with positives. Re-weight to production prevalence before you pick t. Check t per slice too: one global t can be unfair across slices.</span></div>
+      </div>
+      <div class="stack" data-step="5" style="gap:12px">
+        <div class="code-wrap"><div class="code-head">pick_threshold.py · from 07-eval-design §7</div>
+<pre class="code xs" data-lang="python" data-focus="5:5-6"><code>
+import numpy as np
+from sklearn.metrics import roc_curve
+fpr, tpr, thr = roc_curve(y_true, scores)
+pi, C_fp, C_fn = 0.02, 1.0, 20.0  # prod prevalence, costs
+ec = pi*(1-tpr)*C_fn + (1-pi)*fpr*C_fp
+best = np.argmin(ec)
+print(f"threshold={thr[best]:.3f} TPR={tpr[best]:.2f} "
+      f"FPR={fpr[best]:.3f} EC={ec[best]:.4f}")
+</code></pre></div>
+        <div class="callout insight"><span>Chapter 1 used the same cost logic: OpenAI’s example (+$20 per success, −$40 per escalation, −$1,000 churn in 5% of failures) gives a break-even accuracy of 81.5%.</span></div>
+        <div class="cites">
+          <a class="cite doc" href="https://scikit-learn.org/stable/modules/generated/sklearn.calibration.calibration_curve.html" target="_blank" rel="noopener"><b>Docs</b>&nbsp;sklearn calibration_curve</a>
+          <a class="cite doc" href="https://developers.openai.com/api/docs/guides/optimizing-llm-accuracy" target="_blank" rel="noopener"><b>Guide</b>&nbsp;OpenAI, Optimizing LLM accuracy</a>
+        </div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    Two ideas: a probability must mean what it says, and a threshold must come from costs. Step 1 shows a reliability diagram for an overconfident model; in the top bin it claims about 95 percent confidence but is right only about 80 percent of the time, and the ECE sums those gaps. Step 2 applies temperature scaling on a held-out split, and the bars move onto the diagonal. Step 3 draws a ROC curve; every point on it is a possible threshold. Step 4 sweeps the cost ratio: when a miss costs 20 times a false alarm, the threshold drops to about 0.048 and the operating point climbs the curve. These curves are examples, not real model data. Analogy: a smoke alarm is set very sensitive because a missed fire costs far more than burnt toast. Likely question: "Why not just maximize F1?" F1 ignores the real costs and the production prevalence, so it picks the wrong point when errors cost different amounts.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c08-calibration-thresholds";
+  // Example data only: bin weights and accuracies are illustrative; the ROC is a binormal curve with d' = 2.
+  const W = [0.02, 0.02, 0.03, 0.03, 0.04, 0.05, 0.07, 0.10, 0.18, 0.46];
+  const BEFORE = [0.05, 0.13, 0.21, 0.29, 0.36, 0.44, 0.52, 0.60, 0.70, 0.80];
+  const AFTER = [0.06, 0.14, 0.25, 0.36, 0.47, 0.54, 0.67, 0.74, 0.87, 0.94];
+  const ece = (acc) => acc.reduce((s, a, b) => s + W[b] * Math.abs(a - (0.05 + 0.1 * b)), 0);
+  const D = 2, PI = 0.02, RATIOS = [[1, "1/2", 0.5], [5, "1/6", 1 / 6], [20, "1/21", 1 / 21]];
+  const L = { x: 56, y: 40, s: 300 }, R = { x: 476, y: 40, s: 300 };
+  let E = {}, tl = null;
+
+  function erf(x) {
+    const s = Math.sign(x); x = Math.abs(x);
+    const t = 1 / (1 + 0.3275911 * x);
+    const y = 1 - ((((1.061405429 * t - 1.453152027) * t + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x);
+    return s * y;
+  }
+  const Phi = (z) => 0.5 * (1 + erf(z / Math.SQRT2));
+  const rx = (f) => R.x + f * R.s, ry = (t) => R.y + R.s - t * R.s;
+  function op(r) {
+    const s = (1 - PI) / (r * PI);
+    const z = (-2 * Math.log(s) - D * D) / (2 * D);
+    return { f: Phi(z), t: Phi(z + D), s };
+  }
+  function isoLine(o) {
+    const dt = 1.4, df = dt / o.s;
+    return { x1: rx(o.f - df), y1: ry(o.t - dt), x2: rx(o.f + df), y2: ry(o.t + dt) };
+  }
+
+  function el(tag, attrs, parent) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  const txt = (p, x, y, s, a) => { const t = el("text", Object.assign({ x, y, fill: "var(--muted)", "font-size": 13 }, a || {}), p); t.textContent = s; return t; };
+
+  function axes(svg, P, xl, yl, title) {
+    el("rect", { x: P.x, y: P.y, width: P.s, height: P.s, fill: "none", stroke: "var(--line-2)", "stroke-width": 1.5 }, svg);
+    el("line", { x1: P.x, y1: P.y + P.s, x2: P.x + P.s, y2: P.y, stroke: "var(--faint)", "stroke-width": 1.5, "stroke-dasharray": "6 5" }, svg);
+    txt(svg, P.x + P.s / 2, P.y + P.s + 24, xl, { "text-anchor": "middle" });
+    txt(svg, P.x - 14, P.y + P.s / 2, yl, { "text-anchor": "middle", transform: `rotate(-90 ${P.x - 14} ${P.y + P.s / 2})` });
+    txt(svg, P.x, P.y - 14, title, { fill: "var(--ink-2)", "font-size": 14, "font-weight": 700 });
+    txt(svg, P.x - 4, P.y + P.s + 14, "0", { "text-anchor": "end" });
+    txt(svg, P.x + P.s, P.y + P.s + 14, "1", { "text-anchor": "middle" });
+    txt(svg, P.x - 4, P.y + 10, "1", { "text-anchor": "end" });
+  }
+
+  function build(svg) {
+    svg.innerHTML = "";
+    const defs = el("defs", {}, svg);
+    const cp = el("clipPath", { id: "c08ct-clip" }, defs);
+    el("rect", { x: R.x, y: R.y, width: R.s, height: R.s }, cp);
+    axes(svg, L, "confidence", "accuracy", "reliability diagram · example");
+    axes(svg, R, "FPR", "TPR", "ROC · example");
+    E.bars = BEFORE.map((a, b) => el("rect", { x: L.x + b * 30 + 3, y: L.y + L.s, width: 24, height: 0, rx: 3, fill: "var(--tool)", opacity: 0.8 }, svg));
+    E.eceT = txt(svg, L.x, 430, "ECE = 0.000", { fill: "var(--ink)", "font-size": 26, "font-weight": 700, opacity: 0 });
+    E.eceS = txt(svg, L.x, 456, "10 equal-width bins", { opacity: 0 });
+    E.tsT = txt(svg, L.x, 480, "after temperature scaling", { fill: "var(--state)", "font-weight": 700, opacity: 0 });
+    // ROC curve
+    let d = "";
+    for (let z = -4.5; z <= 4.5 + 1e-9; z += 0.1) d += (d ? " L" : "M") + rx(Phi(z)).toFixed(1) + "," + ry(Phi(z + D)).toFixed(1);
+    E.roc = el("path", { d, fill: "none", stroke: "var(--model)", "stroke-width": 3 }, svg);
+    E.rocLen = E.roc.getTotalLength();
+    E.roc.style.strokeDasharray = E.rocLen; E.roc.style.strokeDashoffset = E.rocLen;
+    E.iso = el("line", Object.assign({ stroke: "var(--tool)", "stroke-width": 2.5, "stroke-dasharray": "8 6", opacity: 0, "clip-path": "url(#c08ct-clip)" }, isoLine(op(1))), svg);
+    const o = op(1);
+    E.dot = el("circle", { cx: rx(o.f), cy: ry(o.t), r: 9, fill: "var(--tool)", stroke: "var(--bg)", "stroke-width": 3, opacity: 0 }, svg);
+    E.ratioT = txt(svg, R.x, 430, "C_FN / C_FP = 1", { fill: "var(--ink)", "font-size": 22, "font-weight": 700, opacity: 0 });
+    E.tT = txt(svg, R.x, 460, "t* = 1/2 ≈ 0.500", { fill: "var(--tool)", "font-size": 22, "font-weight": 700, opacity: 0 });
+    E.ptT = txt(svg, R.x, 486, "", { opacity: 0 });
+    E.piT = txt(svg, R.x, 510, "π = 0.02 (production prevalence)", { opacity: 0 });
+  }
+
+  function setRatio(k) {
+    const [r, frac, t] = RATIOS[k], o = op(r);
+    E.ratioT.textContent = `C_FN / C_FP = ${r}`;
+    E.tT.textContent = `t* = ${frac} ≈ ${t.toFixed(3)}`;
+    E.ptT.textContent = `TPR ${o.t.toFixed(2)} · FPR ${o.f.toFixed(3)}`;
+  }
+
+  function stat(n) {
+    const acc = n >= 2 ? AFTER : n >= 1 ? BEFORE : null;
+    E.bars.forEach((r, b) => { const h = acc ? acc[b] * L.s : 0; r.setAttribute("y", L.y + L.s - h); r.setAttribute("height", h); r.setAttribute("fill", n >= 2 ? "var(--state)" : "var(--tool)"); });
+    E.eceT.textContent = `ECE = ${ece(n >= 2 ? AFTER : BEFORE).toFixed(3)}`;
+    [E.eceT, E.eceS].forEach((e) => e.setAttribute("opacity", n >= 1 ? 1 : 0));
+    E.tsT.setAttribute("opacity", n >= 2 ? 1 : 0);
+    E.roc.style.strokeDashoffset = n >= 3 ? 0 : E.rocLen;
+    const o = op(20);
+    Object.entries(isoLine(o)).forEach(([k, v]) => E.iso.setAttribute(k, v));
+    E.dot.setAttribute("cx", rx(o.f)); E.dot.setAttribute("cy", ry(o.t));
+    setRatio(2);
+    [E.iso, E.dot, E.ratioT, E.tT, E.ptT].forEach((e) => e.setAttribute("opacity", n >= 4 ? 1 : 0));
+    E.piT.setAttribute("opacity", n >= 3 ? 1 : 0);
+  }
+
+  function anim(n) {
+    tl = gsap.timeline();
+    if (n === 1) {
+      const p = { v: 0 }, target = ece(BEFORE);
+      E.bars.forEach((r, b) => tl.fromTo(r, { attr: { y: L.y + L.s, height: 0 } }, { attr: { y: L.y + L.s - BEFORE[b] * L.s, height: BEFORE[b] * L.s }, duration: 0.6, ease: "power3.out" }, 0.1 + b * 0.06));
+      tl.to([E.eceT, E.eceS], { attr: { opacity: 1 }, duration: 0.3 }, 0.6);
+      tl.to(p, { v: target, duration: 1.0, ease: "power2.out", onUpdate: () => (E.eceT.textContent = `ECE = ${p.v.toFixed(3)}`) }, 0.6);
+    }
+    if (n === 2) {
+      const p = { v: ece(BEFORE) };
+      E.bars.forEach((r, b) => tl.to(r, { attr: { y: L.y + L.s - AFTER[b] * L.s, height: AFTER[b] * L.s, fill: "var(--state)" }, duration: 0.9, ease: "power3.inOut" }, b * 0.05));
+      tl.to(p, { v: ece(AFTER), duration: 1.2, ease: "power2.inOut", onUpdate: () => (E.eceT.textContent = `ECE = ${p.v.toFixed(3)}`) }, 0);
+      tl.to(E.tsT, { attr: { opacity: 1 }, duration: 0.4 }, 0.9);
+    }
+    if (n === 3) {
+      tl.to(E.roc.style, { strokeDashoffset: 0, duration: 1.4, ease: "power2.inOut" }, 0.1);
+      tl.to(E.piT, { attr: { opacity: 1 }, duration: 0.4 }, 1.0);
+    }
+    if (n === 4) {
+      setRatio(0);
+      const o0 = op(1);
+      Object.entries(isoLine(o0)).forEach(([k, v]) => E.iso.setAttribute(k, v));
+      E.dot.setAttribute("cx", rx(o0.f)); E.dot.setAttribute("cy", ry(o0.t));
+      tl.to([E.iso, E.dot, E.ratioT, E.tT, E.ptT], { attr: { opacity: 1 }, duration: 0.4 }, 0.1);
+      [1, 2].forEach((k, i) => {
+        const o = op(RATIOS[k][0]), at = 1.4 + i * 1.6;
+        tl.to(E.iso, { attr: isoLine(o), duration: 1.0, ease: "power2.inOut" }, at);
+        tl.to(E.dot, { attr: { cx: rx(o.f), cy: ry(o.t) }, duration: 1.0, ease: "power2.inOut" }, at);
+        tl.call(() => setRatio(k), null, at + 0.5);
+      });
+    }
+  }
+
+  function render(n, animate) {
+    if (tl) { tl.progress(1); tl.kill(); tl = null; }
+    if (!animate || n === 0 || n >= 5) { stat(n); return; }
+    stat(n - 1);
+    anim(n);
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { build(slide.querySelector("#c08ct-svg")); render(step, false); },
+    step(slide, n, animate) { if (!E.roc || !E.roc.isConnected) return; render(n, animate); },
+    leave() { if (tl) tl.kill(); tl = null; },
+  });
+})();
+</script>

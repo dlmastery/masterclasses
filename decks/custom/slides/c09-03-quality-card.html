@@ -1,0 +1,95 @@
+<section class="slide tight" id="custom-c09-quality-card" data-tone="risk" data-title="The quality card">
+  <style>
+    #custom-c09-quality-card .title { font-size: 46px; }
+    #custom-c09-quality-card .lin { padding: 10px 14px; gap: 4px; border-radius: 12px; transition: border-color .3s, box-shadow .3s; }
+    #custom-c09-quality-card .lin .yr { font: 700 13px/1 var(--f-mono); color: var(--muted); }
+    #custom-c09-quality-card .lin p { font-size: 14.5px; line-height: 1.35; }
+    #custom-c09-quality-card .lin .cite { font-size: 14px; padding: 4px 9px 4px 6px; align-self: flex-start; }
+    #custom-c09-quality-card .lin .cite::before { width: 16px; height: 16px; }
+    #custom-c09-quality-card .callout { font-size: 17px; padding: 12px 16px; }
+    #custom-c09-quality-card .code-wrap { width: 100%; }
+    #custom-c09-quality-card pre.code { padding: 12px 18px 14px; }
+    #custom-c09-quality-card .qc-ln { display: inline-block; }
+  </style>
+  <h2 class="title">The quality card closes the loop: no number without n, CI, slice and version</h2>
+  <div class="row fill" style="gap:22px">
+    <div class="stack" style="width:410px;flex:none;gap:9px">
+      <div class="panel lin k-human" data-on="1:hot"><span class="yr">2018 · people</span><p>Datasheets ask why the data exists, what is in it and how it was collected.</p><a class="cite paper" href="https://arxiv.org/abs/1803.09010" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Datasheets for Datasets</a></div>
+      <div class="panel lin k-model" data-on="2:hot"><span class="yr">2019 · models</span><p>Model Cards: intended use, factors, metrics, evaluation data, quantitative analyses, caveats.</p><a class="cite paper" href="https://arxiv.org/abs/1810.03993" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Model Cards for Model Reporting</a></div>
+      <div class="panel lin k-state" data-on="3:hot"><span class="yr">2022 · product</span><p>“documentation must be treated as a user-centric product in and of itself”</p><a class="cite paper" href="https://arxiv.org/abs/2204.01075" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Data Cards (FAccT 2022)</a></div>
+      <div class="panel lin k-agent" data-on="4:hot"><span class="yr">2025 · live trace</span><p>OlmoTrace traces OLMo 3 outputs back to training documents in real time.</p><a class="cite doc" href="https://allenai.org/blog/olmo3" target="_blank" rel="noopener"><b>Blog</b>&nbsp;Ai2, Olmo 3</a></div>
+      <div class="callout insight push" data-step="5"><span><b>No number without n, CI, slice and version.</b></span></div>
+    </div>
+    <div class="stack fill" style="gap:8px">
+      <div class="code-wrap" data-fx="up"><div class="code-head">quality_card.yaml · example template (a synthesis for this course)</div>
+<pre class="code xs" data-lang="yaml" data-focus="1:2-5, 2:6-7, 3:8-9, 4:10-12, 5:13-23"><code>
+# eval card: the eval set is a dataset product
+eval_set: support-bot-golden v3.2    # owner: domain expert, 2026-10
+provenance: {prod_traces: 62%, synthetic: 38%}   # PII-scrubbed / human-validated
+size: {n: 640, slices: 9, min_slice_n: 48, positive_rate: 4.1%}
+decontamination: 13-gram + embedding (cos > 0.92) vs SFT set -> 11 removed
+labels: {experts: 2, adjudication: true, cohen_kappa: 0.78, noise_audit: 3.1%}
+judge: {model: "&lt;model&gt;@&lt;version&gt;", prompt: v7, TPR: 0.91, TNR: 0.88, n: 200}
+headline: "pass 84.2% [81.3, 86.9]"        # bootstrap 95% CI
+worst_slice: "refunds-ES 71% [58, 81]"
+calibration: "ECE 0.04 (15 bins) after temperature scaling"
+operating_point: {t: 0.05, C_FN_over_C_FP: 20, prod_prevalence: 2%}
+known_gaps: [multi-turn &gt; 8 turns, voice channel]
+# data card: fields from FineWeb and Llama 3 practice
+sources: Common Crawl snapshots, each with its date
+filters: every filter with its removal rate
+dedup: {level: per-snapshot, minhash: 5-gram, 14 buckets x 8 hashes}
+classifier: {annotator: Llama-3-70B-Instruct, labels: 460k, F1: 0.82, keep: "&gt;= 3"}
+synthetic: {share: "...", generator_or_teacher: "..."}
+verifiers: {types: [exec, unit tests], note: "about 20% of code self-corrected"}
+decontamination_train: {method: n-gram, benchmarks_checked: [...]}
+diversity: [distinct-n, embedding spread]
+license: ODC-BY
+known_biases: grade-school bias   # FineWeb-Edu card
+</code></pre></div>
+      <div class="cites" data-step="5" style="gap:8px">
+        <a class="cite doc" href="https://huggingface.co/datasets/HuggingFaceFW/fineweb-edu" target="_blank" rel="noopener"><b>Card</b>&nbsp;FineWeb-Edu dataset card</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2407.21783" target="_blank" rel="noopener"><b>Paper</b>&nbsp;The Llama 3 Herd of Models</a>
+        <a class="cite doc" href="https://hamel.dev/blog/posts/evals-faq/" target="_blank" rel="noopener"><b>Blog</b>&nbsp;AI Evals FAQ (Husain, Shankar)</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    The quality card is the last stage of the lifecycle and the first input of the next release. The card fills one group of fields per step. Step 1: where the items come from, how many there are, and how they were decontaminated. Step 2: who labeled them, how much the labelers agree, and how well the judge matches the experts. Step 3: the headline with a bootstrap interval, and the worst slice, which is often the real story. Step 4: calibration and the operating point, which turns a score into a decision. Step 5 adds the training-data fields that FineWeb and Llama 3 report: removal rate per filter, classifier F1, verifier pass rates and known biases. The left column shows where the idea comes from, from Datasheets in 2018 to OlmoTrace, which links outputs to training documents live. Analogy: a nutrition label lists each ingredient and its amount; a single "healthy" sticker tells you nothing. Likely question: "Who writes the card?" CI writes most of it from the contract, the profiles and the eval run; the owner writes intended use and known gaps.
+  </aside>
+</section>
+<script>
+(() => {
+  const ID = "custom-c09-quality-card";
+  // line groups that appear at each step (1-based line numbers of the YAML)
+  const GROUPS = [[1, 1, 0], [2, 5, 1], [6, 7, 2], [8, 9, 3], [10, 12, 4], [13, 23, 5]];
+  const stepOf = (ln) => { for (const [a, b, s] of GROUPS) if (ln >= a && ln <= b) return s; return 0; };
+  let lines = [];
+
+  function split(slide) {
+    const code = slide.querySelector("pre.code code");
+    if (code._qc) return;
+    code._qc = true;
+    code.innerHTML = code.innerHTML.split("\n").map((l, i) => `<span class="qc-ln" data-ln="${i + 1}">${l || " "}</span>`).join("\n");
+    lines = [...code.querySelectorAll(".qc-ln")];
+  }
+
+  Deck.register(ID, {
+    enter(slide) { split(slide); },
+    step(slide, n, animate) {
+      split(slide);
+      lines = [...slide.querySelectorAll(".qc-ln")];
+      gsap.killTweensOf(lines);
+      let k = 0;
+      lines.forEach((el) => {
+        const s = stepOf(+el.dataset.ln);
+        if (s > n) gsap.set(el, { autoAlpha: 0, clipPath: "inset(0 100% 0 0)" });
+        else if (animate && s === n) {
+          gsap.fromTo(el, { autoAlpha: 1, clipPath: "inset(0 100% 0 0)" }, { clipPath: "inset(0 0% 0 0)", duration: 0.55, delay: 0.15 + (k++) * 0.16, ease: "steps(28)" });
+        } else gsap.set(el, { autoAlpha: 1, clipPath: "inset(0 0% 0 0)" });
+      });
+    },
+    leave() { gsap.killTweensOf(lines); },
+  });
+})();
+</script>

@@ -864,7 +864,7 @@ hnsw.hnsw.efSearch = 64
       <p class="small" data-step="3"><b class="c-agent">Both hit.</b> The failures barely overlap, so the union raises recall. BEIR (NeurIPS 2021): "BM25 is a robust baseline."</p>
     </div>
     <div class="stack" style="gap:14px">
-      <svg id="c04h-vec" viewBox="0 0 684 260" width="684" height="260" data-step="4" data-fx="fade" aria-label="Three vector types for one passage">
+      <svg id="c04h-vec" viewBox="0 0 684 260" width="650" height="247" data-step="4" data-fx="fade" aria-label="Three vector types for one passage">
         <text x="0" y="14" style="font:600 15px var(--f-mono);fill:var(--tool)">BM25: bag of exact words</text>
         <g id="c04h-bow"></g>
         <text x="0" y="86" style="font:600 15px var(--f-mono);fill:var(--state)">Dense: 768 numbers, all non-zero</text>
@@ -894,9 +894,9 @@ hnsw.hnsw.efSearch = 64
 <section class="slide" id="rag-c04-rrf" data-tone="agent" data-title="Reciprocal Rank Fusion">
   <h2 class="title">Reciprocal Rank Fusion merges ranked lists by rank only, with k = 60</h2>
   <div class="row fill" style="gap:24px;align-items:stretch">
-    <div class="stack" style="width:658px;gap:14px">
+    <div class="stack" style="width:658px;gap:11px">
       <p class="small"><code>RRFscore(d) = Σ 1 / (k + rank_r(d))</code> over all rankers r. Only ranks count, so BM25 (unbounded) and cosine (−1..1) need no calibration.</p>
-      <div id="c04r-stage" class="interactive" style="position:relative;width:658px;height:270px" aria-label="Two ranked lists fused by RRF"></div>
+      <div id="c04r-stage" class="interactive" style="position:relative;width:658px;height:270px;flex:none" aria-label="Two ranked lists fused by RRF"></div>
       <div class="row" style="gap:18px;align-items:center" data-step="4">
         <svg viewBox="0 0 230 96" width="230" height="96" data-fx="draw" aria-label="MAP versus k is flat">
           <line x1="16" y1="80" x2="222" y2="80" style="stroke:var(--line-2);stroke-width:1.5"/>
@@ -905,18 +905,18 @@ hnsw.hnsw.efSearch = 64
           <circle cx="24" cy="22" r="4" style="fill:var(--agent)"/><circle cx="116" cy="20" r="4" style="fill:var(--agent)"/><circle cx="214" cy="21.3" r="4" style="fill:var(--agent)"/>
           <text x="24" y="94" text-anchor="middle" style="font:500 12px var(--f-mono);fill:var(--muted)">k=0</text>
           <text x="116" y="94" text-anchor="middle" style="font:500 12px var(--f-mono);fill:var(--muted)">k=60</text>
-          <text x="214" y="94" text-anchor="middle" style="font:500 12px var(--f-mono);fill:var(--muted)">k=500</text>
+          <text x="228" y="94" text-anchor="end" style="font:500 12px var(--f-mono);fill:var(--muted)">k=500</text>
           <text x="22" y="60" style="font:500 12px var(--f-mono);fill:var(--muted)">MAP, axis from 0</text>
         </svg>
         <p class="tiny" style="flex:1">Pilot MAP: k=0 <b>.2072</b> · k=60 <b>.2145</b> · k=500 <b>.2098</b>. "k = 60 was fixed during a pilot investigation and not altered." RRF beats Condorcet, CombMNZ and the best single system by 4–5% on average.</p>
       </div>
-      <div class="callout pitfall" data-step="7">Qdrant: set each prefetch <code>limit</code> ≥ the main <code>limit + offset</code>. If you do not, the result can come back empty.</div>
+      <div class="callout pitfall" data-step="7"><span>Qdrant: set each prefetch <code>limit</code> ≥ the main <code>limit + offset</code>. If you do not, the result can come back empty.</span></div>
       <div class="cites push" data-step="4">
-        <a class="cite paper" href="http://cormack.uwaterloo.ca/cormacksigir09-rrf.pdf" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Cormack, Clarke, Büttcher, SIGIR 2009</a>
+        <a class="cite paper" href="http://cormack.uwaterloo.ca/cormacksigir09-rrf.pdf" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Cormack et al., SIGIR 2009</a>
         <a class="cite doc" href="https://qdrant.tech/documentation/concepts/hybrid-queries/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Qdrant hybrid queries</a>
       </div>
     </div>
-    <div class="code-wrap" style="width:710px"><div class="code-head">rrf.py</div>
+    <div class="code-wrap" style="width:710px;flex:none"><div class="code-head">rrf.py</div>
 <pre class="code xs" data-lang="python" data-focus="5:3-5, 6:15-19, 7:20-21"><code>
 def rrf(rankings: list[list[str]], k: int = 60) -> list[tuple[str, float]]:
     scores: dict[str, float] = {}
@@ -957,7 +957,7 @@ results = client.query_points(
       <ul class="clean tiny" style="gap:7px" data-step="4" data-fx="stagger">
         <li class="tiny"><b>Late interaction:</b> ColBERTv2 (NAACL 2022) keeps one vector per token. Residual compression makes the index 6–10× smaller than v1. sentence-transformers v6.0.0 (18 Aug 2026) adds <code>MultiVectorEncoder</code>.</li>
         <li class="tiny"><b>Cohere</b> <code>rerank-v5.0-pro</code> / <code>-fast</code>: 32k context, 100+ languages, adds <code>relevant_spans</code>. <code>rerank-v3.5</code>: 4k. <b>Voyage</b> <code>rerank-3</code> / <code>rerank-3-lite</code>: 32K.</li>
-        <li class="tiny"><b>Open:</b> <code>BAAI/bge-reranker-v2-m3</code> (0.6B, multilingual). <code>jina-reranker-v3</code> (0.6B on Qwen3, listwise over 64 docs in one 131K context, BEIR nDCG@10 61.94, CC BY-NC 4.0).</li>
+        <li class="tiny"><b>Open:</b> <a href="https://huggingface.co/BAAI/bge-reranker-v2-m3" target="_blank" rel="noopener"><code>BAAI/bge-reranker-v2-m3</code></a> (0.6B, multilingual). <code>jina-reranker-v3</code> (0.6B on Qwen3, listwise over 64 docs in one 131K context, BEIR nDCG@10 61.94, CC BY-NC 4.0).</li>
         <li class="tiny"><b>LLM rerankers:</b> RankGPT (EMNLP 2023) outputs a permutation with a sliding window: "a distilled 440M model outperforms a 3B supervised model on BEIR".</li>
         <li class="tiny"><b>Reasoning rerankers:</b> Rank1 (COLM 2025, 600K+ reasoning traces). ReasonIR-8B on BRIGHT: nDCG@10 29.9 → 36.9 with a reranker.</li>
       </ul>
@@ -969,7 +969,7 @@ results = client.query_points(
         <div class="stat"><span class="n" data-to="20">0</span><span class="l">kept for the prompt</span></div>
         <p class="tiny" style="flex:1">Anthropic: retrieve 150, rerank, keep 20. Cost is one API round-trip or one GPU pass per pair. Cap the candidates. Keep docs ≤ <code>max_tokens_per_doc</code> (Cohere default 4096).</p>
       </div>
-      <div class="code-wrap" style="width:684px"><div class="code-head">rerank.py</div>
+      <div class="code-wrap" style="width:684px;flex:none"><div class="code-head">rerank.py</div>
 <pre class="code xs" data-lang="python" data-focus="5:4-4, 6:9-11"><code>
 import cohere
 co = cohere.ClientV2()
@@ -988,8 +988,7 @@ for r in resp.results:
 </code></pre></div>
       <div class="cites push">
         <a class="cite doc" href="https://docs.cohere.com/docs/rerank" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Cohere Rerank</a>
-        <a class="cite repo" href="https://huggingface.co/BAAI/bge-reranker-v2-m3" target="_blank" rel="noopener"><b>Model</b>&nbsp;bge-reranker-v2-m3</a>
-        <a class="cite codelab" href="https://codelabs.developers.google.com/codelabs/production-ready-ai-with-gc/8-advanced-rag-methods/advanced-rag-methods" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;Advanced RAG Techniques (VertexAIRank: fetch 10, keep 3)</a>
+        <a class="cite codelab" href="https://codelabs.developers.google.com/codelabs/production-ready-ai-with-gc/8-advanced-rag-methods/advanced-rag-methods" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;Advanced RAG Techniques (VertexAIRank)</a>
       </div>
     </div>
   </div>
@@ -999,37 +998,37 @@ for r in resp.results:
 </section>
 
 <!-- c04-05-query-transforms.html -->
-<section class="slide" id="rag-c04-query-transforms" data-tone="agent" data-title="Query transformations">
+<section class="slide tight" id="rag-c04-query-transforms" data-tone="agent" data-title="Query transformations">
   <h2 class="title">Rewrite the query when the user's words do not match the documents, then measure end to end</h2>
   <div class="grid g5" style="gap:18px">
     <div class="panel tight k-agent" data-step="1">
       <h4>Multi-query</h4>
-      <div class="stack" style="gap:5px"><span class="tag t-human">1 question</span><span class="tag t-model">LLM → 3 versions</span><span class="tag t-agent">unique union</span></div>
+      <div class="stack" style="gap:3px"><span class="tag t-human">1 question</span><span class="tag t-model">LLM → 3 versions</span><span class="tag t-agent">unique union</span></div>
       <p class="tiny">LangChain default: "generate 3 different versions".</p>
     </div>
     <div class="panel tight k-agent" data-step="2">
       <h4>RAG-Fusion</h4>
-      <div class="stack" style="gap:5px"><span class="tag t-human">1 question</span><span class="tag t-model">LLM → N rewrites</span><span class="tag t-agent">RRF fuse, k = 60</span></div>
-      <p class="tiny">Multi-query plus RRF in place of a plain union.</p>
+      <div class="stack" style="gap:3px"><span class="tag t-human">1 question</span><span class="tag t-model">LLM → N rewrites</span><span class="tag t-agent">RRF fuse, k = 60</span></div>
+      <p class="tiny">Multi-query + RRF. Repo: <a href="https://github.com/Raudaschl/rag-fusion" target="_blank" rel="noopener">Raudaschl/rag-fusion</a>.</p>
     </div>
     <div class="panel tight k-agent" data-step="3">
       <h4>HyDE</h4>
-      <div class="stack" style="gap:5px"><span class="tag t-human">question</span><span class="tag t-model">LLM → fake answer</span><span class="tag t-agent">embed the answer</span></div>
-      <p class="tiny">ACL 2023. The "dense bottleneck" filters fake detail.</p>
+      <div class="stack" style="gap:3px"><span class="tag t-human">question</span><span class="tag t-model">LLM → fake answer</span><span class="tag t-agent">embed the answer</span></div>
+      <p class="tiny"><a href="https://arxiv.org/abs/2212.10496" target="_blank" rel="noopener">ACL 2023</a>. The "dense bottleneck" filters fake detail.</p>
     </div>
     <div class="panel tight k-agent" data-step="4">
       <h4>Step-back</h4>
-      <div class="stack" style="gap:5px"><span class="tag t-human">specific question</span><span class="tag t-model">LLM → the principle</span><span class="tag t-agent">retrieve for both</span></div>
-      <p class="tiny">PaLM-2L: TimeQA +27%, MuSiQue +7%, Chemistry +11%.</p>
+      <div class="stack" style="gap:3px"><span class="tag t-human">specific question</span><span class="tag t-model">LLM → the principle</span><span class="tag t-agent">retrieve for both</span></div>
+      <p class="tiny">PaLM-2L: TimeQA +27%, Chemistry +11%.</p>
     </div>
     <div class="panel tight k-agent" data-step="5">
       <h4>Decomposition</h4>
-      <div class="stack" style="gap:5px"><span class="tag t-human">multi-hop question</span><span class="tag t-model">LLM → sub-questions</span><span class="tag t-agent">answer one by one</span></div>
+      <div class="stack" style="gap:3px"><span class="tag t-human">multi-hop question</span><span class="tag t-model">LLM → sub-questions</span><span class="tag t-agent">answer one by one</span></div>
       <p class="tiny">Least-to-Most, Self-Ask. The seed of agentic RAG.</p>
     </div>
   </div>
   <div class="row fill" style="gap:24px;align-items:stretch">
-    <div class="stack" style="width:688px;gap:14px">
+    <div class="stack" style="width:688px;gap:10px">
       <div class="panel tight k-state" data-step="6">
         <h4>Self-query and conversational rewrite</h4>
         <p class="tiny">"sci-fi movies rated above 8.5 from the 90s" → <code>query="sci-fi"</code> + filter <code>rating &gt; 8.5 AND 1990 &lt;= year &lt; 2000</code> (<code>SelfQueryRetriever</code> + <code>AttributeInfo</code>). "what about its price?" → one standalone query from the chat history.</p>
@@ -1037,7 +1036,7 @@ for r in resp.results:
       </div>
       <div class="callout pitfall" data-step="7">
         <div class="stack" style="gap:8px;flex:1">
-          <span class="small">Medrano et al., arXiv 2603.02153 (2026): fusion gains "mostly disappear after re-ranking and context truncation". The lesson: "retrieval-level improvements do not reliably translate into end-to-end gains."</span>
+          <span class="tiny">Medrano et al., arXiv 2603.02153 (2026): fusion gains "mostly disappear after re-ranking and context truncation". The lesson: "retrieval-level improvements do not reliably translate into end-to-end gains."</span>
           <div data-step="7" data-fx="bar" class="stack" style="gap:6px">
             <div class="row" style="gap:10px;align-items:center"><span class="tiny" style="width:150px">Hit@10 before</span><div class="bar" style="flex:1;--aurora:var(--faint)"><i style="--v:51%"></i></div><b class="tiny">0.51</b></div>
             <div class="row" style="gap:10px;align-items:center"><span class="tiny" style="width:150px">with RAG-Fusion</span><div class="bar" style="flex:1;--aurora:var(--risk)"><i style="--v:48%"></i></div><b class="tiny">0.48</b></div>
@@ -1046,7 +1045,7 @@ for r in resp.results:
       </div>
     </div>
     <div class="stack" style="width:680px;gap:14px">
-      <div class="code-wrap" style="width:680px"><div class="code-head">query_transforms.py</div>
+      <div class="code-wrap" style="width:680px;flex:none"><div class="code-head">query_transforms.py</div>
 <pre class="code xs" data-lang="python" data-focus="1:6-10, 3:1-5"><code>
 def hyde_search(question, llm, embed, index, k=5):
     fake_doc = llm("Write a short passage that answers the question.\n"
@@ -1061,10 +1060,7 @@ mq = MultiQueryRetriever.from_llm(
 </code></pre></div>
       <div class="cites push">
         <a class="cite codelab" href="https://codelabs.developers.google.com/codelabs/production-ready-ai-with-gc/8-advanced-rag-methods/advanced-rag-methods" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;Advanced RAG Techniques</a>
-        <a class="cite paper" href="https://arxiv.org/abs/2212.10496" target="_blank" rel="noopener"><b>Paper</b>&nbsp;HyDE</a>
-        <a class="cite paper" href="https://arxiv.org/abs/2310.06117" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Step-back</a>
-        <a class="cite repo" href="https://github.com/Raudaschl/rag-fusion" target="_blank" rel="noopener"><b>Repo</b>&nbsp;rag-fusion</a>
-        <a class="cite paper" href="https://arxiv.org/abs/2603.02153" target="_blank" rel="noopener"><b>Paper</b>&nbsp;RAG-Fusion at scale</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2603.02153" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Medrano 2026</a>
       </div>
     </div>
   </div>
@@ -1154,15 +1150,15 @@ mq = MultiQueryRetriever.from_llm(
   <h2 class="title">Cache a small static corpus in the prompt; retrieve from a large, changing or permissioned one</h2>
   <div class="grid g2 fill" style="gap:24px">
     <div class="stack" style="gap:14px">
-      <div class="diagram" style="width:684px;height:330px" data-wires="q1>cag@1:flow{state} [yes]; q1>rag@2:flow{agent} [no]; rag>q3@3:dash; q3>agt@3:flow{agent} [yes]">
+      <div class="diagram" style="width:684px;height:300px" data-wires="q1>cag@1:flow{state} [yes]; q1>rag@2:flow{agent} [no]; rag>q3@3:dash; q3>agt@3:flow{agent} [yes]">
         <div class="node ghost" id="q1" style="left:0;top:0;width:360px"><span class="nt">Corpus &lt; 200k tokens and static?</span><span class="ns">one permission level</span></div>
-        <div class="node n-state" id="cag" style="left:450px;top:0;width:234px" data-step="1" data-fx="pop"><span class="nt">Cache it in the prompt</span><span class="ns">CAG / prompt cache</span></div>
-        <div class="node n-agent" id="rag" style="left:0;top:128px;width:360px" data-step="2" data-fx="pop"><span class="nt">Hybrid + rerank RAG</span><span class="ns">large, daily changes, per-user ACLs</span></div>
-        <div class="node ghost" id="q3" style="left:0;top:256px;width:360px" data-step="3" data-fx="pop"><span class="nt">Multi-hop, or one pass not enough?</span><span class="ns">model judges the context</span></div>
-        <div class="node n-agent" id="agt" style="left:450px;top:256px;width:234px" data-step="3" data-fx="pop"><span class="nt">Agentic / Self-Route</span><span class="ns">iterate, or fall back to LC</span></div>
+        <div class="node n-state" id="cag" style="left:450px;top:0;width:234px" data-step="1" data-fx="pop"><span class="nt">Cache in prompt</span><span class="ns">CAG / prompt cache</span></div>
+        <div class="node n-agent" id="rag" style="left:0;top:112px;width:360px" data-step="2" data-fx="pop"><span class="nt">Hybrid + rerank RAG</span><span class="ns">large, daily changes, per-user ACLs</span></div>
+        <div class="node ghost" id="q3" style="left:0;top:224px;width:360px" data-step="3" data-fx="pop"><span class="nt">Multi-hop question?</span><span class="ns">model judges the context</span></div>
+        <div class="node n-agent" id="agt" style="left:450px;top:224px;width:234px" data-step="3" data-fx="pop"><span class="nt">Agentic / Self-Route</span><span class="ns">loop or fall back</span></div>
       </div>
       <div class="panel tight k-state" data-step="4">
-        <h4>Anthropic prompt-cache price, × base input</h4>
+        <p class="tiny"><b>Anthropic prompt-cache price, × base input</b></p>
         <div class="stack" data-step="4" data-fx="bar" style="gap:7px">
           <div class="row" style="gap:10px;align-items:center"><span class="tiny" style="width:220px">base input</span><div class="bar" style="flex:1;--aurora:var(--faint)"><i style="--v:50%"></i></div><b class="tiny" style="width:44px">1×</b></div>
           <div class="row" style="gap:10px;align-items:center"><span class="tiny" style="width:220px">write, 5-min TTL</span><div class="bar" style="flex:1;--aurora:var(--tool)"><i style="--v:62.5%"></i></div><b class="tiny" style="width:44px">1.25×</b></div>
@@ -1180,7 +1176,7 @@ mq = MultiQueryRetriever.from_llm(
         <li class="tiny" data-step="3"><b>LaRA</b> (ICML 2025, 2,326 cases, 11 LLMs): "no silver bullet". Llama 4 Scout claims 10M tokens, but it was trained at 256K.</li>
         <li class="tiny" data-step="4"><b>2026 synthesis:</b> not RAG vs long context, but RAG <i>into</i> long context. Retrieve and rerank to a focused set. Use the big window for breadth and caching.</li>
       </ul>
-      <div class="code-wrap" style="width:684px"><div class="code-head">cache_kb.py</div>
+      <div class="code-wrap" style="width:684px;flex:none"><div class="code-head">cache_kb.py</div>
 <pre class="code xs" data-lang="python" data-focus="5:5-6, 6:8-8"><code>
 import anthropic
 client = anthropic.Anthropic()
@@ -1189,11 +1185,11 @@ resp = client.messages.create(
     system=[{"type": "text", "text": BIG_KNOWLEDGE_BASE,
              "cache_control": {"type": "ephemeral", "ttl": "1h"}}],
     messages=[{"role": "user", "content": question}])
-print(resp.usage.cache_read_input_tokens)   # tokens billed at the read rate
+print(resp.usage.cache_read_input_tokens)   # billed at the read rate
 </code></pre></div>
       <div class="cites push">
-        <a class="cite doc" href="https://platform.claude.com/docs/en/build-with-claude/prompt-caching" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Claude prompt caching</a>
-        <a class="cite doc" href="https://ai.google.dev/gemini-api/docs/caching" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Gemini context caching</a>
+        <a class="cite doc" href="https://platform.claude.com/docs/en/build-with-claude/prompt-caching" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Claude caching</a>
+        <a class="cite doc" href="https://ai.google.dev/gemini-api/docs/caching" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Gemini caching</a>
         <a class="cite paper" href="https://arxiv.org/abs/2407.16833" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Self-Route</a>
       </div>
     </div>
@@ -1226,15 +1222,13 @@ print(resp.usage.cache_read_input_tokens)   # tokens billed at the read rate
       <div class="c04e-chip" data-step="5" data-fx="left" style="position:absolute;left:290px;top:410px;width:230px"><span>link: status page</span><b class="ld"> → loaded</b></div>
     </div>
     <div class="stack" style="gap:14px;flex:1">
-      <p class="tiny">Definition: "the set of strategies for curating and maintaining the optimal set of tokens (information) during LLM inference." LangChain (2 Jul 2025) names four buckets: <b>Write, Select, Compress, Isolate</b>. RAG is <b>Select</b>.</p>
-      <p class="tiny" data-step="3">Sub-agents return "a condensed, distilled summary of its work (often 1,000-2,000 tokens)".</p>
+      <p class="tiny">Definition: "the set of strategies for curating and maintaining the optimal set of tokens (information) during LLM inference." LangChain (2 Jul 2025) names four buckets: <b>Write, Select, Compress, Isolate</b>. RAG is <b>Select</b>. Sub-agents return "a condensed, distilled summary of its work (often 1,000-2,000 tokens)".</p>
       <p class="tiny" data-step="5"><b>Just-in-time retrieval:</b> the agent keeps "lightweight identifiers (file paths, stored queries, web links, etc.)" and loads the content through tools when it needs it. A hybrid strategy loads some data up front and lets the agent explore the rest (suited to legal or finance work).</p>
-      <div class="callout tip" data-step="5">Agent instructions and skills follow the same rule: load task knowledge just in time by an identifier, not all up front.</div>
-      <p class="tiny" data-step="5"><b>Practitioners:</b> Hamel Husain and Ben Clavié: naive single-vector search is dead, retrieval is not. Bischof and Chaurasia: "Stop searching for the perfect embedding. Build specialized representations and route intelligently."</p>
+      <div class="callout tip" data-step="5">Load agent skills the same way: by identifier, just in time.</div>
+      <p class="tiny" data-step="5"><b>Practitioners:</b> Hamel Husain and Ben Clavié (<a href="https://hamel.dev/notes/llm/rag/not_dead.html" target="_blank" rel="noopener">"Stop Saying RAG Is Dead"</a>): naive single-vector search is dead, retrieval is not. Bischof and Chaurasia: "Stop searching for the perfect embedding. Build specialized representations and route intelligently."</p>
       <div class="cites push">
-        <a class="cite doc" href="https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents" target="_blank" rel="noopener"><b>Post</b>&nbsp;Effective context engineering for AI agents</a>
-        <a class="cite doc" href="https://blog.langchain.com/context-engineering-for-agents/" target="_blank" rel="noopener"><b>Post</b>&nbsp;Context Engineering for Agents</a>
-        <a class="cite doc" href="https://hamel.dev/notes/llm/rag/not_dead.html" target="_blank" rel="noopener"><b>Series</b>&nbsp;Stop Saying RAG Is Dead</a>
+        <a class="cite doc" href="https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents" target="_blank" rel="noopener"><b>Post</b>&nbsp;Anthropic: context engineering</a>
+        <a class="cite doc" href="https://blog.langchain.com/context-engineering-for-agents/" target="_blank" rel="noopener"><b>Post</b>&nbsp;LangChain</a>
       </div>
     </div>
   </div>
@@ -1689,20 +1683,19 @@ wf.add_edge("generate_answer", END); graph = wf.compile()
   <h2 class="title">In Google ADK, retrieval is a tool the agent chooses to call, and loops are workflow agents</h2>
   <div class="grid fill" style="grid-template-columns:744px 624px;gap:24px">
     <div class="stack" style="gap:14px">
-      <div class="diagram" style="width:744px;height:424px"
+      <div class="diagram" style="width:744px;height:394px"
            data-wires="init>grader@2; grader<>researcher@2:flow{agent} [state]; researcher>kbt@3:flow{tool}; researcher>webt@3:flow{tool}; researcher>writer@4:dash{state} [SUFFICIENT]">
-        <div class="group g-agent" style="left:0;top:12px;width:744px;height:410px" data-step="1" data-fx="fade"><span class="gl">SequentialAgent · AgenticRAG</span></div>
-        <div class="node n-agent" id="init" style="left:36px;top:44px;width:260px" data-step="1"><span class="nt">Initial retriever</span><span class="ns">LlmAgent → evidence</span></div>
-        <div class="group g-agent" style="left:16px;top:144px;width:712px;height:170px" data-step="2" data-fx="fade"><span class="gl">LoopAgent · max_iterations=4</span></div>
-        <div class="node n-agent" id="grader" style="left:36px;top:186px;width:170px" data-step="2" data-on="4:hot"><span class="nt">Grader</span><span class="ns">→ critique</span></div>
-        <div class="node n-agent" id="researcher" style="left:300px;top:186px;width:180px" data-step="2" data-on="4:hot"><span class="nt">Researcher</span><span class="ns">→ evidence</span></div>
-        <div class="node n-tool" id="kbt" style="left:548px;top:150px;width:176px" data-step="3" data-fx="pop"><span class="nt">RAG corpus</span><span class="ns">AgentTool(kb)</span></div>
-        <div class="node n-tool" id="webt" style="left:548px;top:232px;width:176px" data-step="3" data-fx="pop"><span class="nt">Web search</span><span class="ns">AgentTool(web)</span></div>
-        <div class="node n-agent" id="writer" style="left:300px;top:344px;width:180px" data-step="1"><span class="nt">Writer</span><span class="ns">cited answer</span></div>
+        <div class="group g-agent" style="left:0;top:12px;width:744px;height:382px" data-step="1" data-fx="fade"><span class="gl">SequentialAgent · AgenticRAG</span></div>
+        <div class="node n-agent" id="init" style="left:36px;top:36px;width:260px" data-step="1"><span class="nt">Initial retriever</span><span class="ns">LlmAgent → evidence</span></div>
+        <div class="group g-agent" style="left:16px;top:126px;width:712px;height:170px" data-step="2" data-fx="fade"><span class="gl">LoopAgent · max_iterations=4</span></div>
+        <div class="node n-agent" id="grader" style="left:36px;top:170px;width:170px" data-step="2" data-on="4:hot"><span class="nt">Grader</span><span class="ns">→ critique</span></div>
+        <div class="node n-agent" id="researcher" style="left:300px;top:170px;width:180px" data-step="2" data-on="4:hot"><span class="nt">Researcher</span><span class="ns">→ evidence</span></div>
+        <div class="node n-tool" id="kbt" style="left:548px;top:134px;width:176px" data-step="3" data-fx="pop"><span class="nt">RAG corpus</span><span class="ns">AgentTool(kb)</span></div>
+        <div class="node n-tool" id="webt" style="left:548px;top:214px;width:176px" data-step="3" data-fx="pop"><span class="nt">Web search</span><span class="ns">AgentTool(web)</span></div>
+        <div class="node n-agent" id="writer" style="left:300px;top:316px;width:180px" data-step="1"><span class="nt">Writer</span><span class="ns">cited answer</span></div>
       </div>
       <div class="cites" data-fx="fade">
         <a class="cite doc" href="https://adk.dev/integrations/knowledge-engine/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;ADK Knowledge Engine</a>
-        <a class="cite doc" href="https://adk.dev/agents/workflow-agents/loop-agents/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;ADK Loop agents</a>
         <a class="cite repo" href="https://github.com/google/adk-recipes" target="_blank" rel="noopener"><b>Repo</b>&nbsp;google/adk-recipes</a>
         <a class="cite codelab" href="https://codelabs.developers.google.com/codelabs/sports-agent-adk-mcp-alloydb" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;Build a Sports Shop Agent AI Assistant with ADK, MCP Toolbox and AlloyDB</a>
         <a class="cite codelab" href="https://codelabs.developers.google.com/patent-search-java-adk" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;Build a Patent Search App with AlloyDB, vector search, and Java Agent Development Kit</a>
@@ -1731,7 +1724,7 @@ kb_agent = Agent(model="gemini-flash-latest", name="rag_agent",
     tools=[ask_vertex_retrieval])     # the tool stays alone here
 kb_tool = AgentTool(agent=kb_agent)  # mixes with other tools
 </code></pre></div>
-        <div class="code-wrap" data-step="4" style="position:absolute;left:0;top:0;width:100%"><div class="code-head">corrective_loop.py · workflow agents</div>
+        <div class="code-wrap" data-step="4" style="position:absolute;left:0;top:0;width:100%"><div class="code-head">corrective_loop.py · adk.dev/agents/workflow-agents/loop-agents</div>
 <pre class="code xs" data-lang="python" data-focus="4:16-17, 5:4-7, 6:18-19"><code>
 from google.adk.agents import LlmAgent, LoopAgent, SequentialAgent
 from google.adk.tools.tool_context import ToolContext
@@ -1754,7 +1747,7 @@ pipeline = SequentialAgent(name="AgenticRAG",
     sub_agents=[initial_retriever, loop, writer])
 </code></pre></div>
       </div>
-      <div class="callout pitfall" data-step="3">The built-in RAG tool and <code>google_search</code> each work only alone in an agent. Wrap each one in a sub-agent. Call it with <code>AgentTool</code>.</div>
+      <div class="callout pitfall" data-step="3"><span>The built-in RAG tool and <code>google_search</code> each work only alone in an agent. Wrap each one in a sub-agent. Call it with <code>AgentTool</code>.</span></div>
     </div>
   </div>
   <aside class="notes">
@@ -1936,11 +1929,11 @@ root_agent = LlmAgent(model="gemini-flash-latest",
   <div class="ch-num" data-fx="blur">07</div>
   <h2 class="display" style="max-width:1392px">Graph and structured RAG</h2>
   <p class="lede" data-fx="up" style="max-width:1300px">Top-k similarity finds the chunks that look like the query. Two question shapes break it. Structure adds <b>aggregation</b> and <b>traversal</b>.</p>
-  <div class="grid" style="grid-template-columns:1fr 1fr 400px;gap:22px">
+  <div class="grid" style="grid-template-columns:1fr 1fr 390px;gap:22px">
     <div class="panel tight k-state" data-step="1" data-fx="up">
       <h4>Global sensemaking</h4>
       <p class="small">"What are the main themes across this 1M-token corpus?"</p>
-      <svg id="c7o-heat" viewBox="0 0 434 150" width="434" height="150" aria-label="Heatmap of 100 chunks with a top-5 window">
+      <svg id="c7o-heat" viewBox="0 0 434 150" width="100%" aria-label="Heatmap of 100 chunks with a top-5 window">
         <g class="tiles"></g>
         <text x="2" y="138" style="font:600 12px var(--f-mono);fill:var(--muted)">relevance per chunk</text>
         <rect x="170" y="128" width="260" height="12" rx="6" style="fill:var(--surface-2);stroke:var(--line-2)"></rect>
@@ -1951,7 +1944,7 @@ root_agent = LlmAgent(model="gemini-flash-latest",
     <div class="panel tight k-risk" data-step="2" data-fx="up">
       <h4>Multi-hop</h4>
       <p class="small">"Which Stanford professor's student founded the company that acquired X?"</p>
-      <svg id="c7o-hop" viewBox="0 0 434 150" width="434" height="150" aria-label="Three evidence chunks linked by hops; top-k finds one">
+      <svg id="c7o-hop" viewBox="0 0 434 150" width="100%" aria-label="Three evidence chunks linked by hops; top-k finds one">
         <defs><marker id="c7o-ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" style="fill:var(--muted)"></path></marker></defs>
         <g class="ck" data-k="0"><rect x="4" y="52" width="128" height="58" rx="8" style="fill:var(--surface-2);stroke:var(--line-2);stroke-width:1.5"></rect>
           <text x="14" y="76" style="font:600 12px var(--f-mono);fill:var(--ink)">chunk A</text><text x="14" y="96" style="font:500 12px var(--f-mono);fill:var(--muted)">prof. P advised S</text></g>
@@ -1991,12 +1984,11 @@ root_agent = LlmAgent(model="gemini-flash-latest",
       </svg>
       <table class="t" data-step="6" style="font-size:16px">
         <tr><th>Query mode</th><th>How it works</th><th>Result</th></tr>
-        <tr><td>global (default)</td><td>map-reduce over community reports, <code>--community-level 2</code></td><td>72–83% comprehensiveness win vs vector RAG</td></tr>
+        <tr><td>global (default)</td><td>map-reduce over reports, level 2; dynamic selection: −77% tokens</td><td>72–83% win vs vector RAG; C0 reports: "over 97% fewer tokens"</td></tr>
         <tr><td>local</td><td>nearest entities → edges, text units, reports</td><td>"Who is X, how is X related to Y?"</td></tr>
         <tr data-on="7:hot"><td>DRIFT</td><td>primer over top-K reports, then local follow-ups</td><td>beats local: 78% comprehensiveness, 81% diversity</td></tr>
         <tr><td>basic</td><td>vector top-k over text units</td><td>baseline</td></tr>
       </table>
-      <p class="tiny" data-step="6">Root-level (C0) reports use "over 97% fewer tokens" than map-reduce over source text. Dynamic community selection cuts tokens by 77% at comparable quality. DRIFT test: 5,000+ AP news articles.</p>
     </div>
     <div class="stack" style="gap:14px">
       <div style="position:relative;height:300px">
@@ -2021,12 +2013,12 @@ $ graphrag query --method drift \
     "How does Scrooge change, and why?"
 </code></pre></div>
       </div>
-      <div class="callout pitfall" data-step="5"><div><b>Cost is set by corpus size, not query count.</b> Every chunk, entity and report is an LLM call: about 1000x the cost of vector indexing. The repo is "largely in maintenance mode". Run <code>graphrag init --force</code> between minor versions.</div></div>
+      <div class="callout pitfall" data-step="5"><div><b>Cost is set by corpus size, not query count.</b> Each chunk, entity and report is an LLM call: about 1000x vector indexing. The repo is "largely in maintenance mode".</div></div>
       <div class="cites">
-        <a class="cite paper" href="https://arxiv.org/abs/2404.16130" target="_blank" rel="noopener"><b>Paper</b>&nbsp;From Local to Global (Edge et al.)</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2404.16130" target="_blank" rel="noopener"><b>Paper</b>&nbsp;From Local to Global</a>
         <a class="cite repo" href="https://github.com/microsoft/graphrag" target="_blank" rel="noopener"><b>Repo</b>&nbsp;microsoft/graphrag</a>
         <a class="cite doc" href="https://microsoft.github.io/graphrag/index/default_dataflow/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Default Dataflow</a>
-        <a class="cite doc" href="https://www.microsoft.com/en-us/research/blog/introducing-drift-search-combining-global-and-local-search-methods-to-improve-quality-and-efficiency/" target="_blank" rel="noopener"><b>Blog</b>&nbsp;Introducing DRIFT Search</a>
+        <a class="cite doc" href="https://www.microsoft.com/en-us/research/blog/introducing-drift-search-combining-global-and-local-search-methods-to-improve-quality-and-efficiency/" target="_blank" rel="noopener"><b>Blog</b>&nbsp;DRIFT Search</a>
       </div>
     </div>
   </div>
@@ -2039,20 +2031,20 @@ $ graphrag query --method drift \
   <div class="grid fill" style="grid-template-columns:640px 1fr;gap:28px">
     <div class="stack" style="gap:14px">
       <h3>LazyGraphRAG: no LLM at index time</h3>
-      <p class="small">It "requires no prior summarization of the source data". The index is a noun-phrase co-occurrence graph. Graph statistics make the communities.</p>
+      <p class="small">It "requires no prior summarization of the source data". Index: a noun-phrase co-occurrence graph; graph statistics make communities.</p>
       <svg id="c7l-bars" viewBox="0 0 640 196" width="640" height="196" aria-label="Log-scale cost bars"></svg>
       <svg id="c7l-slider" viewBox="0 0 640 84" width="640" height="84" aria-label="Relevance-test budget slider"></svg>
-      <p class="small" data-step="3"><b>Query:</b> LLM writes 3–5 subqueries → best-first rank of chunks and communities → LLM relevance tests, breadth-first → deepen into sub-communities → stop at the budget → map-reduce of claims.</p>
+      <p class="small" data-step="3"><b>Query:</b> 3–5 subqueries → best-first ranking → LLM relevance tests, breadth-first → deepen → stop at the budget → map-reduce claims.</p>
       <p class="tiny" data-step="2">5,590 AP articles, LLM judge. At 4% of GraphRAG global query cost, it beats all methods on local and global queries. Ships in Microsoft Discovery (Azure).</p>
-      <div class="cites push"><a class="cite doc" href="https://www.microsoft.com/en-us/research/blog/lazygraphrag-setting-a-new-standard-for-quality-and-cost/" target="_blank" rel="noopener"><b>Blog</b>&nbsp;LazyGraphRAG: Setting a new standard for quality and cost</a></div>
+      <div class="cites push"><a class="cite doc" href="https://www.microsoft.com/en-us/research/blog/lazygraphrag-setting-a-new-standard-for-quality-and-cost/" target="_blank" rel="noopener"><b>Blog</b>&nbsp;LazyGraphRAG: a new standard for quality and cost</a></div>
     </div>
     <div class="stack" style="gap:14px">
       <h3>LightRAG: one keyword call, dual-level retrieval</h3>
-      <div class="tags"><span class="tag t-state">EMNLP 2025</span><span class="tag t-state">40.3k stars</span><span class="tag t-tool">pip install lightrag-hku</span><span class="tag new">2026.05 RAG-Anything merged</span></div>
+      <div class="tags"><span class="tag t-state">EMNLP 2025</span><span class="tag t-tool">pip install lightrag-hku</span><span class="tag new">RAG-Anything (2026.05)</span></div>
       <div class="grid g3" data-step="4" data-fx="stagger" style="gap:18px">
-        <div class="stat"><span class="n" style="font-size:46px" data-to="100" data-pre="&lt;">0</span><span class="l small">tokens per retrieval, 1 API call. GraphRAG global: 610,000 (Legal set)</span></div>
-        <div class="stat"><span class="n" style="font-size:46px" data-to="50" data-pre="~" data-suf="%">0</span><span class="l">win rate vs GraphRAG (49.6–54.8%, LLM judge)</span></div>
-        <div class="stat"><span class="n" style="font-size:46px" data-to="85" data-pre="60–" data-suf="%">0</span><span class="l">win rate vs naive RAG</span></div>
+        <div class="stat"><span class="n" style="font-size:46px" data-to="100" data-pre="&lt;">0</span><span class="l small">tokens, 1 call. GraphRAG global: 610,000</span></div>
+        <div class="stat"><span class="n" style="font-size:46px" data-to="50" data-pre="~" data-suf="%">0</span><span class="l">win vs GraphRAG (49.6–54.8%)</span></div>
+        <div class="stat"><span class="n" style="font-size:46px" data-to="85" data-pre="60–" data-suf="%">0</span><span class="l">win vs naive RAG</span></div>
       </div>
       <div style="position:relative;height:322px">
         <div data-step="4" data-until="5" style="position:absolute;inset:0">
@@ -2081,8 +2073,8 @@ await rag.finalize_storages()
 </code></pre></div>
       </div>
       <div class="cites push">
-        <a class="cite paper" href="https://arxiv.org/abs/2410.05779" target="_blank" rel="noopener"><b>Paper</b>&nbsp;LightRAG: Simple and Fast RAG</a>
-        <a class="cite repo" href="https://github.com/HKUDS/LightRAG" target="_blank" rel="noopener"><b>Repo</b>&nbsp;HKUDS/LightRAG</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2410.05779" target="_blank" rel="noopener"><b>Paper</b>&nbsp;LightRAG (EMNLP 2025)</a>
+        <a class="cite repo" href="https://github.com/HKUDS/LightRAG" target="_blank" rel="noopener"><b>Repo</b>&nbsp;HKUDS/LightRAG (40.3k stars)</a>
       </div>
     </div>
   </div>
@@ -2096,16 +2088,16 @@ await rag.finalize_storages()
     <div class="stack" style="gap:14px">
       <svg id="c7h-ppr" viewBox="0 0 640 320" width="640" height="320" aria-label="Personalized PageRank heat spreading over a knowledge graph"></svg>
       <svg id="c7h-tree" viewBox="0 0 640 196" width="640" height="196" aria-label="RAPTOR summary tree growing from chunks"></svg>
-      <p class="tiny" data-step="5">Bergum (Hamel series): "You don't need a graph database for GraphRAG." Han et al. (arXiv 2502.11371): combining graph and vector paradigms "yields consistent performance gains."</p>
+      <p class="tiny" data-step="5">Bergum: "You don't need a graph database for GraphRAG." Han et al. (arXiv 2502.11371): combining both paradigms gives consistent gains.</p>
     </div>
-    <div class="stack" style="gap:14px">
+    <div class="stack" style="gap:10px">
       <h3>HippoRAG 2: PageRank over a KG as memory</h3>
-      <ol class="seq small" style="gap:10px">
+      <ol class="seq small" style="gap:6px">
         <li data-step="1"><b>Offline:</b> OpenIE triples → phrase nodes, synonym edges (similarity &gt; 0.8), passage nodes linked by "contains".</li>
         <li data-step="2"><b>Online:</b> query → top-5 triples → LLM recognition filter → seeds: kept phrases + all passages (weight × 0.05).</li>
         <li data-step="3"><b>Personalized PageRank</b> spreads activation from the seeds. Passages rank by score → reader.</li>
       </ol>
-      <p class="small" data-step="4"><b>RAPTOR</b> (Stanford): retrieve over the collapsed tree, all levels at once; it beats top-down traversal. With GPT-4: +20% absolute on QuALITY. RAPTOR clusters <i>chunks by similarity</i>; GraphRAG clusters <i>entities by connectivity</i>.</p>
+      <p class="small" data-step="4"><b>RAPTOR:</b> the collapsed tree beats top-down traversal; GPT-4: +20% absolute on QuALITY. It clusters <i>chunks by similarity</i>; GraphRAG clusters <i>entities by connectivity</i>.</p>
       <div class="grid g2" id="c7h-score" data-step="5" data-fx="bar" style="gap:16px;perspective:900px">
         <div class="panel tight k-model">
           <h4>LLM-judge win rate</h4>
@@ -2113,7 +2105,7 @@ await rag.finalize_storages()
         </div>
         <div class="panel tight k-state">
           <h4>Avg F1, 7 QA sets</h4>
-          <div class="stack" style="gap:5px">
+          <div class="stack" style="gap:3px">
             <div class="row middle" style="gap:8px"><span class="tiny" style="width:96px;color:var(--ink)">HippoRAG 2</span><div class="bar" style="flex:1;--v:59.8%"><i></i></div><b class="tiny">59.8</b></div>
             <div class="row middle" style="gap:8px"><span class="tiny" style="width:96px">dense</span><div class="bar" style="flex:1;--v:57%"><i></i></div><b class="tiny">57.0</b></div>
             <div class="row middle" style="gap:8px"><span class="tiny" style="width:96px">GraphRAG</span><div class="bar" style="flex:1;--v:49.6%"><i></i></div><b class="tiny">49.6</b></div>
@@ -2123,10 +2115,10 @@ await rag.finalize_storages()
         </div>
       </div>
       <div class="cites push">
-        <a class="cite paper" href="https://arxiv.org/abs/2502.14802" target="_blank" rel="noopener"><b>Paper</b>&nbsp;From RAG to Memory (HippoRAG 2, ICML 2025)</a>
-        <a class="cite repo" href="https://github.com/OSU-NLP-Group/HippoRAG" target="_blank" rel="noopener"><b>Repo</b>&nbsp;OSU-NLP-Group/HippoRAG</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2502.14802" target="_blank" rel="noopener"><b>Paper</b>&nbsp;HippoRAG 2</a>
+        <a class="cite repo" href="https://github.com/OSU-NLP-Group/HippoRAG" target="_blank" rel="noopener"><b>Repo</b>&nbsp;HippoRAG</a>
         <a class="cite paper" href="https://arxiv.org/abs/2401.18059" target="_blank" rel="noopener"><b>Paper</b>&nbsp;RAPTOR</a>
-        <a class="cite repo" href="https://github.com/parthsarthi03/raptor" target="_blank" rel="noopener"><b>Repo</b>&nbsp;parthsarthi03/raptor</a>
+        <a class="cite repo" href="https://github.com/parthsarthi03/raptor" target="_blank" rel="noopener"><b>Repo</b>&nbsp;raptor</a>
       </div>
     </div>
   </div>
@@ -2140,7 +2132,7 @@ await rag.finalize_storages()
     <div class="stack" style="gap:14px">
       <div style="position:relative;height:446px">
         <div class="stack" data-until="7" style="gap:14px">
-          <div class="diagram" style="width:728px;height:240px" data-wires="c7s-q>c7s-sch@1:flow{state}; c7s-q>c7s-few@1:flow{state}; c7s-sch>c7s-llm@2; c7s-few>c7s-llm@2; c7s-llm>c7s-exe@2:flow{model}; c7s-exe>c7s-llm@3:bend50:dash{risk} [error, retry]; c7s-exe>c7s-ans@3:flow{tool} [rows]">
+          <div class="diagram" style="width:728px;height:240px" data-wires="c7s-q>c7s-sch@1:flow{state}; c7s-q>c7s-few@1:flow{state}; c7s-sch>c7s-llm@2; c7s-few>c7s-llm@2; c7s-llm>c7s-exe@2:flow{model}; c7s-exe>c7s-llm@3:bend50:dash{risk} [retry]; c7s-exe>c7s-ans@3:flow{tool} [rows]">
             <div class="node n-human pill" id="c7s-q" style="left:0;top:96px"><span class="nt">Question</span></div>
             <div class="node n-state" id="c7s-sch" style="left:190px;top:0;width:190px" data-step="1" data-fx="pop"><span class="nt">Schema retriever</span><span class="ns">DDL + column docs</span></div>
             <div class="node n-state" id="c7s-few" style="left:190px;top:160px;width:190px" data-step="1" data-fx="pop"><span class="nt">Few-shot SQL</span><span class="ns">similar Q→SQL</span></div>
@@ -2151,17 +2143,16 @@ await rag.finalize_storages()
           <p class="tiny" data-step="1">(1) link the schema with embeddings (2) retrieve few-shot pairs (3) generate (4) execute (5) self-correct on error (6) verbalize the rows.</p>
           <div class="grid g2" data-step="4" data-fx="bar" style="gap:16px">
             <div class="panel tight k-state">
-              <h4>BIRD: test execution accuracy</h4>
+              <h4>BIRD test execution accuracy</h4><p class="tiny">leaderboard, 23 Oct 2026</p>
               <div class="row middle" style="gap:8px"><span class="tiny" style="width:110px;color:var(--ink)">GrainSQL</span><div class="bar" style="flex:1;--v:82.95%"><i></i></div><b class="tiny">82.95</b></div>
               <div class="row middle" style="gap:8px"><span class="tiny" style="width:110px">human</span><div class="bar" style="flex:1;--v:92.96%;--aurora:var(--human)"><i></i></div><b class="tiny">92.96</b></div>
             </div>
             <div class="panel tight k-risk">
-              <h4>Spider 2.0: o1-preview agent</h4>
+              <h4>Spider 2.0: o1-preview agent</h4><p class="tiny">632 tasks, BigQuery/Snowflake, &gt;1,000 columns</p>
               <div class="row middle" style="gap:8px"><span class="tiny" style="width:110px;color:var(--ink)">enterprise</span><div class="bar" style="flex:1;--v:21.3%;--aurora:var(--risk)"><i></i></div><b class="tiny">21.3%</b></div>
               <div class="row middle" style="gap:8px"><span class="tiny" style="width:110px">Spider 1.0</span><div class="bar" style="flex:1;--v:91.2%"><i></i></div><b class="tiny">91.2%</b></div>
             </div>
           </div>
-          <p class="tiny" data-step="4">Spider 2.0: 632 enterprise workflow tasks on BigQuery and Snowflake, schemas often over 1,000 columns. BIRD leaderboard checked 23 Oct 2026 (GrainSQL, 7 Sep 2026).</p>
         </div>
         <div data-step="7" style="position:absolute;inset:0">
           <h4 style="margin-bottom:8px">Which structure for which question?</h4>
@@ -2181,7 +2172,7 @@ await rag.finalize_storages()
         <a class="cite codelab" href="https://codelabs.developers.google.com/alloydb-ai-nl-sql" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;Generate SQL using AlloyDB AI natural language</a>
         <a class="cite doc" href="https://bird-bench.github.io/" target="_blank" rel="noopener"><b>Bench</b>&nbsp;BIRD</a>
         <a class="cite paper" href="https://arxiv.org/abs/2411.07763" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Spider 2.0</a>
-        <a class="cite paper" href="https://arxiv.org/abs/2404.17723" target="_blank" rel="noopener"><b>Paper</b>&nbsp;RAG with Knowledge Graphs for Customer Service QA</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2404.17723" target="_blank" rel="noopener"><b>Paper</b>&nbsp;LinkedIn KG-RAG (SIGIR 2024)</a>
       </div>
     </div>
     <div class="stack" style="gap:14px">
@@ -2204,9 +2195,9 @@ print(retriever.search(
     query_text="Which movies did Hugo Weaving star in?"))
 </code></pre></div>
       <ul class="ticks small" style="gap:8px">
-        <li data-step="5"><b>Schema in the prompt, not documents.</b> The LLM writes Cypher from the schema and the examples.</li>
-        <li data-step="6">Invalid Cypher raises <code>Text2CypherRetrievalError</code>. <code>VectorCypherRetriever</code> starts with a vector search, then expands with Cypher.</li>
-        <li data-step="7"><b>Vanna 2.0:</b> user-aware agents with row-level security. <b>LinkedIn</b> KG-RAG over tickets: MRR +77.6%, median resolution time −28.6%.</li>
+        <li data-step="5"><b>Schema, not documents.</b> The LLM writes Cypher from the schema and examples.</li>
+        <li data-step="6">Bad Cypher raises <code>Text2CypherRetrievalError</code>. <code>VectorCypherRetriever</code>: vector entry, Cypher expansion.</li>
+        <li data-step="7"><b>Vanna 2.0:</b> row-level security. <b>LinkedIn</b> KG-RAG: MRR +77.6%, resolution time −28.6%.</li>
       </ul>
     </div>
   </div>
@@ -4367,7 +4358,7 @@ for step in interaction.steps:
   const BM = ["A", "C", "E"], DN = ["D", "B", "A"];
   const INS = ["A", "C", "E", "D", "B"];   // insertion order (dict order in rrf())
   const SORTED = ["A", "D", "C", "B", "E"]; // sorted by score, stable
-  const X = { bm: 0, dn: 166, fu: 350 }, W = { bm: 150, dn: 150, fu: 308 };
+  const X = { bm: 0, dn: 172, fu: 352 }, W = { bm: 160, dn: 160, fu: 300 };
   const rowY = (i) => 30 + i * 48;
   const f4 = (v) => v.toFixed(4);
   const parts = {};
@@ -4377,7 +4368,7 @@ for step in interaction.steps:
 
   function card(x, y, w, tone) {
     const d = document.createElement("div");
-    d.style.cssText = `position:absolute;left:${x}px;top:${y}px;width:${w}px;height:40px;display:flex;align-items:center;gap:12px;padding:0 12px;border-radius:10px;border:1.5px solid var(--${tone});background:var(--surface-2);font:600 14px var(--f-mono);color:var(--ink-2);box-sizing:border-box;white-space:nowrap;transition:box-shadow .4s`;
+    d.style.cssText = `position:absolute;left:${x}px;top:${y}px;width:${w}px;height:40px;display:flex;align-items:center;gap:10px;padding:0 10px;border-radius:10px;border:1.5px solid var(--${tone});background:var(--surface-2);font:600 13px var(--f-mono);color:var(--ink-2);box-sizing:border-box;white-space:nowrap;transition:box-shadow .4s`;
     stage.appendChild(d);
     return d;
   }
@@ -4422,14 +4413,16 @@ for step in interaction.steps:
     INS.forEach((d, k) => {
       const c = fused[d];
       const top = rowY(order.indexOf(d));
-      if (n < 2) { gsap.set(c, { autoAlpha: 0, top }); return; }
+      if (n < 2) { gsap.killTweensOf(c); gsap.set(c, { autoAlpha: 0, top }); return; }
       if (animate && last < 2) {
         gsap.fromTo(c, { autoAlpha: 0, x: -30 }, { autoAlpha: 1, x: 0, top, duration: 0.5, delay: 0.55 + k * 0.08 });
         const t = c.querySelector(".tot"), p = { v: 0 };
         gsap.to(p, { v: c._tot, duration: 0.9, delay: 0.6 + k * 0.08, ease: "power2.out", onUpdate: () => (t.textContent = f4(p.v)) });
       } else if (animate) {
+        gsap.killTweensOf(c);
         gsap.to(c, { autoAlpha: 1, x: 0, top, duration: 0.7, ease: "power3.inOut" });
       } else {
+        gsap.killTweensOf(c);
         gsap.set(c, { autoAlpha: 1, x: 0, top });
         c.querySelector(".tot").textContent = f4(c._tot);
       }
@@ -5533,10 +5526,9 @@ for step in interaction.steps:
     H1.forEach(([cx, cy, rx, ry]) => { const c = mk("ellipse", { cx, cy, rx, ry }, "fill:none;stroke:var(--state);stroke-width:2;stroke-dasharray:9 6;opacity:0"); hg.appendChild(c); b.h1.push(c); });
     b.h0 = mk("rect", { x: 152, y: 3, width: 400, height: 266, rx: 22 }, "fill:none;stroke:var(--ink-2);stroke-width:2;stroke-dasharray:2 6;opacity:0"); hg.appendChild(b.h0);
     const rg = svg.querySelector(".reports");
+    rg.appendChild(mk("text", { x: 582, y: 20 }, "font:700 13px var(--f-mono);fill:var(--muted)")).textContent = "levels";
     ["C2", "C1", "C0"].forEach((lv, k) => {
-      const t = mk("text", { x: 582 + k * 58, y: 20 }, "font:700 13px var(--f-mono);fill:var(--faint)"); t.textContent = "level " + lv;
-      if (k) t.textContent = lv;
-      t.setAttribute("x", [582, 650, 690][k]);
+      const t = mk("text", { x: 646 + k * 36, y: 20 }, "font:700 13px var(--f-mono);fill:var(--faint)"); t.textContent = lv;
       rg.appendChild(t); b.chips.push(t);
     });
     REP.forEach((r, k) => {
@@ -5556,7 +5548,7 @@ for step in interaction.steps:
     const b = build(slide);
     gsap.killTweensOf(all(b));
     const d = animate ? 1 : 0;
-    gsap.to(b.chunks, { opacity: n >= 1 ? 1 : 0, x: n >= 1 ? 0 : -20, duration: d * 0.5, stagger: d * 0.07 });
+    gsap.to(b.chunks, { opacity: n >= 1 ? 1 : 0, duration: d * 0.5, stagger: d * 0.07 });
     b.nodes.forEach((x, i) => {
       const [cx, cy] = n >= 2 ? x.p : x.src;
       gsap.to([x.base, x.fill], { attr: { cx, cy }, duration: d * 0.8, delay: d * i * 0.04, ease: "back.out(1.4)" });
@@ -5569,7 +5561,7 @@ for step in interaction.steps:
     gsap.to(b.h1, { opacity: n >= 4 ? 1 : 0, duration: d * 0.4, delay: t4 * 2.2 });
     gsap.to(b.h0, { opacity: n >= 4 ? 1 : 0, duration: d * 0.4, delay: t4 * 3.4 });
     b.chips.forEach((c, k) => gsap.to(c, { fill: n >= 4 ? "var(--state)" : "var(--faint)", duration: d * 0.2, delay: t4 * (1 + k * 1.2) }));
-    gsap.to(b.cards, { opacity: n >= 5 ? 1 : 0, x: n >= 5 ? 0 : 30, duration: d * 0.45, stagger: d * 0.12 });
+    gsap.to(b.cards, { opacity: n >= 5 ? 1 : 0, duration: d * 0.45, stagger: d * 0.12 });
     const p = b.ctrP || (b.ctrP = { v: 0 });
     gsap.to(p, { v: calls(n), duration: d * 1.2, delay: d * 0.2, ease: "power2.out", onUpdate: () => setCtr(b, p.v), onComplete: () => setCtr(b, p.v) });
     if (!d) setCtr(b, calls(n));
@@ -5662,11 +5654,11 @@ for step in interaction.steps:
   const NS = "http://www.w3.org/2000/svg";
   const mk = (tag, attrs, style, txt) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (style) e.setAttribute("style", style); if (txt) e.textContent = txt; return e; };
   // phrase nodes [x, y, label]
-  const PH = [[70,80,"Erik Hort"],[230,120,"Montebello"],[410,80,"Rockland County"],[570,46,"Rockland Co."],[70,250,"George Rankin"],[240,290,""],[390,210,""],[520,180,""],[170,190,""],[320,44,""],[600,260,""],[470,290,"politician"]];
+  const PH = [[60,90,"Erik Hort"],[250,120,"Montebello"],[440,90,"Rockland County"],[590,62,"Rockland Co."],[60,250,"George Rankin"],[250,212,""],[420,236,""],[560,206,""],[150,172,""],[345,48,""],[250,282,"politician"]];
   // passage nodes [x, y, contains[]]
-  const PA = [[150,46,[0,1]],[330,150,[1,2]],[150,286,[4,11]],[470,240,[6,7,11]],[590,130,[3,7,10]],[300,250,[8,6,5]]];
+  const PA = [[155,72,[0,1]],[345,140,[1,2]],[155,282,[4,10]],[500,282,[6,7]],[600,150,[3,7]],[340,252,[5,6]]];
   const SIM = [0.9, 0.7, 0.3, 0.3, 0.3, 0.3];
-  const REL = [[0,1],[1,2],[4,11],[6,7],[7,10],[6,11],[8,4],[8,6],[9,2],[9,0],[10,11],[5,8]];
+  const REL = [[0,1],[1,2],[4,10],[5,6],[6,7],[8,4],[8,5],[9,2],[9,1],[5,10]];
   const SYN = [[2,3]];
   const SEEDS = [0, 1];
   const NP = PH.length, NT = NP + PA.length;
@@ -5711,26 +5703,26 @@ for step in interaction.steps:
     });
     SEEDS.forEach((i) => { const c = mk("circle", { cx: PH[i][0], cy: PH[i][1], r: 21 }, "fill:none;stroke:var(--agent);stroke-width:2.5;stroke-dasharray:4 3;opacity:0"); svg.appendChild(c); b.seedRings.push(c); });
     b.q = mk("text", { x: 0, y: 14 }, "font:600 13px var(--f-mono);fill:var(--muted)", "query: \"What county is Erik Hort's birthplace a part of?\""); svg.appendChild(b.q);
-    b.it = mk("text", { x: 0, y: 316 }, "font:700 13px var(--f-mono);fill:var(--state)", ""); svg.appendChild(b.it);
+    b.it = mk("text", { x: 640, y: 316, "text-anchor": "end" }, "font:700 13px var(--f-mono);fill:var(--state)", ""); svg.appendChild(b.it);
     svg._b = b;
     return b;
   }
   // RAPTOR tree
-  const LEAF = Array.from({ length: 8 }, (_, i) => [10 + i * 56, 160]);
-  const L1 = [[66, 92, [0, 1, 2, 3]], [206, 92, [3, 4, 5]], [374, 92, [6, 7]]];
-  const ROOT = [220, 24];
+  const LEAF = Array.from({ length: 8 }, (_, i) => [8 + i * 50, 160]);
+  const L1 = [[78, 92, [0, 1, 2, 3]], [208, 92, [3, 4, 5]], [337, 92, [6, 7]]];
+  const ROOT = [205, 24];
   function buildTree(svg) {
     if (svg._b) return svg._b;
     const b = { leaves: [], e1: [], n1: [], e2: [], root: null, box: null, labels: [] };
     const line = (x1, y1, x2, y2, dash) => { const L = Math.hypot(x2 - x1, y2 - y1); const l = mk("line", { x1, y1, x2, y2 }, "stroke:var(--state);stroke-width:1.8;stroke-dasharray:" + (dash ? "4 4" : L + " " + L) + ";stroke-dashoffset:" + (dash ? 0 : L)); l._L = dash ? 0 : L; l._dash = dash; svg.appendChild(l); return l; };
-    L1.forEach(([x, y, kids], k) => kids.forEach((c) => b.e1.push(line(LEAF[c][0] + 23, LEAF[c][1], x, y + 26, c === 3 && k === 0))));
+    L1.forEach(([x, y, kids], k) => kids.forEach((c) => b.e1.push(line(LEAF[c][0] + 21, LEAF[c][1], x, y + 26, c === 3 && k === 0))));
     L1.forEach(([x, y]) => b.e2.push(line(x, y, ROOT[0], ROOT[1] + 26, false)));
-    LEAF.forEach(([x, y], i) => { const g = mk("g", { opacity: 0 }); g.appendChild(mk("rect", { x, y, width: 46, height: 26, rx: 5 }, "fill:var(--state-soft);stroke:var(--state);stroke-width:1.5")); g.appendChild(mk("text", { x: x + 23, y: y + 17, "text-anchor": "middle" }, "font:600 11px var(--f-mono);fill:var(--ink-2)", "c" + (i + 1))); svg.appendChild(g); b.leaves.push(g); });
+    LEAF.forEach(([x, y], i) => { const g = mk("g", { opacity: 0 }); g.appendChild(mk("rect", { x, y, width: 42, height: 26, rx: 5 }, "fill:var(--state-soft);stroke:var(--state);stroke-width:1.5")); g.appendChild(mk("text", { x: x + 21, y: y + 17, "text-anchor": "middle" }, "font:600 11px var(--f-mono);fill:var(--ink-2)", "c" + (i + 1))); svg.appendChild(g); b.leaves.push(g); });
     const sum = (x, y, t) => { const g = mk("g", { opacity: 0 }); g.appendChild(mk("rect", { x: x - 44, y, width: 88, height: 26, rx: 13 }, "fill:var(--surface-2);stroke:var(--model);stroke-width:1.8")); g.appendChild(mk("text", { x, y: y + 17, "text-anchor": "middle" }, "font:600 11px var(--f-mono);fill:var(--ink)", t)); svg.appendChild(g); return g; };
     L1.forEach(([x, y], k) => b.n1.push(sum(x, y, "summary " + (k + 1))));
     b.root = sum(ROOT[0], ROOT[1], "root summary");
-    b.box = mk("rect", { x: 2, y: 14, width: 460, height: 180, rx: 14 }, "fill:none;stroke:var(--agent);stroke-width:2;stroke-dasharray:8 6;opacity:0"); svg.appendChild(b.box);
-    [["~100-token chunks → SBERT", 177], ["UMAP + GMM soft clusters", 104], ["(BIC) → LLM summary", 122], ["recurse to the root", 40], ["collapsed tree: search all", 62]].forEach(([t, y], k) => { const e = mk("text", { x: 474, y }, "font:600 12px var(--f-mono);fill:" + (k === 4 ? "var(--agent)" : "var(--muted)") + ";opacity:0", t); svg.appendChild(e); b.labels.push(e); });
+    b.box = mk("rect", { x: 2, y: 14, width: 404, height: 180, rx: 14 }, "fill:none;stroke:var(--agent);stroke-width:2;stroke-dasharray:8 6;opacity:0"); svg.appendChild(b.box);
+    [["~100-token chunks, SBERT", 177], ["UMAP + GMM soft clusters", 104], ["(BIC) → LLM summary", 122], ["recurse up to a root", 40], ["collapsed tree: all levels", 62]].forEach(([t, y], k) => { const e = mk("text", { x: 420, y }, "font:600 12px var(--f-mono);fill:" + (k === 4 ? "var(--agent)" : "var(--muted)") + ";opacity:0", t); svg.appendChild(e); b.labels.push(e); });
     svg._b = b;
     return b;
   }

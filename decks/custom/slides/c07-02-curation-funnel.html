@@ -1,0 +1,210 @@
+<section class="slide" id="custom-c07-curation-funnel" data-tone="state" data-title="Model-based filtering">
+  <h2 class="title">Model-based filters throw away about 90% of the web and still win</h2>
+  <div class="fill" style="display:grid;grid-template-columns:760px 1fr;gap:28px">
+    <svg class="interactive" id="c07cf-svg" viewBox="0 0 780 600" width="760" height="585" style="overflow:visible" aria-label="Two funnels, the classifier pipeline, tokens needed to reach 33.6% MMLU, and the dedup paradox"></svg>
+    <div style="position:relative">
+      <div class="stack" data-until="4" style="position:absolute;inset:0;gap:14px">
+        <div class="panel tight k-state" data-step="1">
+          <h4>DCLM: one fastText classifier beat every other filter</h4>
+          <p class="tiny" style="color:var(--ink-2)">DCLM-Pool is about 240T tokens. The positives are OpenHermes 2.5 and top r/ExplainLikeImFive posts. The filter keeps the top 10%.</p>
+          <p class="tiny" style="font-family:var(--f-mono);color:var(--ink)">Core score: fastText <b class="c-state">30.2</b> · perplexity 29.0 · AskLLM 28.6 · RefinedWeb 27.5</p>
+          <p class="tiny" style="color:var(--ink-2)">DCLM-7B gets 64% MMLU after 2.6T tokens. Llama 3 8B gets 66% with 6.6x more compute. “model-based filtering is key”.</p>
+        </div>
+        <div class="panel tight k-model" data-step="2">
+          <h4>Distill an LLM judge into a tiny classifier</h4>
+          <p class="tiny" style="color:var(--ink-2)">A large LLM labels about 0.5M documents on a rubric. A small classifier learns the labels. Then the classifier runs over trillions of tokens at a low cost.</p>
+        </div>
+        <div class="panel tight k-state" data-step="3">
+          <h4>Nemotron-CC: filter less, rephrase more</h4>
+          <p class="tiny" style="color:var(--ink-2)">6.3T tokens from a classifier ensemble and synthetic rephrasing. Its 8B model gets +5 MMLU over Llama 3.1 8B. The authors say that a 90% cut hurts long training horizons.</p>
+        </div>
+        <div class="cites" data-step="3">
+          <a class="cite paper" href="https://arxiv.org/abs/2406.17557" target="_blank" rel="noopener"><b>Paper</b>&nbsp;The FineWeb Datasets, 2024</a>
+          <a class="cite paper" href="https://arxiv.org/abs/2406.11794" target="_blank" rel="noopener"><b>Paper</b>&nbsp;DataComp-LM (DCLM), 2024</a>
+          <a class="cite paper" href="https://arxiv.org/abs/2412.02595" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Nemotron-CC, ACL 2025</a>
+        </div>
+      </div>
+      <div class="stack" style="position:absolute;inset:0;gap:14px">
+        <div class="code-wrap" data-step="4"><div class="code-head">fineweb_edu_score.py · from the model card</div>
+<pre class="code xs" data-lang="python" data-focus="4:10-12, 5:13-15"><code>
+from transformers import AutoTokenizer
+from transformers import AutoModelForSequenceClassification
+tokenizer = AutoTokenizer.from_pretrained(
+    "HuggingFaceTB/fineweb-edu-classifier")
+model = AutoModelForSequenceClassification.from_pretrained(
+    "HuggingFaceTB/fineweb-edu-classifier")
+text = "This is a test sentence."
+inputs = tokenizer(text, return_tensors="pt",
+                   padding="longest", truncation=True)
+outputs = model(**inputs)
+logits = outputs.logits.squeeze(-1).float().detach().numpy()
+score = logits.item()
+result = {"text": text, "score": score,
+          "int_score": int(round(max(0, min(score, 5))))}
+keep = result["int_score"] &gt;= 3   # the card advice
+</code></pre></div>
+        <div class="callout pitfall" data-step="5" style="font-size:16px;padding:12px 16px">Too much cleaning removes good data. The FineWeb-Edu card warns that the classifier may “overfit to academic-looking content”. Give every datatrove filter an <code>exclusion_writer</code>. Put each removal rate on the quality card.</div>
+        <div class="cites" data-step="4">
+          <a class="cite doc" href="https://huggingface.co/HuggingFaceFW/fineweb-edu-classifier" target="_blank" rel="noopener"><b>Model card</b>&nbsp;fineweb-edu-classifier</a>
+          <a class="cite repo" href="https://github.com/huggingface/datatrove" target="_blank" rel="noopener"><b>Repo</b>&nbsp;huggingface/datatrove 0.10.1</a>
+        </div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    Step 1: two funnels. DCLM keeps 3.8T of about 240T tokens, and FineWeb-Edu keeps 1.3T of 15T. Step 2 is the recipe that every lab now copies: Llama-3-70B-Instruct labels 460k pages for educational value, an embedding model with a linear head learns those labels with F1 82% at a threshold of 3, and 6,000 H100 hours score all 15T tokens. Step 3 is the reason: FineWeb-Edu reaches 33.6% MMLU with 38B tokens, where Matrix needs about 300B. Step 4 is the real classifier code from the model card; note the clamp of the score to 0 to 5 and the round. Step 5 is the counter-intuitive part: global dedup left about 4T tokens and scored worse than per-snapshot dedup with 20T, so more cleaning is not always better. Analogy: a sieve that is too fine also removes the gold dust. Likely question: "Why a linear head and not the 70B model?" Cost: the 70B model labels 460k pages once; the tiny head then scores trillions of tokens.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c07-curation-funnel";
+  const S = {};
+  // funnel geometry: top half-width 150, bottom half-width ~ sqrt(kept share)
+  const F = [
+    { cx: 195, name: "DCLM-Pool", from: 240, to: 3.8, out: "DCLM-Baseline", filter: "fastText · top 10%", b: 150 * Math.sqrt(3.8 / 240) },
+    { cx: 585, name: "FineWeb", from: 15, to: 1.3, out: "FineWeb-Edu", filter: "edu score ≥ 3", b: 150 * Math.sqrt(1.3 / 15) },
+  ];
+  const Y0 = 58, Y1 = 190;
+  const BX = 130, BW = 560;      // bar origin and full width
+
+  function mk(tag, at, parent, txt) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in at) e.setAttribute(k, at[k]);
+    if (txt != null) e.textContent = txt;
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  const mono = (size, w, fill, anchor) => ({ "font-family": "var(--f-mono)", "font-size": size, "font-weight": w || 500, fill: fill || "var(--muted)", "text-anchor": anchor || "start" });
+  const fpath = (cx, b) => `M${cx - 150},${Y0} L${cx + 150},${Y0} L${cx + b},${Y1} L${cx - b},${Y1} Z`;
+  const fmt = (v) => (v >= 10 ? Math.round(v) : v.toFixed(1)) + "T";
+
+  function build(slide) {
+    if (S.slide === slide) return;
+    S.slide = slide;
+    const svg = slide.querySelector("#c07cf-svg");
+    svg.innerHTML = "";
+
+    // A: two funnels
+    S.A = mk("g", {}, svg);
+    S.fun = F.map((f) => {
+      const g = mk("g", {}, S.A);
+      mk("text", { x: f.cx, y: 22, ...mono(16, 700, "var(--ink)", "middle") }, g, f.name);
+      mk("text", { x: f.cx, y: 42, ...mono(14, 500, "var(--muted)", "middle") }, g, "≈" + f.from + "T tokens in");
+      const p = mk("path", { d: fpath(f.cx, 150), fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 2.5, "stroke-linejoin": "round" }, g);
+      mk("text", { x: f.cx, y: 128, ...mono(14, 600, "var(--model)", "middle") }, g, f.filter);
+      const n = mk("text", { x: f.cx, y: 226, "font-family": "var(--f-display)", "font-size": 30, "font-weight": 700, fill: "var(--state)", "text-anchor": "middle" }, g, fmt(f.to));
+      mk("text", { x: f.cx, y: 247, ...mono(14, 600, "var(--ink-2)", "middle") }, g, f.out + " kept");
+      return { f, g, p, n };
+    });
+    mk("text", { x: 390, y: 247, ...mono(12, 500, "var(--faint)", "middle") }, S.A, "widths ∝ √tokens");
+
+    // B: LLM label -> classifier -> score everything
+    S.B = mk("g", {}, svg);
+    const NB = [
+      { x: 0, tone: "model", l: ["Llama-3-70B-Instruct", "labels 460k pages", "on a 0–5 scale"] },
+      { x: 272, tone: "model", l: ["Snowflake-arctic-embed-m", "+ linear head · F1 82%", "keep score ≥ 3"] },
+      { x: 544, tone: "state", l: ["scores all 15T tokens", "6,000 H100 GPU-hours", "one pass"] },
+    ];
+    S.bn = NB.map((d) => {
+      const g = mk("g", {}, S.B);
+      mk("rect", { x: d.x, y: 276, width: 236, height: 86, rx: 12, fill: `var(--${d.tone}-soft)`, stroke: `var(--${d.tone})`, "stroke-width": 2 }, g);
+      d.l.forEach((t, k) => mk("text", { x: d.x + 14, y: 300 + k * 22, ...mono(k ? 13 : 14, k ? 500 : 700, k ? "var(--ink-2)" : "var(--ink)") }, g, t));
+      return g;
+    });
+    S.ba = [0, 1].map((k) => {
+      const x = 236 + k * 272;
+      const g = mk("g", {}, S.B);
+      mk("path", { d: `M${x + 4},319 L${x + 30},319`, stroke: "var(--model)", "stroke-width": 2.5, fill: "none" }, g);
+      mk("path", { d: `M${x + 26},313 l8,6 l-8,6 z`, fill: "var(--model)" }, g);
+      return g;
+    });
+    S.dot = mk("circle", { cx: 0, cy: 319, r: 6, fill: "var(--model)", opacity: 0 }, S.B);
+
+    // C: tokens to reach 33.6% MMLU
+    S.C = mk("g", {}, svg);
+    mk("text", { x: 0, y: 404, ...mono(14, 600, "var(--muted)") }, S.C, "Tokens to reach 33.6% MMLU");
+    mk("text", { x: 0, y: 434, ...mono(15, 700, "var(--ink)") }, S.C, "FineWeb-Edu");
+    mk("text", { x: 0, y: 468, ...mono(15, 700, "var(--ink-2)") }, S.C, "Matrix");
+    S.c1 = mk("rect", { x: BX, y: 416, width: BW * 38 / 300, height: 24, rx: 5, fill: "var(--state)" }, S.C);
+    S.c2 = mk("rect", { x: BX, y: 450, width: BW, height: 24, rx: 5, fill: "var(--faint)" }, S.C);
+    S.c1t = mk("text", { x: BX + BW * 38 / 300 + 10, y: 434, ...mono(15, 700, "var(--state)") }, S.C, "38B");
+    S.c2t = mk("text", { x: BX + BW + 10, y: 468, ...mono(15, 700, "var(--ink-2)") }, S.C, "≈300B");
+    S.c10 = mk("text", { x: 780, y: 434, "font-family": "var(--f-display)", "font-size": 22, "font-weight": 700, fill: "var(--state)", "text-anchor": "end" }, S.C, "≈10x fewer tokens");
+
+    // D: dedup paradox
+    S.D = mk("g", {}, svg);
+    mk("text", { x: 0, y: 512, ...mono(14, 600, "var(--muted)") }, S.D, "MinHash dedup on FineWeb (5-grams, 14 × 8 hashes)");
+    mk("text", { x: 0, y: 542, ...mono(15, 700, "var(--ink)") }, S.D, "per snapshot");
+    mk("text", { x: 0, y: 578, ...mono(15, 700, "var(--ink)") }, S.D, "global");
+    S.d1 = mk("rect", { x: BX, y: 524, width: 480, height: 26, rx: 5, fill: "var(--state)" }, S.D);
+    mk("text", { x: BX + 12, y: 542, ...mono(14, 700, "#fff") }, S.D, "20T tokens · matched RefinedWeb");
+    S.d2 = mk("rect", { x: BX, y: 560, width: 96, height: 26, rx: 5, fill: "var(--risk)" }, S.D);
+    mk("text", { x: BX + 106, y: 578, ...mono(14, 700, "var(--risk)") }, S.D, "≈4T · scored worse");
+    S.tag = mk("g", {}, S.D);
+    mk("rect", { x: 430, y: 559, width: 112, height: 28, rx: 14, fill: "var(--risk-soft)", stroke: "var(--risk)", "stroke-width": 1.5 }, S.tag);
+    mk("text", { x: 486, y: 578, ...mono(14, 700, "var(--risk)", "middle") }, S.tag, "too clean");
+  }
+
+  const vis = (el, on) => gsap.set(el, { autoAlpha: on ? 1 : 0 });
+
+  function render(slide, n, animate) {
+    build(slide);
+    const A = (k) => animate && n === k;
+    gsap.killTweensOf([S.A, S.B, S.C, S.D, S.dot, S.c1, S.c2, S.c1t, S.c2t, S.c10, S.d1, S.d2, S.tag, ...S.bn, ...S.ba]);
+
+    // step 1: funnels narrow, numbers count down
+    vis(S.A, n >= 1);
+    S.fun.forEach((u) => {
+      if (A(1)) {
+        const p = { b: 150, v: u.f.from };
+        u.p.setAttribute("d", fpath(u.f.cx, 150));
+        u.n.textContent = fmt(u.f.from);
+        gsap.to(p, { b: u.f.b, v: u.f.to, duration: 2, delay: 0.3, ease: "power2.inOut",
+          onUpdate: () => { u.p.setAttribute("d", fpath(u.f.cx, p.b)); u.n.textContent = fmt(p.v); } });
+      } else { u.p.setAttribute("d", fpath(u.f.cx, u.f.b)); u.n.textContent = fmt(u.f.to); }
+    });
+    if (A(1)) gsap.fromTo(S.A, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.4 });
+
+    // step 2: label -> learn -> score
+    vis(S.B, n >= 2);
+    if (A(2)) {
+      gsap.fromTo(S.bn, { autoAlpha: 0, y: 14 }, { autoAlpha: 1, y: 0, duration: 0.5, stagger: 0.45, ease: "back.out(1.6)" });
+      gsap.fromTo(S.ba, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.3, stagger: 0.45, delay: 0.35 });
+      gsap.fromTo(S.dot, { attr: { cx: 20, opacity: 0 } }, { attr: { cx: 760, opacity: 1 }, duration: 3, delay: 1.4, ease: "none", repeat: -1, repeatDelay: 0.6 });
+    } else {
+      gsap.set([...S.bn, ...S.ba], { autoAlpha: 1, y: 0 });
+      if (n >= 2) gsap.fromTo(S.dot, { attr: { cx: 20, opacity: 1 } }, { attr: { cx: 760 }, duration: 3, ease: "none", repeat: -1, repeatDelay: 0.6 });
+    }
+
+    // step 3: bar pair
+    vis(S.C, n >= 3);
+    if (A(3)) {
+      gsap.fromTo(S.c1, { attr: { width: 0 } }, { attr: { width: BW * 38 / 300 }, duration: 1.2, ease: "power3.out" });
+      gsap.fromTo(S.c2, { attr: { width: 0 } }, { attr: { width: BW }, duration: 1.2, delay: 0.2, ease: "power3.out" });
+      gsap.fromTo([S.c1t, S.c2t], { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.4, delay: 1.1 });
+      gsap.fromTo(S.c10, { autoAlpha: 0, x: 20 }, { autoAlpha: 1, x: 0, duration: 0.5, delay: 1.5 });
+    } else {
+      S.c1.setAttribute("width", BW * 38 / 300); S.c2.setAttribute("width", BW);
+      gsap.set([S.c1t, S.c2t, S.c10], { autoAlpha: 1, x: 0 });
+    }
+
+    // step 5: dedup paradox
+    vis(S.D, n >= 5);
+    if (A(5)) {
+      gsap.fromTo(S.d1, { attr: { width: 0 } }, { attr: { width: 480 }, duration: 1.1, ease: "power3.out" });
+      gsap.fromTo(S.d2, { attr: { width: 0 } }, { attr: { width: 96 }, duration: 1.1, delay: 0.25, ease: "power3.out" });
+      gsap.fromTo(S.tag, { autoAlpha: 0, scale: 0.5, transformOrigin: "50% 50%" }, { autoAlpha: 1, scale: 1, duration: 0.5, delay: 1.3, ease: "back.out(2)" });
+    } else {
+      S.d1.setAttribute("width", 480); S.d2.setAttribute("width", 96);
+      gsap.set(S.tag, { autoAlpha: 1, scale: 1 });
+    }
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { if (S.slide) gsap.killTweensOf(S.slide.querySelectorAll("#c07cf-svg *")); },
+  });
+})();
+</script>

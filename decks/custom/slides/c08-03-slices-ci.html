@@ -1,0 +1,207 @@
+<section class="slide" id="custom-c08-slices-ci" data-tone="tool" data-title="Slices, CIs and paired bootstrap">
+  <style>
+    #custom-c08-slices-ci .body { display:grid; grid-template-columns:760px 1fr; gap:40px; }
+    #custom-c08-slices-ci .swap { display:grid; }
+    #custom-c08-slices-ci .swap > * { grid-area:1/1; min-height:0; }
+    #custom-c08-slices-ci ul.ticks { gap:9px; }
+    #custom-c08-slices-ci ul.ticks > li { font-size:17px; line-height:1.38; }
+    #custom-c08-slices-ci svg text { font-family:var(--f-mono); }
+    #custom-c08-slices-ci .callout { font-size:17px; padding:12px 16px; }
+  </style>
+  <h2 class="title">Report every score per slice with n and a confidence interval, and compare models on paired items</h2>
+  <div class="body fill">
+    <svg class="interactive" id="c08ci-svg" viewBox="0 0 760 580" width="760" height="580" aria-label="Two leaderboard bars, A 81.0 and B 82.1, get overlapping confidence whiskers. They split into five slice bars, and one slice of B falls below A. Then a histogram of paired bootstrap deltas builds up, with a zero line and a shaded 95 percent band."></svg>
+    <div class="swap">
+      <div class="stack" data-until="5" style="gap:12px">
+        <h4 style="font-size:20px">Rules for a score you can trust</h4>
+        <ul class="ticks">
+          <li>Report n and a 95% CI with every score. SE ≈ √(p(1−p)/n).</li>
+          <li>Use Wilson intervals for small n, or for p near 0 or 1: <code>proportion_confint(method="wilson")</code>.</li>
+          <li data-step="1">At n = 500 and p ≈ 0.8, each CI is about ±3.4 pts. The two CIs overlap. Use <b>clustered SEs</b> when questions share a passage or a conversation.</li>
+          <li data-step="2">Report <b>each slice</b> with its n and CI. The aggregate hides slice regressions (Simpson’s paradox).</li>
+          <li data-step="3">Compare models with <b>paired differences</b> on the same items. Pairing removes item-difficulty variance. Resample each answer k times to cut within-item variance.</li>
+        </ul>
+        <div class="panel tight k-tool" data-step="4">
+          <h4 style="font-size:18px">Do a power analysis before you build the set</h4>
+          <p class="tiny" style="color:var(--ink-2)">At α = 0.05 and power 0.8, the minimum detectable effect is ≈ 2.8 × SE(Δ). Unpaired, p = 0.8, n = 500 per arm: SE(Δ) ≈ 0.025, so you detect only ≈ <b>7-point</b> deltas. Pairing shrinks this.</p>
+        </div>
+        <div class="cites push">
+          <a class="cite paper" href="https://arxiv.org/abs/2411.00640" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Adding Error Bars to Evals (Miller)</a>
+          <a class="cite doc" href="https://www.statsmodels.org/stable/generated/statsmodels.stats.proportion.proportion_confint.html" target="_blank" rel="noopener"><b>Docs</b>&nbsp;statsmodels proportion_confint</a>
+        </div>
+      </div>
+      <div class="stack" data-step="5" style="gap:12px">
+        <div class="code-wrap"><div class="code-head">paired_bootstrap.py · from 07-eval-design §5</div>
+<pre class="code xs" data-lang="python" data-focus="5:6-6, 6:7-9"><code>
+# Paired bootstrap on the same golden set
+import numpy as np
+rng = np.random.default_rng(0)
+a = np.load("scores_A.npy")   # per-item scores, same order
+b = np.load("scores_B.npy")
+d = b - a
+boots = np.array([rng.choice(d, size=len(d), replace=True).mean()
+                  for _ in range(10_000)])
+lo, hi = np.percentile(boots, [2.5, 97.5])
+print(f"delta={d.mean():+.3f}  95% CI [{lo:+.3f}, {hi:+.3f}]  "
+      f"P(delta&lt;=0)={np.mean(boots&lt;=0):.3f}")
+</code></pre></div>
+        <p class="tiny">SciPy: <code>scipy.stats.bootstrap((d,), np.mean, confidence_level=0.95, method="BCa")</code>. For clustered items, resample the clusters (passages, conversations), not the items.</p>
+        <div class="callout pitfall"><span>Many SOTA deltas sit inside the noise. Most reports still omit CIs and clustering.</span></div>
+        <div class="cites"><a class="cite doc" href="https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.bootstrap.html" target="_blank" rel="noopener"><b>Docs</b>&nbsp;scipy.stats.bootstrap</a></div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    This slide turns a leaderboard into an experiment. Step 0 shows the usual story: B beats A by 1.1 points, so B ships. Step 1 adds the error bars at n of 500; the intervals overlap, so the ranking is not proven. Step 2 splits the score by slice: B wins four slices but loses the Spanish slice by ten points, and the global number hid it. Step 3 is the right test: subtract per item, resample the differences 10,000 times, and read the 95 percent band; here it still touches zero. Step 4 is the power check: unpaired, 500 items can only detect about 7 points. Analogy: two runners on different tracks cannot be compared to a tenth of a second; run them on the same track. Likely question: "Why not a t-test?" A paired t-test is fine for large n; the bootstrap needs no normal assumption and extends to clusters.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c08-slices-ci";
+  // All values are examples (A 81.0 vs B 82.1 at n = 500); slice values are illustrative.
+  const yv = (v) => 470 - (v - 60) * 12;
+  const SA = [83, 80, 82, 79, 81], SB = [87, 84, 86, 83, 71];
+  const NAMES = ["billing", "shipping", "account", "safety", "lang-ES"];
+  const xd = (d) => 90 + (d + 4) * 52;
+  const MU = 1.1, SD = 0.65, BW = 0.2;
+  let E = {}, tl = null;
+
+  function el(tag, attrs, parent) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  const txt = (p, x, y, s, a) => { const t = el("text", Object.assign({ x, y, fill: "var(--muted)", "font-size": 13 }, a || {}), p); t.textContent = s; return t; };
+
+  function build(svg) {
+    svg.innerHTML = "";
+    // ---- leaderboard view ----
+    E.lb = el("g", {}, svg);
+    [60, 70, 80, 90].forEach((v) => {
+      el("line", { x1: 70, y1: yv(v), x2: 740, y2: yv(v), stroke: "var(--line)", "stroke-width": 1 }, E.lb);
+      txt(E.lb, 60, yv(v) + 4, v, { "text-anchor": "end" });
+    });
+    txt(E.lb, 70, 30, "leaderboard · example · n = 500 · axis starts at 60");
+    E.big = [["A", 81.0, 200, 0.45], ["B", 82.1, 440, 0.9]].map(([n, v, x, op]) => {
+      const r = el("rect", { x, y: yv(v), width: 130, height: 470 - yv(v), rx: 8, fill: "var(--model)", opacity: op }, E.lb);
+      const t = txt(E.lb, x + 65, yv(v) - 12, `${n} ${v.toFixed(1)}`, { "text-anchor": "middle", fill: "var(--ink)", "font-size": 20, "font-weight": 700 });
+      const lo = v - 3.4, hi = v + 3.4, cx = x + 65;
+      const w = el("path", { d: `M${cx},${yv(lo)} V${yv(hi)} M${cx - 14},${yv(lo)} h28 M${cx - 14},${yv(hi)} h28`, stroke: "var(--ink)", "stroke-width": 3, fill: "none" }, E.lb);
+      return { r, t, w, cx, lo, hi };
+    });
+    E.ov = el("rect", { x: 180, y: yv(84.4), width: 410, height: yv(78.7) - yv(84.4), fill: "var(--tool-soft)", stroke: "var(--tool)", "stroke-dasharray": "5 4", opacity: 0 }, E.lb);
+    E.lb.insertBefore(E.ov, E.big[0].r);
+    E.ovT = txt(E.lb, 600, yv(81.5) + 5, "CIs overlap", { fill: "var(--tool)", "font-size": 15, "font-weight": 700, opacity: 0 });
+    // ---- slices ----
+    E.sl = el("g", { opacity: 0 }, svg);
+    E.sb = [];
+    NAMES.forEach((nm, g) => {
+      const c = 137 + g * 134;
+      [[SA[g], c - 49, 0.45], [SB[g], c + 3, 0.9]].forEach(([v, x, op], k) => {
+        const bad = k === 1 && v < SA[g];
+        const r = el("rect", { x, y: yv(v), width: 46, height: 470 - yv(v), rx: 5, fill: bad ? "var(--risk)" : "var(--model)", opacity: op }, E.sl);
+        txt(E.sl, x + 23, yv(v) - 8, v, { "text-anchor": "middle", fill: bad ? "var(--risk)" : "var(--ink-2)", "font-weight": 700 });
+        E.sb.push(r);
+      });
+      txt(E.sl, c, 494, nm, { "text-anchor": "middle", fill: g === 4 ? "var(--risk)" : "var(--ink-2)", "font-weight": g === 4 ? 700 : 500 });
+    });
+    txt(E.sl, 70, 524, "slices (illustrative): B wins 4 slices and loses lang-ES by 10 pts", { fill: "var(--risk)", "font-weight": 600 });
+    txt(E.sl, 70, 548, "light bar = A · dark bar = B");
+    // ---- histogram ----
+    E.h = el("g", { opacity: 0 }, svg);
+    const lo95 = MU - 1.96 * SD, hi95 = MU + 1.96 * SD;
+    E.band = el("rect", { x: xd(lo95), y: 150, width: xd(hi95) - xd(lo95), height: 320, fill: "var(--tool-soft)" }, E.h);
+    el("line", { x1: 70, y1: 470, x2: 740, y2: 470, stroke: "var(--line-2)", "stroke-width": 2 }, E.h);
+    [-4, -2, 0, 2, 4, 6, 8].forEach((d) => txt(E.h, xd(d), 492, (d > 0 ? "+" : "") + d, { "text-anchor": "middle" }));
+    txt(E.h, 405, 520, "Δ = B − A per item, mean of 10,000 resamples (pts)", { "text-anchor": "middle", fill: "var(--ink-2)" });
+    E.hb = [];
+    for (let x = -1.2; x <= 3.4 + 1e-9; x += BW) {
+      const c = x + BW / 2, h = 300 * Math.exp(-((c - MU) ** 2) / (2 * SD * SD));
+      const r = el("rect", { x: xd(x) + 1, y: 470, width: BW * 52 - 2, height: 0, rx: 2, fill: c < 0 ? "var(--risk)" : "var(--tool)", opacity: 0.85 }, E.h);
+      r._h = h; E.hb.push(r);
+    }
+    el("line", { x1: xd(0), y1: 130, x2: xd(0), y2: 470, stroke: "var(--risk)", "stroke-width": 2.5, "stroke-dasharray": "6 5" }, E.h);
+    txt(E.h, xd(0), 122, "0", { "text-anchor": "middle", fill: "var(--risk)", "font-size": 15, "font-weight": 700 });
+    txt(E.h, xd(hi95) + 10, 190, "95% CI [−0.2, +2.4]", { fill: "var(--tool)", "font-size": 15, "font-weight": 700 });
+    txt(E.h, xd(hi95) + 10, 212, "P(Δ ≤ 0) ≈ 0.05", { fill: "var(--ink-2)", "font-size": 14 });
+    txt(E.h, 70, 30, "paired bootstrap · illustrative");
+    // power brackets (step 4)
+    E.pw = el("g", { opacity: 0 }, E.h);
+    el("path", { d: `M${xd(0)},78 v-10 H${xd(7)} v10`, stroke: "var(--ink)", "stroke-width": 2, fill: "none" }, E.pw);
+    txt(E.pw, (xd(0) + xd(7)) / 2, 58, "unpaired, n = 500 per arm: MDE ≈ 7 pts", { "text-anchor": "middle", fill: "var(--ink)", "font-size": 14, "font-weight": 700 });
+    el("path", { d: `M${xd(lo95)},112 v-8 H${xd(hi95)} v8`, stroke: "var(--tool)", "stroke-width": 2, fill: "none" }, E.pw);
+    txt(E.pw, xd(hi95) + 8, 110, "paired CI", { fill: "var(--tool)", "font-size": 14, "font-weight": 700 });
+  }
+
+  function setW(b, on) {
+    const s = on ? 1 : 0;
+    gsap.set(b.w, { scaleY: s, svgOrigin: `${b.cx} ${yv((b.lo + b.hi) / 2)}` });
+  }
+
+  function render(n, animate) {
+    if (tl) { tl.progress(1); tl.kill(); tl = null; }
+    if (!animate || n === 0) { stat(n); return; }
+    stat(n - 1);
+    anim(n);
+  }
+
+  function stat(n) {
+    const lbOp = n >= 3 ? 0 : 1, bigOp = n >= 2 ? 0 : 1, slOp = n === 2 ? 1 : 0, hOp = n >= 3 ? 1 : 0;
+    {
+      E.lb.setAttribute("opacity", lbOp);
+      E.big.forEach((b) => { b.r.setAttribute("opacity", bigOp ? (b === E.big[0] ? 0.45 : 0.9) : 0); b.t.setAttribute("opacity", bigOp); b.w.setAttribute("opacity", bigOp); setW(b, n >= 1); });
+      E.ov.setAttribute("opacity", n === 1 ? 1 : 0); E.ovT.setAttribute("opacity", n === 1 ? 1 : 0);
+      E.sl.setAttribute("opacity", slOp);
+      E.h.setAttribute("opacity", hOp);
+      E.hb.forEach((r) => { r.setAttribute("y", 470 - (n >= 3 ? r._h : 0)); r.setAttribute("height", n >= 3 ? r._h : 0); });
+      E.pw.setAttribute("opacity", n >= 4 ? 1 : 0);
+    }
+  }
+
+  function anim(n) {
+    tl = gsap.timeline();
+    if (n === 1) {
+      E.big.forEach((b, i) => tl.fromTo(b.w, { scaleY: 0, svgOrigin: `${b.cx} ${yv((b.lo + b.hi) / 2)}` }, { scaleY: 1, duration: 0.9, ease: "power3.out" }, i * 0.15));
+      tl.to([E.ov, E.ovT], { attr: { opacity: 1 }, duration: 0.4 });
+      E.big.forEach((b) => { tl.set(b.r, { attr: { opacity: b === E.big[0] ? 0.45 : 0.9 } }, 0); tl.set([b.t, b.w], { attr: { opacity: 1 } }, 0); });
+      tl.set(E.sl, { attr: { opacity: 0 } }, 0);
+    }
+    if (n === 2) {
+      tl.to([E.ov, E.ovT, ...E.big.map((b) => b.t), ...E.big.map((b) => b.w)], { attr: { opacity: 0 }, duration: 0.3 });
+      tl.to(E.big.map((b) => b.r), { attr: { opacity: 0 }, duration: 0.4 }, 0.1);
+      tl.set(E.lb, { attr: { opacity: 1 } }, 0);
+      tl.to(E.sl, { attr: { opacity: 1 }, duration: 0.3 }, 0.2);
+      tl.from(E.sb, { attr: { y: 470, height: 0 }, duration: 0.7, ease: "power3.out", stagger: 0.05 }, 0.25);
+      tl.set(E.h, { attr: { opacity: 0 } }, 0);
+    }
+    if (n === 3) {
+      tl.to([E.sl, E.lb], { attr: { opacity: 0 }, duration: 0.4 });
+      tl.set(E.pw, { attr: { opacity: 0 } }, 0);
+      tl.to(E.h, { attr: { opacity: 1 }, duration: 0.3 }, 0.3);
+      E.hb.forEach((r, i) => tl.fromTo(r, { attr: { y: 470, height: 0 } }, { attr: { y: 470 - r._h, height: r._h }, duration: 0.35, ease: "power2.out" }, 0.4 + i * 0.05));
+    }
+    if (n === 4) tl.to(E.pw, { attr: { opacity: 1 }, duration: 0.6 });
+    if (n >= 5) stat(n);
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) {
+      build(slide.querySelector("#c08ci-svg"));
+      render(step, false);
+      if (step === 0) {
+        E.big.forEach((b) => setW(b, false));
+        tl = gsap.timeline({ delay: 0.35 });
+        tl.from(E.big.map((b) => b.r), { attr: { y: 470, height: 0 }, duration: 0.9, ease: "power3.out", stagger: 0.15 });
+        tl.from(E.big.map((b) => b.t), { attr: { opacity: 0 }, duration: 0.4, stagger: 0.15 }, "-=0.4");
+      }
+    },
+    step(slide, n, animate) {
+      if (!E.lb || !E.lb.isConnected) return;
+      render(n, animate);
+    },
+    leave() { if (tl) tl.kill(); tl = null; },
+  });
+})();
+</script>

@@ -1,0 +1,184 @@
+<section class="slide" id="custom-c07-rag-eval-datasets" data-tone="state" data-title="Synthetic RAG test sets">
+  <h2 class="title">Build RAG test sets from a knowledge graph, then verify them before they count as gold</h2>
+  <div class="fill" style="display:grid;grid-template-columns:620px 1fr;gap:28px">
+    <div class="stack" style="gap:14px">
+      <svg class="interactive" id="c07rg-svg" viewBox="0 0 620 540" width="620" height="540" style="overflow:visible" aria-label="Ten document nodes grow into a knowledge graph of 48 nodes and 605 relationships; a donut shows the default 50/25/25 query mix"></svg>
+      <div class="cites" data-step="3">
+        <a class="cite doc" href="https://docs.ragas.io/en/stable/getstarted/rag_testset_generation/" target="_blank" rel="noopener"><b>Doc</b>&nbsp;Testset Generation for RAG</a>
+        <a class="cite doc" href="https://docs.ragas.io/en/stable/getstarted/rag_eval/" target="_blank" rel="noopener"><b>Doc</b>&nbsp;RAGAS rag_eval</a>
+      </div>
+    </div>
+    <div style="position:relative">
+      <div class="stack" data-until="4" style="position:absolute;inset:0;gap:14px">
+        <div class="panel tight k-state" data-step="1">
+          <h4>1 · Documents become graph nodes</h4>
+          <p class="tiny" style="color:var(--ink-2)">RAGAS 0.4.3 loads each document as a node of a <code>KnowledgeGraph</code>.</p>
+        </div>
+        <div class="panel tight k-model" data-step="2">
+          <h4>2 · Transforms add structure</h4>
+          <p class="tiny" style="color:var(--ink-2)"><code>default_transforms</code> and <code>apply_transforms</code> add summaries, entities, embeddings and relationships. Docs example: 10 nodes become 48 nodes with 605 relationships. The graph gives scenarios. Each scenario gives a query.</p>
+        </div>
+        <div class="panel tight k-agent" data-step="3">
+          <h4>3 · Synthesizers write the queries</h4>
+          <p class="tiny" style="color:var(--ink-2)">Default mix: 50% single-hop specific, 25% multi-hop abstract, 25% multi-hop specific. Each row has four columns:</p>
+          <div class="tags" style="gap:6px">
+            <span class="tag t-human" style="font-size:13px;padding:5px 9px 5px 7px">user_input</span>
+            <span class="tag t-state" style="font-size:13px;padding:5px 9px 5px 7px">reference_contexts</span>
+            <span class="tag t-state" style="font-size:13px;padding:5px 9px 5px 7px">reference</span>
+            <span class="tag t-agent" style="font-size:13px;padding:5px 9px 5px 7px">synthesizer_name</span>
+          </div>
+        </div>
+        <div class="grid g3" data-step="3" style="gap:16px">
+          <div class="stat" style="--aurora:var(--agent)"><span class="n" data-to="1.0" data-dec="1" style="font-size:48px">0</span><span class="l tiny">LLMContextRecall</span></div>
+          <div class="stat" style="--aurora:var(--state)"><span class="n" data-to="0.857" data-dec="3" style="font-size:48px">0</span><span class="l tiny">Faithfulness</span></div>
+          <div class="stat" style="--aurora:var(--model)"><span class="n" data-to="0.728" data-dec="3" style="font-size:48px">0</span><span class="l tiny">FactualCorrectness (docs example)</span></div>
+        </div>
+      </div>
+      <div class="stack" style="position:absolute;inset:0;gap:14px">
+        <div class="code-wrap" data-step="4"><div class="code-head">make_testset.py · condensed from the RAGAS docs</div>
+<pre class="code xs" data-lang="python" data-focus="4:10-11, 5:12-13"><code>
+import openai
+from langchain_community.document_loaders import DirectoryLoader
+from langchain_openai import ChatOpenAI
+from ragas.embeddings import OpenAIEmbeddings
+from ragas.llms import LangchainLLMWrapper
+from ragas.testset import TestsetGenerator
+docs = DirectoryLoader("Sample_Docs_Markdown/", glob="**/*.md").load()
+llm = LangchainLLMWrapper(ChatOpenAI(model="gpt-4o"))
+embeddings = OpenAIEmbeddings(client=openai.OpenAI())
+generator = TestsetGenerator(llm=llm, embedding_model=embeddings)
+dataset = generator.generate_with_langchain_docs(docs, testset_size=10)
+dataset.to_pandas()
+# user_input, reference_contexts, reference, synthesizer_name
+</code></pre></div>
+        <ol class="seq small" data-step="5" data-fx="stagger" style="gap:9px">
+          <li>Check that each reference is supported by its contexts (faithfulness judge).</li>
+          <li>Drop questions that the model answers without retrieval. <span class="tag t-risk" style="font-size:13px;padding:4px 9px 4px 7px">closed-book leak test</span></li>
+          <li>Have humans spot-check 5–10% of the items.</li>
+          <li>Rebalance single-hop vs multi-hop to match real, PII-scrubbed query logs.</li>
+          <li>Version the set. Never train on it.</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    A RAG system needs a test set before it needs a better retriever, and most teams do not have labeled questions. RAGAS builds one from your own documents: each document becomes a node, transforms add summaries, entities, embeddings and similarity edges, and the graph gives multi-hop scenarios that a flat list of chunks cannot give. Step 3 shows the default query mix and the four output columns; the three numbers are the docs example scores, not a benchmark. Step 5 is the part that most teams skip: a synthetic question only counts as gold after a faithfulness check, a closed-book leak test, a human spot-check and a rebalance to real traffic. Analogy: an exam written by the textbook author; check that the answers are in the book, and drop the questions anyone can answer without it. Likely question: "Why remove questions the model answers closed-book?" Because they test the model's memory, not your retrieval, so they inflate the RAG score.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c07-rag-eval-datasets";
+  const NN = 48, NE = 605, CX = 300, CY = 182, RX = 280, RY = 140;
+  const DOC = (i) => i % 5 === 0;               // 10 document nodes
+  const MIX = [
+    { name: "SingleHopSpecificQuerySynthesizer", v: 0.5, c: "var(--agent)" },
+    { name: "MultiHopAbstractQuerySynthesizer", v: 0.25, c: "var(--human)" },
+    { name: "MultiHopSpecificQuerySynthesizer", v: 0.25, c: "var(--model)" },
+  ];
+  const DC = { x: 120, y: 446, r: 66 };
+  const S = {};
+
+  function mk(tag, at, parent, txt) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in at) e.setAttribute(k, at[k]);
+    if (txt != null) e.textContent = txt;
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  const mono = (size, w, fill, anchor) => ({ "font-family": "var(--f-mono)", "font-size": size, "font-weight": w || 500, fill: fill || "var(--muted)", "text-anchor": anchor || "start" });
+
+  function build(slide) {
+    if (S.slide === slide) return;
+    S.slide = slide;
+    const svg = slide.querySelector("#c07rg-svg");
+    svg.innerHTML = "";
+    // deterministic sunflower layout
+    const P = Array.from({ length: NN }, (_, i) => {
+      const r = Math.sqrt((i + 0.5) / NN), a = i * 2.39996;
+      return [CX + RX * r * Math.cos(a), CY + 18 + RY * r * Math.sin(a)];
+    });
+    // the 605 shortest pairs become relationships
+    const pairs = [];
+    for (let i = 0; i < NN; i++) for (let j = i + 1; j < NN; j++) pairs.push([i, j, Math.hypot(P[i][0] - P[j][0], P[i][1] - P[j][1])]);
+    pairs.sort((a, b) => a[2] - b[2] || a[0] - b[0]);
+    S.edgeG = mk("g", {}, svg);
+    S.edges = pairs.slice(0, NE).map(([i, j]) => mk("line", { x1: P[i][0], y1: P[i][1], x2: P[j][0], y2: P[j][1], stroke: "var(--state)", "stroke-width": 0.8, opacity: 0 }, S.edgeG));
+    S.docs = []; S.der = [];
+    P.forEach(([x, y], i) => {
+      if (DOC(i)) S.docs.push(mk("rect", { x: x - 9, y: y - 9, width: 18, height: 18, rx: 4, fill: "var(--state)", stroke: "var(--bg)", "stroke-width": 2 }, svg));
+      else S.der.push(mk("circle", { cx: x, cy: y, r: 6, fill: "var(--model)", stroke: "var(--bg)", "stroke-width": 1.5 }, svg));
+    });
+    S.cnt = mk("g", {}, svg);
+    S.nTxt = mk("text", { x: 0, y: 18, ...mono(15, 700, "var(--ink)") }, S.cnt, "nodes 10");
+    S.eTxt = mk("text", { x: 620, y: 18, ...mono(15, 700, "var(--state)", "end") }, S.cnt, "relationships 0");
+    S.leg = mk("g", {}, svg);
+    mk("rect", { x: 0, y: 352, width: 14, height: 14, rx: 3, fill: "var(--state)" }, S.leg);
+    mk("text", { x: 20, y: 364, ...mono(12, 600, "var(--ink-2)") }, S.leg, "document");
+    mk("circle", { cx: 110, cy: 359, r: 6, fill: "var(--model)" }, S.leg);
+    mk("text", { x: 122, y: 364, ...mono(12, 600, "var(--ink-2)") }, S.leg, "summary · entity · embedding node");
+    // donut
+    S.donut = mk("g", {}, svg);
+    const C = 2 * Math.PI * DC.r;
+    let acc = 0;
+    S.arcs = MIX.map((m, k) => {
+      const c = mk("circle", { cx: DC.x, cy: DC.y, r: DC.r, fill: "none", stroke: m.c, "stroke-width": 26,
+        "stroke-dasharray": `${m.v * C - 3} ${C}`, transform: `rotate(${-90 + acc * 360} ${DC.x} ${DC.y})` }, S.donut);
+      acc += m.v;
+      const ly = 410 + k * 34;
+      mk("rect", { x: 222, y: ly - 12, width: 14, height: 14, rx: 3, fill: m.c }, S.donut);
+      mk("text", { x: 244, y: ly, ...mono(13, 600, "var(--ink-2)") }, S.donut, m.name);
+      mk("text", { x: 620, y: ly, ...mono(14, 700, m.c, "end") }, S.donut, m.v.toFixed(2));
+      return { c, len: m.v * C - 3, C };
+    });
+    mk("text", { x: DC.x, y: DC.y + 5, ...mono(13, 700, "var(--muted)", "middle") }, S.donut, "query mix");
+  }
+
+  function render(slide, n, animate) {
+    build(slide);
+    if (S.tl) S.tl.kill(); S.tl = null;
+    const all = [...S.docs, ...S.der, ...S.edges, S.cnt, S.leg, S.donut, ...S.arcs.map((a) => a.c)];
+    gsap.killTweensOf(all);
+    gsap.set(S.docs, { autoAlpha: n >= 1 ? 1 : 0, scale: 1, transformOrigin: "50% 50%" });
+    gsap.set(S.der, { autoAlpha: n >= 2 ? 1 : 0, scale: 1, transformOrigin: "50% 50%" });
+    gsap.set(S.edges, { attr: { opacity: n >= 2 ? 0.2 : 0 } });
+    gsap.set(S.cnt, { autoAlpha: n >= 1 ? 1 : 0 });
+    gsap.set(S.leg, { autoAlpha: n >= 2 ? 1 : 0 });
+    gsap.set(S.donut, { autoAlpha: n >= 3 ? 1 : 0 });
+    S.arcs.forEach((a) => a.c.setAttribute("stroke-dasharray", `${a.len} ${a.C}`));
+    S.nTxt.textContent = "nodes " + (n >= 2 ? NN : 10);
+    S.eTxt.textContent = "relationships " + (n >= 2 ? NE : 0);
+    if (!animate) return;
+    const tl = (S.tl = gsap.timeline());
+    if (n === 1) {
+      tl.from(S.cnt, { autoAlpha: 0, duration: 0.3 });
+      tl.from(S.docs, { autoAlpha: 0, scale: 0, duration: 0.45, stagger: 0.08, ease: "back.out(2)" }, 0.1);
+    } else if (n === 2) {
+      const p = { k: 0 };
+      gsap.set(S.der, { autoAlpha: 0 });
+      gsap.set(S.edges, { attr: { opacity: 0 } });
+      S.nTxt.textContent = "nodes 10"; S.eTxt.textContent = "relationships 0";
+      tl.to(S.der, { autoAlpha: 1, duration: 0.3, stagger: 0.035 }, 0);
+      tl.to(S.edges, { attr: { opacity: 0.2 }, duration: 0.2, stagger: 2.2 / NE }, 0.3);
+      tl.to(p, { k: 1, duration: 2.5, ease: "none", onUpdate: () => {
+        S.nTxt.textContent = "nodes " + Math.round(10 + 38 * Math.min(1, p.k * 1.3));
+        S.eTxt.textContent = "relationships " + Math.round(NE * p.k);
+      } }, 0);
+      tl.from(S.leg, { autoAlpha: 0, duration: 0.4 }, 0.6);
+    } else if (n === 3) {
+      tl.from(S.donut, { autoAlpha: 0, duration: 0.3 });
+      S.arcs.forEach((a, k) => {
+        a.c.setAttribute("stroke-dasharray", `0 ${a.C}`);
+        const p = { v: 0 };
+        tl.to(p, { v: a.len, duration: 0.6, ease: "power2.out", onUpdate: () => a.c.setAttribute("stroke-dasharray", `${p.v} ${a.C}`) }, 0.2 + k * 0.5);
+      });
+    }
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { if (!S.tl) render(slide, step, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { if (S.tl) S.tl.kill(); S.tl = null; },
+  });
+})();
+</script>

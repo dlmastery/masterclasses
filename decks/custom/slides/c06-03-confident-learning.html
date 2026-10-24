@@ -1,0 +1,235 @@
+<section class="slide" id="custom-c06-confident-learning" data-tone="human" data-title="Confident learning and data maps">
+  <style>
+    #custom-c06-confident-learning .swap { display:grid; min-height:0; }
+    #custom-c06-confident-learning .swap > * { grid-area:1/1; min-height:0; }
+    #custom-c06-confident-learning #c06cl-svg text { font-family:var(--f-mono); }
+    #custom-c06-confident-learning .stat .n { font-size:54px; }
+    #custom-c06-confident-learning .stat .l { font-size:15px; }
+    #custom-c06-confident-learning ol.seq { gap:10px; }
+    #custom-c06-confident-learning ol.seq > li { font-size:17.5px; line-height:1.4; padding-left:46px; }
+    #custom-c06-confident-learning ol.seq > li::before { width:32px; height:32px; font-size:15px; }
+    #custom-c06-confident-learning .callout { font-size:16px; padding:11px 16px; }
+    #custom-c06-confident-learning .cite { font-size:14px; padding:6px 10px 6px 8px; }
+    #custom-c06-confident-learning table.t { font-size:15.5px; }
+    #custom-c06-confident-learning table.t td, #custom-c06-confident-learning table.t th { padding:7px 10px; }
+  </style>
+  <h2 class="title">Confident learning finds label errors from out-of-sample probabilities</h2>
+  <div class="grid fill" style="grid-template-columns:620px 1fr;gap:34px;min-height:0">
+    <svg class="interactive" id="c06cl-svg" viewBox="0 0 620 580" width="620" height="580" aria-label="Confident joint heatmap, ranked issue list, and a dataset cartography map"></svg>
+    <div class="swap">
+      <!-- A: why + algorithm -->
+      <div class="stack" data-until="3" style="gap:16px">
+        <div class="grid g3" style="gap:18px" data-fx="up">
+          <div class="stat"><span class="n" data-to="3.3" data-dec="1" data-pre="≥" data-suf="%">0</span><span class="l">average label errors across 10 test sets (vision, text, audio)</span></div>
+          <div class="stat"><span class="n" data-to="2916">0</span><span class="l">errors in ImageNet validation, about 6%</span></div>
+          <div class="stat"><span class="n" data-to="54" data-pre="51–" data-suf="%">0</span><span class="l">of flagged candidates confirmed by humans (arXiv / NeurIPS)</span></div>
+        </div>
+        <p class="small" data-fx="up">On corrected ImageNet labels, <b>ResNet-18 outperforms ResNet-50</b> if the share of originally mislabeled test examples rises by 6%. The model ranking flips.</p>
+        <ol class="seq">
+          <li data-step="1">Get <b>out-of-sample</b> probabilities with K-fold <code>cross_val_predict</code>.</li>
+          <li data-step="1">Per class j, set the threshold t<sub>j</sub> = mean self-confidence of the examples labeled j.</li>
+          <li data-step="1">Count x (labeled i) into cell (i, j) if p̂(j|x) ≥ t<sub>j</sub>. This is the <b>confident joint</b>.</li>
+          <li data-step="2">Off-diagonal cells hold likely errors. Rank them by self-confidence.</li>
+          <li data-step="2">Prune or relabel them, then retrain.</li>
+        </ol>
+        <div class="cites push">
+          <a class="cite paper" href="https://arxiv.org/abs/2103.14749" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Pervasive Label Errors in Test Sets Destabilize ML Benchmarks</a>
+          <a class="cite paper" href="https://arxiv.org/abs/1911.00068" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Confident Learning (JAIR 2021)</a>
+          <a class="cite doc" href="https://labelerrors.com" target="_blank" rel="noopener"><b>Demo</b>&nbsp;labelerrors.com</a>
+        </div>
+      </div>
+      <!-- B: code -->
+      <div class="stack" data-step="3" data-until="6" style="gap:12px">
+        <div class="code-wrap" style="width:100%"><div class="code-head">find_errors.py · cleanlab 2.9.0, adapted from the in-depth overview</div>
+<pre class="code xs" data-lang="python" data-focus="3:6-9, 4:10-13, 5:14-20"><code>
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import cross_val_predict
+import cleanlab
+from cleanlab.classification import CleanLearning
+from cleanlab import Datalab
+model = LogisticRegression(max_iter=1000)
+# 1) out-of-sample probabilities (critical!)
+pred_probs = cross_val_predict(model, X, labels, cv=5,
+                               method="predict_proba")
+# 2) ranked indices of likely label errors
+issues = cleanlab.filter.find_label_issues(
+    labels=labels, pred_probs=pred_probs,
+    filter_by="both", return_indices_ranked_by="self_confidence")
+# 3) finds the issues, then trains on the cleaned data
+cl = CleanLearning(model).fit(X, labels)
+print(cl.get_label_issues().head())
+# 4) Datalab: label issues, outliers, near-duplicates, non-IID
+lab = Datalab({"X": X, "y": labels}, label_name="y")
+lab.find_issues(pred_probs=pred_probs, features=X)
+lab.report()
+</code></pre></div>
+        <div class="swap">
+          <div class="callout insight" data-until="5"><span><b>Out-of-sample.</b> In-sample probabilities memorize the noise, so a wrong label looks correct to the model.</span></div>
+          <div class="callout pitfall" data-step="5"><span>The <code>pred_probs</code> columns must be in the order of the class labels. A wrong column order makes every label look wrong.</span></div>
+        </div>
+        <div class="cites">
+          <a class="cite repo" href="https://github.com/cleanlab/cleanlab" target="_blank" rel="noopener"><b>Repo</b>&nbsp;cleanlab/cleanlab</a>
+          <a class="cite doc" href="https://docs.cleanlab.ai/stable/tutorials/indepth_overview.html" target="_blank" rel="noopener"><b>Docs</b>&nbsp;cleanlab in-depth overview</a>
+        </div>
+      </div>
+      <!-- C: cartography -->
+      <div class="stack" data-step="6" style="gap:14px">
+        <h3>Training dynamics: a data map</h3>
+        <p class="small">Record p(true label | x) at the end of each epoch. <b>Confidence</b> = the mean over epochs. <b>Variability</b> = the standard deviation.</p>
+        <table class="t">
+          <tr><th>region</th><th>signature</th><th>use</th></tr>
+          <tr><td>easy-to-learn</td><td>high confidence, low variability</td><td>largest region; helps optimization</td></tr>
+          <tr><td>ambiguous</td><td>high variability</td><td>helps out-of-distribution generalization; train on about 33%</td></tr>
+          <tr class="hot"><td>hard-to-learn</td><td>low confidence, low variability</td><td>often label errors: send to the relabel queue</td></tr>
+        </table>
+        <div class="callout tip"><span>Use both signals. cleanlab gives a ranked list from one set of probabilities. The data map adds the history over epochs.</span></div>
+        <div class="cites push">
+          <a class="cite paper" href="https://arxiv.org/abs/2009.10795" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Dataset Cartography (EMNLP 2020)</a>
+          <a class="cite repo" href="https://github.com/allenai/cartography" target="_blank" rel="noopener"><b>Repo</b>&nbsp;allenai/cartography</a>
+        </div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    First the motivation: even famous test sets have label errors, at least 3.3% on average and about 6% in ImageNet validation. Step 1 builds the confident joint cell by cell. Rows are the given labels, columns are the labels the model is confident about. The counts here are for illustration, but the missile to projectile cell copies a real finding: about 645 ImageNet missile images carry the parent label "projectile". Step 2 sends the off-diagonal cells to a ranked review list. Steps 3 to 5 walk the cleanlab code; stress that the probabilities must be out-of-sample. Step 6 adds training dynamics: examples that stay at low confidence every epoch are often mislabeled. Analogy: a teacher who marks the same answer wrong every time, while all other students agree, should check the answer key. Likely question: "Why not just remove all low-confidence examples?" Answer: hard but correct examples also have low confidence; the per-class threshold and the off-diagonal count separate noise from difficulty.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c06-confident-learning";
+  const CL = ["missile", "projectile", "tank", "tractor"];
+  // rows = given label, cols = confident true label (illustrative counts)
+  const C = [[88, 3, 1, 0], [14, 79, 0, 2], [0, 2, 91, 4], [1, 0, 6, 85]];
+  const X0 = 112, Y0 = 92, S = 76;
+  let heat, map, cells = [], chips = [], pts = [], tl = null, pulse = null;
+
+  const el = (tag, a, p) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); if (p) p.appendChild(e); return e; };
+  const rnd = (i, k) => { const v = Math.sin(i * 12.9898 + k * 78.233) * 43758.5453; return v - Math.floor(v); };
+
+  function build(svg) {
+    svg.innerHTML = ""; cells = []; chips = []; pts = [];
+    heat = el("g", {}, svg);
+    el("text", { x: X0 + 2 * S, y: 34, "text-anchor": "middle", "font-size": 14, fill: "var(--muted)" }, heat).textContent = "confident true label y*";
+    el("text", { x: 22, y: Y0 + 2 * S, "text-anchor": "middle", "font-size": 14, fill: "var(--muted)", transform: `rotate(-90 22 ${Y0 + 2 * S})` }, heat).textContent = "given label ỹ";
+    CL.forEach((c, j) => {
+      el("text", { x: X0 + j * S + S / 2, y: Y0 - 12, "text-anchor": "middle", "font-size": 12.5, fill: "var(--ink-2)" }, heat).textContent = c;
+      el("text", { x: X0 - 8, y: Y0 + j * S + S / 2 + 4, "text-anchor": "end", "font-size": 12.5, fill: "var(--ink-2)" }, heat).textContent = c;
+    });
+    C.forEach((row, i) => row.forEach((v, j) => {
+      const diag = i === j;
+      const r = el("rect", { x: X0 + j * S + 2, y: Y0 + i * S + 2, width: S - 4, height: S - 4, rx: 8, fill: "var(--surface)", stroke: "var(--line-2)", "stroke-width": 1.5 }, heat);
+      const t = el("text", { x: X0 + j * S + S / 2, y: Y0 + i * S + S / 2 + 6, "text-anchor": "middle", "font-size": 19, "font-weight": 700, fill: "var(--ink)", opacity: 0 }, heat);
+      t.textContent = v;
+      cells.push({ r, t, i, j, v, diag });
+    }));
+    el("text", { x: X0, y: Y0 + 4 * S + 26, "font-size": 12.5, fill: "var(--muted)" }, heat).textContent = "illustrative counts · out-of-sample p̂, per-class t_j";
+    // ranked issue list (right of heatmap)
+    const off = cells.filter((c) => !c.diag && c.v > 0).sort((a, b) => b.v - a.v).slice(0, 6);
+    el("text", { x: 432, y: Y0 - 12, "font-size": 13, "font-weight": 700, fill: "var(--risk)" }, heat).textContent = "ranked issues";
+    off.forEach((c, k) => {
+      const g = el("g", { opacity: 0 }, heat);
+      el("rect", { x: 0, y: 0, width: 180, height: 38, rx: 8, fill: "var(--risk-soft)", stroke: "var(--risk)", "stroke-width": 1.5 }, g);
+      el("text", { x: 10, y: 16, "font-size": 11.5, fill: "var(--ink-2)" }, g).textContent = `given ${CL[c.i]}`;
+      el("text", { x: 10, y: 31, "font-size": 11.5, fill: "var(--ink)", "font-weight": 600 }, g).textContent = `→ ${CL[c.j]}`;
+      el("text", { x: 170, y: 25, "text-anchor": "end", "font-size": 15, "font-weight": 700, fill: "var(--risk)" }, g).textContent = "×" + c.v;
+      chips.push({ g, c, lx: 432, ly: Y0 + k * 46, cx: X0 + c.j * S - 52, cy: Y0 + c.i * S + 19 });
+    });
+    // data map
+    map = el("g", { opacity: 0 }, svg);
+    const MX = 70, MY = 30, MW = 500, MH = 400; // variability 0..0.5 -> x; confidence 1..0 -> y
+    const px = (v) => MX + (v / 0.5) * MW, py = (c) => MY + (1 - c) * MH;
+    el("rect", { x: px(0), y: py(1), width: px(0.16) - px(0), height: py(0.72) - py(1), rx: 10, fill: "var(--state-soft)" }, map);
+    el("rect", { x: px(0.22), y: py(0.8), width: px(0.48) - px(0.22), height: py(0.25) - py(0.8), rx: 10, fill: "var(--human-soft)" }, map);
+    el("rect", { x: px(0), y: py(0.26), width: px(0.13) - px(0), height: py(0) - py(0.26), rx: 10, fill: "var(--risk-soft)" }, map);
+    el("text", { x: px(0.17) + 6, y: py(0.96), "font-size": 13, "font-weight": 700, fill: "var(--state)" }, map).textContent = "easy-to-learn";
+    el("text", { x: px(0.35), y: py(0.84), "text-anchor": "middle", "font-size": 13, "font-weight": 700, fill: "var(--human)" }, map).textContent = "ambiguous";
+    el("text", { x: px(0.14) + 6, y: py(0.04), "font-size": 13, "font-weight": 700, fill: "var(--risk)" }, map).textContent = "hard-to-learn";
+    el("path", { d: `M${MX},${MY} V${MY + MH} H${MX + MW}`, fill: "none", stroke: "var(--line-2)", "stroke-width": 2 }, map);
+    el("text", { x: MX + MW / 2, y: MY + MH + 30, "text-anchor": "middle", "font-size": 13, fill: "var(--muted)" }, map).textContent = "variability (std over epochs) →";
+    el("text", { x: MX - 18, y: MY + MH / 2, "text-anchor": "middle", "font-size": 13, fill: "var(--muted)", transform: `rotate(-90 ${MX - 18} ${MY + MH / 2})` }, map).textContent = "confidence (mean p) →";
+    [0, 0.25, 0.5].forEach((v) => (el("text", { x: px(v), y: MY + MH + 14, "text-anchor": "middle", "font-size": 11, fill: "var(--faint)" }, map).textContent = v));
+    [0, 0.5, 1].forEach((c) => (el("text", { x: MX - 6, y: py(c) + 4, "text-anchor": "end", "font-size": 11, fill: "var(--faint)" }, map).textContent = c));
+    const bin = { x: 330, y: 478, w: 250, h: 70 };
+    el("rect", { x: bin.x, y: bin.y, width: bin.w, height: bin.h, rx: 12, fill: "var(--human-soft)", stroke: "var(--human)", "stroke-width": 2, "stroke-dasharray": "6 5" }, map);
+    el("text", { x: bin.x + 12, y: bin.y + 20, "font-size": 13, "font-weight": 700, fill: "var(--human)" }, map).textContent = "relabel queue";
+    for (let i = 0; i < 92; i++) {
+      let kind, v, c;
+      if (i < 52) { kind = "easy"; v = 0.015 + rnd(i, 1) * 0.12; c = 0.78 + rnd(i, 2) * 0.2; }
+      else if (i < 80) { kind = "amb"; v = 0.24 + rnd(i, 1) * 0.22; c = 0.3 + rnd(i, 2) * 0.45; }
+      else { kind = "hard"; v = 0.015 + rnd(i, 1) * 0.09; c = 0.03 + rnd(i, 2) * 0.17; }
+      const x = px(v), y = py(c);
+      const col = kind === "easy" ? "var(--state)" : kind === "amb" ? "var(--human)" : "var(--risk)";
+      const dot = el("circle", { cx: x, cy: y, r: 5.5, fill: col, opacity: 0.8 }, map);
+      const k = i - 80;
+      pts.push({ dot, x, y, hard: kind === "hard", bx: bin.x + 22 + (k % 6) * 38, by: bin.y + 38 + Math.floor(k / 6) * 18 });
+    }
+  }
+
+  function heatColor(c, n) {
+    if (n < 1) return { fill: "var(--surface)", stroke: "var(--line-2)", op: 0 };
+    if (c.diag) return { fill: "var(--state-soft)", stroke: "var(--state)", op: 1 };
+    if (n >= 2 && c.v > 0) return { fill: "var(--risk-soft)", stroke: "var(--risk)", op: 1 };
+    return { fill: "var(--surface)", stroke: "var(--line-2)", op: 1 };
+  }
+
+  function render(n, animate) {
+    if (tl) { tl.progress(1); tl.kill(); tl = null; }
+    if (pulse) { pulse.kill(); pulse = null; }
+    const showMap = n >= 6;
+    const doIt = (t, vars, pos) => {
+      const { duration, ...rest } = vars;
+      if (animate) tl.to(t, { ...rest, duration: duration ?? 0.5 }, pos); else gsap.set(t, rest);
+    };
+    if (animate) tl = gsap.timeline();
+    doIt(heat, { attr: { opacity: showMap ? 0 : 1 }, duration: 0.4 }, 0);
+    doIt(map, { attr: { opacity: showMap ? 1 : 0 }, duration: 0.5 }, showMap ? 0.3 : 0);
+    cells.forEach((c, k) => {
+      const s = heatColor(c, n);
+      const order = c.diag ? c.i : 4 + k * 0.5;
+      doIt(c.r, { attr: { fill: s.fill, stroke: s.stroke, "stroke-width": c.diag || (n >= 2 && c.v > 0) ? 2.2 : 1.5 }, duration: 0.3 }, animate ? (n === 1 ? order * 0.07 : 0) : 0);
+      doIt(c.t, { attr: { opacity: s.op, fill: !c.diag && n >= 2 && c.v > 0 ? "var(--risk)" : "var(--ink)" }, duration: 0.3 }, animate ? (n === 1 ? order * 0.07 : 0) : 0);
+    });
+    chips.forEach((ch, k) => {
+      const on = n >= 2;
+      if (!animate) { ch.g.setAttribute("transform", `translate(${on ? ch.lx : ch.cx},${on ? ch.ly : ch.cy})`); ch.g.setAttribute("opacity", on ? 1 : 0); return; }
+      const from = on ? [ch.cx, ch.cy] : [ch.lx, ch.ly], to = on ? [ch.lx, ch.ly] : [ch.cx, ch.cy];
+      const p = { t: 0 };
+      tl.to(p, { t: 1, duration: 0.7, ease: "power3.inOut", onUpdate: () => ch.g.setAttribute("transform", `translate(${from[0] + (to[0] - from[0]) * p.t},${from[1] + (to[1] - from[1]) * p.t})`) }, 0.25 + k * 0.12);
+      tl.to(ch.g, { attr: { opacity: on ? 1 : 0 }, duration: 0.3 }, 0.25 + k * 0.12);
+    });
+    pts.forEach((p, k) => {
+      const inBin = showMap && p.hard;
+      const cx = inBin ? p.bx : p.x, cy = inBin ? p.by : p.y;
+      if (!animate) { gsap.set(p.dot, { attr: { cx, cy, r: 5.5 } }); return; }
+      if (showMap && n === 6) {
+        tl.fromTo(p.dot, { attr: { r: 0 } }, { attr: { r: 5.5 }, duration: 0.35, ease: "back.out(2)" }, 0.4 + k * 0.01);
+        if (p.hard) {
+          tl.to(p.dot, { attr: { r: 9 }, duration: 0.25, yoyo: true, repeat: 3 }, 1.6);
+          tl.to(p.dot, { attr: { cx, cy }, duration: 0.9, ease: "power3.inOut" }, 2.7 + (k - 80) * 0.05);
+        }
+      } else tl.to(p.dot, { attr: { cx, cy, r: 5.5 }, duration: 0.4 }, 0);
+    });
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) {
+      build(slide.querySelector("#c06cl-svg"));
+      render(step, false);
+      if (step === 0) {
+        tl = gsap.timeline({ delay: 0.3 });
+        tl.from(cells.map((c) => c.r), { opacity: 0, scale: 0.8, transformOrigin: "50% 50%", duration: 0.4, stagger: 0.03 });
+      }
+    },
+    step(slide, n, animate) {
+      if (!cells.length) return;
+      render(n, animate);
+    },
+    leave() {
+      if (tl) tl.kill(); tl = null;
+      if (pulse) pulse.kill(); pulse = null;
+      gsap.killTweensOf([...cells.map((c) => c.r), ...cells.map((c) => c.t), ...pts.map((p) => p.dot), heat, map].filter(Boolean));
+    },
+  });
+})();
+</script>

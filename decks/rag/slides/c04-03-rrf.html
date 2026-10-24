@@ -1,9 +1,9 @@
 <section class="slide" id="rag-c04-rrf" data-tone="agent" data-title="Reciprocal Rank Fusion">
   <h2 class="title">Reciprocal Rank Fusion merges ranked lists by rank only, with k = 60</h2>
   <div class="row fill" style="gap:24px;align-items:stretch">
-    <div class="stack" style="width:658px;gap:14px">
+    <div class="stack" style="width:658px;gap:11px">
       <p class="small"><code>RRFscore(d) = Σ 1 / (k + rank_r(d))</code> over all rankers r. Only ranks count, so BM25 (unbounded) and cosine (−1..1) need no calibration.</p>
-      <div id="c04r-stage" class="interactive" style="position:relative;width:658px;height:270px" aria-label="Two ranked lists fused by RRF"></div>
+      <div id="c04r-stage" class="interactive" style="position:relative;width:658px;height:270px;flex:none" aria-label="Two ranked lists fused by RRF"></div>
       <div class="row" style="gap:18px;align-items:center" data-step="4">
         <svg viewBox="0 0 230 96" width="230" height="96" data-fx="draw" aria-label="MAP versus k is flat">
           <line x1="16" y1="80" x2="222" y2="80" style="stroke:var(--line-2);stroke-width:1.5"/>
@@ -12,14 +12,14 @@
           <circle cx="24" cy="22" r="4" style="fill:var(--agent)"/><circle cx="116" cy="20" r="4" style="fill:var(--agent)"/><circle cx="214" cy="21.3" r="4" style="fill:var(--agent)"/>
           <text x="24" y="94" text-anchor="middle" style="font:500 12px var(--f-mono);fill:var(--muted)">k=0</text>
           <text x="116" y="94" text-anchor="middle" style="font:500 12px var(--f-mono);fill:var(--muted)">k=60</text>
-          <text x="214" y="94" text-anchor="middle" style="font:500 12px var(--f-mono);fill:var(--muted)">k=500</text>
+          <text x="228" y="94" text-anchor="end" style="font:500 12px var(--f-mono);fill:var(--muted)">k=500</text>
           <text x="22" y="60" style="font:500 12px var(--f-mono);fill:var(--muted)">MAP, axis from 0</text>
         </svg>
         <p class="tiny" style="flex:1">Pilot MAP: k=0 <b>.2072</b> · k=60 <b>.2145</b> · k=500 <b>.2098</b>. "k = 60 was fixed during a pilot investigation and not altered." RRF beats Condorcet, CombMNZ and the best single system by 4–5% on average.</p>
       </div>
-      <div class="callout pitfall" data-step="7">Qdrant: set each prefetch <code>limit</code> ≥ the main <code>limit + offset</code>. If you do not, the result can come back empty.</div>
+      <div class="callout pitfall" data-step="7"><span>Qdrant: set each prefetch <code>limit</code> ≥ the main <code>limit + offset</code>. If you do not, the result can come back empty.</span></div>
       <div class="cites push" data-step="4">
-        <a class="cite paper" href="http://cormack.uwaterloo.ca/cormacksigir09-rrf.pdf" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Cormack, Clarke, Büttcher, SIGIR 2009</a>
+        <a class="cite paper" href="http://cormack.uwaterloo.ca/cormacksigir09-rrf.pdf" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Cormack et al., SIGIR 2009</a>
         <a class="cite doc" href="https://qdrant.tech/documentation/concepts/hybrid-queries/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Qdrant hybrid queries</a>
       </div>
     </div>
@@ -61,7 +61,7 @@ results = client.query_points(
   const BM = ["A", "C", "E"], DN = ["D", "B", "A"];
   const INS = ["A", "C", "E", "D", "B"];   // insertion order (dict order in rrf())
   const SORTED = ["A", "D", "C", "B", "E"]; // sorted by score, stable
-  const X = { bm: 0, dn: 166, fu: 350 }, W = { bm: 150, dn: 150, fu: 308 };
+  const X = { bm: 0, dn: 172, fu: 352 }, W = { bm: 160, dn: 160, fu: 300 };
   const rowY = (i) => 30 + i * 48;
   const f4 = (v) => v.toFixed(4);
   const parts = {};
@@ -71,7 +71,7 @@ results = client.query_points(
 
   function card(x, y, w, tone) {
     const d = document.createElement("div");
-    d.style.cssText = `position:absolute;left:${x}px;top:${y}px;width:${w}px;height:40px;display:flex;align-items:center;gap:12px;padding:0 12px;border-radius:10px;border:1.5px solid var(--${tone});background:var(--surface-2);font:600 14px var(--f-mono);color:var(--ink-2);box-sizing:border-box;white-space:nowrap;transition:box-shadow .4s`;
+    d.style.cssText = `position:absolute;left:${x}px;top:${y}px;width:${w}px;height:40px;display:flex;align-items:center;gap:10px;padding:0 10px;border-radius:10px;border:1.5px solid var(--${tone});background:var(--surface-2);font:600 13px var(--f-mono);color:var(--ink-2);box-sizing:border-box;white-space:nowrap;transition:box-shadow .4s`;
     stage.appendChild(d);
     return d;
   }
@@ -116,14 +116,16 @@ results = client.query_points(
     INS.forEach((d, k) => {
       const c = fused[d];
       const top = rowY(order.indexOf(d));
-      if (n < 2) { gsap.set(c, { autoAlpha: 0, top }); return; }
+      if (n < 2) { gsap.killTweensOf(c); gsap.set(c, { autoAlpha: 0, top }); return; }
       if (animate && last < 2) {
         gsap.fromTo(c, { autoAlpha: 0, x: -30 }, { autoAlpha: 1, x: 0, top, duration: 0.5, delay: 0.55 + k * 0.08 });
         const t = c.querySelector(".tot"), p = { v: 0 };
         gsap.to(p, { v: c._tot, duration: 0.9, delay: 0.6 + k * 0.08, ease: "power2.out", onUpdate: () => (t.textContent = f4(p.v)) });
       } else if (animate) {
+        gsap.killTweensOf(c);
         gsap.to(c, { autoAlpha: 1, x: 0, top, duration: 0.7, ease: "power3.inOut" });
       } else {
+        gsap.killTweensOf(c);
         gsap.set(c, { autoAlpha: 1, x: 0, top });
         c.querySelector(".tot").textContent = f4(c._tot);
       }

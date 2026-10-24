@@ -1,0 +1,79 @@
+<section class="slide" id="adk-c01-agent-anatomy" data-tone="model" data-title="Anatomy of a 2026 agent">
+  <style>
+    #adk-c01-agent-anatomy table.t th, #adk-c01-agent-anatomy table.t td { padding: 6px 10px; }
+  </style>
+  <h2 class="title">In 2026 the harness around the model decides most of the agent's quality</h2>
+  <div class="grid fill" style="grid-template-columns:464px 900px;gap:28px">
+    <div class="stack" style="gap:12px">
+      <p class="tiny"><b>History, one line:</b> in 2022 ReAct put Thought → Action → Observation in one growing prompt. Today that loop is only the outer skeleton.</p>
+      <table class="t" data-step="2" data-fx="fade" style="font-size:15.5px">
+        <tr><th>Harness part</th><th>ADK 2.0 home</th></tr>
+        <tr><td>Model + loop</td><td><code>LlmAgent</code> with tools</td></tr>
+        <tr><td>Tools</td><td><code>FunctionTool</code>, <code>McpToolset</code></td></tr>
+        <tr><td>Context policy</td><td><code>include_contents</code>, compaction, caching</td></tr>
+        <tr><td>Session log</td><td>session events, checkpoint and resume</td></tr>
+        <tr><td>Sandbox</td><td>hermetic code execution</td></tr>
+        <tr><td>Verifiers</td><td><code>output_schema</code>, function nodes, critics</td></tr>
+        <tr><td>Human</td><td><code>RequestInput</code>, <code>require_confirmation</code></td></tr>
+        <tr><td>Triggers</td><td>Pub/Sub and Eventarc triggers (2.9)</td></tr>
+      </table>
+      <p class="tiny" data-step="2">The loop is <i>gather context → take action → verify work → repeat</i>. A <code>Workflow</code> is the control flow of the harness. Plugins, schemas and evals are its sensors.</p>
+      <p class="quote" data-step="3" style="font-size:19px;padding-left:18px">Every component in a harness encodes an assumption about what the model can't do on its own.</p>
+      <div class="cites">
+        <a class="cite doc" data-step="3" href="https://www.anthropic.com/engineering/harness-design-long-running-apps" target="_blank" rel="noopener"><b>Doc</b>&nbsp;Anthropic, Harness design, 2026-03-24 (paraphrase)</a>
+        <a class="cite doc" data-step="2" href="https://claude.com/blog/building-agents-with-the-claude-agent-sdk" target="_blank" rel="noopener"><b>Doc</b>&nbsp;Building agents with the Claude Agent SDK</a>
+      </div>
+    </div>
+    <div class="stack" style="gap:14px">
+      <div class="diagram" style="width:900px;height:410px"
+           data-wires="trigger>model@2; session>ctx@2 [compile]; ctx>model@2:flow{state}; model<>tools@2{tool}; tools--sandbox@2:dash; model>verifier@2:flow{risk}; verifier>model@2:bend60 [feedback]; verifier>human@2:dash [escalate]">
+        <div class="node n-state" id="session" style="left:0;top:8px;width:200px" data-step="2" data-fx="pop"><span class="nt">Session log</span><span class="ns">append-only events</span></div>
+        <div class="node n-state" id="ctx" style="left:300px;top:8px;width:240px" data-step="2" data-fx="pop"><span class="nt">Context policy</span><span class="ns">what this call sees</span></div>
+        <div class="node n-tool" id="sandbox" style="left:680px;top:8px;width:190px" data-step="2" data-fx="pop"><span class="nt">Sandbox</span><span class="ns">code runs here</span></div>
+        <div class="node n-tool pill" id="trigger" style="left:0;top:176px" data-step="2" data-fx="pop"><span class="nt">Trigger</span><span class="ns">Pub/Sub · cron</span></div>
+        <div class="node n-model" id="model" style="left:330px;top:168px;width:180px" data-on="2:hot"><span class="nt">Model</span><span class="ns">Gemini · judgment</span></div>
+        <div class="node n-tool" id="tools" style="left:680px;top:168px;width:190px" data-step="2" data-fx="pop"><span class="nt">Tools</span><span class="ns">functions · MCP</span></div>
+        <div class="node n-risk" id="verifier" style="left:330px;top:328px;width:180px" data-step="2" data-fx="pop"><span class="nt">Verifier</span><span class="ns">schema · test · critic</span></div>
+        <div class="node n-human" id="human" style="left:680px;top:328px;width:190px" data-step="2" data-fx="pop"><span class="nt">Human</span><span class="ns">approve · edit</span></div>
+        <div class="node ghost" id="react" style="left:120px;top:300px;width:660px" data-step="1" data-until="2" data-fx="fade">
+          <span class="nt" style="color:var(--muted)">One growing prompt (ReAct, 2022)</span>
+          <span class="ns">Thought → Action → Observation → Thought → Action → …</span>
+          <div class="bar" style="margin-top:6px;background:var(--line);--aurora:var(--risk)"><i id="c12-grow" style="--v:100%"></i></div>
+        </div>
+      </div>
+      <div class="grid" data-step="3" data-fx="bar" style="grid-template-columns:560px 1fr;gap:24px;align-items:center">
+        <div class="stack" style="gap:8px">
+          <p class="tiny" style="margin-bottom:2px">HumanEval, Andrew Ng, The Batch 2024-03-20</p>
+          <div class="row middle" style="gap:12px"><span class="tiny" style="width:210px">GPT-3.5 zero-shot</span><div class="bar" style="flex:1;background:var(--line);--aurora:var(--faint)"><i style="--v:48.1%"></i></div><b style="width:64px;text-align:right" data-to="48.1" data-dec="1" data-suf="%">0</b></div>
+          <div class="row middle" style="gap:12px"><span class="tiny" style="width:210px">GPT-4 zero-shot</span><div class="bar" style="flex:1;background:var(--line);--aurora:var(--faint)"><i style="--v:67%"></i></div><b style="width:64px;text-align:right" data-to="67.0" data-dec="1" data-suf="%">0</b></div>
+          <div class="row middle" style="gap:12px"><span class="tiny" style="width:210px;color:var(--model)">GPT-3.5 in an agent loop</span><div class="bar" style="flex:1;background:var(--line);--aurora:var(--model)"><i style="--v:95.1%"></i></div><b style="width:64px;text-align:right" class="c-model" data-to="95.1" data-dec="1" data-suf="%">0</b></div>
+        </div>
+        <div class="row" style="gap:22px">
+          <div class="stat"><span class="n" style="font-size:52px;color:var(--faint)" data-to="19" data-suf="%">0</span><span class="l tiny">GPT-4, one prompt</span></div>
+          <div class="stat"><span class="n" style="font-size:52px" data-to="44" data-suf="%">0</span><span class="l tiny">GPT-4, AlphaCodium flow (pass@5)</span></div>
+        </div>
+      </div>
+      <div class="cites">
+        <a class="cite paper" data-step="1" href="https://arxiv.org/abs/2210.03629" target="_blank" rel="noopener"><b>Paper</b>&nbsp;ReAct, Yao et al., 2210.03629</a>
+        <a class="cite doc" data-step="3" href="https://www.deeplearning.ai/the-batch/how-agents-can-improve-llm-performance/" target="_blank" rel="noopener"><b>Doc</b>&nbsp;Ng, The Batch, 2024-03-20</a>
+        <a class="cite paper" data-step="3" href="https://arxiv.org/abs/2401.08500" target="_blank" rel="noopener"><b>Paper</b>&nbsp;AlphaCodium, 2401.08500</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    Start with the model alone. Step 1 shows the 2022 picture: one prompt that grows with every thought, action and observation until it overflows. Step 2 replaces it with the 2026 anatomy: a session log outside the window, a context policy that compiles what each call sees, tools in a sandbox, a verifier with a feedback edge, a human for escalation and a trigger that starts the run. The table maps each part to its ADK 2.0 home; students must be able to recite this mapping in an interview. Step 3 is the evidence: the same GPT-3.5 went from 48.1% to 95.1% on HumanEval inside an agent loop, above GPT-4 zero-shot at 67.0%, and AlphaCodium took GPT-4 from 19% to 44% pass@5 with a flow. Analogy: the model is the engine; the harness is the car. Likely question: "Will better models remove the harness?" Anthropic's experience says no: the harness moves. They dropped context resets and sprint splits as models improved, but kept the planner and the evaluator.
+  </aside>
+</section>
+<script>
+(() => {
+  let grow = null;
+  Deck.register("adk-c01-agent-anatomy", {
+    enter(slide) {
+      const bar = slide.querySelector("#c12-grow");
+      if (grow) grow.kill();
+      grow = gsap.fromTo(bar, { scaleX: 0.06 }, { scaleX: 1, duration: 3.2, ease: "power1.in", repeat: -1, repeatDelay: 0.5 });
+    },
+    leave() { if (grow) { grow.kill(); grow = null; } }
+  });
+})();
+</script>

@@ -1,0 +1,113 @@
+<section class="slide chapter" id="custom-c09-chapter" data-tone="risk" data-title="09 Full lifecycle and open challenges">
+  <style>
+    #custom-c09-chapter .left { max-width: 820px; display: flex; flex-direction: column; gap: 22px; }
+    #custom-c09-chapter .quote { font-size: 23px; }
+    #custom-c09-chapter #c09ch-svg text { font-family: var(--f-mono); }
+  </style>
+  <div class="ch-num" data-fx="blur">09</div>
+  <svg class="interactive" id="c09ch-svg" viewBox="0 0 600 560" width="600" height="560" style="position:absolute;right:70px;top:150px;overflow:visible" aria-label="Seven lifecycle stages in a straight line bend into a closed ring. A pulse runs once round the ring. A red badge labelled open problems appears at the centre."></svg>
+  <div class="left">
+    <h2 class="display" style="font-size:66px">Run the whole lifecycle as one workflow, then face the open problems</h2>
+    <p class="lede" data-fx="up" style="font-size:24px">Design, generate, select, curate, label, denoise and document every release. Then measure what still breaks: reward hacking, contamination, collapse, licensing and platform risk.</p>
+    <div class="tags" data-fx="stagger">
+      <span class="tag t-state">workflow</span>
+      <span class="tag t-state">quality card</span>
+      <span class="tag t-model">Tulu 3</span>
+      <span class="tag t-model">OLMo 3</span>
+      <span class="tag t-model">SmolLM3</span>
+      <span class="tag t-risk">open challenges</span>
+    </div>
+    <div class="stack" data-fx="up" style="gap:10px">
+      <p class="quote">“The model flow is the full lifecycle of an LM: every stage, checkpoint, dataset, and dependency.”</p>
+      <div class="cites"><a class="cite doc" href="https://allenai.org/blog/olmo3" target="_blank" rel="noopener"><b>Blog</b>&nbsp;Ai2, Olmo 3 (allenai.org/blog/olmo3)</a></div>
+    </div>
+  </div>
+  <aside class="notes">
+    This is the last chapter. It joins the parts of the course into one workflow and then lists what is still not solved. The animation shows the seven stages of chapters 5 to 8 in a line, and then the line closes into a ring: the quality card of one release feeds the design of the next release. Ai2 calls this "the model flow" and releases every stage, checkpoint and dataset of OLMo 3. Analogy: a factory does not stop at the shipping dock; returns and complaints go back to the design office. The red badge in the centre is the second half of the chapter: reward hacking, inflated RL gains, collapse, contamination, licensing and platform risk. Likely question: "Is this workflow only for labs that pretrain?" No. The same loop runs for a 2,000-row SFT set or a RAG golden set.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c09-chapter";
+  const ST = [["design", "state"], ["generate", "model"], ["select", "state"], ["curate", "state"], ["label", "human"], ["denoise", "tool"], ["card", "state"]];
+  const CX = 300, CY = 280, R = 205, RN = 38;
+  const strip = ST.map((_, i) => [42 + i * 86, 280]);
+  const ring = ST.map((_, i) => { const a = (-90 + i * 360 / ST.length) * Math.PI / 180; return [CX + R * Math.cos(a), CY + R * Math.sin(a)]; });
+  let tl = null, E = {};
+
+  function mk(tag, at, parent, css) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in at) e.setAttribute(k, at[k]);
+    if (css) e.setAttribute("style", css);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+
+  function build(slide) {
+    const svg = slide.querySelector("#c09ch-svg");
+    svg.innerHTML = "";
+    E = { svg };
+    E.link = mk("path", { d: "" }, svg, "fill:none;stroke:var(--line-2);stroke-width:3;stroke-linecap:round");
+    E.close = mk("path", { d: "" }, svg, "fill:none;stroke:var(--risk);stroke-width:3;stroke-dasharray:7 7;opacity:0");
+    E.nodes = ST.map(([name, tone]) => {
+      const g = mk("g", {}, svg);
+      mk("circle", { cx: 0, cy: 0, r: RN }, g, `fill:var(--${tone}-soft);stroke:var(--${tone});stroke-width:2.5`);
+      const t = mk("text", { x: 0, y: 5, "text-anchor": "middle" }, g, `font-size:13px;font-weight:700;fill:var(--${tone})`);
+      t.textContent = name;
+      return g;
+    });
+    E.pulse = mk("circle", { cx: 0, cy: 0, r: 10 }, svg, "fill:var(--risk);opacity:0");
+    E.badge = mk("g", {}, svg, "opacity:0");
+    mk("rect", { x: CX - 112, y: CY - 50, width: 224, height: 100, rx: 18 }, E.badge, "fill:var(--risk-soft);stroke:var(--risk);stroke-width:2.5");
+    const t1 = mk("text", { x: CX, y: CY - 10, "text-anchor": "middle" }, E.badge, "font:700 23px var(--f-display);fill:var(--risk)");
+    t1.textContent = "open problems";
+    ["reward hacking · contamination", "collapse · licensing · platform"].forEach((s, k) => {
+      const t = mk("text", { x: CX, y: CY + 16 + k * 19, "text-anchor": "middle" }, E.badge, "font-size:12.5px;fill:var(--ink-2)");
+      t.textContent = s;
+    });
+  }
+
+  function place(t) {
+    const P = ST.map((_, i) => [strip[i][0] + (ring[i][0] - strip[i][0]) * t, strip[i][1] + (ring[i][1] - strip[i][1]) * t]);
+    P.forEach((p, i) => E.nodes[i].setAttribute("transform", `translate(${p[0].toFixed(1)},${p[1].toFixed(1)})`));
+    // the line bends: a quadratic curve through each pair gets more curve as t grows
+    let d = `M${P[0][0]},${P[0][1]}`;
+    for (let i = 1; i < P.length; i++) {
+      const mx = (P[i - 1][0] + P[i][0]) / 2, my = (P[i - 1][1] + P[i][1]) / 2;
+      const dx = mx - CX, dy = my - CY, L = Math.hypot(dx, dy) || 1;
+      const bow = 22 * t;
+      d += ` Q${(mx + dx / L * bow).toFixed(1)},${(my + dy / L * bow).toFixed(1)} ${P[i][0].toFixed(1)},${P[i][1].toFixed(1)}`;
+    }
+    E.link.setAttribute("d", d);
+    const a = P[P.length - 1], b = P[0];
+    const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2, dx = mx - CX, dy = my - CY, L = Math.hypot(dx, dy) || 1;
+    E.close.setAttribute("d", `M${a[0]},${a[1]} Q${mx + dx / L * 22},${my + dy / L * 22} ${b[0]},${b[1]}`);
+  }
+
+  Deck.register(ID, {
+    enter(slide) {
+      build(slide);
+      place(0);
+      const p = { t: 0 }, q = { a: -90 };
+      gsap.set(E.nodes, { opacity: 0 });
+      tl = gsap.timeline({ delay: 0.5 });
+      tl.to(E.nodes, { opacity: 1, duration: 0.35, stagger: 0.07 })
+        .to(p, { t: 1, duration: 1.5, ease: "power2.inOut", onUpdate: () => place(p.t) }, "+=0.35")
+        .to(E.close, { opacity: 1, duration: 0.4 })
+        .set(E.pulse, { opacity: 1 })
+        .to(q, { a: 270, duration: 2.6, ease: "none", onUpdate: () => {
+          const r = q.a * Math.PI / 180;
+          E.pulse.setAttribute("cx", (CX + R * Math.cos(r)).toFixed(1));
+          E.pulse.setAttribute("cy", (CY + R * Math.sin(r)).toFixed(1));
+          const k = Math.round(((q.a + 90) / 360) * ST.length) % ST.length;
+          E.nodes.forEach((n, i) => n.firstChild.style.strokeWidth = i === k ? 6 : 2.5);
+        } })
+        .call(() => E.nodes.forEach((n) => (n.firstChild.style.strokeWidth = 2.5)))
+        .to(E.pulse, { opacity: 0, duration: 0.3 })
+        .fromTo(E.badge, { opacity: 0, scale: 0.5, svgOrigin: `${CX} ${CY}` }, { opacity: 1, scale: 1, duration: 0.6, ease: "back.out(2)" });
+    },
+    leave() { if (tl) tl.kill(); tl = null; },
+  });
+})();
+</script>

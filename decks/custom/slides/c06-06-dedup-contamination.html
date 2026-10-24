@@ -1,0 +1,238 @@
+<section class="slide" id="custom-c06-dedup-contamination" data-tone="human" data-title="Dedup and contamination">
+  <style>
+    #custom-c06-dedup-contamination .swap { display:grid; min-height:0; }
+    #custom-c06-dedup-contamination .swap > * { grid-area:1/1; min-height:0; }
+    #custom-c06-dedup-contamination #c06dd-svg text { font-family:var(--f-mono); }
+    #custom-c06-dedup-contamination .stat .n { font-size:52px; }
+    #custom-c06-dedup-contamination .stat .l { font-size:14.5px; }
+    #custom-c06-dedup-contamination ol.seq { gap:9px; }
+    #custom-c06-dedup-contamination ol.seq > li { font-size:16.5px; line-height:1.38; padding-left:44px; }
+    #custom-c06-dedup-contamination ol.seq > li::before { width:30px; height:30px; font-size:14px; }
+    #custom-c06-dedup-contamination .fx { font:600 18px/1.3 var(--f-mono); color:var(--ink); }
+    #custom-c06-dedup-contamination .callout { font-size:16px; padding:10px 14px; }
+    #custom-c06-dedup-contamination ul.clean { gap:8px; }
+    #custom-c06-dedup-contamination ul.clean li, #custom-c06-dedup-contamination ul.ticks li { font-size:15.5px; line-height:1.38; }
+    #custom-c06-dedup-contamination ul.ticks { gap:6px; }
+    #custom-c06-dedup-contamination .cite { font-size:13.5px; padding:5px 9px 5px 7px; }
+    #custom-c06-dedup-contamination .cite::before { width:18px; height:18px; }
+  </style>
+  <h2 class="title">Deduplicate across splits with MinHash, and test LLMs on data newer than their cutoff</h2>
+  <div class="grid fill" style="grid-template-columns:720px 1fr;gap:28px;min-height:0">
+    <svg class="interactive" id="c06dd-svg" viewBox="0 0 720 590" width="720" height="590" aria-label="A document becomes shingles and a MinHash signature split into bands; the LSH S-curve; then GSM8k vs GSM1k and a cutoff timeline"></svg>
+    <div class="swap">
+      <!-- A: duplicates + MinHash LSH -->
+      <div class="stack" data-until="4" style="gap:14px">
+        <div class="grid g3" style="gap:14px">
+          <div class="stat"><span class="n" data-to="60000" data-suf="+">0</span><span class="l">copies of one 61-word sentence in C4</span></div>
+          <div class="stat"><span class="n" data-to="10" data-suf="×">0</span><span class="l">less memorized text emitted after dedup</span></div>
+          <div class="stat"><span class="n" data-to="4" data-pre="&gt;" data-suf="%">0</span><span class="l">of standard validation sets overlap the training set</span></div>
+        </div>
+        <ol class="seq">
+          <li data-step="1">Normalize the text. Shingle it into word 5-grams.</li>
+          <li data-step="1">MinHash the shingle set into a signature (128 permutations). The chance that two signatures match at one position equals their Jaccard similarity s.</li>
+          <li data-step="2">Split the signature into <b>b</b> bands of <b>r</b> rows. Two documents are candidates if any band matches:
+            <div class="fx" style="margin-top:6px">P = 1 − (1 − s<sup>r</sup>)<sup>b</sup> · threshold ≈ (1/b)<sup>1/r</sup></div></li>
+          <li data-step="3">Verify the Jaccard of each candidate pair. Find the connected components. Keep one document per cluster.</li>
+        </ol>
+        <div class="cites push">
+          <a class="cite paper" href="https://arxiv.org/abs/2107.06499" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Deduplicating Training Data Makes Language Models Better</a>
+          <a class="cite paper" href="https://arxiv.org/abs/2406.17557" target="_blank" rel="noopener"><b>Paper</b>&nbsp;The FineWeb Datasets</a>
+        </div>
+      </div>
+      <!-- B: code -->
+      <div class="stack" data-step="4" data-until="6" style="gap:12px">
+        <div class="code-wrap" style="width:100%"><div class="code-head">dedup.py · datasketch, pattern from the LSH docs</div>
+<pre class="code sm" data-lang="python" data-focus="4:2-8, 5:10-16"><code>
+from datasketch import MinHash, MinHashLSH
+def mh(text, num_perm=128, n=5):
+    toks = text.lower().split()
+    m = MinHash(num_perm=num_perm)
+    for sh in {" ".join(toks[i:i + n])
+               for i in range(max(1, len(toks) - n + 1))}:
+        m.update(sh.encode("utf8"))
+    return m
+
+lsh = MinHashLSH(threshold=0.8, num_perm=128)
+keep = []
+for doc_id, text in corpus.items():
+    m = mh(text)
+    if lsh.query(m):          # near-dup of a kept doc
+        continue
+    lsh.insert(doc_id, m); keep.append(doc_id)
+</code></pre></div>
+        <div class="callout tip"><span><b>Cross-split dedup:</b> build the index on the <b>test set</b>, query every training document, and drop the matches. For paraphrases, use embedding cosine above about 0.9 (FAISS or HNSW).</span></div>
+        <a class="cite doc" href="https://ekzhu.com/datasketch/lsh.html" target="_blank" rel="noopener"><b>Docs</b>&nbsp;datasketch: MinHash LSH</a>
+      </div>
+      <!-- C: contamination -->
+      <div class="stack" data-step="6" style="gap:12px">
+        <h3 style="font-size:25px">Is the benchmark in the training data?</h3>
+        <ul class="clean">
+          <li><b>Measure per benchmark</b> (Sainz et al., EMNLP 2023 Findings). Contamination can lead to “incorrect scientific conclusions”.</li>
+          <li><b>GSM1k</b>: a fresh clone of GSM8k with matched difficulty. Accuracy drops by up to 8% for some families. The chance to generate GSM8k items correlates with the gap (r² = 0.36).</li>
+          <li><b>Min-K% Prob</b>: the mean log-prob of the k% least likely tokens. It needs no reference model; +7.4% on WikiMIA.</li>
+          <li><b>LiveCodeBench</b> tests each model on problems released after its cutoff. BIG-bench embeds a <b>canary GUID</b> so corpus builders can filter it.</li>
+        </ul>
+        <h4 style="font-size:18px">Checklist for SFT, RL and RAG projects</h4>
+        <ul class="ticks">
+          <li>Decontaminate SFT and RL sets against every eval set: n-gram + MinHash + embeddings.</li>
+          <li>Keep a private, time-stamped holdout. Report the training cutoff with each score.</li>
+          <li>Check that RL reward problems do not overlap benchmark problems.</li>
+          <li>Write the method, thresholds and number removed in the quality card.</li>
+        </ul>
+        <div class="cites">
+          <a class="cite paper" href="https://arxiv.org/abs/2405.00332" target="_blank" rel="noopener"><b>Paper</b>&nbsp;GSM1k</a>
+          <a class="cite paper" href="https://arxiv.org/abs/2310.16789" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Min-K% Prob</a>
+          <a class="cite paper" href="https://arxiv.org/abs/2403.07974" target="_blank" rel="noopener"><b>Paper</b>&nbsp;LiveCodeBench</a>
+          <a class="cite paper" href="https://arxiv.org/abs/2310.18018" target="_blank" rel="noopener"><b>Paper</b>&nbsp;NLP Evaluation in trouble</a>
+        </div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    Duplicates are the cheapest leakage to find and the most common. Lee et al. found one 61-word sentence more than 60,000 times in C4, and over 4% of standard validation sets overlap their training data. Step 1 builds a MinHash signature: each cell matches between two documents with a probability equal to their Jaccard similarity. Step 2 is the banding trick: with 4 bands of 4 rows, the S-curve switches near 0.71. Step 3 morphs to the FineWeb setting, 14 bands of 8 rows, and the threshold moves to about 0.72. Steps 4 and 5 walk the datasketch code; tell students to index the test set and query the training set. Step 6 moves to LLM contamination: GSM1k showed drops of up to 8% for some model families, and LiveCodeBench avoids the problem by dating every problem. Analogy: banding is a set of locks on one door; more rows per band make each lock stricter, more bands give more chances to open. Likely question: "Why not compare all pairs exactly?" Answer: n squared pairs is impossible at web scale; LSH turns it into bucket lookups.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c06-dedup-contamination";
+  const PX0 = 70, PX1 = 690, PY0 = 560, PY1 = 300; // plot box: s 0..1 -> x, P 0..1 -> y
+  let top, plot, cont, curve, ghost, marker, mText, pLabel, sig = [], shingles = [], tl = null;
+  const cur = { b: 4, r: 4 };
+
+  const el = (tag, a, p) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); if (p) p.appendChild(e); return e; };
+  const sx = (s) => PX0 + s * (PX1 - PX0), sy = (p) => PY0 - p * (PY0 - PY1);
+  const P = (s, b, r) => 1 - Math.pow(1 - Math.pow(s, r), b);
+  const pathFor = (b, r) => { let d = ""; for (let i = 0; i <= 100; i++) { const s = i / 100; d += (i ? "L" : "M") + sx(s).toFixed(1) + "," + sy(P(s, b, r)).toFixed(1); } return d; };
+  const thr = (b, r) => Math.pow(1 / b, 1 / r);
+
+  function build(svg) {
+    svg.innerHTML = ""; sig = []; shingles = [];
+    // --- top: doc -> shingles -> signature -> bands
+    top = el("g", {}, svg);
+    const doc = el("g", {}, top);
+    el("rect", { x: 0, y: 30, width: 130, height: 150, rx: 10, fill: "var(--surface)", stroke: "var(--line-2)", "stroke-width": 1.5 }, doc);
+    ["the cat sat on", "the mat and the", "dog sat on the", "mat near the", "door of the"].forEach((t, i) => (el("text", { x: 10, y: 56 + i * 24, "font-size": 11.5, fill: "var(--ink-2)" }, doc).textContent = t));
+    el("text", { x: 65, y: 20, "text-anchor": "middle", "font-size": 12, fill: "var(--muted)" }, doc).textContent = "document";
+    ["the cat sat on the", "cat sat on the mat", "sat on the mat and", "on the mat and the", "…"].forEach((t, i) => {
+      const g = el("g", { opacity: 0 }, top);
+      el("rect", { x: 160, y: 34 + i * 30, width: 186, height: 24, rx: 6, fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 1.2 }, g);
+      el("text", { x: 168, y: 50 + i * 30, "font-size": 11, fill: "var(--state)", "font-weight": 600 }, g).textContent = t;
+      shingles.push(g);
+    });
+    el("text", { x: 253, y: 20, "text-anchor": "middle", "font-size": 12, fill: "var(--muted)" }, top).textContent = "word 5-gram shingles";
+    el("text", { x: 548, y: 20, "text-anchor": "middle", "font-size": 12, fill: "var(--muted)" }, top).textContent = "MinHash signature (16 of 128)";
+    const vals = [17, 4, 92, 33, 58, 7, 71, 26, 40, 13, 88, 61, 5, 49, 77, 30];
+    for (let k = 0; k < 16; k++) {
+      const x = 380 + k * 21 + Math.floor(k / 4) * 6;
+      const g = el("g", { opacity: 0 }, top);
+      el("rect", { x, y: 70, width: 19, height: 44, rx: 4, fill: "var(--human-soft)", stroke: "var(--human)", "stroke-width": 1.4 }, g);
+      el("text", { x: x + 9.5, y: 97, "text-anchor": "middle", "font-size": 10, "font-weight": 700, fill: "var(--human)" }, g).textContent = vals[k];
+      sig.push(g);
+    }
+    const bands = el("g", { opacity: 0 }, top); top._bands = bands;
+    for (let j = 0; j < 4; j++) {
+      const x = 380 + j * (4 * 21 + 6);
+      el("path", { d: `M${x},124 v8 h${4 * 21 - 2} v-8`, fill: "none", stroke: "var(--human)", "stroke-width": 2 }, bands);
+      el("text", { x: x + 41, y: 150, "text-anchor": "middle", "font-size": 11.5, "font-weight": 700, fill: "var(--human)" }, bands).textContent = "band " + (j + 1);
+    }
+    el("text", { x: 548, y: 176, "text-anchor": "middle", "font-size": 11.5, fill: "var(--muted)" }, bands).textContent = "P(one cell matches) = Jaccard(A, B)";
+    const arr = (x1, x2, y) => el("path", { d: `M${x1},${y} L${x2},${y} M${x2 - 7},${y - 5} L${x2},${y} L${x2 - 7},${y + 5}`, fill: "none", stroke: "var(--line-2)", "stroke-width": 2 }, top);
+    arr(134, 154, 105); arr(350, 372, 92);
+    // --- plot
+    plot = el("g", { opacity: 0 }, svg);
+    el("path", { d: `M${PX0},${PY1 - 10} V${PY0} H${PX1 + 10}`, fill: "none", stroke: "var(--line-2)", "stroke-width": 2 }, plot);
+    [0, 0.25, 0.5, 0.75, 1].forEach((s) => (el("text", { x: sx(s), y: PY0 + 18, "text-anchor": "middle", "font-size": 11, fill: "var(--faint)" }, plot).textContent = s));
+    [0, 0.5, 1].forEach((p) => (el("text", { x: PX0 - 8, y: sy(p) + 4, "text-anchor": "end", "font-size": 11, fill: "var(--faint)" }, plot).textContent = p));
+    el("text", { x: (PX0 + PX1) / 2, y: PY0 + 36, "text-anchor": "middle", "font-size": 12, fill: "var(--muted)" }, plot).textContent = "Jaccard similarity s →";
+    el("text", { x: 22, y: (PY0 + PY1) / 2, "text-anchor": "middle", "font-size": 12, fill: "var(--muted)", transform: `rotate(-90 22 ${(PY0 + PY1) / 2})` }, plot).textContent = "P(candidate)";
+    ghost = el("path", { d: pathFor(4, 4), fill: "none", stroke: "var(--faint)", "stroke-width": 2, "stroke-dasharray": "5 5", opacity: 0 }, plot);
+    curve = el("path", { d: pathFor(4, 4), fill: "none", stroke: "var(--human)", "stroke-width": 3.5 }, plot);
+    marker = el("line", { x1: sx(thr(4, 4)), x2: sx(thr(4, 4)), y1: PY1 - 6, y2: PY0, stroke: "var(--risk)", "stroke-width": 2, "stroke-dasharray": "5 4" }, plot);
+    mText = el("text", { x: sx(thr(4, 4)) - 8, y: PY1 + 6, "text-anchor": "end", "font-size": 12.5, "font-weight": 700, fill: "var(--risk)" }, plot);
+    pLabel = el("text", { x: PX0 + 10, y: 262, "font-size": 13.5, "font-weight": 700, fill: "var(--human)" }, plot);
+    // --- contamination
+    cont = el("g", { opacity: 0 }, svg);
+    el("text", { x: 20, y: 248, "font-size": 13, "font-weight": 700, fill: "var(--ink)" }, cont).textContent = "fresh clone of the same benchmark";
+    el("line", { x1: 30, y1: 540, x2: 320, y2: 540, stroke: "var(--line-2)", "stroke-width": 2 }, cont);
+    cont._b1 = el("rect", { x: 70, y: 540, width: 80, height: 0, rx: 6, fill: "var(--faint)", opacity: 0.6 }, cont);
+    cont._b2 = el("rect", { x: 200, y: 540, width: 80, height: 0, rx: 6, fill: "var(--human)", opacity: 0.85 }, cont);
+    el("text", { x: 110, y: 560, "text-anchor": "middle", "font-size": 12.5, "font-weight": 700, fill: "var(--ink-2)" }, cont).textContent = "GSM8k";
+    el("text", { x: 240, y: 560, "text-anchor": "middle", "font-size": 12.5, "font-weight": 700, fill: "var(--ink-2)" }, cont).textContent = "GSM1k";
+    cont._gap = el("g", { opacity: 0 }, cont);
+    el("path", { d: "M160,300 H296 M296,300 V319 M290,319 H302", fill: "none", stroke: "var(--risk)", "stroke-width": 2.4 }, cont._gap);
+    el("text", { x: 240, y: 292, "text-anchor": "middle", "font-size": 12.5, "font-weight": 700, fill: "var(--risk)" }, cont._gap).textContent = "up to 8% lower";
+    el("text", { x: 30, y: 584, "font-size": 11.5, fill: "var(--muted)" }, cont).textContent = "some families · no absolute scores shown";
+    // timeline
+    el("text", { x: 370, y: 248, "font-size": 13, "font-weight": 700, fill: "var(--ink)" }, cont).textContent = "LiveCodeBench: date every problem";
+    el("line", { x1: 370, y1: 470, x2: 700, y2: 470, stroke: "var(--line-2)", "stroke-width": 2 }, cont);
+    el("path", { d: "M700,465 L712,470 L700,475 Z", fill: "var(--line-2)" }, cont);
+    el("text", { x: 370, y: 494, "font-size": 11.5, fill: "var(--muted)" }, cont).textContent = "problem release date →";
+    cont._cut = el("g", { opacity: 0 }, cont);
+    el("line", { x1: 560, y1: 280, x2: 560, y2: 482, stroke: "var(--risk)", "stroke-width": 2.4, "stroke-dasharray": "6 4" }, cont._cut);
+    el("text", { x: 556, y: 300, "text-anchor": "end", "font-size": 12, "font-weight": 700, fill: "var(--risk)" }, cont._cut).textContent = "model cutoff";
+    el("text", { x: 465, y: 520, "text-anchor": "middle", "font-size": 11.5, fill: "var(--faint)" }, cont._cut).textContent = "may be in training data";
+    el("text", { x: 632, y: 520, "text-anchor": "middle", "font-size": 11.5, "font-weight": 700, fill: "var(--state)" }, cont._cut).textContent = "evaluate here";
+    cont._dots = [];
+    for (let i = 0; i < 18; i++) {
+      const x = 384 + i * 17.5, y = 452 - ((i * 37) % 5) * 26;
+      const after = x > 560;
+      cont._dots.push(el("rect", { x: x - 6, y: y - 6, width: 12, height: 12, rx: 3, fill: after ? "var(--state)" : "var(--faint)", opacity: 0 }, cont));
+    }
+  }
+
+  function setCurve(b, r) {
+    cur.b = b; cur.r = r;
+    curve.setAttribute("d", pathFor(b, r));
+    const t = thr(b, r);
+    marker.setAttribute("x1", sx(t)); marker.setAttribute("x2", sx(t));
+    mText.setAttribute("x", sx(t) - 8);
+    mText.textContent = "threshold ≈ " + t.toFixed(3);
+  }
+
+  function render(n, animate) {
+    if (tl) { tl.progress(1); tl.kill(); tl = null; }
+    const A = (t, v, pos) => { const { duration, ...rest } = v; if (animate) tl.to(t, { ...rest, duration: duration ?? 0.45 }, pos ?? 0); else gsap.set(t, rest); };
+    if (animate) tl = gsap.timeline();
+    const c = n >= 6;
+    A(top, { attr: { opacity: 1 } });
+    shingles.forEach((s, k) => A(s, { attr: { opacity: n >= 1 ? 1 : 0 } }, n === 1 ? 0.1 + k * 0.12 : 0));
+    sig.forEach((s, k) => A(s, { attr: { opacity: n >= 1 ? 1 : 0 } }, n === 1 ? 0.8 + k * 0.05 : 0));
+    A(top._bands, { attr: { opacity: n >= 1 ? 1 : 0 } }, n === 1 ? 1.7 : 0);
+    A(plot, { attr: { opacity: n >= 2 && !c ? 1 : 0 } }, 0);
+    A(ghost, { attr: { opacity: n >= 3 ? 0.8 : 0 } }, 0);
+    const tb = n >= 3 ? 14 : 4, tr = n >= 3 ? 8 : 4;
+    pLabel.textContent = n >= 3 ? "b = 14 bands × r = 8 rows = 112 hashes (FineWeb)" : "b = 4 bands × r = 4 rows = 16 hashes";
+    if (animate && (cur.b !== tb || cur.r !== tr)) {
+      const p = { b: cur.b, r: cur.r };
+      tl.to(p, { b: tb, r: tr, duration: 1.2, ease: "power2.inOut", onUpdate: () => setCurve(p.b, p.r), onComplete: () => setCurve(tb, tr) }, 0.1);
+    } else setCurve(tb, tr);
+    if (animate && n === 2) {
+      const L = curve.getTotalLength();
+      tl.fromTo(curve, { strokeDasharray: L, strokeDashoffset: L }, { strokeDashoffset: 0, duration: 1.1, ease: "power2.inOut", onComplete: () => gsap.set(curve, { clearProps: "strokeDasharray,strokeDashoffset" }) }, 0.2);
+    }
+    A(cont, { attr: { opacity: c ? 1 : 0 } }, c ? 0.3 : 0);
+    A(cont._b1, { attr: { y: c ? 300 : 540, height: c ? 240 : 0 }, duration: 0.8 }, c ? 0.5 : 0);
+    A(cont._b2, { attr: { y: c ? 319 : 540, height: c ? 221 : 0 }, duration: 0.8 }, c ? 0.65 : 0);
+    A(cont._gap, { attr: { opacity: c ? 1 : 0 } }, c ? 1.3 : 0);
+    cont._dots.forEach((d, k) => A(d, { attr: { opacity: c ? 0.9 : 0 }, duration: 0.2 }, c ? 0.6 + k * 0.05 : 0));
+    A(cont._cut, { attr: { opacity: c ? 1 : 0 } }, c ? 1.6 : 0);
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) {
+      build(slide.querySelector("#c06dd-svg"));
+      render(step, false);
+      if (step === 0) { tl = gsap.timeline({ delay: 0.3 }); tl.from(top.firstChild, { opacity: 0, x: -20, duration: 0.6 }); }
+    },
+    step(slide, n, animate) {
+      if (!curve) return;
+      render(n, animate);
+    },
+    leave() {
+      if (tl) tl.kill(); tl = null;
+      if (curve) gsap.killTweensOf(curve);
+    },
+  });
+})();
+</script>

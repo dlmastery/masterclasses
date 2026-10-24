@@ -1,0 +1,190 @@
+<section class="slide" id="custom-c07-generate-verify-keep" data-tone="state" data-title="Generate, verify, keep">
+  <h2 class="title">Generate many candidates, verify them from cheap to costly, and keep only what passes</h2>
+  <div class="fill" style="display:grid;grid-template-columns:700px 1fr;gap:28px">
+    <svg class="interactive" id="c07gv-svg" viewBox="0 0 720 600" width="700" height="583" style="overflow:visible" aria-label="Sixteen candidates fall through four verifier gates; four survive and go to an SFT tray and a DPO tray"></svg>
+    <div style="position:relative">
+      <div class="stack" data-until="5" style="position:absolute;inset:0;gap:14px">
+        <ol class="seq small" style="gap:12px">
+          <li data-step="1"><b>Sample K candidates per prompt</b> from seeds, personas or Magpie. Llama 3 uses K “typically between 10 and 30”.</li>
+          <li data-step="2"><b>Static checks first:</b> format, parse and lint. They cost almost nothing, so they run on every candidate.</li>
+          <li data-step="3"><b>Execute:</b> unit tests for code; exact match or a symbolic check for math. Llama 3: over 2.7M synthetic code examples; about 1M dialogues used execution feedback.</li>
+          <li data-step="4"><b>Judge, then critique:</b> a reward model or a judge rubric, then a constitutional critique. Keep best-of-K (SFT) or pass/fail pairs (DPO). Dedup and decontaminate.</li>
+        </ol>
+        <div class="panel tight k-human" data-step="4">
+          <p class="tiny" style="color:var(--ink-2)"><b>Judges are biased.</b> GPT-4 judges agree with humans “over 80%”, but they show position, verbosity and self-enhancement bias. Swap the answer order. Use rubrics and reference answers. Use a judge from another model family.</p>
+        </div>
+        <p class="tiny" data-step="4">RLVR (Tulu 3) moves the same check into the RL reward: the reward is 1 only if the answer is verifiably correct.</p>
+        <div class="cites push" data-step="4">
+          <a class="cite paper" href="https://arxiv.org/abs/2407.21783" target="_blank" rel="noopener"><b>Paper</b>&nbsp;The Llama 3 Herd of Models</a>
+          <a class="cite paper" href="https://arxiv.org/abs/2306.05685" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Judging LLM-as-a-Judge</a>
+          <a class="cite paper" href="https://arxiv.org/abs/2212.08073" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Constitutional AI</a>
+        </div>
+      </div>
+      <div class="stack" style="position:absolute;inset:0;gap:14px">
+        <div class="code-wrap" data-step="5"><div class="code-head">reject_sample.py · illustrative pattern, standard library only</div>
+<pre class="code xs" data-lang="python" data-focus="5:3-13, 6:15-19"><code>
+import subprocess, tempfile, textwrap
+
+def passes_tests(solution: str, tests: str, timeout=5) -> bool:
+    prog = solution + "\n\n" + textwrap.dedent(tests)
+    with tempfile.NamedTemporaryFile("w", suffix=".py",
+                                     delete=False) as f:
+        f.write(prog)
+    try:
+        r = subprocess.run(["python", "-I", f.name],
+                           capture_output=True, timeout=timeout)
+        return r.returncode == 0
+    except subprocess.TimeoutExpired:
+        return False
+
+def rejection_sample(prompt, tests, generate, k=16):
+    cands = [generate(prompt, temperature=0.8) for _ in range(k)]
+    good = [c for c in cands if passes_tests(c, tests)]
+    # keep all passing (SFT) or pair passing/failing (DPO)
+    return good
+</code></pre></div>
+        <div class="callout pitfall" data-step="5" style="font-size:16px;padding:12px 16px">Run generated code in a sandbox: a container, no network. <code>python -I</code> and a timeout are not a sandbox. Llama 3 ran its tests in containers.</div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    This is the core pattern of synthetic data: generate wide, then filter hard with verifiers in order of cost. Step 1 drops 16 candidates for one prompt. Each gate is more expensive than the one before, so the cheap lint gate removes obvious failures before we pay for execution, and we pay for an LLM judge only on the few that run. The survivors go two ways: best-of-K examples become SFT data, and a passing answer paired with a failing answer becomes a DPO pair. Llama 3 did this at scale for code, and about 20% of solutions were first wrong but fixed themselves with error feedback. Analogy: a hiring funnel; a CV screen is cheap, an on-site interview is costly, so you do the cheap step first. Likely question: "Why not use only the LLM judge?" It is the most expensive gate and it has position, verbosity and self-enhancement bias; programs are cheaper and harder to fool.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c07-generate-verify-keep";
+  const N = 16, SP = 38, CX = 360;
+  // fixed pattern: the gate (1..4) that removes each dot; 0 = survives
+  const GATE = [2, 0, 1, 0, 2, 3, 2, 4, 0, 1, 2, 3, 2, 1, 0, 2];
+  const ROWS = [118, 196, 274, 352];          // rows before gate 1..4
+  const GY = [157, 235, 313, 391];            // gate lines
+  const GL = ["lint / parse", "unit tests", "judge rubric", "constitution"];
+  const SFT = [1, 3], DPO = [[8, 0], [14, 4]]; // survivor/failure pairs
+  const S = {};
+
+  function mk(tag, at, parent, txt) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in at) e.setAttribute(k, at[k]);
+    if (txt != null) e.textContent = txt;
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  const mono = (size, w, fill, anchor) => ({ "font-family": "var(--f-mono)", "font-size": size, "font-weight": w || 500, fill: fill || "var(--muted)", "text-anchor": anchor || "start" });
+  const alive = (L) => GATE.map((g, i) => i).filter((i) => GATE[i] === 0 || GATE[i] > L);
+  const rowX = (list, i) => CX - ((list.length - 1) / 2) * SP + list.indexOf(i) * SP;
+
+  // target state of every dot after level L passes (L = -1: inside the prompt)
+  function state(L) {
+    return GATE.map((g, i) => {
+      if (L < 0) return { x: CX, y: 40, f: "var(--model)", o: 0, r: 9 };
+      if (L >= 4) {
+        const s = SFT.indexOf(i);
+        if (s >= 0) return { x: 150 + s * 46 - 23, y: 482, f: "var(--state)", o: 1, r: 11 };
+        for (let k = 0; k < DPO.length; k++) {
+          const [a, b] = DPO[k];
+          if (i === a) return { x: 512 + k * 92 - 46 - 16, y: 482, f: "var(--state)", o: 1, r: 11 };
+          if (i === b) return { x: 512 + k * 92 - 46 + 16, y: 482, f: "var(--risk)", o: 1, r: 11 };
+        }
+      }
+      if (g !== 0 && g <= L) {               // removed at gate g: stays in the row above it
+        const prev = alive(g - 1);
+        return { x: rowX(prev, i), y: ROWS[g - 1], f: "var(--risk)", o: 0.28, r: 9 };
+      }
+      const lv = Math.min(L, 3), list = alive(lv);
+      return { x: rowX(list, i), y: ROWS[lv], f: "var(--model)", o: 1, r: 11 };
+    });
+  }
+
+  function build(slide) {
+    if (S.slide === slide) return;
+    S.slide = slide;
+    const svg = slide.querySelector("#c07gv-svg");
+    svg.innerHTML = "";
+    // prompt
+    const p = mk("g", {}, svg);
+    mk("rect", { x: CX - 170, y: 6, width: 340, height: 56, rx: 14, fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 2 }, p);
+    mk("text", { x: CX, y: 30, ...mono(16, 700, "var(--ink)", "middle") }, p, "one prompt");
+    mk("text", { x: CX, y: 51, ...mono(13, 500, "var(--muted)", "middle") }, p, "seed · persona · Magpie");
+    S.kLbl = mk("text", { x: 700, y: 92, ...mono(14, 700, "var(--model)", "end") }, svg, "K = 16 candidates");
+    // gates
+    S.gates = GY.map((y, k) => {
+      const g = mk("g", {}, svg);
+      mk("line", { x1: 30, y1: y, x2: 690, y2: y, stroke: "var(--tool)", "stroke-width": 2.5, "stroke-dasharray": "8 6" }, g);
+      mk("rect", { x: 0, y: y - 14, width: 150, height: 28, rx: 8, fill: "var(--tool-soft)", stroke: "var(--tool)", "stroke-width": 1.5 }, g);
+      mk("text", { x: 75, y: y + 5, ...mono(13, 700, "var(--tool)", "middle") }, g, `${k + 1} ${GL[k]}`);
+      const before = alive(k).length, after = alive(k + 1).length;
+      mk("rect", { x: 586, y: y - 14, width: 120, height: 28, rx: 8, fill: "var(--surface-2)", stroke: "var(--line-2)", "stroke-width": 1.2 }, g);
+      mk("text", { x: 646, y: y + 5, ...mono(14, 700, "var(--ink)", "middle") }, g, `${before} → ${after}`);
+      return g;
+    });
+    // trays
+    S.trays = mk("g", {}, svg);
+    mk("rect", { x: 40, y: 440, width: 280, height: 86, rx: 14, fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 2 }, S.trays);
+    mk("text", { x: 180, y: 520, ...mono(14, 700, "var(--state)", "middle") }, S.trays, "best-of-K → SFT");
+    mk("rect", { x: 380, y: 440, width: 300, height: 86, rx: 14, fill: "var(--agent-soft)", stroke: "var(--agent)", "stroke-width": 2 }, S.trays);
+    mk("text", { x: 530, y: 520, ...mono(14, 700, "var(--agent)", "middle") }, S.trays, "pass / fail pairs → DPO");
+    DPO.forEach((d, k) => mk("rect", { x: 512 + k * 92 - 46 - 32, y: 467, width: 64, height: 30, rx: 15, fill: "none", stroke: "var(--agent)", "stroke-width": 1.5, "stroke-dasharray": "4 4" }, S.trays));
+    // dots
+    S.dots = GATE.map(() => mk("circle", { cx: CX, cy: 40, r: 9, fill: "var(--model)", opacity: 0 }, svg));
+    // stat
+    S.stat = mk("g", {}, svg);
+    S.statN = mk("text", { x: 40, y: 584, "font-family": "var(--f-display)", "font-size": 44, "font-weight": 700, fill: "var(--state)" }, S.stat, "20%");
+    mk("text", { x: 150, y: 566, ...mono(14, 600, "var(--ink-2)") }, S.stat, "of Llama 3 code solutions were first wrong,");
+    mk("text", { x: 150, y: 586, ...mono(14, 600, "var(--ink-2)") }, S.stat, "then “self-corrected” with error feedback");
+  }
+
+  function setDots(st) { S.dots.forEach((d, i) => gsap.set(d, { attr: { cx: st[i].x, cy: st[i].y, fill: st[i].f, opacity: st[i].o, r: st[i].r } })); }
+  function tweenDots(tl, st, at, dur) {
+    S.dots.forEach((d, i) => tl.to(d, { attr: { cx: st[i].x, cy: st[i].y, opacity: st[i].o, r: st[i].r }, duration: dur, ease: "power2.inOut" }, at + (i % 8) * 0.03));
+    S.dots.forEach((d, i) => tl.set(d, { attr: { fill: st[i].f } }, at + 0.15));
+  }
+
+  function render(slide, n, animate) {
+    build(slide);
+    if (S.tl) S.tl.kill(); S.tl = null;
+    gsap.killTweensOf([...S.dots, ...S.gates, S.trays, S.stat, S.kLbl]);
+    const lvl = [-1, 0, 1, 2, 4, 4][Math.min(n, 5)];
+    S.gates.forEach((g, k) => gsap.set(g, { autoAlpha: (k <= 1 ? n >= k + 2 : n >= 4) ? 1 : 0 }));
+    gsap.set(S.trays, { autoAlpha: n >= 4 ? 1 : 0 });
+    gsap.set(S.kLbl, { autoAlpha: n >= 1 ? 1 : 0 });
+    gsap.set(S.stat, { autoAlpha: n >= 5 ? 1 : 0 });
+    S.statN.textContent = "20%";
+    if (!animate || n === 0) { setDots(state(lvl)); return; }
+
+    const tl = (S.tl = gsap.timeline());
+    if (n === 1) {
+      setDots(state(-1));
+      const st = state(0);
+      S.dots.forEach((d, i) => tl.to(d, { attr: { cx: st[i].x, cy: st[i].y, opacity: 1, r: 11 }, duration: 0.7, ease: "bounce.out" }, i * 0.07));
+      tl.from(S.kLbl, { autoAlpha: 0, duration: 0.4 }, 0.9);
+    } else if (n === 2 || n === 3) {
+      const g = S.gates[n - 2];
+      setDots(state(n - 2));
+      tl.from(g, { autoAlpha: 0, duration: 0.4 });
+      tweenDots(tl, state(n - 1), 0.5, 0.8);
+    } else if (n === 4) {
+      setDots(state(2));
+      tl.from(S.gates[2], { autoAlpha: 0, duration: 0.4 });
+      tweenDots(tl, state(3), 0.4, 0.7);
+      tl.from(S.gates[3], { autoAlpha: 0, duration: 0.4 }, 1.4);
+      const mid = state(4).map((s, i) => (GATE[i] === 4 ? { ...state(3)[i], f: "var(--risk)", o: 0.28, r: 9 } : state(3)[i]));
+      tweenDots(tl, mid, 1.8, 0.5);
+      tl.from(S.trays, { autoAlpha: 0, duration: 0.4 }, 2.4);
+      tweenDots(tl, state(4), 2.7, 0.9);
+    } else if (n === 5) {
+      setDots(state(4));
+      tl.from(S.stat, { autoAlpha: 0, y: 12, duration: 0.5 });
+      const p = { v: 0 };
+      tl.to(p, { v: 20, duration: 1.4, ease: "power3.out", onUpdate: () => (S.statN.textContent = Math.round(p.v) + "%") }, 0.1);
+    } else setDots(state(lvl));
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { if (!S.tl) render(slide, step, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { if (S.tl) S.tl.kill(); S.tl = null; if (S.dots) gsap.killTweensOf(S.dots); },
+  });
+})();
+</script>

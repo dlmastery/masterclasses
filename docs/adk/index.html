@@ -1,0 +1,880 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Building agents with Google ADK 2.0</title>
+<meta name="description" content="Google ADK 2.0 from the first agent to production: graph workflows, plugins, YAML, skills, managed agents, verifiers, evals, AgentOps and the newest agent design patterns (October 2026).">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%278%27 fill=%27%232557e8%27/%3E%3Ccircle cx=%2716%27 cy=%2716%27 r=%276%27 fill=%27white%27/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300..800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../engine/deck.css">
+
+</head>
+<body>
+<div class="stage">
+<div class="deck">
+
+<!-- c00-01-hero.html -->
+<section class="slide" id="adk-c00-hero" data-tone="agent" data-title="Opening: agents as graphs">
+  <style>
+    #adk-c00-hero .hero-stats { gap: 18px 28px; }
+    #adk-c00-hero .hero-stats .n { font-size: 56px; }
+    #adk-c00-hero .hero-stats .l { font-size: 17px; line-height: 1.32; }
+    #adk-c00-hero .node .nt { font-size: 18px; }
+    #adk-c00-hero .node[data-st]::after {
+      position: absolute; top: -11px; right: 10px;
+      font: 700 11px/1 var(--f-mono); letter-spacing: .04em;
+      padding: 4px 7px; border-radius: 6px; color: #fff;
+    }
+    #adk-c00-hero .node[data-st="run"] { border-color: #D97706; box-shadow: 0 0 0 5px rgba(217,119,6,.22), 0 16px 40px -18px #D97706; }
+    #adk-c00-hero .node[data-st="run"]::after { content: "RUNNING"; background: #D97706; }
+    #adk-c00-hero .node[data-st="wait"] { border-color: #9333EA; box-shadow: 0 0 0 5px rgba(147,51,234,.22), 0 16px 40px -18px #9333EA; }
+    #adk-c00-hero .node[data-st="wait"]::after { content: "WAITING"; background: #9333EA; }
+    #adk-c00-hero .node[data-st="done"] { border-color: #16A34A; box-shadow: 0 0 0 3px rgba(22,163,74,.18); }
+    #adk-c00-hero .node[data-st="done"]::after { content: "COMPLETED"; background: #16A34A; }
+    #adk-c00-hero .hero-token {
+      position: absolute; left: -8px; top: -8px; width: 16px; height: 16px; border-radius: 50%;
+      background: var(--agent); z-index: 3; pointer-events: none; opacity: 0;
+      box-shadow: 0 0 0 5px color-mix(in oklab, var(--agent) 25%, transparent), 0 0 22px 4px var(--agent);
+    }
+    #adk-c00-hero .hero-legend { position: absolute; display: grid; gap: 9px; font: 600 14px/1 var(--f-mono); color: var(--muted); }
+    #adk-c00-hero .hero-legend i { display: inline-block; width: 12px; height: 12px; border-radius: 4px; margin-right: 8px; vertical-align: -1px; }
+    #adk-c00-hero .hero-calls { position: absolute; left: 612px; top: 256px; font: 600 14px/1 var(--f-mono); color: var(--agent); }
+  </style>
+
+  <div class="grid fill" style="grid-template-columns:540px 820px;gap:32px">
+    <div class="stack" style="gap:22px">
+      <h1 class="display" style="font-size:70px">Building agents<br>with Google<br>ADK 2.0</h1>
+      <p class="lede" data-fx="up">October 2026 – google-adk 2.13.0</p>
+      <p class="small" data-fx="up">Code owns the flow. Models own the judgment. Agents, tools and functions are all nodes in one graph.</p>
+      <div class="grid g2 hero-stats" data-step="1" data-fx="stagger">
+        <div class="stat"><span class="n" data-to="2" data-dec="1">0</span><span class="l">Python ADK 2.0 GA on 2026-05-19</span></div>
+        <div class="stat"><span class="n" data-to="2.13" data-dec="2" data-suf=".0">0</span><span class="l">latest google-adk: PyPI 2026-10-23, CHANGELOG 2026-10-22</span></div>
+        <div class="stat"><span class="n" data-to="21982">0</span><span class="l">GitHub stars on google/adk-python (2026-10-23)</span></div>
+        <div class="stat"><span class="n" data-to="10.1" data-dec="1" data-suf="M">0</span><span class="l">PyPI downloads in the last month (pypistats)</span></div>
+      </div>
+      <div class="tags" data-step="1" data-fx="fade">
+        <span class="tag new">Go 2.0 GA · 2026-06-30</span>
+        <span class="tag new">TypeScript 2.0 GA · 2026-08-21</span>
+        <span class="tag">Java and Kotlin: still 1.x</span>
+      </div>
+    </div>
+
+    <div class="stack" style="gap:20px">
+      <div class="diagram" id="h0-graph" style="width:820px;height:585px"
+           data-wires="h0-user>h0-start{human}; h0-start>h0-triage; h0-triage>h0-lookup:bt [billing]; h0-lookup>h0-policy; h0-policy>h0-approve; h0-approve>h0-refund; h0-refund>h0-fmt; h0-triage>h0-agent:bl [general]; h0-agent>h0-fmt; h0-fmt>h0-end">
+        <div class="group g-agent" style="left:590px;top:96px;width:230px;height:204px"><span class="gl" style="left:10px;font-size:13px">LLM island, max_llm_calls</span></div>
+        <div class="node n-human pill" id="h0-user" style="left:0;top:6px;width:104px"><span class="nt">User</span></div>
+        <div class="node pill ghost" id="h0-start" style="left:164px;top:6px;width:112px"><span class="nt">START</span></div>
+        <div class="node n-model" id="h0-triage" style="left:340px;top:0;width:220px"><span class="nt">triage</span><span class="ns">ClassifierNode</span></div>
+        <div class="node n-tool" id="h0-lookup" style="left:0;top:170px;width:250px"><span class="nt">lookup_invoice</span><span class="ns">function node</span></div>
+        <div class="node n-tool" id="h0-policy" style="left:0;top:300px;width:250px"><span class="nt">refund_policy_check</span><span class="ns">function node</span></div>
+        <div class="node n-human" id="h0-approve" style="left:310px;top:300px;width:200px"><span class="nt">approve?</span><span class="ns">RequestInput</span></div>
+        <div class="node n-tool" id="h0-refund" style="left:310px;top:430px;width:200px"><span class="nt">issue_refund</span><span class="ns">function node</span></div>
+        <div class="node n-agent" id="h0-agent" style="left:610px;top:140px;width:190px"><span class="nt">Agent</span><span class="ns">model + tools loop</span></div>
+        <div class="node n-tool" id="h0-fmt" style="left:580px;top:420px;width:180px"><span class="nt">format_reply</span><span class="ns">function node</span></div>
+        <div class="node pill ghost" id="h0-end" style="left:610px;top:535px;width:120px"><span class="nt">END</span></div>
+        <span class="hero-calls">LLM calls: 0</span>
+        <div class="hero-legend" style="left:0;top:446px">
+          <span><i style="background:#D97706"></i>RUNNING</span>
+          <span><i style="background:#9333EA"></i>WAITING</span>
+          <span><i style="background:#16A34A"></i>COMPLETED</span>
+          <span class="tiny" style="font-family:var(--f-body)">node colours of the adk web graph view</span>
+        </div>
+      </div>
+      <div class="stack" data-step="2" data-fx="up" style="gap:12px">
+        <p class="quote">A graph is an agent.</p>
+        <div class="cites">
+          <a class="cite doc" href="https://developers.googleblog.com/en/announcing-adk-go-20/" target="_blank" rel="noopener"><b>Blog</b>&nbsp;ADK for Go 2.0: build agent workflows as a graph (2026-06-30)</a>
+          <a class="cite doc" href="https://adk.dev/2.0/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Welcome to ADK 2.0</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <aside class="notes">
+    Start with the one-sentence answer to the interview question "What is ADK 2.0?": it is a graph-based Workflow Runtime, and agents, tools and functions are all nodes, because BaseAgent now subclasses BaseNode.
+    Follow the token. On the billing route, plain functions do the data-determined steps, and a RequestInput node waits for a human. On the general route, one Agent works alone inside a bounded LLM island.
+    Google gives the reason in "Why we built ADK 2.0" (Google Developers Blog, 2026-07-01): "For production-grade reliability, you need full deterministic control over your application flow."
+    Analogy: the graph is the railway track and the switches. The model is the driver who reads the signals at each station.
+    Likely question: "Is this only LangGraph again?" Answer: explicit edges are a shared idea. In ADK, node input and output are typed, the graph is validated when you construct it, and HITL pause and resume come from the session event log.
+    The node colours match the adk web graph view: amber RUNNING, violet WAITING, green COMPLETED.
+  </aside>
+</section>
+
+<!-- c00-02-map.html -->
+<section class="slide" id="adk-c00-map" data-tone="agent" data-title="Course map">
+  <style>
+    #adk-c00-map .map-wrap { position: relative; width: 740px; height: 600px; }
+    #adk-c00-map .map-wrap > svg { position: absolute; inset: 0; width: 740px; height: 600px; overflow: visible; }
+    #adk-c00-map .map-note { position: absolute; left: 350px; top: 382px; width: 385px; display: grid; gap: 10px; }
+    #adk-c00-map .mapc {
+      display: grid; grid-template-columns: 34px 1fr; column-gap: 14px; align-items: center;
+      padding: 6px 12px; border-left: 3px solid var(--c); border-radius: 10px;
+      background: color-mix(in oklab, var(--c) 6%, transparent);
+      transition: box-shadow .4s, background .4s;
+    }
+    #adk-c00-map .mapc .no {
+      grid-row: span 2; width: 34px; height: 34px; border-radius: 50%;
+      background: var(--c); color: var(--bg); font: 700 16px/34px var(--f-mono); text-align: center;
+    }
+    #adk-c00-map .mapc b { font-size: 19px; line-height: 1.2; }
+    #adk-c00-map .mapc span { font-size: 15px; line-height: 1.3; color: var(--muted); }
+    #adk-c00-map .mapc.hot { background: color-mix(in oklab, var(--risk) 9%, transparent); box-shadow: 0 0 0 2px color-mix(in oklab, var(--risk) 45%, transparent); }
+    #adk-c00-map .c-m { --c: var(--model); } #adk-c00-map .c-a { --c: var(--agent); } #adk-c00-map .c-h { --c: var(--human); }
+    #adk-c00-map .c-s { --c: var(--state); } #adk-c00-map .c-t { --c: var(--tool); } #adk-c00-map .c-r { --c: var(--risk); }
+  </style>
+
+  <h2 class="title">The course climbs from first principles to production in nine chapters</h2>
+
+  <div class="grid fill" style="grid-template-columns:740px 620px;gap:32px">
+    <div class="map-wrap">
+      <svg viewBox="0 0 740 600" data-fx="draw" aria-hidden="true">
+        <path id="c00map-stair" d="M10,540 H89 V488 H167 V436 H245 V384 H323 V332 H401 V280 H479 V228 H557 V176 H635 V124 H730"
+              fill="none" stroke="var(--line-2)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <svg id="c00map-over" viewBox="0 0 740 600" aria-hidden="true"></svg>
+      <div class="map-note" data-step="4" data-fx="up">
+        <p class="small">Every chapter ends with an interview drill. Codelabs are cited with their exact titles.</p>
+        <div class="cites">
+          <a class="cite codelab" href="https://codelabs.developers.google.com/adk2/instructions" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;ADK 2 Orchestration: Graph, Collaborative &amp; Dynamic Workflows</a>
+          <a class="cite doc" href="https://www.kaggle.com/learn-guide/5-day-agents" target="_blank" rel="noopener"><b>Course</b>&nbsp;Kaggle 5-Day AI Agents Intensive</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="stack" style="gap:7px">
+      <div class="mapc c-m" data-step="1" data-fx="left"><span class="no">1</span><b>First principles</b><span>Agent = model + harness + loop. When is a workflow enough?</span></div>
+      <div class="mapc c-a" data-step="1" data-fx="left"><span class="no">2</span><b>ADK 2.0 building blocks</b><span>Tree to graph. Agent, App, Runner, sessions, state, plugins.</span></div>
+      <div class="mapc c-a" data-step="1" data-fx="left"><span class="no">3</span><b>Graph workflows</b><span>Edges, routes, fan-out/fan-in, loops, dynamic nodes, modes, YAML.</span></div>
+      <div class="mapc c-h" data-step="2" data-fx="left"><span class="no">4</span><b>Durable execution and HITL</b><span>RequestInput, RetryConfig, checkpoint and resume.</span></div>
+      <div class="mapc c-s" data-step="2" data-fx="left"><span class="no">5</span><b>Context engineering, memory and skills</b><span>Compiled context, caching, compaction, Memory Bank, SkillToolset.</span></div>
+      <div class="mapc c-t" data-step="2" data-fx="left"><span class="no">6</span><b>Tools, MCP, A2A and multimodal</b><span>ACI, McpToolset, to_a2a, Parts, artifacts, Live API.</span></div>
+      <div class="mapc c-a" data-step="3" data-fx="left"><span class="no">7</span><b>Agentic design patterns</b><span>Router, parallel, orchestrator-workers, generator-verifier, deep agents.</span></div>
+      <div class="mapc c-r" data-step="3" data-fx="left"><span class="no">8</span><b>Loop, graph and harness engineering</b><span>Per-step verifiers, evals and guardrails.</span></div>
+      <div class="mapc c-s" data-step="3" data-fx="left" data-on="4:hot"><span class="no">9</span><b>Production on Google Cloud</b><span>Gemini Enterprise, Agent Runtime, Antigravity, agents-cli, AgentOps.</span></div>
+    </div>
+  </div>
+
+  <aside class="notes">
+    Walk the staircase from left to right. Each step up adds one layer: principles, then the ADK 2.0 mechanisms, then the parts around the model, then the newest patterns and disciplines, then production.
+    The colour of each station is the chapter tone. The same colour means the same concept in every diagram: coral for model calls, blue for agents, violet for humans, green for state, amber for tools, red for risk.
+    Analogy: a climbing route with fixed anchors. You clip into one anchor before you reach for the next.
+    The hands-on thread is the official codelab "ADK 2 Orchestration: Graph, Collaborative &amp; Dynamic Workflows". It pins ADK 2.3.0, so check the version before you run it.
+    Likely question: "Why do the design patterns come so late?" Answer: a pattern is a choice of nodes and edges. You must know routes, HITL and context first to judge what a pattern costs.
+    The last chapter ends with open challenges, not with a solved list.
+  </aside>
+</section>
+
+<!-- c01-01-chapter.html -->
+<section class="slide chapter" id="adk-c01-chapter" data-tone="model" data-title="First principles">
+  <div class="ch-num" data-fx="blur">01</div>
+  <svg id="c11-rings" viewBox="0 0 520 520" width="520" height="520" style="position:absolute;right:104px;top:150px;overflow:visible" aria-label="A loop ring with three outer rings: tools, context and verification">
+    <g data-step="2" data-fx="draw">
+      <circle cx="260" cy="260" r="248" fill="none" stroke="var(--risk)" stroke-width="2"/>
+      <text x="260" y="36" text-anchor="middle" style="font:600 16px var(--f-mono)" fill="var(--risk)">verification</text>
+    </g>
+    <g data-step="2" data-fx="draw">
+      <circle cx="260" cy="260" r="196" fill="none" stroke="var(--state)" stroke-width="2"/>
+      <text x="260" y="88" text-anchor="middle" style="font:600 16px var(--f-mono)" fill="var(--state)">context</text>
+    </g>
+    <g data-step="2" data-fx="draw">
+      <circle cx="260" cy="260" r="144" fill="none" stroke="var(--tool)" stroke-width="2"/>
+      <text x="260" y="140" text-anchor="middle" style="font:600 16px var(--f-mono)" fill="var(--tool)">tools</text>
+    </g>
+    <g data-step="1" data-fx="draw">
+      <circle cx="260" cy="260" r="88" fill="var(--model-soft)" stroke="var(--model)" stroke-width="6"/>
+      <text x="260" y="258" text-anchor="middle" style="font:700 30px var(--f-display)" fill="var(--model)">loop</text>
+      <text x="260" y="284" text-anchor="middle" style="font:500 13px var(--f-mono)" fill="var(--muted)">gather · act · verify</text>
+      <g id="c11-orbit"><circle cx="260" cy="172" r="8" fill="var(--model)"/></g>
+    </g>
+  </svg>
+  <h2 class="display" style="max-width:820px">First principles</h2>
+  <h3 data-fx="up" style="max-width:800px;color:var(--ink-2)">An agent is a model inside a harness, not a prompt in a loop.</h3>
+  <p class="lede" data-fx="up" style="max-width:800px">The loop is still a loop. What changed is everything around it.</p>
+  <ul class="ticks" data-step="2" data-fx="stagger" style="max-width:800px">
+    <li>What is an agent in 2026?</li>
+    <li>When is an agent worth its cost, compared with a workflow?</li>
+    <li>Which engineering disciplines replaced prompt tuning?</li>
+  </ul>
+  <aside class="notes">
+    This chapter sets the vocabulary for the whole course. Press once: the coral ring is the agent loop, the same loop that ReAct made famous in 2022. Press again: three outer rings grow around it, for tools, context and verification. In 2026 most of the engineering work happens in those outer rings, not in the loop and not in the prompt. Analogy: a race car engine has not changed much, but the car around it (brakes, sensors, pit crew) decides who wins. Likely student question: "So is prompt engineering dead?" No. It is now the innermost ring of a larger system, and slide 4 of this chapter shows the rings that grew around it.
+  </aside>
+</section>
+
+<!-- c01-02-agent-anatomy.html -->
+<section class="slide" id="adk-c01-agent-anatomy" data-tone="model" data-title="Anatomy of a 2026 agent">
+  <style>
+    #adk-c01-agent-anatomy table.t th, #adk-c01-agent-anatomy table.t td { padding: 6px 10px; }
+  </style>
+  <h2 class="title">In 2026 the harness around the model decides most of the agent's quality</h2>
+  <div class="grid fill" style="grid-template-columns:464px 900px;gap:28px">
+    <div class="stack" style="gap:12px">
+      <p class="tiny"><b>History, one line:</b> in 2022 ReAct put Thought → Action → Observation in one growing prompt. Today that loop is only the outer skeleton.</p>
+      <table class="t" data-step="2" data-fx="fade" style="font-size:15.5px">
+        <tr><th>Harness part</th><th>ADK 2.0 home</th></tr>
+        <tr><td>Model + loop</td><td><code>LlmAgent</code> with tools</td></tr>
+        <tr><td>Tools</td><td><code>FunctionTool</code>, <code>McpToolset</code></td></tr>
+        <tr><td>Context policy</td><td><code>include_contents</code>, compaction, caching</td></tr>
+        <tr><td>Session log</td><td>session events, checkpoint and resume</td></tr>
+        <tr><td>Sandbox</td><td>hermetic code execution</td></tr>
+        <tr><td>Verifiers</td><td><code>output_schema</code>, function nodes, critics</td></tr>
+        <tr><td>Human</td><td><code>RequestInput</code>, <code>require_confirmation</code></td></tr>
+        <tr><td>Triggers</td><td>Pub/Sub and Eventarc triggers (2.9)</td></tr>
+      </table>
+      <p class="tiny" data-step="2">The loop is <i>gather context → take action → verify work → repeat</i>. A <code>Workflow</code> is the control flow of the harness. Plugins, schemas and evals are its sensors.</p>
+      <p class="quote" data-step="3" style="font-size:19px;padding-left:18px">Every component in a harness encodes an assumption about what the model can't do on its own.</p>
+      <div class="cites">
+        <a class="cite doc" data-step="3" href="https://www.anthropic.com/engineering/harness-design-long-running-apps" target="_blank" rel="noopener"><b>Doc</b>&nbsp;Anthropic, Harness design, 2026-03-24 (paraphrase)</a>
+        <a class="cite doc" data-step="2" href="https://claude.com/blog/building-agents-with-the-claude-agent-sdk" target="_blank" rel="noopener"><b>Doc</b>&nbsp;Building agents with the Claude Agent SDK</a>
+      </div>
+    </div>
+    <div class="stack" style="gap:14px">
+      <div class="diagram" style="width:900px;height:410px"
+           data-wires="trigger>model@2; session>ctx@2 [compile]; ctx>model@2:flow{state}; model<>tools@2{tool}; tools--sandbox@2:dash; model>verifier@2:flow{risk}; verifier>model@2:bend60 [feedback]; verifier>human@2:dash [escalate]">
+        <div class="node n-state" id="session" style="left:0;top:8px;width:200px" data-step="2" data-fx="pop"><span class="nt">Session log</span><span class="ns">append-only events</span></div>
+        <div class="node n-state" id="ctx" style="left:300px;top:8px;width:240px" data-step="2" data-fx="pop"><span class="nt">Context policy</span><span class="ns">what this call sees</span></div>
+        <div class="node n-tool" id="sandbox" style="left:680px;top:8px;width:190px" data-step="2" data-fx="pop"><span class="nt">Sandbox</span><span class="ns">code runs here</span></div>
+        <div class="node n-tool pill" id="trigger" style="left:0;top:176px" data-step="2" data-fx="pop"><span class="nt">Trigger</span><span class="ns">Pub/Sub · cron</span></div>
+        <div class="node n-model" id="model" style="left:330px;top:168px;width:180px" data-on="2:hot"><span class="nt">Model</span><span class="ns">Gemini · judgment</span></div>
+        <div class="node n-tool" id="tools" style="left:680px;top:168px;width:190px" data-step="2" data-fx="pop"><span class="nt">Tools</span><span class="ns">functions · MCP</span></div>
+        <div class="node n-risk" id="verifier" style="left:330px;top:328px;width:180px" data-step="2" data-fx="pop"><span class="nt">Verifier</span><span class="ns">schema · test · critic</span></div>
+        <div class="node n-human" id="human" style="left:680px;top:328px;width:190px" data-step="2" data-fx="pop"><span class="nt">Human</span><span class="ns">approve · edit</span></div>
+        <div class="node ghost" id="react" style="left:120px;top:300px;width:660px" data-step="1" data-until="2" data-fx="fade">
+          <span class="nt" style="color:var(--muted)">One growing prompt (ReAct, 2022)</span>
+          <span class="ns">Thought → Action → Observation → Thought → Action → …</span>
+          <div class="bar" style="margin-top:6px;background:var(--line);--aurora:var(--risk)"><i id="c12-grow" style="--v:100%"></i></div>
+        </div>
+      </div>
+      <div class="grid" data-step="3" data-fx="bar" style="grid-template-columns:560px 1fr;gap:24px;align-items:center">
+        <div class="stack" style="gap:8px">
+          <p class="tiny" style="margin-bottom:2px">HumanEval, Andrew Ng, The Batch 2024-03-20</p>
+          <div class="row middle" style="gap:12px"><span class="tiny" style="width:210px">GPT-3.5 zero-shot</span><div class="bar" style="flex:1;background:var(--line);--aurora:var(--faint)"><i style="--v:48.1%"></i></div><b style="width:64px;text-align:right" data-to="48.1" data-dec="1" data-suf="%">0</b></div>
+          <div class="row middle" style="gap:12px"><span class="tiny" style="width:210px">GPT-4 zero-shot</span><div class="bar" style="flex:1;background:var(--line);--aurora:var(--faint)"><i style="--v:67%"></i></div><b style="width:64px;text-align:right" data-to="67.0" data-dec="1" data-suf="%">0</b></div>
+          <div class="row middle" style="gap:12px"><span class="tiny" style="width:210px;color:var(--model)">GPT-3.5 in an agent loop</span><div class="bar" style="flex:1;background:var(--line);--aurora:var(--model)"><i style="--v:95.1%"></i></div><b style="width:64px;text-align:right" class="c-model" data-to="95.1" data-dec="1" data-suf="%">0</b></div>
+        </div>
+        <div class="row" style="gap:22px">
+          <div class="stat"><span class="n" style="font-size:52px;color:var(--faint)" data-to="19" data-suf="%">0</span><span class="l tiny">GPT-4, one prompt</span></div>
+          <div class="stat"><span class="n" style="font-size:52px" data-to="44" data-suf="%">0</span><span class="l tiny">GPT-4, AlphaCodium flow (pass@5)</span></div>
+        </div>
+      </div>
+      <div class="cites">
+        <a class="cite paper" data-step="1" href="https://arxiv.org/abs/2210.03629" target="_blank" rel="noopener"><b>Paper</b>&nbsp;ReAct, Yao et al., 2210.03629</a>
+        <a class="cite doc" data-step="3" href="https://www.deeplearning.ai/the-batch/how-agents-can-improve-llm-performance/" target="_blank" rel="noopener"><b>Doc</b>&nbsp;Ng, The Batch, 2024-03-20</a>
+        <a class="cite paper" data-step="3" href="https://arxiv.org/abs/2401.08500" target="_blank" rel="noopener"><b>Paper</b>&nbsp;AlphaCodium, 2401.08500</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    Start with the model alone. Step 1 shows the 2022 picture: one prompt that grows with every thought, action and observation until it overflows. Step 2 replaces it with the 2026 anatomy: a session log outside the window, a context policy that compiles what each call sees, tools in a sandbox, a verifier with a feedback edge, a human for escalation and a trigger that starts the run. The table maps each part to its ADK 2.0 home; students must be able to recite this mapping in an interview. Step 3 is the evidence: the same GPT-3.5 went from 48.1% to 95.1% on HumanEval inside an agent loop, above GPT-4 zero-shot at 67.0%, and AlphaCodium took GPT-4 from 19% to 44% pass@5 with a flow. Analogy: the model is the engine; the harness is the car. Likely question: "Will better models remove the harness?" Anthropic's experience says no: the harness moves. They dropped context resets and sprint splits as models improved, but kept the planner and the evaluator.
+  </aside>
+</section>
+
+<!-- c03-01-chapter.html -->
+<section class="slide chapter" id="adk-c03-chapter" data-tone="agent" data-title="Graph workflows">
+  <div class="ch-num" data-fx="blur">03</div>
+  <div class="diagram" style="width:1000px;height:232px" aria-label="A minimal graph: START, a function node, a router, and two agent branches"
+       data-wires="c31-start>c31-fetch@1; c31-fetch>c31-route@1 [node_input]; c31-route>c31-hot@2:flow{agent} [HOT]; c31-route>c31-cold@2:dash [COLD]">
+    <div class="node pill" id="c31-start" style="left:0;top:86px"><span class="nt">START</span></div>
+    <div class="node n-tool" id="c31-fetch" style="left:170px;top:72px;width:240px"><span class="nt">fetch_conditions</span><span class="ns">function node</span></div>
+    <div class="node n-tool" id="c31-route" style="left:480px;top:72px;width:240px" data-on="2:hot"><span class="nt">route_by_weather</span><span class="ns">Event(route=…)</span></div>
+    <div class="node n-agent" id="c31-hot" style="left:790px;top:0;width:210px" data-step="2" data-fx="pop"><span class="nt">hot_strategy</span><span class="ns">Agent</span></div>
+    <div class="node n-agent" id="c31-cold" style="left:790px;top:152px;width:210px" data-step="2" data-fx="pop" data-on="2:dim"><span class="nt">cold_strategy</span><span class="ns">Agent</span></div>
+  </div>
+  <h2 class="display">Graph workflows</h2>
+  <p class="quote" data-fx="up">“Workflows separate execution routing from language processing.”</p>
+  <div class="cites" data-fx="fade"><a class="cite doc" href="https://developers.googleblog.com/en/why-we-built-adk-20/" target="_blank" rel="noopener"><b>Blog</b>&nbsp;Why we built ADK 2.0 · Google Developers Blog · 2026-07-01</a></div>
+  <div class="tags" data-step="3" data-fx="stagger">
+    <span class="tag t-agent">graph-based · Workflow(edges=[...])</span>
+    <span class="tag t-tool">dynamic · @node + ctx.run_node</span>
+    <span class="tag t-human">collaborative · coordinator + sub-agent modes</span>
+  </div>
+  <div class="cites" data-step="3" data-fx="up">
+    <a class="cite codelab" href="https://codelabs.developers.google.com/adk2/instructions" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;ADK 2 Orchestration: Graph, Collaborative &amp; Dynamic Workflows</a>
+    <a class="cite repo" href="https://github.com/cuppibla/adk2-tutorial" target="_blank" rel="noopener"><b>Repo</b>&nbsp;cuppibla/adk2-tutorial · tested on google-adk 2.3.0 and 2.0.0b1</a>
+  </div>
+  <aside class="notes">
+    This chapter teaches the three ways to compose work in ADK 2.0. The small graph comes from the codelab "Marathon Race Day Coach": a function fetches the conditions, a function router picks HOT or COLD, and only then does an agent run. Press once: the deterministic edges draw. Press again: the router fires one branch, and the other branch stays dark. Press a third time: the three styles appear. Graph-based is a declarative edge list, dynamic is plain Python with ctx.run_node, and collaborative is a coordinator with sub-agent modes. Analogy: a railway. Code lays the tracks and sets the switches; the model drives the train between stations. Likely question: "Is this just LangGraph?" The idea is similar, but in ADK every agent, tool and function is the same BaseNode type, and you can follow the whole chapter in the codelab (about 50 minutes).
+  </aside>
+</section>
+
+<!-- c03-02-first-workflow.html -->
+<section class="slide" id="adk-c03-first-workflow" data-tone="agent" data-title="First workflow: chain tuples">
+  <h2 class="title">A chain tuple wires nodes, and each return value becomes the next node's input</h2>
+  <div class="row fill" style="gap:24px">
+    <div class="code-wrap" style="width:720px;flex:none" data-fx="up"><div class="code-head">agent.py · adk.dev/graphs “Get started”</div>
+<pre class="code xs" data-lang="python" data-focus="1:4-7, 2:9-13, 3:15-17, 4:18-19, 5:21-23"><code>
+from google.adk import Agent, Event, Workflow
+from pydantic import BaseModel
+
+city_generator_agent = Agent(name="city_generator_agent",
+    model="gemini-flash-latest",
+    instruction="Return the name of a random city. "
+                "Return only the name, nothing else.")
+
+class CityTime(BaseModel):
+    time_info: str  # time information
+    city: str       # city name
+def lookup_time_function(node_input: str):
+    return CityTime(time_info="10:10 AM", city=node_input)
+
+city_report_agent = Agent(name="city_report_agent",
+    model="gemini-flash-latest", input_schema=CityTime,
+    instruction="It is {CityTime.time_info} in {CityTime.city} right now.")
+def completed_message_function(node_input: str):
+    return Event(message=f"{node_input}\n WORKFLOW COMPLETED.")
+
+root_agent = Workflow(name="root_agent", edges=[
+    ("START", city_generator_agent, lookup_time_function,
+     city_report_agent, completed_message_function)])
+</code></pre></div>
+    <div class="stack" style="width:648px;flex:none">
+      <svg id="c32-svg" viewBox="0 0 650 220" width="648" height="220" aria-label="The chain tuple decoded into five nodes; a payload moves along the edges"></svg>
+      <div style="position:relative;height:300px">
+        <div class="panel tight k-agent" style="position:absolute;inset:0" data-until="3">
+          <h4>Every node runs the same three phases</h4>
+          <ol class="seq small">
+            <li>Validate <code>node_input</code> against <code>input_schema</code>. Dicts are coerced into the model.</li>
+            <li>Run the user logic: a function, an <code>Agent</code>, a <code>BaseTool</code> or a nested <code>Workflow</code>.</li>
+            <li>Normalize each yield: <code>None</code> is dropped, an <code>Event</code> passes, a <code>RequestInput</code> becomes an interrupt, any other value becomes <code>Event(output=value)</code>.</li>
+          </ol>
+        </div>
+        <div class="panel tight k-state" style="position:absolute;inset:0" data-step="3" data-until="5">
+          <h4>Four Event fields carry the run</h4>
+          <table class="t">
+            <tr><td><code>output</code></td><td>Data for the next node. Only one per node run.</td></tr>
+            <tr><td><code>message</code></td><td>Content that the user sees.</td></tr>
+            <tr><td><code>state</code></td><td>A delta that the session saves.</td></tr>
+            <tr><td><code>route</code></td><td>The branch to take (next slide).</td></tr>
+          </table>
+          <p class="small">The hand-off is the return value. You do not need session state for it.</p>
+        </div>
+        <div class="panel tight k-agent" style="position:absolute;inset:0" data-step="5" data-until="6">
+          <h4><code>Workflow(...)</code> checks 10 rules at construction</h4>
+          <ul class="ticks small">
+            <li>Unique node names. Reuse one instance to loop back.</li>
+            <li><code>START</code> is present, with no incoming edges and no routes.</li>
+            <li>Every node is reachable. No unconditional cycles.</li>
+            <li><code>output_schema</code> equals the successor's <code>input_schema</code> (often from type hints).</li>
+            <li>An <code>LlmAgent(mode='chat')</code> only directly after <code>START</code>.</li>
+          </ul>
+          <p class="small">The check is structural, not behavioural.</p>
+        </div>
+        <div class="stack" style="position:absolute;inset:0" data-step="6">
+          <div class="callout pitfall"><div><b><code>from google.adk import START</code> raises ImportError.</b> Import <code>START</code> from <code>google.adk.workflow</code>. The string <code>"START"</code> works in chain tuples, but not in <code>Edge(...)</code>.</div></div>
+          <div class="callout pitfall"><div><b>Two terminal nodes that both output</b> fail the run with <code>WorkflowConfigurationError</code>. The engine cannot choose the workflow output. Put a <code>JoinNode</code> before the end.</div></div>
+          <div class="callout insight"><div>A node is any <code>NodeLike</code>: a function (auto-wrapped in <code>FunctionNode</code>), an <code>Agent</code> (usually <code>mode='single_turn'</code>), a tool, a <code>Workflow</code>, or the <code>START</code> sentinel <code>__START__</code>, which never executes.</div></div>
+        </div>
+      </div>
+      <div class="cites"><a class="cite doc" href="https://adk.dev/graphs/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Graph-based agent workflows · adk.dev/graphs</a></div>
+    </div>
+  </div>
+  <aside class="notes">
+    Read the tuple left to right: START, then four nodes. Each press highlights one tuple element, draws its edge, and moves the payload. Step 1: the generator agent returns a plain string, "Kyoto". Step 2: a plain Python function receives that string as node_input and returns a Pydantic CityTime object. Step 3: the report agent declares input_schema=CityTime, so ADK validates the object and fills the {CityTime.city} placeholders. Step 4: the last function returns an Event with a message, which goes to the user, not to a next node. Steps 5 and 6 show the construction-time checks and the two most common errors. Analogy: a Unix pipe. Each stage reads stdin and writes stdout; you do not need a shared file between stages. Likely question: "Why not keep output_key and session state?" You can, but node_input keeps each node's context small and typed, and the schema check catches mismatches before the first run.
+  </aside>
+</section>
+
+<!-- c04-01-chapter.html -->
+<section class="slide chapter" id="adk-c04-chapter" data-tone="human" data-title="Durable execution and HITL">
+  <div class="ch-num" data-fx="blur">04</div>
+  <div class="diagram" style="width:1080px;height:150px" data-wires="c4o-start>c4o-fetch:flow{human}; c4o-fetch>c4o-draft:flow{human}; c4o-draft>c4o-approve:flow{human}; c4o-approve>c4o-charge:flow{human}">
+    <div class="node n-human pill" id="c4o-start" style="left:0;top:78px"><span class="nt">START</span></div>
+    <div class="node n-tool" id="c4o-fetch" style="left:180px;top:66px;width:170px" data-on="3:hot"><span class="nt">fetch_order</span><span class="ns">function node</span></div>
+    <div class="node n-agent" id="c4o-draft" style="left:420px;top:66px;width:170px"><span class="nt">draft_reply</span><span class="ns">Agent node</span></div>
+    <div class="node n-human" id="c4o-approve" style="left:660px;top:66px;width:170px" data-on="1:hot"><span class="nt">approve?</span><span class="ns">RequestInput</span></div>
+    <div class="node n-tool" id="c4o-charge" style="left:900px;top:66px;width:170px" data-on="2:hot"><span class="nt">charge_card</span><span class="ns">side effect</span></div>
+
+    <div class="c4o-badge" data-step="1" data-fx="pop" style="position:absolute;left:668px;top:0;display:flex;gap:10px;align-items:center;font:600 15px/1 var(--f-mono);color:var(--human)">
+      <svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><circle cx="17" cy="17" r="15" style="fill:var(--human-soft);stroke:var(--human);stroke-width:2.5"/><rect x="11" y="10" width="4" height="14" rx="1.5" style="fill:var(--human)"/><rect x="19" y="10" width="4" height="14" rx="1.5" style="fill:var(--human)"/></svg>
+      pause: WAITING
+    </div>
+    <div class="c4o-badge" data-step="2" data-fx="pop" style="position:absolute;left:908px;top:0;display:flex;gap:10px;align-items:center;font:600 15px/1 var(--f-mono);color:var(--risk)">
+      <svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><circle cx="17" cy="17" r="15" style="fill:var(--risk-soft);stroke:var(--risk);stroke-width:2.5"/><path d="M19 5 L10 19 H16 L14 29 L24 14 H18 Z" style="fill:var(--risk)"/></svg>
+      crash: replay
+    </div>
+    <div class="c4o-badge" data-step="3" data-fx="pop" style="position:absolute;left:188px;top:0;display:flex;gap:10px;align-items:center;font:600 15px/1 var(--f-mono);color:var(--tool)">
+      <svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><circle cx="17" cy="17" r="15" style="fill:var(--tool-soft);stroke:var(--tool);stroke-width:2.5"/><path d="M24 17 A7 7 0 1 1 20.5 10.9" style="fill:none;stroke:var(--tool);stroke-width:2.6;stroke-linecap:round"/><path d="M18 7 L23.5 10 L19 14.5 Z" style="fill:var(--tool)"/></svg>
+      retry: backoff
+    </div>
+  </div>
+  <h2 class="display">Durable execution and human-in-the-loop</h2>
+  <p class="lede" data-fx="up">Long runs must pause for people, survive crashes and retry safely.</p>
+  <div class="row middle" style="gap:48px">
+    <div class="stack" style="width:880px;gap:14px">
+      <p class="quote" data-fx="fade">“any node can pause the graph and ask a human a question”</p>
+      <div class="cites" data-fx="fade"><a class="cite doc" href="https://developers.googleblog.com/announcing-adk-go-20/" target="_blank" rel="noopener"><b>Blog</b>&nbsp;ADK for Go 2.0: build agent workflows as a graph · Google Developers Blog, 2026-06-30</a></div>
+    </div>
+    <div class="tags" style="width:440px">
+      <span class="tag t-human" data-step="1" data-fx="pop">RequestInput</span>
+      <span class="tag t-state" data-step="2" data-fx="pop">resume by replay</span>
+      <span class="tag t-tool" data-step="3" data-fx="pop">RetryConfig</span>
+    </div>
+  </div>
+  <aside class="notes">This chapter is about runs that do not finish in one go. A run can stop for three reasons: it waits for a person, the process crashes, or a call fails for a short time. Step 1 shows the pause: the approve node becomes WAITING and the invocation ends. Step 2 shows the crash: on resume, ADK replays the session log and runs the failed node again. Step 3 shows the retry: RetryConfig runs a node again with backoff when it raises an exception. Analogy: a bank transfer form that you can save, that survives a power cut, and that tries the line again when it is busy. Likely question: "Is this the same as Temporal?" Answer: the idea is the same (journal each step and replay it), but ADK keeps the journal in the session event log.</aside>
+</section>
+
+<!-- c05-01-chapter.html -->
+<section class="slide chapter" id="adk-c05-chapter" data-tone="state" data-title="Context engineering, memory and skills">
+  <div class="ch-num" data-fx="blur">05</div>
+  <svg id="c05-ch-svg" viewBox="0 0 600 300" width="600" height="300" data-on="1:s1 2:s2" style="position:absolute;right:104px;top:130px;overflow:visible" aria-label="A tall stack of session events goes through a funnel into one small working-context card"></svg>
+  <h2 class="display" style="max-width:780px">Context engineering, memory and skills</h2>
+  <div class="stack" style="max-width:820px">
+    <p class="quote" data-fx="up">Context is a compiled view over a richer stateful system.</p>
+    <div class="cites" data-fx="up"><a class="cite doc" href="https://developers.googleblog.com/architecting-efficient-context-aware-multi-agent-framework-for-production/" target="_blank" rel="noopener"><b>Google Developers Blog</b>&nbsp;Hangfei Lin, Architecting efficient context-aware multi-agent framework for production (2025-12-04)</a></div>
+  </div>
+  <div class="stack" data-step="2" style="max-width:820px">
+    <p class="small">The goal is "the smallest possible set of high-signal tokens that maximize the likelihood of some desired outcome."</p>
+    <div class="cites"><a class="cite doc" href="https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents" target="_blank" rel="noopener"><b>Anthropic Engineering</b>&nbsp;Effective context engineering for AI agents (2025-09-29)</a></div>
+  </div>
+  <aside class="notes">
+    This chapter is about what the model sees on each call, and what the agent keeps between calls. Press once: the green stack is the session, the full event log and the ground truth. Press again: a funnel compiles that stack into one small working context for one model call. Analogy: the session is the source code, and the working context is the compiled binary for a single run; you never ship the whole repository to the CPU. Then read the Anthropic line: the target is the smallest high-signal set of tokens, not the biggest window. Likely student question: "Gemini has a 1M-token window, so why compile at all?" Because quality, cost and latency all get worse as the input grows; the next slide shows the evidence.
+  </aside>
+</section>
+
+</div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.13.0/gsap.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/SplitText.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js" data-manual></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-yaml.min.js"></script>
+<script src="../engine/deck.js"></script>
+
+<!-- c00-01-hero.html -->
+<script>
+(() => {
+  let tl = null, token = null;
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  function reset(dg) {
+    dg.querySelectorAll(".node[data-st]").forEach((n) => n.removeAttribute("data-st"));
+    (dg._wireEls || []).forEach((we) => { we.p.style.stroke = ""; });
+    const c = dg.querySelector(".hero-calls");
+    if (c) c.textContent = "LLM calls: 0";
+  }
+
+  function stop(slide) {
+    if (tl) { tl.kill(); tl = null; }
+    if (token) { gsap.killTweensOf(token); token.remove(); token = null; }
+    const dg = slide.querySelector("#h0-graph");
+    if (dg) reset(dg);
+  }
+
+  function build(slide) {
+    const dg = slide.querySelector("#h0-graph");
+    const W = dg._wireEls || [];
+    const N = (id) => dg.querySelector("#h0-" + id);
+    const calls = dg.querySelector(".hero-calls");
+    reset(dg);
+    if (reduce) {
+      ["triage", "lookup", "policy", "approve", "refund", "fmt"].forEach((id) => N(id).setAttribute("data-st", "done"));
+      return;
+    }
+    token = document.createElement("div");
+    token.className = "hero-token";
+    dg.appendChild(token);
+
+    tl = gsap.timeline({ repeat: -1, delay: 1.6 });
+    const SEG = 0.45, RUN = 0.4;
+    let t = 0;
+    const at = (fn) => tl.call(fn, null, t);
+    const st = (id, s) => at(() => N(id).setAttribute("data-st", s));
+    const hold = (d) => { t += d; };
+    const place = (x, y) => gsap.set(token, { x, y });
+
+    // move the token along wire i (index in data-wires order)
+    const move = (i) => {
+      const we = W[i];
+      if (!we) { t += SEG; return; }
+      const p = we.p, L = p.getTotalLength(), o = { v: 0 };
+      at(() => { p.style.stroke = "var(--agent)"; });
+      tl.fromTo(o, { v: 0 }, {
+        v: 1, duration: SEG, ease: "power1.inOut", immediateRender: false,
+        onUpdate: () => { const q = p.getPointAtLength(o.v * L); place(q.x, q.y); },
+      }, t);
+      t += SEG;
+    };
+
+    // the autonomous loop: the token circles the Agent node; each half turn is one model call
+    const orbit = (turns, cx, cy, rx, ry) => {
+      const o = { a: Math.PI }, dur = turns * 1.2, k = Math.round(turns * 2);
+      tl.fromTo(o, { a: Math.PI }, {
+        a: Math.PI + turns * 2 * Math.PI, duration: dur, ease: "none", immediateRender: false,
+        onUpdate: () => place(cx + rx * Math.cos(o.a), cy + ry * Math.sin(o.a)),
+      }, t);
+      for (let j = 1; j <= k; j++) tl.call(() => { calls.textContent = "LLM calls: " + j; }, null, t + (j - 0.5) * (dur / k));
+      t += dur;
+    };
+
+    // one pass = 8 s; the route alternates by loop index (billing, then general)
+    const pass = (route, t0) => {
+      t = t0 + 0.01;
+      at(() => reset(dg));
+      tl.set(token, { autoAlpha: 1 }, t);
+      move(0); move(1);
+      st("triage", "run"); hold(RUN); st("triage", "done");
+      if (route === "billing") {
+        move(2); st("lookup", "run"); hold(RUN); st("lookup", "done");
+        move(3); st("policy", "run"); hold(RUN); st("policy", "done");
+        move(4); st("approve", "wait"); hold(1.0); st("approve", "run"); hold(0.25); st("approve", "done");
+        move(5); st("refund", "run"); hold(RUN); st("refund", "done");
+        move(6);
+      } else {
+        move(7); st("agent", "run");
+        orbit(1.75, 705, 177, 112, 60);
+        st("agent", "done");
+        move(8);
+      }
+      st("fmt", "run"); hold(RUN); st("fmt", "done");
+      move(9);
+      tl.to(token, { autoAlpha: 0, duration: 0.3 }, t);
+    };
+    pass("billing", 0);
+    pass("general", 8);
+    tl.call(() => {}, null, 16);
+  }
+
+  Deck.register("adk-c00-hero", {
+    enter(slide) { stop(slide); build(slide); },
+    leave(slide) { stop(slide); },
+  });
+})();
+</script>
+
+<!-- c00-02-map.html -->
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const X0 = 50, DX = 78, Y0 = 540, DY = 52, LIFT = 38;
+  const TONES = ["model", "agent", "agent", "human", "state", "tool", "agent", "risk", "state"];
+  const GROUPS = [
+    { a: 0, b: 0, lines: ["Principles"], step: 1 },
+    { a: 1, b: 3, lines: ["Mechanisms"], step: 1 },
+    { a: 4, b: 5, lines: ["Building"], step: 2 },
+    { a: 6, b: 7, lines: ["State of the art"], step: 3 },
+    { a: 8, b: 8, lines: ["Production and", "open problems"], step: 3, end: true },
+  ];
+  const sx = (i) => X0 + DX * i, sy = (i) => Y0 - DY * i;
+  const LEN = (i) => (X0 - 10) + (DX + DY) * i;   // path length from the start to station i
+  const START_LEN = 20;
+  let ring = null, walk = null;
+
+  function el(tag, attrs, parent) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+
+  function build(slide) {
+    const svg = slide.querySelector("#c00map-over");
+    if (svg._b) return svg._b;
+    svg.innerHTML = "";
+    const groups = GROUPS.map((g) => {
+      const G = el("g", { opacity: 0 }, svg);
+      const xa = sx(g.a) - 22, xb = sx(g.b) + 22;
+      el("path", { d: `M${xa},68 V60 H${xb} V68`, fill: "none", stroke: "var(--line-2)", "stroke-width": 2 }, G);
+      g.lines.forEach((ln, k) => {
+        const y = g.lines.length === 2 ? 28 + 18 * k : 46;
+        const t = el("text", g.end
+          ? { x: 736, y, "text-anchor": "end", style: "font:600 15px var(--f-body);fill:var(--ink-2)" }
+          : { x: (sx(g.a) + sx(g.b)) / 2, y, "text-anchor": "middle", style: "font:600 15px var(--f-body);fill:var(--ink-2)" }, G);
+        t.textContent = ln;
+      });
+      return G;
+    });
+    const stations = TONES.map((tone, i) => {
+      const G = el("g", { opacity: 0 }, svg);
+      el("circle", { cx: sx(i), cy: sy(i), r: 19, fill: `var(--${tone})` }, G);
+      const t = el("text", { x: sx(i), y: sy(i) + 1, "text-anchor": "middle", "dominant-baseline": "central", style: "font:700 16px var(--f-mono);fill:var(--bg)" }, G);
+      t.textContent = String(i + 1);
+      return G;
+    });
+    const pulse = el("circle", { cx: sx(8), cy: sy(8), r: 19, fill: "none", stroke: "var(--risk)", "stroke-width": 2, opacity: 0 }, svg);
+    const flag = el("g", { opacity: 0 }, svg);
+    el("line", { x1: sx(8), y1: sy(8) + 22, x2: sx(8), y2: 200, stroke: "var(--risk)", "stroke-width": 2 }, flag);
+    el("rect", { x: 624, y: 200, width: 112, height: 48, rx: 9, fill: "var(--risk-soft)", stroke: "var(--risk)", "stroke-width": 1.5 }, flag);
+    ["open", "challenges"].forEach((w, k) => {
+      const t = el("text", { x: 680, y: 220 + 17 * k, "text-anchor": "middle", style: "font:600 14px var(--f-body);fill:var(--risk)" }, flag);
+      t.textContent = w;
+    });
+    const tok = el("g", {}, svg);
+    el("circle", { r: 15, fill: "var(--agent-soft)", stroke: "var(--agent)", "stroke-width": 1.5 }, tok);
+    el("circle", { r: 7, fill: "var(--agent)" }, tok);
+    const path = slide.querySelector("#c00map-stair");
+    const pos = { l: START_LEN };
+    svg._b = { groups, stations, pulse, flag, tok, path, pos };
+    return svg._b;
+  }
+
+  function place(B) {
+    const q = B.path.getPointAtLength(B.pos.l);
+    B.tok.setAttribute("transform", `translate(${q.x},${q.y - LIFT})`);
+  }
+
+  function show(g, vis, animate, delay, pop) {
+    if (vis && !g._vis) {
+      g._vis = true;
+      if (animate) gsap.fromTo(g, { opacity: 0, scale: pop ? 0.2 : 1, y: pop ? 0 : 8, transformOrigin: "50% 50%" },
+        { opacity: 1, scale: 1, y: 0, duration: 0.55, ease: pop ? "back.out(2.2)" : "power2.out", delay, overwrite: "auto" });
+      else gsap.set(g, { opacity: 1, scale: 1, y: 0 });
+    } else if (!vis && g._vis) {
+      g._vis = false;
+      gsap.killTweensOf(g);
+      if (animate) gsap.to(g, { opacity: 0, duration: 0.25 });
+      else gsap.set(g, { opacity: 0 });
+    }
+  }
+
+  function render(slide, n, animate) {
+    const B = build(slide);
+    const reached = Math.min(n, 3) * 3;               // stations visible: 0, 3, 6, 9
+    let k = 0;
+    B.stations.forEach((g, i) => show(g, i < reached, animate, 0.15 + 0.16 * (g._vis ? 0 : k++), true));
+    B.groups.forEach((g, j) => show(g, n >= GROUPS[j].step, animate, 0.35, false));
+    show(B.flag, n >= 4, animate, 0.5, false);
+
+    // the agent token walks along the stairs to the last visible station
+    const target = reached === 0 ? START_LEN : LEN(reached - 1);
+    if (walk) walk.kill();
+    if (animate && Math.abs(target - B.pos.l) > 1) {
+      walk = gsap.to(B.pos, { l: target, duration: 0.6 + Math.abs(target - B.pos.l) / 900, ease: "power2.inOut", onUpdate: () => place(B) });
+    } else { B.pos.l = target; place(B); }
+
+    // step 4: the last station pulses to mark the open challenges
+    if (n >= 4 && !ring) {
+      ring = gsap.fromTo(B.pulse, { attr: { r: 19 }, opacity: 0.9 }, { attr: { r: 40 }, opacity: 0, duration: 1.4, ease: "power1.out", repeat: -1 });
+    } else if (n < 4 && ring) {
+      ring.kill(); ring = null; gsap.set(B.pulse, { opacity: 0 });
+    }
+  }
+
+  Deck.register("adk-c00-map", {
+    enter(slide, step) { render(slide, step, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) {
+      if (walk) { walk.kill(); walk = null; }
+      if (ring) { ring.kill(); ring = null; }
+      const B = slide.querySelector("#c00map-over")._b;
+      if (B) gsap.set(B.pulse, { opacity: 0 });
+    },
+  });
+})();
+</script>
+
+<!-- c01-01-chapter.html -->
+<script>
+(() => {
+  let spin = null;
+  Deck.register("adk-c01-chapter", {
+    enter(slide) {
+      const dot = slide.querySelector("#c11-orbit");
+      if (spin) spin.kill();
+      gsap.set(dot, { rotation: 0, svgOrigin: "260 260" });
+      spin = gsap.to(dot, { rotation: 360, svgOrigin: "260 260", duration: 6, ease: "none", repeat: -1 });
+    },
+    leave() { if (spin) { spin.kill(); spin = null; } }
+  });
+})();
+</script>
+
+<!-- c01-02-agent-anatomy.html -->
+<script>
+(() => {
+  let grow = null;
+  Deck.register("adk-c01-agent-anatomy", {
+    enter(slide) {
+      const bar = slide.querySelector("#c12-grow");
+      if (grow) grow.kill();
+      grow = gsap.fromTo(bar, { scaleX: 0.06 }, { scaleX: 1, duration: 3.2, ease: "power1.in", repeat: -1, repeatDelay: 0.5 });
+    },
+    leave() { if (grow) { grow.kill(); grow = null; } }
+  });
+})();
+</script>
+
+<!-- c03-02-first-workflow.html -->
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const mk = (t, a, p) => { const e = document.createElementNS(NS, t); for (const k in a) e.setAttribute(k, a[k]); if (p) p.appendChild(e); return e; };
+  const CH = [['"START"', 14, 6, 86, "muted"], ["city_generator_agent", 110, 6, 192, "agent"], ["lookup_time_function", 312, 6, 192, "tool"], ["city_report_agent", 110, 46, 170, "agent"], ["completed_message_function", 290, 46, 246, "tool"]];
+  const ND = [["START", "sentinel", "muted"], ["generator", "Agent", "agent"], ["lookup_time", "function", "tool"], ["report", "Agent", "agent"], ["completed", "function", "tool"]];
+  const NW = 96, NY = 104, NH = 50, NX = (i) => i * 138;
+  const PAY = ["", "new_message from the user", 'node_input = "Kyoto"', 'CityTime(time_info="10:10 AM", city="Kyoto")', '"It is 10:10 AM in Kyoto right now."', "Event(message=… WORKFLOW COMPLETED.) → user"];
+  let S = null;
+
+  function build(slide) {
+    const svg = slide.querySelector("#c32-svg");
+    svg.innerHTML = "";
+    S = { svg, chips: [], nodes: [], edges: [] };
+    mk("text", { x: 0, y: 28, style: "font:600 22px var(--f-mono);fill:var(--muted)" }, svg).textContent = "(";
+    mk("text", { x: 542, y: 68, style: "font:600 22px var(--f-mono);fill:var(--muted)" }, svg).textContent = ")";
+    CH.forEach(([t, x, y, w, tone]) => {
+      const g = mk("g", {}, svg);
+      const r = mk("rect", { x, y, width: w, height: 30, rx: 8, style: `fill:var(--surface-2);stroke:var(--line-2);stroke-width:1.5` }, g);
+      const tx = mk("text", { x: x + w / 2, y: y + 20, "text-anchor": "middle", style: "font:600 14px var(--f-mono);fill:var(--ink-2)" }, g);
+      tx.textContent = t;
+      S.chips.push({ g, r, tx, tone });
+    });
+    for (let i = 0; i < 4; i++) {
+      const x1 = NX(i) + NW + 2, x2 = NX(i + 1) - 4, y = NY + NH / 2;
+      const g = mk("g", { opacity: 0 }, svg);
+      const l = mk("line", { x1, y1: y, x2: x2 - 6, y2: y, style: "stroke:var(--agent);stroke-width:2.6;stroke-linecap:round" }, g);
+      mk("path", { d: `M${x2},${y} L${x2 - 9},${y - 5} L${x2 - 9},${y + 5} Z`, style: "fill:var(--agent)" }, g);
+      S.edges.push({ g, l, len: x2 - 6 - x1 });
+    }
+    ND.forEach(([t, s, tone], i) => {
+      const g = mk("g", {}, svg);
+      const r = mk("rect", { x: NX(i), y: NY, width: NW, height: NH, rx: i === 0 ? 25 : 10, style: `fill:var(--surface-2);stroke:var(--${tone === "muted" ? "line-2" : tone});stroke-width:1.6` }, g);
+      mk("text", { x: NX(i) + NW / 2, y: NY + 22, "text-anchor": "middle", style: "font:700 13px var(--f-body);fill:var(--ink)" }, g).textContent = t;
+      mk("text", { x: NX(i) + NW / 2, y: NY + 39, "text-anchor": "middle", style: "font:500 11px var(--f-mono);fill:var(--muted)" }, g).textContent = s;
+      S.nodes.push({ g, r, tone });
+    });
+    S.tok = mk("circle", { r: 7, cx: 0, cy: NY + NH / 2, opacity: 0, style: "fill:var(--agent);filter:drop-shadow(0 0 6px var(--agent))" }, svg);
+    S.card = mk("g", { opacity: 0 }, svg);
+    S.cardR = mk("rect", { x: 0, y: 172, width: 100, height: 32, rx: 8, style: "fill:var(--agent-soft);stroke:var(--agent);stroke-width:1.4" }, S.card);
+    S.cardT = mk("text", { x: 0, y: 193, "text-anchor": "middle", style: "font:600 13px var(--f-mono);fill:var(--ink)" }, S.card);
+  }
+
+  function render(n, anim) {
+    if (!S) return;
+    gsap.killTweensOf([S.tok, S.card]);
+    const d = anim ? 0.45 : 0;
+    S.chips.forEach((c, i) => {
+      const tone = c.tone === "muted" ? "var(--muted)" : `var(--${c.tone})`;
+      const hot = i === n && n >= 1 && n <= 4, done = i < n || n >= 5 || (n >= 1 && i === 0);
+      gsap.to(c.r, { duration: d, attr: { "stroke-width": hot ? 3 : 1.5 }, opacity: 1 });
+      c.r.style.stroke = hot || done ? tone : "var(--line-2)";
+      c.r.style.fill = hot ? `color-mix(in oklab, ${tone} 18%, var(--surface-2))` : "var(--surface-2)";
+      gsap.to(c.g, { duration: d, opacity: hot || done || n === 0 ? 1 : 0.45 });
+    });
+    S.nodes.forEach((nd, i) => gsap.to(nd.g, { duration: d, opacity: i <= Math.max(n, 0) || n === 0 ? 1 : 0.4 }));
+    S.edges.forEach((e, i) => {
+      const vis = i < n;
+      if (vis && anim && i === n - 1) {
+        gsap.set(e.g, { opacity: 1 });
+        gsap.fromTo(e.l, { attr: { "stroke-dasharray": e.len, "stroke-dashoffset": e.len } }, { attr: { "stroke-dashoffset": 0 }, duration: 0.5, ease: "power2.inOut" });
+      } else gsap.set(e.g, { opacity: vis ? 1 : 0 });
+    });
+    if (n === 0) { gsap.set([S.tok, S.card], { opacity: 0 }); return; }
+    const k = Math.min(n, 4);
+    const endX = n >= 5 ? NX(4) + NW + 8 : NX(k) - 6;
+    const startX = n >= 5 ? endX : NX(k - 1) + NW + 2;
+    const text = PAY[Math.min(n, 5)];
+    S.cardT.textContent = text;
+    const w = text.length * 7.9 + 26;
+    const cx = Math.max(w / 2 + 2, Math.min(650 - w / 2 - 2, (n >= 5 ? NX(4) + NW / 2 : NX(k) + NW / 2)));
+    S.cardR.setAttribute("x", cx - w / 2); S.cardR.setAttribute("width", w); S.cardT.setAttribute("x", cx);
+    const tone = n >= 5 ? "var(--human)" : "var(--agent)";
+    S.cardR.style.stroke = tone; S.tok.style.fill = tone;
+    S.cardR.style.fill = n >= 5 ? "var(--human-soft)" : "var(--agent-soft)";
+    if (anim) {
+      gsap.fromTo(S.tok, { attr: { cx: startX }, opacity: 1 }, { attr: { cx: endX }, duration: 0.9, delay: 0.35, ease: "power2.inOut" });
+      gsap.fromTo(S.card, { opacity: 0, y: 8 }, { opacity: 1, y: 0, duration: 0.45, delay: 1.05 });
+    } else {
+      gsap.set(S.tok, { attr: { cx: endX }, opacity: 1 });
+      gsap.set(S.card, { opacity: 1, y: 0 });
+    }
+  }
+
+  Deck.register("adk-c03-first-workflow", {
+    enter(slide, n) { build(slide); render(n, false); },
+    step(slide, n, animate) { render(n, animate); },
+    leave() { if (S) gsap.killTweensOf([S.tok, S.card]); S = null; }
+  });
+})();
+</script>
+
+<!-- c05-01-chapter.html -->
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  let svg = null, blocks = [], funnel = null, card = null, parts = [], loop = null, labels = [];
+  const mk = (tag, attrs, style, parent) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (style) e.setAttribute("style", style);
+    (parent || svg).appendChild(e);
+    return e;
+  };
+  function build(slide) {
+    svg = slide.querySelector("#c05-ch-svg");
+    svg.innerHTML = "";
+    blocks = []; parts = []; labels = [];
+    for (let i = 0; i < 10; i++) {
+      const b = mk("rect", { x: 0, y: 20 + i * 24, width: 170 - (i % 3) * 18, height: 18, rx: 5 },
+        "fill:var(--state);opacity:" + (0.28 + (i % 4) * 0.14));
+      blocks.push(b);
+    }
+    const l1 = mk("text", { x: 0, y: 290 }, "font:600 15px var(--f-mono);fill:var(--muted)");
+    l1.textContent = "session: every event";
+    labels.push(l1);
+    funnel = mk("polygon", { points: "205,20 385,124 385,156 205,256" },
+      "fill:var(--state-soft);stroke:var(--state);stroke-width:2;stroke-linejoin:round");
+    card = mk("g", {});
+    mk("rect", { x: 412, y: 92, width: 188, height: 96, rx: 14 }, "fill:var(--surface-2);stroke:var(--state);stroke-width:2.5", card);
+    const t1 = mk("text", { x: 430, y: 124 }, "font:700 18px var(--f-body);fill:var(--ink)", card);
+    t1.textContent = "working context";
+    const t2 = mk("text", { x: 430, y: 146 }, "font:500 13px var(--f-mono);fill:var(--muted)", card);
+    t2.textContent = "one model call";
+    for (let k = 0; k < 3; k++) mk("rect", { x: 430, y: 158 + k * 0, width: 0, height: 0 }, "", card);
+    mk("rect", { x: 430, y: 160, width: 120, height: 8, rx: 4 }, "fill:var(--state);opacity:.55", card);
+    mk("rect", { x: 430, y: 172, width: 80, height: 8, rx: 4 }, "fill:var(--state);opacity:.3", card);
+    const l2 = mk("text", { x: 412, y: 214 }, "font:600 15px var(--f-mono);fill:var(--state)", card);
+    l2.textContent = "a compiled view";
+    for (let i = 0; i < 6; i++) {
+      parts.push(mk("rect", { x: 150, y: 40 + i * 36, width: 14, height: 10, rx: 3 }, "fill:var(--state);opacity:0"));
+    }
+  }
+  function startLoop() {
+    if (loop) return;
+    loop = gsap.timeline({ repeat: -1 });
+    parts.forEach((p, i) => {
+      const y0 = 40 + i * 36;
+      loop.fromTo(p, { attr: { x: 150, y: y0 }, opacity: 0 },
+        { keyframes: [
+          { attr: { x: 230, y: y0 + (140 - y0) * 0.25 }, opacity: 0.9, duration: 0.5, ease: "none" },
+          { attr: { x: 380, y: 135 }, duration: 0.8, ease: "power1.in" },
+          { attr: { x: 420, y: 135 }, opacity: 0, duration: 0.3, ease: "none" }
+        ] }, i * 0.32);
+    });
+  }
+  function stopLoop() {
+    if (loop) { loop.kill(); loop = null; }
+    gsap.set(parts, { opacity: 0 });
+  }
+  function render(n, animate) {
+    if (!svg) return;
+    const d = animate ? 1 : 0;
+    gsap.killTweensOf(blocks); gsap.killTweensOf([funnel, card].concat(labels));
+    if (n >= 1) {
+      gsap.to(blocks, { opacity: (i) => 0.28 + (i % 4) * 0.14, y: 0, duration: 0.5 * d, stagger: 0.05 * d, ease: "back.out(1.6)" });
+      gsap.to(labels, { opacity: 1, duration: 0.4 * d });
+    } else {
+      gsap.set(blocks, { opacity: 0, y: -24 });
+      gsap.set(labels, { opacity: 0 });
+    }
+    if (n >= 2) {
+      gsap.to(funnel, { opacity: 1, duration: 0.5 * d });
+      gsap.fromTo(card, { opacity: animate ? 0 : 1, scale: animate ? 0.8 : 1, transformOrigin: "506px 140px" }, { opacity: 1, scale: 1, duration: 0.6 * d, delay: 0.3 * d, ease: "back.out(1.8)" });
+      startLoop();
+    } else {
+      gsap.set([funnel, card], { opacity: 0 });
+      stopLoop();
+    }
+  }
+  Deck.register("adk-c05-chapter", {
+    enter(slide, n) { build(slide); render(n, n === 0); },
+    step(slide, n, animate) { if (svg && slide.contains(svg)) render(n, animate); },
+    leave() { stopLoop(); if (svg) gsap.killTweensOf(svg.querySelectorAll("*")); }
+  });
+})();
+</script>
+
+</body>
+</html>

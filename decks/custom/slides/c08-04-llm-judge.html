@@ -1,0 +1,181 @@
+<section class="slide tight" id="custom-c08-llm-judge" data-tone="tool" data-title="LLM-as-judge validation">
+  <style>
+    #custom-c08-llm-judge .toprow { display:grid; grid-template-columns:800px 1fr; gap:24px; align-items:start; }
+    #custom-c08-llm-judge .quote { font-size:23px; padding-left:20px; }
+    #custom-c08-llm-judge .cards { display:grid; grid-template-columns:repeat(5,1fr); gap:14px; height:146px; }
+    #custom-c08-llm-judge .flip { position:relative; perspective:1000px; }
+    #custom-c08-llm-judge .inner { position:absolute; inset:0; transform-style:preserve-3d; }
+    #custom-c08-llm-judge .face { position:absolute; inset:0; backface-visibility:hidden; -webkit-backface-visibility:hidden; backdrop-filter:none; padding:12px 14px; gap:5px; overflow:hidden; }
+    #custom-c08-llm-judge .face.back { transform:rotateY(180deg); }
+    #custom-c08-llm-judge .face h4 { font-size:17px; display:flex; align-items:center; gap:8px; }
+    #custom-c08-llm-judge .face p { font-size:14.5px; line-height:1.36; color:var(--ink-2); }
+    #custom-c08-llm-judge .face svg { flex:none; }
+    #custom-c08-llm-judge .bottom { display:grid; grid-template-columns:372px 372px 1fr; gap:16px; }
+    #custom-c08-llm-judge svg text { font-family:var(--f-mono); }
+    #custom-c08-llm-judge .formula { font:600 19px/1.3 var(--f-mono); color:var(--ink); }
+    #custom-c08-llm-judge .cite { font-size:14px; padding:6px 10px 6px 8px; }
+  </style>
+  <h2 class="title">Validate the LLM judge against expert labels, then correct its pass rate</h2>
+  <div class="toprow">
+    <div class="stack" style="gap:8px">
+      <p class="quote">GPT-4 as a judge reaches “over 80% agreement, the same level of agreement between humans.”</p>
+      <div class="row" style="gap:12px;align-items:center">
+        <a class="cite paper" href="https://arxiv.org/abs/2306.05685" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Zheng et al., Judging LLM-as-a-Judge (NeurIPS 2023)</a>
+        <span class="tiny">It also finds position, verbosity and self-enhancement bias, and limited reasoning.</span>
+      </div>
+    </div>
+    <div class="panel tight k-tool">
+      <p class="tiny" style="color:var(--ink-2)"><b>Managed:</b> the Vertex Gen AI evaluation service uses <code>GENERAL_QUALITY</code> by default, an adaptive rubric metric: it makes rubrics per prompt, then judges them. AutoSxS runs side-by-side checks for model migrations. <b>Pairwise:</b> Chatbot Arena (240K+ votes) uses Bradley-Terry, P(i beats j) = σ(β<sub>i</sub> − β<sub>j</sub>), with bootstrap CIs and style control.</p>
+    </div>
+  </div>
+  <div class="cards">
+    <div class="flip" data-k="1"><span data-step="1" data-fx="none"></span><div class="inner">
+      <div class="face panel k-risk"><h4><svg width="30" height="22" viewBox="0 0 30 22"><rect x="1" y="3" width="11" height="16" rx="3" fill="var(--risk)"/><rect x="18" y="3" width="11" height="16" rx="3" fill="none" stroke="var(--risk)" stroke-width="2"/></svg>Position bias</h4><p>In pairwise grading, the judge prefers the answer in one fixed position.</p></div>
+      <div class="face back panel k-state"><h4>Fix: judge both orders</h4><p>Swap A and B. Count a win only if it holds in both orders. Else score a tie.</p></div>
+    </div></div>
+    <div class="flip" data-k="2"><span data-step="2" data-fx="none"></span><div class="inner">
+      <div class="face panel k-risk"><h4><svg width="30" height="22" viewBox="0 0 30 22"><rect x="1" y="2" width="28" height="3" rx="1.5" fill="var(--risk)"/><rect x="1" y="9" width="28" height="3" rx="1.5" fill="var(--risk)"/><rect x="1" y="16" width="20" height="3" rx="1.5" fill="var(--risk)"/></svg>Verbosity bias</h4><p>The judge gives longer answers higher scores.</p></div>
+      <div class="face back panel k-state"><h4>Fix: control length</h4><p>Use length-controlled scoring (Length-Controlled AlpacaEval, arXiv 2404.04475). Write “do not reward length” in the rubric.</p></div>
+    </div></div>
+    <div class="flip" data-k="3"><span data-step="3" data-fx="none"></span><div class="inner">
+      <div class="face panel k-risk"><h4><svg width="30" height="22" viewBox="0 0 30 22"><circle cx="8" cy="11" r="7" fill="var(--model)"/><circle cx="22" cy="11" r="7" fill="none" stroke="var(--model)" stroke-width="2"/></svg>Self-preference</h4><p>The judge prefers outputs of its own model family (self-enhancement).</p></div>
+      <div class="face back panel k-state"><h4>Fix: another family</h4><p>Use a judge from a different model family than the candidate. The bias is not fully solved.</p></div>
+    </div></div>
+    <div class="flip" data-k="4"><span data-step="4" data-fx="none"></span><div class="inner">
+      <div class="face panel k-risk"><h4><svg width="30" height="22" viewBox="0 0 30 22"><circle cx="3" cy="11" r="2.5" fill="var(--risk)"/><circle cx="9" cy="11" r="2.5" fill="var(--risk)"/><circle cx="15" cy="11" r="2.5" fill="var(--risk)"/><circle cx="21" cy="11" r="2.5" fill="var(--risk)"/><circle cx="27" cy="11" r="2.5" fill="none" stroke="var(--risk)"/></svg>Vague 1–5 scale</h4><p>A Likert score does not say what “good” means, so labels vary.</p></div>
+      <div class="face back panel k-state"><h4>Fix: binary per criterion</h4><p>One pass/fail judge per failure mode. G-Eval (arXiv 2303.16634) adds a CoT rubric; DeepEval <code>GEval</code> uses it.</p></div>
+    </div></div>
+    <div class="panel tight k-tool" data-step="4" style="padding:12px 14px;gap:4px">
+      <h4 style="font-size:16px">Also check</h4>
+      <p style="font-size:13.5px;line-height:1.34">Rubric drift → freeze and version the judge prompt like code. Never validated → expert calibration split with TPR, TNR, κ. Reference leakage → reference-guided grading only where a reference exists.</p>
+    </div>
+  </div>
+  <div class="bottom fill">
+    <div data-step="5" data-fx="fade">
+      <svg id="c08lj-cm" viewBox="0 0 372 286" width="372" height="286" aria-label="Confusion matrix of human label against judge label on 200 calibration items: 109 true positives, 11 false negatives, 10 false positives, 70 true negatives. TPR 0.91, TNR 0.88, kappa 0.78."></svg>
+    </div>
+    <div class="stack" data-step="6" style="gap:10px">
+      <h4 style="font-size:18px">Correct the judge pass rate (Rogan-Gladen)</h4>
+      <p class="formula" data-fx="type">θ = (p_obs + TNR − 1) / (TPR + TNR − 1)</p>
+      <svg id="c08lj-bar" viewBox="0 0 372 84" width="372" height="84" aria-label="The observed pass rate of 70.0 percent moves to a corrected rate of 73.4 percent."></svg>
+      <p class="tiny">Bootstrap the CI over the calibration items and the eval items together.</p>
+      <div class="cites"><a class="cite paper" href="https://arxiv.org/abs/2404.04475" target="_blank" rel="noopener"><b>Paper</b>&nbsp;LC AlpacaEval</a><a class="cite paper" href="https://arxiv.org/abs/2303.16634" target="_blank" rel="noopener"><b>Paper</b>&nbsp;G-Eval</a><a class="cite paper" href="https://arxiv.org/abs/2403.04132" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Chatbot Arena</a></div>
+    </div>
+    <div class="stack" data-step="5" style="gap:8px">
+      <div class="code-wrap"><div class="code-head">judge_agreement.py · from 07-eval-design §8</div>
+<pre class="code xs" data-lang="python" data-focus="5:3-6, 6:8-9"><code>
+from sklearn.metrics import cohen_kappa_score, confusion_matrix
+# human, judge: 0/1 labels on the calibration split
+k = cohen_kappa_score(human, judge)
+tn, fp, fn, tp = confusion_matrix(
+    human, judge, labels=[0, 1]).ravel()
+tpr, tnr = tp/(tp+fn), tn/(tn+fp)
+print(f"kappa={k:.2f}  TPR={tpr:.2f}  TNR={tnr:.2f}")
+# p_obs: the judge pass rate on the eval set
+theta = (p_obs + tnr - 1) / (tpr + tnr - 1)  # Rogan-Gladen
+</code></pre></div>
+      <div class="cites"><a class="cite doc" href="https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/evaluation-genai-sdk" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Vertex Gen AI evaluation service (GenAI SDK)</a></div>
+    </div>
+  </div>
+  <aside class="notes">
+    An LLM judge is a measuring instrument, so calibrate it before you trust its readings. Zheng et al. found GPT-4 agrees with humans as often as humans agree with each other, but they also found four biases. Steps 1 to 4 flip each bias card to its fix: both orders for position, length control for verbosity, another model family for self-preference, and binary checks for vague scales. Step 5 is the validation: experts label a calibration split, and the confusion matrix gives TPR, TNR and kappa; these counts are an example. Step 6 uses those two rates to correct the pass rate the judge reports on the eval set. Analogy: a bathroom scale that reads 2 kilograms high is still useful once you know the offset. Likely question: "Why kappa and not raw agreement?" Raw agreement goes up with class imbalance; kappa removes chance agreement.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c08-llm-judge";
+  // Example calibration split, n = 200: TP 109, FN 11, FP 10, TN 70 -> TPR 0.91, TNR 0.88, kappa 0.78.
+  const CELLS = [["TP", 109, 0, 0, "state"], ["FN", 11, 1, 0, "risk"], ["FP", 10, 0, 1, "risk"], ["TN", 70, 1, 1, "state"]];
+  const STATS = [["TPR", 0.91, 62], ["TNR", 0.88, 186], ["κ", 0.78, 310]];
+  const P_OBS = 70.0, THETA = 73.4;
+  const bx = (v) => 20 + (v - 50) * 6.6;
+  let E = {}, tl = null;
+
+  function el(tag, attrs, parent) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  const txt = (p, x, y, s, a) => { const t = el("text", Object.assign({ x, y, fill: "var(--muted)", "font-size": 13 }, a || {}), p); t.textContent = s; return t; };
+
+  function build(slide) {
+    const cm = slide.querySelector("#c08lj-cm"); cm.innerHTML = "";
+    txt(cm, 186, 14, "calibration split · n = 200 · example", { "text-anchor": "middle" });
+    txt(cm, 230, 38, "judge", { "text-anchor": "middle", fill: "var(--model)", "font-weight": 700 });
+    txt(cm, 170, 56, "pass", { "text-anchor": "middle" }); txt(cm, 290, 56, "fail", { "text-anchor": "middle" });
+    txt(cm, 22, 140, "human", { fill: "var(--human)", "font-weight": 700, transform: "rotate(-90 22 140)", "text-anchor": "middle" });
+    txt(cm, 100, 108, "pass", { "text-anchor": "end" }); txt(cm, 100, 188, "fail", { "text-anchor": "end" });
+    E.cells = CELLS.map(([lab, v, c, r, tone]) => {
+      const x = 110 + c * 120, y = 64 + r * 80;
+      const g = el("g", { opacity: 0 }, cm);
+      el("rect", { x: x + 2, y: y + 2, width: 116, height: 76, rx: 10, fill: `var(--${tone}-soft)`, stroke: `var(--${tone})`, "stroke-width": 2 }, g);
+      txt(g, x + 12, y + 22, lab, { fill: `var(--${tone})`, "font-weight": 700 });
+      const n = txt(g, x + 60, y + 58, "0", { "text-anchor": "middle", fill: "var(--ink)", "font-size": 30, "font-weight": 700 });
+      return { g, n, v };
+    });
+    E.stats = STATS.map(([lab, v, x]) => {
+      const g = el("g", { opacity: 0 }, cm);
+      txt(g, x, 250, lab, { "text-anchor": "middle", fill: "var(--muted)", "font-size": 14, "font-weight": 600 });
+      const n = txt(g, x, 278, v.toFixed(2), { "text-anchor": "middle", fill: "var(--tool)", "font-size": 26, "font-weight": 700 });
+      return { g, n, v };
+    });
+    const bar = slide.querySelector("#c08lj-bar"); bar.innerHTML = "";
+    el("rect", { x: 20, y: 30, width: 330, height: 20, rx: 10, fill: "var(--surface-2)", stroke: "var(--line-2)" }, bar);
+    E.fill = el("rect", { x: 20, y: 30, width: bx(P_OBS) - 20, height: 20, rx: 10, fill: "var(--tool)", opacity: 0.85 }, bar);
+    el("line", { x1: bx(P_OBS), y1: 22, x2: bx(P_OBS), y2: 58, stroke: "var(--model)", "stroke-width": 2, "stroke-dasharray": "4 3" }, bar);
+    txt(bar, bx(P_OBS), 16, "p_obs 70.0%", { "text-anchor": "middle", fill: "var(--model)", "font-weight": 700 });
+    E.th = txt(bar, bx(THETA), 76, "θ 73.4%", { "text-anchor": "middle", fill: "var(--tool)", "font-size": 15, "font-weight": 700, opacity: 0 });
+    txt(bar, 20, 76, "50%"); txt(bar, 350, 76, "100%", { "text-anchor": "end" });
+  }
+
+  function flips(slide, n, animate) {
+    slide.querySelectorAll(".flip").forEach((f) => {
+      const k = +f.dataset.k, inner = f.querySelector(".inner");
+      const ry = n >= k ? 180 : 0;
+      if (animate && n === k) gsap.fromTo(inner, { rotationY: 0 }, { rotationY: 180, duration: 0.8, ease: "back.out(1.3)" });
+      else gsap.set(inner, { rotationY: ry });
+    });
+  }
+
+  function render(slide, n, animate) {
+    if (tl) { tl.progress(1); tl.kill(); tl = null; }
+    flips(slide, n, animate);
+    const on5 = n >= 5, on6 = n >= 6;
+    if (!animate || n < 5) {
+      E.cells.forEach((c) => { c.g.setAttribute("opacity", on5 ? 1 : 0); c.n.textContent = c.v; });
+      E.stats.forEach((s) => { s.g.setAttribute("opacity", on5 ? 1 : 0); s.n.textContent = s.v.toFixed(2); });
+      E.fill.setAttribute("width", bx(on6 ? THETA : P_OBS) - 20);
+      E.th.setAttribute("opacity", on6 ? 1 : 0);
+      return;
+    }
+    tl = gsap.timeline();
+    if (n === 5) {
+      E.cells.forEach((c, i) => {
+        const p = { v: 0 };
+        tl.to(c.g, { attr: { opacity: 1 }, duration: 0.3 }, 0.3 + i * 0.35);
+        tl.to(p, { v: c.v, duration: 0.6, ease: "power2.out", onUpdate: () => (c.n.textContent = Math.round(p.v)) }, 0.3 + i * 0.35);
+      });
+      E.stats.forEach((s, i) => {
+        const p = { v: 0 };
+        tl.to(s.g, { attr: { opacity: 1 }, duration: 0.3 }, 1.9 + i * 0.25);
+        tl.to(p, { v: s.v, duration: 0.8, ease: "power2.out", onUpdate: () => (s.n.textContent = p.v.toFixed(2)) }, 1.9 + i * 0.25);
+      });
+      E.fill.setAttribute("width", bx(P_OBS) - 20); E.th.setAttribute("opacity", 0);
+    }
+    if (n >= 6) {
+      E.cells.forEach((c) => { c.g.setAttribute("opacity", 1); c.n.textContent = c.v; });
+      E.stats.forEach((s) => { s.g.setAttribute("opacity", 1); s.n.textContent = s.v.toFixed(2); });
+      tl.fromTo(E.fill, { attr: { width: bx(P_OBS) - 20 } }, { attr: { width: bx(THETA) - 20 }, duration: 1.0, ease: "power3.inOut" }, 1.4);
+      tl.to(E.th, { attr: { opacity: 1 }, duration: 0.4 }, 2.2);
+    }
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { build(slide); render(slide, step, false); },
+    step(slide, n, animate) { if (!E.cells || !E.cells[0].g.isConnected) return; render(slide, n, animate); },
+    leave(slide) { if (tl) tl.kill(); tl = null; gsap.killTweensOf(slide.querySelectorAll(".inner")); },
+  });
+})();
+</script>

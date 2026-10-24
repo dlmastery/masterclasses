@@ -1,0 +1,123 @@
+<section class="slide chapter" id="custom-c07-chapter" data-tone="state" data-title="07 LLM datasets and synthetic data">
+  <div class="ch-num" data-fx="blur">07</div>
+  <svg id="c07ch-funnel" data-fx="draw" viewBox="0 0 500 450" width="500" height="450" style="position:absolute;right:104px;top:70px;overflow:visible" aria-label="A wide funnel: many web tokens go in at the top, a quality classifier stops most of them, and about one in ten leaves at the bottom">
+    <ellipse cx="250" cy="60" rx="232" ry="22" fill="none" stroke="var(--state)" stroke-width="3"/>
+    <path d="M18,60 L210,300 L210,392" fill="none" stroke="var(--state)" stroke-width="3" stroke-linejoin="round"/>
+    <path d="M482,60 L290,300 L290,392" fill="none" stroke="var(--state)" stroke-width="3" stroke-linejoin="round"/>
+    <path d="M128,198 L372,198" fill="none" stroke="var(--model)" stroke-width="2.5" stroke-dasharray="7 7"/>
+    <g style="font:600 15px var(--f-mono)">
+      <text x="250" y="22" text-anchor="middle" fill="var(--muted)">raw web tokens</text>
+      <text x="384" y="194" fill="var(--model)">quality classifier</text>
+      <text x="250" y="432" text-anchor="middle" fill="var(--state)">about 10% kept</text>
+    </g>
+  </svg>
+  <svg id="c07ch-flow" viewBox="0 0 500 450" width="500" height="450" style="position:absolute;right:104px;top:70px;overflow:visible;pointer-events:none" aria-hidden="true"></svg>
+
+  <h2 class="display" style="font-size:62px;max-width:880px">Modern LLM data is filtered hard, synthesized at scale and verified before use</h2>
+  <p class="lede" data-fx="up" style="max-width:860px">From 2023 to 2026 most gains came from model-based filtering and verified synthetic data, not from more raw tokens.</p>
+  <div class="tags" data-step="1" data-fx="stagger">
+    <span class="tag t-state">FineWeb-Edu</span>
+    <span class="tag t-state">DCLM</span>
+    <span class="tag t-state">Nemotron-CC</span>
+    <span class="tag t-model">Magpie</span>
+    <span class="tag t-model">Persona Hub</span>
+    <span class="tag t-model">OpenThoughts</span>
+    <span class="tag t-tool">distilabel</span>
+    <span class="tag t-tool">RAGAS</span>
+  </div>
+  <p class="tiny" data-step="2" style="font-family:var(--f-mono);color:var(--ink-2)">PyPI, Oct 2026: datatrove 0.10.1 · nemo-curator 1.4.0 · ragas 0.4.3 · distilabel 1.5.3 <span class="c-risk">(no PyPI release since Jan 2025)</span></p>
+  <svg class="interactive" id="c07ch-strip" viewBox="0 0 1392 112" width="1392" height="112" aria-label="The data lifecycle: design, generate, select, curate, label, denoise, quality card. Generate, select and curate are lit."></svg>
+  <aside class="notes">
+    This chapter covers the three middle stages of the lifecycle for LLM data: generate, select and curate. The funnel shows the main fact of the last three years: the best open datasets throw away about 90% of the web with a model-based classifier, and they still win. Analogy: a gold mine does not dig more rock to get more gold; it improves the sieve. Step 1 shows the datasets and tools we use in this chapter. Step 2 gives the October 2026 versions, and it marks distilabel as a sustainability risk because it has had no PyPI release since January 2025. A likely student question: "If we discard 90%, do we not run out of tokens?" Yes, at long horizons; Nemotron-CC answers that with rephrasing, and we see it on the next slide.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c07-chapter";
+  const STAGES = ["DESIGN", "GENERATE", "SELECT", "CURATE", "LABEL", "DENOISE", "QUALITY CARD"];
+  const SUBS = { 1: "Magpie · personas · distill", 2: "quality classifiers", 3: "dedup · decontaminate" };
+  const LIT = [1, 2, 3];
+  const W = 176, GAP = 26, H = 66, Y = 8;
+  const N = 24, KEEP = (i) => i % 8 === 3;   // 3 of 24 particles pass the classifier
+  let tl = null, loops = [], cells = [], parts = [];
+
+  function el(tag, attrs, parent) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+
+  function buildStrip(svg) {
+    svg.innerHTML = "";
+    cells = STAGES.map((name, i) => {
+      const x = i * (W + GAP);
+      const on = LIT.includes(i);
+      const g = el("g", { opacity: 0 }, svg);
+      el("rect", { x: x + 1, y: Y, width: W - 2, height: H, rx: 14,
+        fill: on ? "var(--state-soft)" : "var(--surface-2)", stroke: on ? "var(--state)" : "var(--line-2)", "stroke-width": on ? 3 : 2 }, g);
+      el("text", { x: x + W / 2, y: Y + H / 2 + 6, "text-anchor": "middle", fill: on ? "var(--state)" : "var(--ink-2)",
+        "font-family": "var(--f-mono)", "font-size": 17, "font-weight": 700 }, g).textContent = name;
+      if (SUBS[i]) el("text", { x: x + W / 2, y: Y + H + 24, "text-anchor": "middle", fill: "var(--state)",
+        "font-family": "var(--f-mono)", "font-size": 13, "font-weight": 600 }, g).textContent = SUBS[i];
+      if (i < STAGES.length - 1) el("path", { d: `M${x + W + 6},${Y + H / 2 - 7} l8,7 l-8,7`, fill: "none", stroke: "var(--faint)", "stroke-width": 2.5 }, g);
+      return { g, on };
+    });
+  }
+
+  function buildParticles(svg) {
+    svg.innerHTML = "";
+    parts = [];
+    for (let i = 0; i < N; i++) {
+      const x0 = 150 + ((i * 73) % 200);
+      const c = el("circle", { cx: x0, cy: -6, r: 6, fill: "var(--model)", opacity: 0 }, svg);
+      parts.push({ c, x0, keep: KEEP(i) });
+    }
+  }
+
+  function startLoop() {
+    const period = 6;
+    parts.forEach((p, i) => {
+      const t = gsap.timeline({ repeat: -1, delay: 1.2 + (i * period) / N });
+      t.set(p.c, { attr: { cx: p.x0, cy: -6, opacity: 0, fill: "var(--model)" } });
+      t.to(p.c, { attr: { opacity: 0.9 }, duration: 0.2 });
+      t.to(p.c, { attr: { cy: 192 }, duration: 1.1, ease: "power1.in" }, "<");
+      if (p.keep) {
+        t.to(p.c, { attr: { fill: "var(--state)" }, duration: 0.15 });
+        t.to(p.c, { attr: { cx: 250, cy: 300 }, duration: 0.7, ease: "power1.inOut" });
+        t.to(p.c, { attr: { cy: 410 }, duration: 0.6, ease: "power1.in" });
+        t.to(p.c, { attr: { opacity: 0 }, duration: 0.3 });
+      } else {
+        t.to(p.c, { attr: { fill: "var(--risk)" }, duration: 0.15 });
+        t.to(p.c, { attr: { opacity: 0, r: 2 }, duration: 0.6 });
+        t.set(p.c, { attr: { r: 6 } });
+      }
+      t.to({}, { duration: Math.max(0.1, period - t.duration()) });
+      loops.push(t);
+    });
+  }
+
+  function showStrip(animate) {
+    if (!animate) { cells.forEach((c) => c.g.setAttribute("opacity", c.on ? 1 : 0.4)); return; }
+    tl = gsap.timeline({ delay: 0.5 });
+    cells.forEach((c, i) => tl.to(c.g, { attr: { opacity: 1 }, duration: 0.35 }, i * 0.1));
+    tl.to(cells.filter((c) => !c.on).map((c) => c.g), { attr: { opacity: 0.4 }, duration: 0.5 }, "+=0.2");
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) {
+      buildStrip(slide.querySelector("#c07ch-strip"));
+      buildParticles(slide.querySelector("#c07ch-flow"));
+      showStrip(step === 0);
+      startLoop();
+    },
+    step() {},
+    leave() {
+      if (tl) tl.kill(); tl = null;
+      loops.forEach((t) => t.kill()); loops = [];
+      parts.forEach((p) => gsap.killTweensOf(p.c));
+    },
+  });
+})();
+</script>

@@ -1,0 +1,165 @@
+<section class="slide" id="adk-c03-first-workflow" data-tone="agent" data-title="First workflow: chain tuples">
+  <h2 class="title">A chain tuple wires nodes, and each return value becomes the next node's input</h2>
+  <div class="row fill" style="gap:24px">
+    <div class="code-wrap" style="width:720px;flex:none" data-fx="up"><div class="code-head">agent.py · adk.dev/graphs “Get started”</div>
+<pre class="code xs" data-lang="python" data-focus="1:4-7, 2:9-13, 3:15-17, 4:18-19, 5:21-23"><code>
+from google.adk import Agent, Event, Workflow
+from pydantic import BaseModel
+
+city_generator_agent = Agent(name="city_generator_agent",
+    model="gemini-flash-latest",
+    instruction="Return the name of a random city. "
+                "Return only the name, nothing else.")
+
+class CityTime(BaseModel):
+    time_info: str  # time information
+    city: str       # city name
+def lookup_time_function(node_input: str):
+    return CityTime(time_info="10:10 AM", city=node_input)
+
+city_report_agent = Agent(name="city_report_agent",
+    model="gemini-flash-latest", input_schema=CityTime,
+    instruction="It is {CityTime.time_info} in {CityTime.city} right now.")
+def completed_message_function(node_input: str):
+    return Event(message=f"{node_input}\n WORKFLOW COMPLETED.")
+
+root_agent = Workflow(name="root_agent", edges=[
+    ("START", city_generator_agent, lookup_time_function,
+     city_report_agent, completed_message_function)])
+</code></pre></div>
+    <div class="stack" style="width:648px;flex:none">
+      <svg id="c32-svg" viewBox="0 0 650 220" width="648" height="220" aria-label="The chain tuple decoded into five nodes; a payload moves along the edges"></svg>
+      <div style="position:relative;height:300px">
+        <div class="panel tight k-agent" style="position:absolute;inset:0" data-until="3">
+          <h4>Every node runs the same three phases</h4>
+          <ol class="seq small">
+            <li>Validate <code>node_input</code> against <code>input_schema</code>. Dicts are coerced into the model.</li>
+            <li>Run the user logic: a function, an <code>Agent</code>, a <code>BaseTool</code> or a nested <code>Workflow</code>.</li>
+            <li>Normalize each yield: <code>None</code> is dropped, an <code>Event</code> passes, a <code>RequestInput</code> becomes an interrupt, any other value becomes <code>Event(output=value)</code>.</li>
+          </ol>
+        </div>
+        <div class="panel tight k-state" style="position:absolute;inset:0" data-step="3" data-until="5">
+          <h4>Four Event fields carry the run</h4>
+          <table class="t">
+            <tr><td><code>output</code></td><td>Data for the next node. Only one per node run.</td></tr>
+            <tr><td><code>message</code></td><td>Content that the user sees.</td></tr>
+            <tr><td><code>state</code></td><td>A delta that the session saves.</td></tr>
+            <tr><td><code>route</code></td><td>The branch to take (next slide).</td></tr>
+          </table>
+          <p class="small">The hand-off is the return value. You do not need session state for it.</p>
+        </div>
+        <div class="panel tight k-agent" style="position:absolute;inset:0" data-step="5" data-until="6">
+          <h4><code>Workflow(...)</code> checks 10 rules at construction</h4>
+          <ul class="ticks small">
+            <li>Unique node names. Reuse one instance to loop back.</li>
+            <li><code>START</code> is present, with no incoming edges and no routes.</li>
+            <li>Every node is reachable. No unconditional cycles.</li>
+            <li><code>output_schema</code> equals the successor's <code>input_schema</code> (often from type hints).</li>
+            <li>An <code>LlmAgent(mode='chat')</code> only directly after <code>START</code>.</li>
+          </ul>
+          <p class="small">The check is structural, not behavioural.</p>
+        </div>
+        <div class="stack" style="position:absolute;inset:0" data-step="6">
+          <div class="callout pitfall"><div><b><code>from google.adk import START</code> raises ImportError.</b> Import <code>START</code> from <code>google.adk.workflow</code>. The string <code>"START"</code> works in chain tuples, but not in <code>Edge(...)</code>.</div></div>
+          <div class="callout pitfall"><div><b>Two terminal nodes that both output</b> fail the run with <code>WorkflowConfigurationError</code>. The engine cannot choose the workflow output. Put a <code>JoinNode</code> before the end.</div></div>
+          <div class="callout insight"><div>A node is any <code>NodeLike</code>: a function (auto-wrapped in <code>FunctionNode</code>), an <code>Agent</code> (usually <code>mode='single_turn'</code>), a tool, a <code>Workflow</code>, or the <code>START</code> sentinel <code>__START__</code>, which never executes.</div></div>
+        </div>
+      </div>
+      <div class="cites"><a class="cite doc" href="https://adk.dev/graphs/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Graph-based agent workflows · adk.dev/graphs</a></div>
+    </div>
+  </div>
+  <aside class="notes">
+    Read the tuple left to right: START, then four nodes. Each press highlights one tuple element, draws its edge, and moves the payload. Step 1: the generator agent returns a plain string, "Kyoto". Step 2: a plain Python function receives that string as node_input and returns a Pydantic CityTime object. Step 3: the report agent declares input_schema=CityTime, so ADK validates the object and fills the {CityTime.city} placeholders. Step 4: the last function returns an Event with a message, which goes to the user, not to a next node. Steps 5 and 6 show the construction-time checks and the two most common errors. Analogy: a Unix pipe. Each stage reads stdin and writes stdout; you do not need a shared file between stages. Likely question: "Why not keep output_key and session state?" You can, but node_input keeps each node's context small and typed, and the schema check catches mismatches before the first run.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const mk = (t, a, p) => { const e = document.createElementNS(NS, t); for (const k in a) e.setAttribute(k, a[k]); if (p) p.appendChild(e); return e; };
+  const CH = [['"START"', 14, 6, 86, "muted"], ["city_generator_agent", 110, 6, 192, "agent"], ["lookup_time_function", 312, 6, 192, "tool"], ["city_report_agent", 110, 46, 170, "agent"], ["completed_message_function", 290, 46, 246, "tool"]];
+  const ND = [["START", "sentinel", "muted"], ["generator", "Agent", "agent"], ["lookup_time", "function", "tool"], ["report", "Agent", "agent"], ["completed", "function", "tool"]];
+  const NW = 96, NY = 104, NH = 50, NX = (i) => i * 138;
+  const PAY = ["", "new_message from the user", 'node_input = "Kyoto"', 'CityTime(time_info="10:10 AM", city="Kyoto")', '"It is 10:10 AM in Kyoto right now."', "Event(message=… WORKFLOW COMPLETED.) → user"];
+  let S = null;
+
+  function build(slide) {
+    const svg = slide.querySelector("#c32-svg");
+    svg.innerHTML = "";
+    S = { svg, chips: [], nodes: [], edges: [] };
+    mk("text", { x: 0, y: 28, style: "font:600 22px var(--f-mono);fill:var(--muted)" }, svg).textContent = "(";
+    mk("text", { x: 542, y: 68, style: "font:600 22px var(--f-mono);fill:var(--muted)" }, svg).textContent = ")";
+    CH.forEach(([t, x, y, w, tone]) => {
+      const g = mk("g", {}, svg);
+      const r = mk("rect", { x, y, width: w, height: 30, rx: 8, style: `fill:var(--surface-2);stroke:var(--line-2);stroke-width:1.5` }, g);
+      const tx = mk("text", { x: x + w / 2, y: y + 20, "text-anchor": "middle", style: "font:600 14px var(--f-mono);fill:var(--ink-2)" }, g);
+      tx.textContent = t;
+      S.chips.push({ g, r, tx, tone });
+    });
+    for (let i = 0; i < 4; i++) {
+      const x1 = NX(i) + NW + 2, x2 = NX(i + 1) - 4, y = NY + NH / 2;
+      const g = mk("g", { opacity: 0 }, svg);
+      const l = mk("line", { x1, y1: y, x2: x2 - 6, y2: y, style: "stroke:var(--agent);stroke-width:2.6;stroke-linecap:round" }, g);
+      mk("path", { d: `M${x2},${y} L${x2 - 9},${y - 5} L${x2 - 9},${y + 5} Z`, style: "fill:var(--agent)" }, g);
+      S.edges.push({ g, l, len: x2 - 6 - x1 });
+    }
+    ND.forEach(([t, s, tone], i) => {
+      const g = mk("g", {}, svg);
+      const r = mk("rect", { x: NX(i), y: NY, width: NW, height: NH, rx: i === 0 ? 25 : 10, style: `fill:var(--surface-2);stroke:var(--${tone === "muted" ? "line-2" : tone});stroke-width:1.6` }, g);
+      mk("text", { x: NX(i) + NW / 2, y: NY + 22, "text-anchor": "middle", style: "font:700 13px var(--f-body);fill:var(--ink)" }, g).textContent = t;
+      mk("text", { x: NX(i) + NW / 2, y: NY + 39, "text-anchor": "middle", style: "font:500 11px var(--f-mono);fill:var(--muted)" }, g).textContent = s;
+      S.nodes.push({ g, r, tone });
+    });
+    S.tok = mk("circle", { r: 7, cx: 0, cy: NY + NH / 2, opacity: 0, style: "fill:var(--agent);filter:drop-shadow(0 0 6px var(--agent))" }, svg);
+    S.card = mk("g", { opacity: 0 }, svg);
+    S.cardR = mk("rect", { x: 0, y: 172, width: 100, height: 32, rx: 8, style: "fill:var(--agent-soft);stroke:var(--agent);stroke-width:1.4" }, S.card);
+    S.cardT = mk("text", { x: 0, y: 193, "text-anchor": "middle", style: "font:600 13px var(--f-mono);fill:var(--ink)" }, S.card);
+  }
+
+  function render(n, anim) {
+    if (!S) return;
+    gsap.killTweensOf([S.tok, S.card]);
+    const d = anim ? 0.45 : 0;
+    S.chips.forEach((c, i) => {
+      const tone = c.tone === "muted" ? "var(--muted)" : `var(--${c.tone})`;
+      const hot = i === n && n >= 1 && n <= 4, done = i < n || n >= 5 || (n >= 1 && i === 0);
+      gsap.to(c.r, { duration: d, attr: { "stroke-width": hot ? 3 : 1.5 }, opacity: 1 });
+      c.r.style.stroke = hot || done ? tone : "var(--line-2)";
+      c.r.style.fill = hot ? `color-mix(in oklab, ${tone} 18%, var(--surface-2))` : "var(--surface-2)";
+      gsap.to(c.g, { duration: d, opacity: hot || done || n === 0 ? 1 : 0.45 });
+    });
+    S.nodes.forEach((nd, i) => gsap.to(nd.g, { duration: d, opacity: i <= Math.max(n, 0) || n === 0 ? 1 : 0.4 }));
+    S.edges.forEach((e, i) => {
+      const vis = i < n;
+      if (vis && anim && i === n - 1) {
+        gsap.set(e.g, { opacity: 1 });
+        gsap.fromTo(e.l, { attr: { "stroke-dasharray": e.len, "stroke-dashoffset": e.len } }, { attr: { "stroke-dashoffset": 0 }, duration: 0.5, ease: "power2.inOut" });
+      } else gsap.set(e.g, { opacity: vis ? 1 : 0 });
+    });
+    if (n === 0) { gsap.set([S.tok, S.card], { opacity: 0 }); return; }
+    const k = Math.min(n, 4);
+    const endX = n >= 5 ? NX(4) + NW + 8 : NX(k) - 6;
+    const startX = n >= 5 ? endX : NX(k - 1) + NW + 2;
+    const text = PAY[Math.min(n, 5)];
+    S.cardT.textContent = text;
+    const w = text.length * 7.9 + 26;
+    const cx = Math.max(w / 2 + 2, Math.min(650 - w / 2 - 2, (n >= 5 ? NX(4) + NW / 2 : NX(k) + NW / 2)));
+    S.cardR.setAttribute("x", cx - w / 2); S.cardR.setAttribute("width", w); S.cardT.setAttribute("x", cx);
+    const tone = n >= 5 ? "var(--human)" : "var(--agent)";
+    S.cardR.style.stroke = tone; S.tok.style.fill = tone;
+    S.cardR.style.fill = n >= 5 ? "var(--human-soft)" : "var(--agent-soft)";
+    if (anim) {
+      gsap.fromTo(S.tok, { attr: { cx: startX }, opacity: 1 }, { attr: { cx: endX }, duration: 0.9, delay: 0.35, ease: "power2.inOut" });
+      gsap.fromTo(S.card, { opacity: 0, y: 8 }, { opacity: 1, y: 0, duration: 0.45, delay: 1.05 });
+    } else {
+      gsap.set(S.tok, { attr: { cx: endX }, opacity: 1 });
+      gsap.set(S.card, { opacity: 1, y: 0 });
+    }
+  }
+
+  Deck.register("adk-c03-first-workflow", {
+    enter(slide, n) { build(slide); render(n, false); },
+    step(slide, n, animate) { render(n, animate); },
+    leave() { if (S) gsap.killTweensOf([S.tok, S.card]); S = null; }
+  });
+})();
+</script>

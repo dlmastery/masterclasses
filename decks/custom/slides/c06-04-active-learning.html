@@ -1,0 +1,224 @@
+<section class="slide" id="custom-c06-active-learning" data-tone="human" data-title="Active learning and weak supervision">
+  <style>
+    #custom-c06-active-learning .swap { display:grid; min-height:0; }
+    #custom-c06-active-learning .swap > * { grid-area:1/1; min-height:0; }
+    #custom-c06-active-learning svg text { font-family:var(--f-mono); }
+    #custom-c06-active-learning .panel.card { padding:13px 18px; gap:6px; border-radius:14px; }
+    #custom-c06-active-learning .panel.card h4 { font-size:19px; }
+    #custom-c06-active-learning .panel.card p { font-size:15.5px; line-height:1.4; }
+    #custom-c06-active-learning .stat .n { font-size:50px; }
+    #custom-c06-active-learning .stat .l { font-size:14.5px; }
+    #custom-c06-active-learning .cite { font-size:13.5px; padding:5px 9px 5px 7px; }
+    #custom-c06-active-learning .cite::before { width:18px; height:18px; }
+  </style>
+  <h2 class="title">Active learning spends the labeling budget on uncertain and diverse examples</h2>
+  <div class="grid fill" style="grid-template-columns:770px 1fr;gap:28px;min-height:0">
+    <svg class="interactive" id="c06al-svg" viewBox="0 0 770 590" width="770" height="590" aria-label="An unlabeled pool with a decision boundary; uncertainty picks clump, BADGE picks spread; the active learning loop runs around the pool"></svg>
+    <div class="swap">
+      <div class="stack" data-until="5" style="gap:12px">
+        <p class="small" data-step="1"><b>Loop:</b> labeled seed → train → score the unlabeled pool → select a batch of B → humans or an LLM label it → add it → repeat until the budget ends or the score stops rising.</p>
+        <div class="panel card k-tool" data-step="2">
+          <h4>Uncertainty only</h4>
+          <p>Least confidence 1 − max p, margin p<sub>1</sub> − p<sub>2</sub>, or entropy. It is cheap. But near points get the same score, so one batch holds <b>redundant</b> examples.</p>
+        </div>
+        <div class="panel card k-human" data-step="3">
+          <h4>Uncertainty + diversity</h4>
+          <p><b>Core-set</b> (Sener and Savarese, ICLR 2018): greedy k-center in embedding space. <b>BADGE</b> (Ash et al., ICLR 2020): embed each point as the last-layer loss gradient, with the predicted label as a hypothetical label. The norm gives uncertainty, the direction gives diversity. Then run k-means++ seeding. It “balances uncertainty and diversity” with no hand-tuned trade-off.</p>
+        </div>
+        <div class="panel card k-model" data-step="4">
+          <h4>LLM era and open problems</h4>
+          <p>Use LLM disagreement or self-consistency as the uncertainty signal. Measure diversity on sentence embeddings. Route each item to an LLM annotator or a human. <b>Problems:</b> cold start with a tiny seed; sampling bias, so test on a separately sampled random set; gains over random shrink with strong pretrained embeddings.</p>
+          <div class="cites">
+            <a class="cite paper" href="https://arxiv.org/abs/1906.03671" target="_blank" rel="noopener"><b>Paper</b>&nbsp;BADGE</a>
+            <a class="cite paper" href="https://arxiv.org/abs/1708.00489" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Core-Set</a>
+            <a class="cite repo" href="https://github.com/JordanAsh/badge" target="_blank" rel="noopener"><b>Repo</b>&nbsp;JordanAsh/badge</a>
+            <a class="cite repo" href="https://github.com/modAL-python/modAL" target="_blank" rel="noopener"><b>Repo</b>&nbsp;modAL</a>
+            <a class="cite repo" href="https://github.com/webis-de/small-text" target="_blank" rel="noopener"><b>Repo</b>&nbsp;small-text</a>
+          </div>
+        </div>
+      </div>
+      <div class="stack" data-step="5" style="gap:12px">
+        <h3 style="font-size:25px">Weak supervision: many noisy voters give one probabilistic label</h3>
+        <svg id="c06al-lf" viewBox="0 0 594 232" width="594" height="232" aria-label="A labeling-function vote matrix collapses through a LabelModel into probability bars"></svg>
+        <p class="small" style="font-size:16px">Labeling functions (rules, regexes, LLM prompts) vote or abstain. The <b>LabelModel</b> learns the accuracy of each function from their agreements, <b>without ground truth</b>. An end model then trains on the probabilistic labels.</p>
+        <div class="grid g3" style="gap:14px">
+          <div class="stat"><span class="n" data-to="2.8" data-dec="1" data-suf="×">0</span><span class="l">faster model building by experts</span></div>
+          <div class="stat"><span class="n" data-to="45.5" data-dec="1" data-pre="+" data-suf="%">0</span><span class="l">vs 7 hours of hand labeling</span></div>
+          <div class="stat"><span class="n" data-to="3.6" data-dec="2" data-suf="%">0</span><span class="l">gap to large hand-curated training sets</span></div>
+        </div>
+        <div class="row" style="gap:10px;flex-wrap:wrap">
+          <span class="tag t-risk">snorkel 0.10.0: no release since Feb 2024; CVE-2026-31222..31224</span>
+          <a class="cite paper" href="https://arxiv.org/abs/1711.10160" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Snorkel (PVLDB 2017)</a>
+          <a class="cite repo" href="https://github.com/snorkel-team/snorkel-tutorials" target="_blank" rel="noopener"><b>Repo</b>&nbsp;snorkel-tutorials</a>
+        </div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    Active learning asks one question: which unlabeled example should a human label next? Step 1 shows the pool, a few labeled seed points and the current decision boundary. Step 2 picks by uncertainty only: the picks clump in one part of the boundary, so ten labels teach the model almost one thing. Step 3 picks with uncertainty plus diversity, as core-set and BADGE do: the picks spread along the whole boundary. Step 4 runs the loop and the labeled set grows from 6 to 16. Step 5 shows the other way to get labels cheaply: weak supervision, where many noisy labeling functions vote and a label model learns how much to trust each one. Tell students that Snorkel OSS still teaches the idea well, but it has had no release since 2024 and has open CVEs. Analogy: a student with ten questions for the teacher should not ask ten versions of the same question. Likely question: "Does active learning still help with foundation models?" Answer: often less than expected; always compare against random sampling on a random test set.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c06-active-learning";
+  const CX = 385, CY = 295, RX = 325, RY = 262;
+  let bnd, svg, lf, pts = [], unc = [], div = [], rings = { u: [], d: [] }, loop, loopDots = [], loopTw = [], counter, tl = null, lfParts = null;
+
+  const el = (tag, a, p) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); if (p) p.appendChild(e); return e; };
+  const rnd = (i, k) => { const v = Math.sin(i * 12.9898 + k * 78.233) * 43758.5453; return v - Math.floor(v); };
+  const bY = (x) => 300 + 70 * Math.sin(((x - 140) / 490) * Math.PI * 1.6) - 0.12 * (x - 385);
+
+  function build() {
+    svg.innerHTML = ""; pts = []; rings = { u: [], d: [] }; loopDots = [];
+    // loop (behind)
+    loop = el("g", { opacity: 0 }, svg);
+    const ell = el("ellipse", { cx: CX, cy: CY, rx: RX, ry: RY, fill: "none", stroke: "var(--line-2)", "stroke-width": 2.5, "stroke-dasharray": "8 8" }, loop);
+    const pathD = `M${CX},${CY - RY} A${RX},${RY} 0 1,1 ${CX - 0.01},${CY - RY} Z`;
+    loop._path = el("path", { d: pathD, fill: "none", stroke: "none" }, loop);
+    const pills = [
+      [CX, CY - RY, "train", "var(--model)", 90],
+      [CX + RX, CY, "score pool", "var(--model)", 118],
+      [CX, CY + RY, "select batch B", "var(--agent)", 150],
+      [CX - RX, CY, "label", "var(--human)", 84],
+    ];
+    pills.forEach(([x, y, t, c, w]) => {
+      el("rect", { x: x - w / 2, y: y - 16, width: w, height: 32, rx: 16, fill: "var(--surface-2)", stroke: c, "stroke-width": 2 }, loop);
+      el("text", { x, y: y + 5, "text-anchor": "middle", "font-size": 14, "font-weight": 700, fill: c }, loop).textContent = t;
+    });
+    for (let k = 0; k < 3; k++) loopDots.push(el("circle", { r: 6, fill: "var(--human)", opacity: 0 }, loop));
+    // boundary
+    let d = "";
+    for (let x = 130; x <= 640; x += 10) d += (x === 130 ? "M" : "L") + x + "," + bY(x).toFixed(1);
+    bnd = el("g", { opacity: 0 }, svg);
+    el("path", { d, fill: "none", stroke: "var(--ink-2)", "stroke-width": 2.5 }, bnd);
+    el("text", { x: 642, y: bY(640) - 10, "text-anchor": "end", "font-size": 13, fill: "var(--muted)" }, bnd).textContent = "decision boundary";
+    // points
+    for (let i = 0; i < 120; i++) {
+      const x = 140 + rnd(i, 1) * 490, y = 95 + rnd(i, 2) * 400;
+      pts.push({ i, x, y, d: y - bY(x) });
+    }
+    const seed = [...pts.filter((p) => p.d < -90).slice(0, 3), ...pts.filter((p) => p.d > 90).slice(0, 3)];
+    seed.forEach((p) => (p.seed = true));
+    // uncertainty: nearest-to-boundary points around one spot -> clump
+    const ax = 330, ay = bY(330);
+    unc = pts.filter((p) => !p.seed && Math.abs(p.d) < 45).sort((a, b) => Math.hypot(a.x - ax, a.y - ay) - Math.hypot(b.x - ax, b.y - ay)).slice(0, 10);
+    // diversity: greedy k-center over near-boundary candidates, seeded by labeled points
+    const cand = pts.filter((p) => !p.seed && Math.abs(p.d) < 60);
+    const chosen = [...seed];
+    div = [];
+    for (let k = 0; k < 10; k++) {
+      let best = null, bd = -1;
+      cand.forEach((c) => {
+        if (div.includes(c)) return;
+        const m = Math.min(...chosen.map((s) => Math.hypot(c.x - s.x, c.y - s.y)));
+        if (m > bd) { bd = m; best = c; }
+      });
+      div.push(best); chosen.push(best);
+    }
+    pts.forEach((p) => {
+      p.dot = el("circle", { cx: p.x, cy: p.y, r: 6, fill: "var(--faint)", opacity: 0.55 }, svg);
+    });
+    unc.forEach((p) => rings.u.push(el("circle", { cx: p.x, cy: p.y, r: 12, fill: "none", stroke: "var(--tool)", "stroke-width": 3, opacity: 0 }, svg)));
+    div.forEach((p) => rings.d.push(el("circle", { cx: p.x, cy: p.y, r: 12, fill: "none", stroke: "var(--human)", "stroke-width": 3, opacity: 0 }, svg)));
+    // legend + counter
+    const lg = el("g", {}, svg);
+    el("circle", { cx: 22, cy: 578, r: 6, fill: "var(--human)" }, lg); el("text", { x: 34, y: 583, "font-size": 13, fill: "var(--ink-2)" }, lg).textContent = "labeled";
+    el("circle", { cx: 112, cy: 578, r: 6, fill: "var(--faint)", opacity: 0.6 }, lg); el("text", { x: 124, y: 583, "font-size": 13, fill: "var(--ink-2)" }, lg).textContent = "unlabeled pool";
+    el("circle", { cx: 262, cy: 578, r: 8, fill: "none", stroke: "var(--tool)", "stroke-width": 2.5 }, lg); el("text", { x: 276, y: 583, "font-size": 13, fill: "var(--ink-2)" }, lg).textContent = "uncertainty pick";
+    el("circle", { cx: 432, cy: 578, r: 8, fill: "none", stroke: "var(--human)", "stroke-width": 2.5 }, lg); el("text", { x: 446, y: 583, "font-size": 13, fill: "var(--ink-2)" }, lg).textContent = "BADGE / core-set pick";
+    counter = el("text", { x: 762, y: 583, "text-anchor": "end", "font-size": 15, "font-weight": 700, fill: "var(--human)" }, svg);
+    counter.textContent = "labeled: 6";
+  }
+
+  function buildLF() {
+    lf.innerHTML = "";
+    const LFS = ["check_out", "short", "regex_url", "llm_prompt"];
+    // votes: 1 spam, 0 ham, -1 abstain (illustrative)
+    const V = [[1, -1, 1, 1], [-1, 0, -1, 0], [1, -1, -1, 1], [-1, 0, 1, -1], [-1, -1, -1, 0], [1, 0, 1, 1]];
+    const P = [0.94, 0.08, 0.81, 0.47, 0.22, 0.86];
+    const g = el("g", {}, lf);
+    LFS.forEach((n, j) => (el("text", { x: 70 + j * 52 + 22, y: 14, "text-anchor": "middle", "font-size": 9.5, fill: "var(--muted)" }, g).textContent = n));
+    const cells = [];
+    V.forEach((row, i) => {
+      el("text", { x: 4, y: 40 + i * 32, "font-size": 12, fill: "var(--muted)" }, g).textContent = "x" + (i + 1);
+      row.forEach((v, j) => {
+        const c = el("rect", { x: 70 + j * 52, y: 24 + i * 32, width: 44, height: 24, rx: 5, fill: v === 1 ? "var(--risk-soft)" : v === 0 ? "var(--state-soft)" : "var(--surface)", stroke: v === 1 ? "var(--risk)" : v === 0 ? "var(--state)" : "var(--line-2)", "stroke-width": 1.4, "stroke-dasharray": v === -1 ? "3 3" : "0" }, g);
+        const t = el("text", { x: 70 + j * 52 + 22, y: 24 + i * 32 + 16, "text-anchor": "middle", "font-size": 10.5, "font-weight": 700, fill: v === 1 ? "var(--risk)" : v === 0 ? "var(--state)" : "var(--faint)" }, g);
+        t.textContent = v === 1 ? "SPAM" : v === 0 ? "HAM" : "—";
+        cells.push(c, t);
+      });
+    });
+    const wires = [];
+    V.forEach((_, i) => wires.push(el("path", { d: `M282,${36 + i * 32} C312,${36 + i * 32} 316,116 340,116`, fill: "none", stroke: "var(--model)", "stroke-width": 1.6, opacity: 0 }, lf)));
+    const node = el("g", { opacity: 0 }, lf);
+    el("rect", { x: 340, y: 90, width: 112, height: 52, rx: 12, fill: "var(--model-soft)", stroke: "var(--model)", "stroke-width": 2 }, node);
+    el("text", { x: 396, y: 113, "text-anchor": "middle", "font-size": 13, "font-weight": 700, fill: "var(--model)" }, node).textContent = "LabelModel";
+    el("text", { x: 396, y: 130, "text-anchor": "middle", "font-size": 10, fill: "var(--muted)" }, node).textContent = "no ground truth";
+    const bars = [];
+    P.forEach((p, i) => {
+      el("rect", { x: 476, y: 26 + i * 32, width: 100, height: 20, rx: 4, fill: "var(--surface)", stroke: "var(--line)" }, lf);
+      const b = el("rect", { x: 476, y: 26 + i * 32, width: 0, height: 20, rx: 4, fill: "var(--risk)", opacity: 0.75 }, lf);
+      const t = el("text", { x: 582, y: 41 + i * 32, "text-anchor": "end", "font-size": 11, "font-weight": 700, fill: "var(--ink)", opacity: 0 }, lf);
+      t.textContent = p.toFixed(2);
+      bars.push({ b, t, w: p * 100 });
+    });
+    el("text", { x: 476, y: 14, "font-size": 9.5, fill: "var(--muted)" }, lf).textContent = "P(spam), illustrative";
+    lfParts = { cells, wires, node, bars };
+  }
+
+  function stopLoop() { loopTw.forEach((t) => t.kill()); loopTw = []; }
+  function startLoop() {
+    stopLoop();
+    const path = loop._path, L = path.getTotalLength();
+    loopDots.forEach((c, k) => {
+      const p = { t: k / 3 };
+      gsap.set(c, { attr: { opacity: 1 } });
+      loopTw.push(gsap.to(p, { t: k / 3 + 1, duration: 7, ease: "none", repeat: -1, onUpdate: () => { const q = path.getPointAtLength(((p.t % 1) * L)); c.setAttribute("cx", q.x); c.setAttribute("cy", q.y); } }));
+    });
+  }
+
+  function render(n, animate) {
+    if (tl) { tl.progress(1); tl.kill(); tl = null; }
+    const A = (t, v, pos) => { const { duration, ...rest } = v; if (animate) tl.to(t, { ...rest, duration: duration ?? 0.45 }, pos ?? 0); else gsap.set(t, rest); };
+    if (animate) tl = gsap.timeline();
+    A(bnd, { attr: { opacity: n >= 1 ? 1 : 0 }, duration: 0.6 }, 0);
+    pts.filter((p) => p.seed).forEach((p, k) => A(p.dot, { attr: { fill: n >= 1 ? "var(--human)" : "var(--faint)", opacity: n >= 1 ? 1 : 0.55, r: n >= 1 ? 7.5 : 6 } }, n === 1 ? 0.3 + k * 0.08 : 0));
+    rings.u.forEach((r, k) => A(r, { attr: { opacity: n === 2 ? 1 : n >= 3 ? 0.3 : 0, r: 12 } }, n === 2 ? k * 0.06 : 0));
+    rings.d.forEach((r, k) => A(r, { attr: { opacity: n >= 3 ? 1 : 0 } }, n === 3 ? 0.2 + k * 0.08 : 0));
+    div.forEach((p) => A(p.dot, { attr: { fill: n >= 4 ? "var(--human)" : "var(--faint)", opacity: n >= 4 ? 1 : 0.55, r: n >= 4 ? 7.5 : 6 } }, n === 4 ? 0.6 : 0));
+    A(loop, { attr: { opacity: n >= 4 ? 1 : 0 } }, 0);
+    if (n >= 4) startLoop(); else { stopLoop(); loopDots.forEach((c) => c.setAttribute("opacity", 0)); }
+    if (animate && n === 4) { const o = { v: 6 }; tl.to(o, { v: 16, duration: 1, ease: "none", onUpdate: () => (counter.textContent = "labeled: " + Math.round(o.v)) }, 0.6); }
+    else counter.textContent = "labeled: " + (n >= 4 ? 16 : n >= 1 ? 6 : 0);
+    if (lfParts) {
+      const on = n >= 5;
+      lfParts.cells.forEach((c, k) => A(c, { opacity: on ? 1 : 0, duration: 0.2 }, on && animate ? 0.2 + k * 0.012 : 0));
+      lfParts.wires.forEach((w, k) => A(w, { attr: { opacity: on ? 0.8 : 0 } }, on && animate ? 0.9 + k * 0.06 : 0));
+      A(lfParts.node, { attr: { opacity: on ? 1 : 0 } }, on && animate ? 1.2 : 0);
+      lfParts.bars.forEach((b, k) => { A(b.b, { attr: { width: on ? b.w : 0 }, duration: 0.7 }, on && animate ? 1.5 + k * 0.08 : 0); A(b.t, { attr: { opacity: on ? 1 : 0 } }, on && animate ? 1.9 + k * 0.08 : 0); });
+    }
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) {
+      svg = slide.querySelector("#c06al-svg"); lf = slide.querySelector("#c06al-lf");
+      build(); buildLF();
+      render(step, false);
+      if (step === 0) {
+        tl = gsap.timeline({ delay: 0.25 });
+        tl.from(pts.map((p) => p.dot), { attr: { r: 0 }, duration: 0.4, ease: "back.out(2)", stagger: 0.006 });
+      }
+    },
+    step(slide, n, animate) {
+      if (!pts.length || !svg || !slide.contains(svg)) return;
+      render(n, animate);
+    },
+    leave() {
+      if (tl) tl.kill(); tl = null;
+      stopLoop();
+      gsap.killTweensOf(pts.map((p) => p.dot));
+    },
+  });
+})();
+</script>

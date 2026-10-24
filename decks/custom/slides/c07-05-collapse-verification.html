@@ -1,0 +1,152 @@
+<section class="slide" id="custom-c07-collapse-verification" data-tone="state" data-title="Model collapse and verification">
+  <h2 class="title">Synthetic data collapses a model when it replaces real data, not when it is anchored and added</h2>
+  <svg class="interactive" id="c07mc-svg" viewBox="0 0 1392 250" width="1392" height="250" style="flex:none;overflow:visible" aria-label="Two histograms over generations 0 to 9. When synthetic data replaces real data, the tails disappear. When it accumulates next to real data, the tails stay."></svg>
+  <div class="grid g3 fill" style="gap:24px;margin-top:-8px">
+    <div class="stack" style="gap:12px">
+      <div class="panel tight k-risk" data-step="1" style="padding:12px 16px">
+        <p class="tiny" style="color:var(--ink-2)"><b class="c-risk">Replace:</b> training on model output causes “irreversible defects in the resulting models, where tails of the original content distribution disappear”.</p>
+        <div class="cites"><a class="cite paper" href="https://www.nature.com/articles/s41586-024-07566-y" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Shumailov et al., Nature 631, 2024</a></div>
+      </div>
+      <div class="panel tight k-state" data-step="3" style="padding:12px 16px">
+        <p class="tiny" style="color:var(--ink-2)"><b class="c-state">Accumulate:</b> “accumulating the successive generations of synthetic data alongside the original real data avoids model collapse”.</p>
+        <div class="cites"><a class="cite paper" href="https://arxiv.org/abs/2404.01413" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Is Model Collapse Inevitable?, 2024</a></div>
+      </div>
+    </div>
+    <div class="stack" style="gap:10px">
+      <h4 data-step="4">Did verification help?</h4>
+      <div class="panel tight k-model" data-step="4" style="padding:12px 16px">
+        <p class="tiny" style="color:var(--ink-2)"><b>SFT distillation from a strong teacher:</b> “none gave significant performance improvements” (OpenThoughts, about verification and answer filtering).</p>
+      </div>
+      <div class="panel tight k-state" data-step="4" style="padding:12px 16px">
+        <p class="tiny" style="color:var(--ink-2)"><b>RLVR rewards and code:</b> verification is essential. Tulu 3 puts it in the reward; Llama 3 kept only code that passed all checks.</p>
+      </div>
+      <p class="tiny" data-step="4">Anchored synthesis works: Phi-4 “substantially surpasses its teacher model on STEM-focused QA”.</p>
+      <div class="cites" data-step="4"><a class="cite paper" href="https://arxiv.org/abs/2412.08905" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Phi-4 Technical Report</a></div>
+    </div>
+    <div class="stack" style="gap:8px">
+      <h4 data-step="5">Mitigations for the quality card</h4>
+      <ul class="ticks small" data-step="5" data-fx="stagger" style="gap:8px">
+        <li>Keep a real-data anchor in every mix.</li>
+        <li>Flag provenance: <code>source=synthetic</code>.</li>
+        <li>Control diversity: personas, Magpie, temperature.</li>
+        <li>Dedup synthetic outputs against each other.</li>
+        <li>Track distinct-n and embedding spread.</li>
+        <li>Verify with programs, not self-judgment.</li>
+      </ul>
+      <p class="tiny" data-step="5"><b class="c-risk">Collapse by curation:</b> every lab filters for “educational-looking” text. That risks one narrow style and lost tails.</p>
+    </div>
+  </div>
+  <aside class="notes">
+    Step 1 shows generation 0: real data, with its rare tails shaded on both sides. Step 2 replaces the data with model output each generation: the model over-samples what is common and under-samples what is rare, so the tails go first and the peak gets narrow; in the Nature paper a prompt about medieval architecture became a list of jackrabbits by generation 9. Step 3 is the fix from Gerstgrasser and Schaeffer: keep the real data and add each synthetic generation next to it, and the error stays bounded. Step 4 is an open question for the room: OpenThoughts found that verification did not improve SFT distillation from a strong teacher, but RLVR and code need it, because a wrong reward or broken code teaches the wrong thing directly. Analogy: a photocopy of a photocopy loses detail; keep the original on the desk. Likely question: "So is synthetic data safe?" Yes when it is anchored, diverse, deduplicated and checked; Phi-4 and SmolLM3 (APO pairs with Qwen3-32B chosen and Qwen3-0.6B rejected) show that.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c07-collapse-verification";
+  const NB = 31, PW = 660, BASE = 214, H0 = 66;
+  const PANELS = [
+    { x0: 0, name: "Replace: each generation trains only on the last model's output", sig: (g) => Math.pow(0.85, g), tone: "risk" },
+    { x0: 732, name: "Accumulate: keep the real data, add each synthetic generation", sig: (g) => 1 - 0.006 * g, tone: "state" },
+  ];
+  const S = {};
+  const xs = (k) => -3 + (6 * k) / (NB - 1);
+  const bx = (p, k) => p.x0 + 24 + k * ((PW - 48) / (NB - 1));
+  const hgt = (x, s) => H0 * Math.exp(-(x * x) / (2 * s * s)) * Math.pow(1 / s, 0.6);
+  // tail mass P(|x| > 2) for a normal with std s (Abramowitz-Stegun erf)
+  function tail(s) {
+    const z = 2 / s / Math.SQRT2, t = 1 / (1 + 0.3275911 * z);
+    const erf = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-z * z);
+    return 1 - erf;
+  }
+
+  function mk(tag, at, parent, txt) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in at) e.setAttribute(k, at[k]);
+    if (txt != null) e.textContent = txt;
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  const mono = (size, w, fill, anchor) => ({ "font-family": "var(--f-mono)", "font-size": size, "font-weight": w || 500, fill: fill || "var(--muted)", "text-anchor": anchor || "start" });
+
+  function build(slide) {
+    if (S.slide === slide) return;
+    S.slide = slide;
+    const svg = slide.querySelector("#c07mc-svg");
+    svg.innerHTML = "";
+    const bw = (PW - 48) / (NB - 1) - 4;
+    S.p = PANELS.map((p) => {
+      const g = mk("g", {}, svg);
+      mk("rect", { x: p.x0, y: 0, width: PW, height: 250, rx: 16, fill: "var(--surface)", stroke: "var(--line)", "stroke-width": 1.5 }, g);
+      // tail zones
+      [[bx(p, 0) - 10, bx(p, 4) + 10], [bx(p, 26) - 10, bx(p, 30) + 10]].forEach(([a, b]) => mk("rect", { x: a, y: 42, width: b - a, height: BASE - 42, fill: "var(--risk-soft)" }, g));
+      mk("text", { x: bx(p, 2), y: 60, ...mono(12, 600, "var(--risk)", "middle") }, g, "rare tail");
+      mk("text", { x: bx(p, 28), y: 60, ...mono(12, 600, "var(--risk)", "middle") }, g, "rare tail");
+      mk("text", { x: p.x0 + 16, y: 26, ...mono(13, 700, `var(--${p.tone})`) }, g, p.name);
+      // real-data area (gen 0)
+      let d = `M${bx(p, 0)},${BASE}`;
+      for (let k = 0; k < NB; k++) d += ` L${bx(p, k)},${BASE - hgt(xs(k), 1)}`;
+      d += ` L${bx(p, NB - 1)},${BASE} Z`;
+      const real = mk("path", { d, fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 1.5, "stroke-dasharray": "5 5" }, g);
+      const bars = [];
+      for (let k = 0; k < NB; k++) bars.push(mk("rect", { x: bx(p, k) - bw / 2, y: BASE, width: bw, height: 0, rx: 2, fill: "var(--state)", opacity: 0.85 }, g));
+      mk("line", { x1: p.x0 + 16, y1: BASE, x2: p.x0 + PW - 16, y2: BASE, stroke: "var(--line-2)", "stroke-width": 2 }, g);
+      const gen = mk("text", { x: p.x0 + PW - 16, y: 30, "font-family": "var(--f-display)", "font-size": 24, "font-weight": 700, fill: "var(--ink)", "text-anchor": "end" }, g, "gen 0");
+      const tm = mk("text", { x: p.x0 + 16, y: 238, ...mono(13, 600, "var(--ink-2)") }, g, "");
+      const realLbl = mk("text", { x: p.x0 + PW - 16, y: 238, ...mono(13, 600, "var(--state)", "end") }, g, p.tone === "risk" ? "real data dropped after gen 0" : "real data kept under the curve");
+      return { p, g, bars, gen, tm, real, realLbl };
+    });
+    // jackrabbits pop
+    S.jack = mk("g", {}, svg);
+    mk("rect", { x: 420, y: 92, width: 226, height: 64, rx: 12, fill: "var(--surface-2)", stroke: "var(--risk)", "stroke-width": 2 }, S.jack);
+    mk("text", { x: 434, y: 116, ...mono(13, 600, "var(--ink-2)") }, S.jack, "gen 9: a prompt about");
+    mk("text", { x: 434, y: 136, ...mono(13, 600, "var(--ink-2)") }, S.jack, "medieval architecture →");
+    mk("text", { x: 434, y: 152, ...mono(13, 700, "var(--risk)") }, S.jack, "a list of jackrabbits");
+  }
+
+  function draw(u, g, show) {
+    const s = u.p.sig(g);
+    u.bars.forEach((b, k) => {
+      const h = show ? hgt(xs(k), s) : 0;
+      b.setAttribute("y", BASE - h);
+      b.setAttribute("height", h);
+      b.setAttribute("fill", g > 0.01 ? "var(--model)" : "var(--state)");
+    });
+    u.gen.textContent = "gen " + Math.floor(g + 1e-6);
+    u.tm.textContent = show ? `tail mass |x| > 2σ: ${(tail(s) * 100).toFixed(1)}%` : "";
+    if (u.p.tone === "risk") { u.real.setAttribute("opacity", g > 0.01 ? 0.25 : 1); u.realLbl.setAttribute("opacity", g > 0.01 ? 1 : 0); }
+    else u.realLbl.setAttribute("opacity", g > 0.01 ? 1 : 0);
+  }
+
+  function render(slide, n, animate) {
+    build(slide);
+    if (S.tl) S.tl.kill(); S.tl = null;
+    gsap.killTweensOf(S.jack);
+    const [R, A] = S.p;
+    const gR = n >= 2 ? 9 : 0, gA = n >= 3 ? 9 : 0;
+    gsap.set(S.jack, { autoAlpha: n >= 2 ? 1 : 0, scale: 1 });
+    if (!animate || n === 0 || n > 3) { draw(R, gR, n >= 1); draw(A, gA, n >= 1); return; }
+    const tl = (S.tl = gsap.timeline());
+    if (n === 1) {
+      const p = { f: 0 };
+      draw(R, 0, true); draw(A, 0, true);
+      const full = [R, A].map((u) => u.bars.map((b) => +b.getAttribute("height")));
+      [R, A].forEach((u) => u.bars.forEach((b) => { b.setAttribute("y", BASE); b.setAttribute("height", 0); }));
+      tl.to(p, { f: 1, duration: 1.1, ease: "power3.out", onUpdate: () => [R, A].forEach((u, j) => u.bars.forEach((b, k) => { const h = full[j][k] * p.f; b.setAttribute("y", BASE - h); b.setAttribute("height", h); })) });
+    } else {
+      const u = n === 2 ? R : A;
+      draw(R, n === 2 ? 0 : 9, true); draw(A, 0, true);
+      gsap.set(S.jack, { autoAlpha: n === 3 ? 1 : 0 });
+      const p = { g: 0 };
+      tl.to(p, { g: 9, duration: 3.6, ease: "none", onUpdate: () => draw(u, p.g, true) }, 0.2);
+      if (n === 2) tl.fromTo(S.jack, { autoAlpha: 0, scale: 0.6, transformOrigin: "50% 50%" }, { autoAlpha: 1, scale: 1, duration: 0.5, ease: "back.out(2)" });
+    }
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { if (!S.tl) render(slide, step, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { if (S.tl) S.tl.kill(); S.tl = null; if (S.jack) gsap.killTweensOf(S.jack); },
+  });
+})();
+</script>
