@@ -1,7 +1,9 @@
 // Build every deck in decks/<name>/ into docs/<name>/index.html (GitHub Pages serves /docs).
 // Usage: node build.mjs            -> all decks
 //        node build.mjs adk        -> one deck
-import { readFileSync, writeFileSync, readdirSync, mkdirSync, copyFileSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync as _write, renameSync, readdirSync, mkdirSync, copyFileSync, existsSync } from "node:fs";
+// atomic write: many agents build in parallel, so never let a reader see a half-written file
+const writeFileSync = (f, data) => { const t = `${f}.${process.pid}.tmp`; _write(t, data); renameSync(t, f); };
 import { join } from "node:path";
 
 const ROOT = new URL(".", import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1");

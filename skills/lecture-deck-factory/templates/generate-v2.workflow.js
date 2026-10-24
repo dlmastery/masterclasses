@@ -6,6 +6,8 @@ export const meta = {
     { title: 'Write', detail: 'one writer per 2 slides, all chapters in parallel' },
     { title: 'Stitch', detail: 'one editor per chapter makes the chunks one chapter' },
     { title: 'QA', detail: 'per chapter: build, qa.mjs, screenshot review, fix' },
+    { title: 'Panel', detail: 'zero-context designer + teacher + student judge every build step' },
+    { title: 'Fix', detail: 'context-aware fixer applies the panel notes; loop until all >= 8' },
     { title: 'Audit', detail: 'deck-level mix audit against the v2 rules' },
   ],
 }
@@ -89,10 +91,81 @@ Return a short list of changes.`, { label: `stitch:${deck}:c${pad(ch.num)}`, pha
 
 const qa = (deck, ch) => agent(`You are the QA + polish editor for chapter ${ch.num} "${ch.name}" of deck key ${deck}. Files: ${ROOT}/decks/${deck}/slides/c${pad(ch.num)}-*.html.
 1. ${READ}
-2. Run: \`cd ${ROOT} && node build.mjs ${deck} && node qa.mjs ${deck} ${deck}-c${pad(ch.num)}-\` (timeout ~5 min). It writes ${ROOT}/qa/${deck}/report.json and screenshots ${ROOT}/qa/${deck}/NN-<id>.png at each slide's final step. If qa.mjs fails or hangs, review the HTML by careful reading (say so in your reply).
+2. Run: \`cd ${ROOT} && node build.mjs ${deck} && node qa.mjs ${deck} ${deck}-c${pad(ch.num)}-\` (timeout ~5 min). It writes ${ROOT}/qa/${deck}/report-${deck}-c${pad(ch.num)}-.json and screenshots ${ROOT}/qa/${deck}/NN-<id>.png at each slide's final step. If qa.mjs fails or hangs, review the HTML by careful reading (say so in your reply).
 3. Read EVERY screenshot of this chapter and judge it like a top presentation designer and a senior engineer: overflow, overlaps, wires crossing nodes or labels, crowding, sparse slides, small diagrams, weak hierarchy, code that is incomplete or would not run, missing output pane, too much prose, long titles, missing animation.
-4. Fix every issue in this chapter's files only. Re-run build + qa and re-check screenshots. Up to 3 rounds until report.json shows no issues for this chapter.
+4. Fix every issue in this chapter's files only. Re-run build + qa and re-check screenshots. Up to 3 rounds until the chapter report shows no issues.
+5. Finally run \`cd ${ROOT} && node qa.mjs ${deck} ${deck}-c${pad(ch.num)}- --frames\` so every build step has a screenshot for the review panel.
 Return a summary of fixes and any remaining problems.`, { label: `qa:${deck}:c${pad(ch.num)}`, phase: 'QA', agentType: 'general-purpose' })
+
+// ---------- zero-context review panel (designer / teacher / student) ----------
+const PANEL = {
+  SCHEMA: {
+    type: 'object',
+    properties: {
+      slides: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            id: { type: 'string' },
+            score: { type: 'number' },
+            defects: { type: 'array', items: { type: 'object', properties: { where: { type: 'string' }, problem: { type: 'string' }, fix: { type: 'string' } }, required: ['problem', 'fix'] } },
+          },
+          required: ['id', 'score', 'defects'],
+        },
+      },
+      factual_errors: { type: 'array', items: { type: 'object', properties: { id: { type: 'string' }, claim: { type: 'string' }, evidence: { type: 'string' } }, required: ['id', 'claim', 'evidence'] } },
+      overall: { type: 'object', properties: { score: { type: 'number' }, top_fixes: { type: 'array', items: { type: 'string' } } }, required: ['score', 'top_fixes'] },
+    },
+    required: ['slides', 'overall'],
+  },
+
+  frames: (dir, prefix) => `The slides are PNG images in ${dir}. Only look at files whose name contains "${prefix}". For a slide "NN-<id>", the build steps in presentation order are NN-<id>-s0.png, NN-<id>-s1.png, ... and the final frame is NN-<id>.png. Open (Read) EVERY image, in order. The slides advance step by step when the presenter clicks; judge the sequence, not only the final frame.`,
+
+  designer: (dir, prefix) => `You are a world-class presentation designer (Apple keynote, Stripe, Linear, Vercel, 3Blue1Brown level). You know nothing about who made these slides or why. Judge only what you see.
+${PANEL.frames(dir, prefix)}
+For each slide give a score 1-10 (7 = a solid conference talk, 9 = the best talk of the year) for: visual hierarchy, use of space, legibility at the back of a room, diagram quality (crossing lines, cramped boxes, labels), the motion story (does each click reveal the next idea in a meaningful order, or are things just fading in?), and polish. Then the 3 most important concrete defects, each with where it is and an exact fix ("make the diagram 2x larger and move the code below it", "cut this paragraph to 12 words", "reveal the output only after the code focus reaches line 8").
+Be harsh and specific. No praise padding. Return structured output (id = the NN-<id> file stem).`,
+
+  teacher: (dir, prefix, notesFile) => `You are an experienced instructor. Tomorrow you must teach this chapter to working software engineers. You did not write it and know nothing about how it was made.
+${PANEL.frames(dir, prefix)}
+The speaker notes for each slide are in ${notesFile} (keyed by the same NN-<id> stem).
+Judge each slide: Could you teach from it? Is the order right, and is every term or prerequisite introduced before it is used? One idea per slide? Are the examples concrete and realistic? Would it create a misconception? Do the notes tell you what to say, with an analogy and the likely student question? Is it correct? Use WebFetch/WebSearch (load them via ToolSearch "select:WebFetch,WebSearch") to check any API name, parameter, version, number or claim you doubt; put each confirmed error in factual_errors with evidence (URL + what it says).
+Score 1-10 per slide for teachability and correctness. Give each defect with an exact fix. Return structured output (id = the NN-<id> file stem).`,
+
+  student: (dir, prefix) => `You are a student: a software engineer with two years of Python, new to this topic. You only see these slides, in order, the way they appear in the lecture.
+${PANEL.frames(dir, prefix)}
+For each slide, put into the defects list: where you got lost (the exact term, line of code or diagram part), what is missing for you to reproduce the code yourself next Monday (install command, version, env var, a file, a missing import, the expected output), and the question you would raise your hand to ask. Score 1-10 for "I learned something I can actually use".
+Then give the 5 changes that would most improve the chapter for you in overall.top_fixes. Be honest: say when a slide is boring, vague or too dense. Return structured output (id = the NN-<id> file stem).`,
+}
+
+const PASS = 8, ROUNDS = 2
+const panelReview = async (deck, ch) => {
+  const dir = `${ROOT}/qa/${deck}`, pre = `${deck}-c${pad(ch.num)}-`, notes = `${dir}/notes-${pre}.json`
+  let last = null
+  for (let r = 1; r <= ROUNDS; r++) {
+    const [d, t, s] = await parallel([
+      () => agent(PANEL.designer(dir, pre), { label: `designer:${deck}:c${pad(ch.num)}:r${r}`, phase: 'Panel', schema: PANEL.SCHEMA }),
+      () => agent(PANEL.teacher(dir, pre, notes), { label: `teacher:${deck}:c${pad(ch.num)}:r${r}`, phase: 'Panel', schema: PANEL.SCHEMA }),
+      () => agent(PANEL.student(dir, pre), { label: `student:${deck}:c${pad(ch.num)}:r${r}`, phase: 'Panel', schema: PANEL.SCHEMA }),
+    ])
+    const views = { designer: d, teacher: t, student: s }
+    const low = []
+    for (const [who, v] of Object.entries(views)) for (const sl of (v && v.slides) || []) if (sl.score < PASS) low.push(`${who}:${sl.id}=${sl.score}`)
+    const errs = (t && t.factual_errors) || []
+    last = { round: r, low, errors: errs.length, overall: Object.fromEntries(Object.entries(views).map(([k, v]) => [k, v && v.overall ? v.overall.score : null])) }
+    log(`${deck} c${pad(ch.num)} panel r${r}: ${low.length} low scores, ${errs.length} factual errors, overall ${JSON.stringify(last.overall)}`)
+    if (!low.length && !errs.length) break
+    await agent(`You fix chapter ${ch.num} "${ch.name}" of deck key ${deck} (files ${ROOT}/decks/${deck}/slides/c${pad(ch.num)}-*.html) after a zero-context review panel.
+1. ${READ}
+2. The panel saw only screenshots of each build step (the teacher also saw the speaker notes). Their verdicts (scores < ${PASS} must be fixed; factual errors must be fixed against the research files ${ch.research_files.join(', ')} or removed):
+${JSON.stringify(views)}
+3. Fix every defect that scored below ${PASS} and every factual error. Where judges disagree, prefer the student on clarity, the teacher on correctness and flow, the designer on layout and motion. Keep the v2 rules. Edit only this chapter's files.
+4. Run \`cd ${ROOT} && node build.mjs ${deck} && node qa.mjs ${deck} ${pre} --frames\` and make sure the chapter report shows no issues.
+Return a short list of the fixes.`, { label: `fix:${deck}:c${pad(ch.num)}:r${r}`, phase: 'Fix', agentType: 'general-purpose' })
+  }
+  return last
+}
 
 const chunks = (arr, n) => Array.from({ length: Math.ceil(arr.length / n) }, (_, i) => arr.slice(i * n, i * n + n))
 
@@ -105,7 +178,8 @@ const runDeck = (deck, outline) => {
       await parallel(chunks(ch.slides, PER).map((s, i) => () => writer(deck, ch, s, i + 1)))
       return stitcher(deck, ch)
     },
-    (st, ch) => qa(deck, ch))
+    (st, ch) => qa(deck, ch),
+    (q, ch) => panelReview(deck, ch))
 }
 
 phase('Outline')

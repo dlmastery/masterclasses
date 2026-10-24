@@ -121,3 +121,23 @@ The user rejected v1 (60 slides) as "too much theory, no actual examples", with 
 - **Generation v2:** `templates/generate-v2.workflow.js`. The deck architect and the interview architect run in parallel, then one writer per 2 slides, a stitcher per chapter, QA per chapter, and a final mix audit. Run one workflow per deck.
 - **PyPI is blocked by Avast HTTPS scanning** (certificate UnknownIssuer for uv and pip). Do not bypass it. Verify APIs against GitHub source through WebFetch instead. If local execution is needed, ask the user to allow PyPI in Avast.
 - Archive the old version before regenerating (`git tag`, then `git mv decks/<key>/slides archive/v1/<key>/`). Don't push `docs/` until the new deck passes QA, so the public site keeps showing the old version.
+
+## Zero-context review panel (user guidance, 2026-10-23)
+
+The user asked for "a good verifier with zero context, on taste" and "QA on content as well: teacher shoes, student shoes". Every chapter now goes through this after the normal QA:
+
+1. **Capture what the audience sees.** `node qa.mjs <key> <key>-cNN- --frames` saves one PNG per build step (`NN-<id>-sK.png`), the final frame (`NN-<id>.png`), `notes-<prefix>.json` (speaker notes) and `report-<prefix>.json` (one report per chapter, so parallel chapters don't overwrite each other).
+2. **Three judges in parallel, with ZERO context.** They get no AUTHORING rules, no outline, no research and no authorship. That way they judge the slides the way a real audience would, not against our own checklist. Prompts are in `templates/panel-prompts.js`.
+   - **Designer (taste):** world-class presentation designer. Scores hierarchy, space, legibility, diagram quality, the motion story across the build frames, and polish. Gives exact fixes.
+   - **Teacher:** must teach the chapter tomorrow. Sees the frames and the speaker notes. Checks flow, that prerequisites come before use, one idea per slide, concrete examples, misconceptions and usable notes. Fact-checks doubtful claims on the web and lists `factual_errors` with evidence.
+   - **Student:** engineer with 2 years of Python, new to the topic. Says where they got lost, what is missing to reproduce the code next Monday (install, version, env var, file, output), and the question they would ask.
+3. **Fix with context.** A separate fixer (which does read AUTHORING.md and the research) applies every defect scored below **8/10** and every factual error. On disagreements, the student wins on clarity, the teacher on correctness and flow, the designer on layout and motion. It re-shoots the frames.
+4. **Loop:** the panel judges again, up to 2 rounds, until no slide is below 8 and there are no factual errors. Remaining low scores are logged, never dropped silently.
+
+Wired into `templates/generate-v2.workflow.js` as the `Panel` and `Fix` phases, pipelined per chapter: a chapter enters the panel as soon as its own QA is done.
+
+**Rules of thumb:**
+- Never give a judge the rules it is checking against. Zero context is what makes it a real verifier.
+- Judges see every build step, not only the final frame. Motion is part of the quality.
+- Keep judging and fixing in separate agents. A judge that also fixes stops being critical.
+- Score scale: 7 = a solid conference talk, 9 = the best talk of the year. The pass mark is 8.

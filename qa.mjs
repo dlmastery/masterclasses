@@ -8,8 +8,10 @@ import { join } from "node:path";
 import { homedir } from "node:os";
 import { spawn } from "node:child_process";
 
-const deckName = process.argv[2];
-const only = process.argv[3] || "";
+const argv = process.argv.slice(2).filter((a) => !a.startsWith("--"));
+const FRAMES = process.argv.includes("--frames"); // also save one PNG per build step: NN-<id>-sK.png
+const deckName = argv[0];
+const only = argv[1] || "";
 if (!deckName) { console.error("usage: node qa.mjs <deck> [idPrefix]"); process.exit(1); }
 const ROOT = new URL(".", import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1");
 const OUT = join(ROOT, "qa", deckName);
@@ -102,15 +104,26 @@ for (let i = 0; i < n; i++) {
     if (!s.dataset.tone) out.push({ type: "no-tone" });
     const steps = s._max || 0;
     const hasHook = !!s.querySelector("[data-fx], .diagram, [data-to], pre[data-focus], svg");
-    return { id: s.id, steps, hasHook, title: (s.querySelector(".title, .display")?.textContent || "").trim().slice(0, 90), issues: out };
+    return { id: s.id, notes: (s.querySelector(".notes")?.textContent || "").trim(), steps, hasHook, title: (s.querySelector(".title, .display")?.textContent || "").trim().slice(0, 90), issues: out };
   }, i);
   await page.screenshot({ path: join(OUT, `${String(i + 1).padStart(2, "0")}-${id}.png` ) });
+  if (FRAMES) {
+    const max = await page.evaluate((i) => Deck.slides[i]._max || 0, i);
+    for (let k = 0; k < max; k++) {
+      await page.evaluate(([i, k]) => Deck.go(i, k, -1), [i, k]);
+      await page.waitForTimeout(220);
+      await page.screenshot({ path: join(OUT, `${String(i + 1).padStart(2, "0")}-${id}-s${k}.png`) });
+    }
+  }
+  report.notes = report.notes || {}; report.notes[`${String(i + 1).padStart(2, "0")}-${id}`] = { title: res.title, notes: res.notes, steps: res.steps };
+  delete res.notes;
   if (res.issues.length) report.issues.push(res);
   if (!res.steps && !res.hasHook) report.issues.push({ id: res.id, issues: [{ type: "static-slide", note: "no steps and no animated diagram/numbers/code" }] });
   process.stdout.write(`${i + 1}/${n} ${id} ${res.issues.length ? "ISSUES " + res.issues.length : "ok"}\n`);
 }
 report.consoleErrors = consoleErrors;
-writeFileSync(join(OUT, "report.json"), JSON.stringify(report, null, 2));
-console.log(`\n${report.issues.length} slides with issues, ${consoleErrors.length} console errors -> ${join(OUT, "report.json")}`);
+writeFileSync(join(OUT, only ? `report-${only}.json` : "report.json"), JSON.stringify({ ...report, notes: undefined }, null, 2));
+writeFileSync(join(OUT, only ? `notes-${only}.json` : "notes.json"), JSON.stringify(report.notes || {}, null, 2));
+console.log(`\n${report.issues.length} slides with issues, ${consoleErrors.length} console errors -> ${join(OUT, only ? `report-${only}.json` : "report.json")}`);
 await browser.close();
 srv.kill();
