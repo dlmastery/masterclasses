@@ -1,0 +1,124 @@
+<section class="slide" id="adk-c03-gotcha" data-tone="risk" data-title="Gotcha: an unmatched route">
+  <style>
+    #adk-c03-gotcha .g7-main { display: grid; grid-template-columns: 760px 1fr; gap: 40px; align-items: start; }
+    #adk-c03-gotcha .g7-right { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+    #adk-c03-gotcha .g7-fig { border: 1px solid var(--line); border-radius: 16px; background: var(--surface); padding: 14px 14px 10px; }
+    #adk-c03-gotcha .g7-fig svg { display: block; width: 100%; height: auto; overflow: visible; }
+    #adk-c03-gotcha svg text { font-family: var(--f-mono); }
+    #adk-c03-gotcha .g7-nt { fill: var(--ink); font-size: 20px; font-weight: 700; }
+    #adk-c03-gotcha .g7-wire { fill: none; stroke: var(--line-2); stroke-width: 2.5; }
+    #adk-c03-gotcha .g7-key rect { fill: var(--surface-2); stroke: var(--line-2); stroke-width: 1.5; }
+    #adk-c03-gotcha .g7-key text { fill: var(--ink-2); font-size: 17px; font-weight: 700; }
+    #adk-c03-gotcha .g7-key.miss rect { stroke: var(--risk); fill: var(--risk-soft); }
+    #adk-c03-gotcha .g7-key.miss text { fill: var(--risk); }
+    #adk-c03-gotcha .g7-x { fill: var(--risk); font-size: 22px; font-weight: 800; }
+    #adk-c03-gotcha .g7-tok circle { fill: var(--agent); }
+    #adk-c03-gotcha .g7-tok text { fill: var(--agent); font-size: 19px; font-weight: 700; paint-order: stroke; stroke: var(--surface); stroke-width: 6px; stroke-linejoin: round; }
+    #adk-c03-gotcha .g7-tok .cap { fill: var(--risk); }
+    #adk-c03-gotcha .g7-log { font: 500 17px/1.45 var(--f-mono); color: var(--ink-2); min-height: 104px; padding: 10px 6px 4px; border-top: 1px dashed var(--line-2); margin-top: 8px; }
+    #adk-c03-gotcha .g7-log b { color: var(--tool); font-weight: 700; }
+    #adk-c03-gotcha .cap2 { display: grid; }
+    #adk-c03-gotcha .cap2 > * { grid-area: 1 / 1; font-size: 23px; line-height: 1.4; color: var(--ink-2); }
+    #adk-c03-gotcha .cap2 code { font-size: .82em; }
+    #adk-c03-gotcha, #adk-c03-gotcha * { font-variant-ligatures: none !important; }
+    #adk-c03-gotcha .out pre.code .dim { color: #a3abd6; opacity: 1; }
+    #adk-c03-gotcha .cites .cite { display: inline-flex; flex-direction: row; align-items: center; gap: 10px; white-space: nowrap; padding: 6px 12px 6px 10px; border-radius: 10px; }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> Graph routing · 1 of 2</div>
+  <h2 class="title">An unmatched route fails silently: one log line and no error</h2>
+  <div class="g7-main fill">
+    <div class="code-wrap bad">
+      <div class="code-head">ticket_triage_freetext/agent.py · excerpt</div>
+      <pre class="code" data-lang="python" data-focus="1:2, 2:6-7, 3:11-12"><code>class Triage(BaseModel):
+  labels: list[str]          # free text: "Billing" is legal
+  priority: str
+
+def route_ticket(node_input: Triage):
+  yield Event(output=node_input.model_dump(),
+              route=list(node_input.labels))
+
+# intake, classify, billing, page_oncall, how_to: Lab 3.3
+root_agent = Workflow(name="ticket_triage", edges=[
+    ("START", intake, classify, route_ticket),
+    (route_ticket, {"billing": billing, "outage": page_oncall,
+                    "how_to": how_to}),
+])</code></pre>
+    </div>
+    <div class="g7-right">
+      <div class="g7-fig">
+        <svg id="g7-svg" viewBox="0 0 620 250" aria-label="The route token 'Billing' tries the billing, outage and how_to keys and matches none. No branch runs; one warning line is logged.">
+          <path class="g7-wire" d="M184 125 L236 125"/>
+          <path class="g7-wire" id="g7-w1" d="M240 125 C 320 125, 330 36, 424 36"/>
+          <path class="g7-wire" id="g7-w2" d="M240 125 C 320 125, 330 125, 424 125"/>
+          <path class="g7-wire" id="g7-w3" d="M240 125 C 320 125, 330 214, 424 214"/>
+          <circle cx="240" cy="125" r="5" style="fill:var(--line-2)"/>
+          <rect x="2" y="97" width="182" height="56" rx="12" style="fill:var(--tool-soft);stroke:var(--tool);stroke-width:2"/>
+          <text class="g7-nt" x="93" y="132" text-anchor="middle">route_ticket</text>
+          <g><rect x="424" y="12" width="192" height="48" rx="12" style="fill:var(--agent-soft);stroke:var(--agent);stroke-width:2"/><text class="g7-nt" x="520" y="43" text-anchor="middle">billing</text></g>
+          <g><rect x="424" y="101" width="192" height="48" rx="12" style="fill:var(--tool-soft);stroke:var(--tool);stroke-width:2"/><text class="g7-nt" x="520" y="132" text-anchor="middle">page_oncall</text></g>
+          <g><rect x="424" y="190" width="192" height="48" rx="12" style="fill:var(--agent-soft);stroke:var(--agent);stroke-width:2"/><text class="g7-nt" x="520" y="221" text-anchor="middle">how_to</text></g>
+          <g class="g7-key" id="g7-k1"><rect x="326" y="20" width="92" height="30" rx="7"/><text x="372" y="41" text-anchor="middle">billing</text></g>
+          <g class="g7-key" id="g7-k2"><rect x="326" y="110" width="92" height="30" rx="7"/><text x="372" y="131" text-anchor="middle">outage</text></g>
+          <g class="g7-key" id="g7-k3"><rect x="326" y="199" width="92" height="30" rx="7"/><text x="372" y="220" text-anchor="middle">how_to</text></g>
+          <text class="g7-x" id="g7-x1" x="300" y="44" opacity="0">✕</text>
+          <text class="g7-x" id="g7-x2" x="300" y="133" opacity="0">✕</text>
+          <text class="g7-x" id="g7-x3" x="300" y="222" opacity="0">✕</text>
+          <g class="g7-tok" id="g7-tok" opacity="0"><circle cx="0" cy="0" r="10"/>
+            <text x="-8" y="-18">route=['<tspan class="cap">B</tspan>illing']</text></g>
+        </svg>
+        <div class="g7-log" id="g7-log"></div>
+      </div>
+      <div class="cap2">
+        <p data-until="1">The model wrote <code>"Billing"</code> with a capital B.</p>
+        <p data-step="1" data-until="2">The route tries each key. None matches.</p>
+        <p data-step="2" data-until="3">No branch runs. Nothing raises. One WARNING line.</p>
+        <p data-step="3">The engine treats an unmatched route as a legal end of a branch.</p>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Workflow graphs can fail without a sound. The code is the free-text variant in labs/adk/c03-ticket-triage/ticket_triage_freetext: labels is a plain list of strings, so the model may write "Billing" with a capital B. Step 1: route_ticket emits route=['Billing']. The token tries each key, billing, outage and how_to, and matches none. Step 2: nothing raises. The branch ends and you get one WARNING log line: "Node 'route_ticket' has conditional/DEFAULT edges but none were matched by the emitted route(s): ['Billing']. The branch will end." Step 3: this is by design: the engine treats an unmatched route as a legal end of a branch, so the fallback must be explicit. Analogy: an unmatched route is a letter with a wrong address that nobody returns. A likely question is "Why does the engine not raise?": a branch that ends is a normal thing in a graph, so it cannot tell your typo from your intent. Next slide: the two-part fix.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c03-gotcha";
+  const LOG = "WARNING Node 'route_ticket' has conditional/DEFAULT edges but none were matched by the emitted route(s): ['Billing']. The branch will end.";
+  let tl = null;
+  const clamp = (x) => Math.max(0, Math.min(1, x));
+  const q = (s, id) => s.querySelector("#" + id);
+  const at = (s, id, f) => { const p = q(s, id); const L = p.getTotalLength(); const pt = p.getPointAtLength(L * clamp(f)); return [pt.x, pt.y]; };
+  function tokAt(s, x, y, op) { const t = q(s, "g7-tok"); t.setAttribute("transform", `translate(${x},${y})`); t.setAttribute("opacity", op); }
+  // a in [0,1]: the token tries the three keys in turn and misses each
+  function tries(s, a) {
+    const ws = ["g7-w1", "g7-w2", "g7-w3"];
+    const seg = a * 3, k = Math.min(2, Math.floor(seg)), f = seg - k;
+    const reach = 0.55;
+    const pos = f < 0.5 ? (f / 0.5) * reach : reach - ((f - 0.5) / 0.5) * reach;
+    const [x, y] = a >= 1 ? [240, 125] : at(s, ws[k], pos);
+    tokAt(s, x, y, a >= 1 ? 0 : 1);
+    [1, 2, 3].forEach((i) => {
+      const hit = a >= 1 || k > i - 1 || (k === i - 1 && f >= 0.5);
+      q(s, "g7-k" + i).classList.toggle("miss", hit);
+      q(s, "g7-x" + i).setAttribute("opacity", hit ? 1 : 0);
+    });
+  }
+  function log(s, f) {
+    const txt = LOG.slice(0, Math.round(LOG.length * clamp(f)));
+    q(s, "g7-log").innerHTML = txt.startsWith("WARNING") ? "<b>WARNING</b>" + txt.slice(7) : txt;
+  }
+  function stop() { if (tl) { tl.kill(); tl = null; } }
+  function build(s, n, animate) {
+    stop();
+    tries(s, n >= 1 ? 1 : 0); if (n < 1) tokAt(s, 240, 125, 0);
+    log(s, n >= 2 ? 1 : 0);
+    if (!animate) return;
+    const o = { t: 0 };
+    if (n === 1) { tries(s, 0); tl = gsap.timeline({ delay: 0.3 }).to(o, { t: 1, duration: 3.2, ease: "none", onUpdate: () => tries(s, o.t) }); }
+    else if (n === 2) { log(s, 0); tl = gsap.timeline({ delay: 0.2 }).to(o, { t: 1, duration: 1.6, ease: "none", onUpdate: () => log(s, o.t) }); }
+  }
+  Deck.register(ID, {
+    enter(slide, n) { build(slide, n || 0, false); },
+    step(slide, n, animate) { build(slide, n, animate); },
+    leave() { stop(); }
+  });
+})();
+</script>

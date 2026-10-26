@@ -1,0 +1,112 @@
+<section class="slide tight" id="adk-c05-gotcha-hitl-id" data-tone="risk" data-title="Gotcha: the gate asks forever">
+  <style>
+    #adk-c05-gotcha-hitl-id pre.code, #adk-c05-gotcha-hitl-id code { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #adk-c05-gotcha-hitl-id .gg-body { display: grid; grid-template-columns: 640px minmax(0, 1fr); gap: 40px; align-items: start; }
+    #adk-c05-gotcha-hitl-id .gg-left { display: flex; flex-direction: column; gap: 26px; min-width: 0; }
+    #adk-c05-gotcha-hitl-id .gotcha { font-size: 20px; line-height: 1.4; padding: 20px 24px; gap: 10px 16px; }
+    #adk-c05-gotcha-hitl-id .gotcha > b { font-size: 15px; }
+    #adk-c05-gotcha-hitl-id .gotcha code { font-size: 18px; }
+    #adk-c05-gotcha-hitl-id #gh-svg { display: block; overflow: visible; margin-top: 10px; }
+    #adk-c05-gotcha-hitl-id svg text { font-family: var(--f-mono); }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> Human-in-the-loop · 1 of 3</div>
+  <h2 class="title">A uuid4 interrupt id changes on every rerun, so the gate asks forever</h2>
+  <div class="gg-body fill">
+    <div class="gg-left">
+      <div class="gotcha">
+        <b>Symptom</b><span>The manager answers. The node asks again.</span>
+        <b class="why" data-step="1">Cause</b><span data-step="1">A new id on each rerun. The lookup never matches.</span>
+        <b class="fix" data-step="2">Fix</b><span data-step="2">Build the id from <code>invocation_id</code> + <code>run_id</code>.</span>
+      </div>
+      <div class="code-wrap good" data-step="3">
+        <div class="code-head">refund_approval/agent.py · manager_gate</div>
+        <pre class="code" data-lang="python"><code># not: iid = str(uuid4())
+iid = f"refund_approval_{ctx.invocation_id}_{ctx.run_id}"
+answer = ctx.resume_inputs.get(iid)   # found on the rerun</code></pre>
+      </div>
+    </div>
+    <svg id="gh-svg" viewBox="0 0 712 400" width="712" height="400" aria-label="Top row: a uuid4 id changes on each rerun and the lookup misses, so the manager is asked again and again. Bottom row: a deterministic id stays fixed and the lookup hits on the first rerun"></svg>
+  </div>
+  <aside class="notes">The first HITL bug hits the Acme refund gate after the lab works on your laptop. A rerun_on_resume node runs again after every reply, so its interrupt id must be the same on every rerun. With uuid4 the id changes each time: the answer is stored under the old id, resume_inputs.get looks under the new one, misses, and the node asks the manager again. The animation counts it: the top row asks again and again, the bottom row asks once and hits. The fix is the lab's own line: build the id from invocation_id and run_id, which stay the same on a resume and change only on a new revise pass. Think of the interrupt id as a cloakroom ticket: if you print a new ticket every time you come back, you never get your coat. A likely question: "Why not reuse one fixed string?" Reuse is supported, but the RequestInput docstring still recommends unique ids per loop pass, which the revise loop needs.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c05-gotcha-hitl-id";
+  const NS = "http://www.w3.org/2000/svg";
+  const A_IDS = ["3f2a…", "9c7e…", "b41d…"];
+  const X0 = 400, X1 = 470;
+  let tw = null, R = null;
+  const clamp = (x) => Math.max(0, Math.min(1, x));
+  function mk(tag, attrs, parent) {
+    const e = document.createElementNS(NS, tag);
+    for (const [a, v] of Object.entries(attrs)) e.setAttribute(a, v);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function txt(parent, x, y, s, attrs) { const t = mk("text", Object.assign({ x, y, "font-size": 17, fill: "var(--ink)" }, attrs || {}), parent); t.textContent = s; return t; }
+  function build(svg) {
+    svg.innerHTML = "";
+    const defs = mk("defs", {}, svg);
+    [["gh-ar-r", "var(--risk)"], ["gh-ar-g", "var(--state)"]].forEach(([id, c]) => {
+      const m = mk("marker", { id, viewBox: "0 0 10 10", refX: 8, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto" }, defs);
+      mk("path", { d: "M0 0 L10 5 L0 10 z", fill: c }, m);
+    });
+    R = {};
+    const row = (y, label1, label2, tone, chipText, boxText, arrowId) => {
+      const o = {};
+      txt(svg, 0, y + 6, label1, { "font-size": 20, "font-weight": 700, fill: `var(--${tone})` });
+      if (label2) txt(svg, 0, y + 32, label2, { "font-size": 20, "font-weight": 700, fill: `var(--${tone})` });
+      o.cnt = txt(svg, 0, y + 70, "asked 1×", { "font-size": 19, "font-weight": 700, fill: "var(--muted)" });
+      o.chip = mk("rect", { x: 180, y: y - 26, width: 216, height: 60, rx: 12, fill: "var(--human-soft)", stroke: "var(--human)", "stroke-width": 2.5 }, svg);
+      o.ct = txt(svg, 288, y + 11, chipText, { "font-size": 19, "font-weight": 700, "text-anchor": "middle" });
+      o.line = mk("line", { x1: X0, y1: y + 4, x2: X0, y2: y + 4, stroke: `var(--${tone})`, "stroke-width": 3.5, "marker-end": `url(#${arrowId})` }, svg);
+      o.mark = txt(svg, 436, y - 40, tone === "risk" ? "✕ miss" : "✓ hit", { "font-size": 19, "font-weight": 700, "text-anchor": "middle", fill: `var(--${tone})` });
+      o.box = mk("rect", { x: 478, y: y - 26, width: 234, height: 60, rx: 12, fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 2.5 }, svg);
+      o.bt = txt(svg, 595, y + 10, boxText, { "font-size": 17, "text-anchor": "middle" });
+      return o;
+    };
+    R.a = row(80, "uuid4()", null, "risk", "id=3f2a…", "answer under 3f2a…", "gh-ar-r");
+    mk("line", { x1: 0, y1: 200, x2: 712, y2: 200, stroke: "var(--line)", "stroke-width": 1.2, "stroke-dasharray": "4 4" }, svg);
+    R.b = row(286, "invocation_id", "+ run_id", "state", "…_e7…_1", "answer under …_1", "gh-ar-g");
+  }
+  // p in [0,1]: phase 0 = first ask (answer stored), phases 1-2 = reruns that look the answer up
+  function render(p) {
+    const ph = p >= 1 ? 2 : Math.floor(p * 3);
+    const u = p >= 1 ? 1 : p * 3 - ph;
+    const stored = ph >= 1 || u > 0.45;
+    const a = R.a, b = R.b;
+    a.ct.textContent = "id=" + A_IDS[ph];
+    a.chip.setAttribute("stroke", ph >= 1 ? "var(--risk)" : "var(--human)");
+    a.chip.setAttribute("stroke-width", ph >= 1 && u < 0.2 ? "4.5" : "2.5");
+    const arr = ph >= 1 ? clamp((u - 0.2) / 0.4) : 0;
+    a.line.setAttribute("x2", String(X0 + (X1 - X0) * arr));
+    a.line.setAttribute("opacity", arr > 0 ? "1" : "0");
+    a.mark.setAttribute("opacity", ph >= 1 && u > 0.6 ? "1" : "0");
+    const askedA = 1 + (ph >= 1 ? (ph - 1) + (u > 0.6 ? 1 : 0) : 0);
+    a.cnt.textContent = "asked " + askedA + "×";
+    a.cnt.setAttribute("fill", askedA > 1 ? "var(--risk)" : "var(--muted)");
+    [a.box, b.box].forEach((e) => e.setAttribute("opacity", stored ? "1" : "0.25"));
+    [a.bt, b.bt].forEach((e) => e.setAttribute("opacity", stored ? "1" : "0"));
+    const arrB = ph >= 1 ? (ph >= 2 ? 1 : clamp((u - 0.2) / 0.4)) : 0;
+    b.line.setAttribute("x2", String(X0 + (X1 - X0) * arrB));
+    b.line.setAttribute("opacity", arrB > 0 ? "1" : "0");
+    b.mark.setAttribute("opacity", ph >= 2 || (ph === 1 && u > 0.6) ? "1" : "0");
+  }
+  function stop() { if (tw) tw.kill(); tw = null; }
+  function show(slide, n, animate) {
+    const svg = slide.querySelector("#gh-svg");
+    if (!svg) return;
+    if (!svg.childElementCount) build(svg);
+    stop();
+    const st = { p: n >= 1 ? 1 : 0 };
+    if (animate && n === 1) st.p = 0;
+    render(st.p);
+    if (animate && n === 1) tw = gsap.to(st, { p: 1, duration: 4.2, ease: "none", delay: 0.4, onUpdate: () => render(st.p) });
+  }
+  Deck.register(ID, {
+    enter(slide, n) { show(slide, n || 0, false); },
+    step(slide, n, animate) { show(slide, n, animate); },
+    leave() { stop(); },
+  });
+})();
+</script>

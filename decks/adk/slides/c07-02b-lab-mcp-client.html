@@ -1,0 +1,57 @@
+<section class="slide tight" id="adk-c07-lab-mcp-client" data-tone="agent" data-title="Lab 7.1b: MCP client">
+  <style>
+    #adk-c07-lab-mcp-client .mc-grid { display: grid; grid-template-columns: 800px 1fr; gap: 36px; align-items: start; }
+    #adk-c07-lab-mcp-client .mc-col { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+    #adk-c07-lab-mcp-client pre.code .dim { opacity: .95; color: #9aa3cf; }
+    #adk-c07-lab-mcp-client .mc-cap { position: relative; height: 64px; }
+    #adk-c07-lab-mcp-client .mc-cap > p { position: absolute; inset: 0 0 auto 0; font-size: 21px; line-height: 1.4; }
+    #adk-c07-lab-mcp-client .node .nt { font-size: 20px; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 7</span> Acme refund team · step 1 of 6 · client</div>
+  <h2 class="title">Any MCP host can call the refund agent through McpToolset</h2>
+  <div class="lab-head">
+    <span class="run">adk run consumer</span>
+    <span>terminal 3 · terminal 1 keeps the server on :8090</span>
+  </div>
+  <div class="mc-grid fill">
+    <div class="mc-col">
+      <div class="code-wrap">
+        <div class="code-head">labs/adk/lab7-acme-refunds/consumer/agent.py</div>
+        <pre class="code" data-lang="python" data-focus="1:9-10, 2:11, 3:12"><code>from google.adk.agents import LlmAgent
+from google.adk.tools.mcp_tool import (
+    McpToolset, StreamableHTTPConnectionParams)
+
+root_agent = LlmAgent(
+    name="cs_frontline", model="gemini-3.5-flash",
+    instruction="For any refund question call the refund_agent tool.",
+    tools=[McpToolset(
+        connection_params=StreamableHTTPConnectionParams(
+            url="http://127.0.0.1:8090/mcp",
+            sse_read_timeout=120.0),   # the whole run is one call
+        tool_filter=["refund_agent"])],  # tool name = agent name
+)</code></pre>
+      </div>
+      <div class="mc-cap">
+        <p data-step="1" data-until="2">The client connects to the server's <code>/mcp</code> URL.</p>
+        <p data-step="2" data-until="3">The remote agent run is one <code>call_tool</code>. Raise the read timeout.</p>
+        <p data-step="3">The filter keeps one tool. Its name is the agent's name.</p>
+      </div>
+    </div>
+    <div class="mc-col">
+      <div class="diagram" style="width:556px;height:336px" data-wires="u>fr:bt [question]; fr>mcp@1:flow:bt{tool} [call_tool]">
+        <div class="node n-human pill" id="u" style="left:178px;top:0;width:200px"><span class="nt">User</span></div>
+        <div class="node n-agent" id="fr" style="left:128px;top:108px;width:300px"><span class="nt">cs_frontline</span><span class="ns">LlmAgent · McpToolset</span></div>
+        <div class="node n-tool" id="mcp" style="left:128px;top:252px;width:300px" data-step="1" data-fx="pop"><span class="nt">refund_agent</span><span class="ns">MCP tool · :8090/mcp</span></div>
+      </div>
+      <div class="code-wrap out" data-step="3">
+        <div class="code-head">output · illustrative</div>
+        <pre class="code sm" data-lang="out"><code><span class="dim">[user]:</span> Can order A-200 be refunded?
+<span class="dim">[cs_frontline]:</span> call <span class="ok">refund_agent</span>
+  {"request": "Can order A-200 be refunded?"}
+<span class="dim">-&gt;</span> <span class="ok">"NOT_REFUNDABLE: electronics have a
+    14-day window; A-200 is 45 days old."</span></code></pre>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Now the other side of step 1: an Acme front-line agent consumes the refund agent as an MCP tool. Run adk run consumer in terminal 3 while terminal 1 keeps the MCP server on port 8090. McpToolset connects with StreamableHTTPConnectionParams to the /mcp URL. The whole remote agent run, with its own model calls and its lookup_order call, happens inside one call_tool, so raise sse_read_timeout to 120 seconds or the client gives up first. tool_filter keeps only the refund_agent tool; the tool name is the agent's name. The consumer's model sends one request string, and the reply text comes back as the tool result. Think of a vending machine again: the consumer presses one button and waits for the product. A likely question: "Can Claude Desktop or another MCP host call it?" Yes, any MCP host that speaks streamable HTTP can; the consumer agent is just one example.</aside>
+</section>

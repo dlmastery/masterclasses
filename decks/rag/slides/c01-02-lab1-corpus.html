@@ -1,0 +1,215 @@
+<section class="slide tight" id="rag-c01-lab1-corpus" data-tone="human" data-title="Lab 1: corpus and labelled queries">
+  <style>
+    #rag-c01-lab1-corpus .kb-grid { display: grid; grid-template-columns: 812px 1fr; gap: 24px; align-items: start; }
+    #rag-c01-lab1-corpus .lab-head { gap: 12px; }
+    #rag-c01-lab1-corpus .lab-head .run { font-size: 13.5px; }
+    #rag-c01-lab1-corpus .lab-head .tiny { font-size: 15px; }
+    #rag-c01-lab1-corpus .code-wrap .code-head { padding: 7px 14px; font-size: 14px; }
+    #rag-c01-lab1-corpus pre.code.kb-c { font-size: 11.5px; line-height: 1.38; padding: 10px 16px 12px; }
+    #rag-c01-lab1-corpus pre.code.kb-o { font-size: 12px; line-height: 1.4; padding: 8px 16px 10px; }
+    #rag-c01-lab1-corpus .kb-right { gap: 12px; }
+    #rag-c01-lab1-corpus .kb-svg { display: block; overflow: visible; }
+    #rag-c01-lab1-corpus .kb-svg text { font-family: var(--f-mono); }
+    #rag-c01-lab1-corpus .kb-svg .dh { font-size: 13px; font-weight: 700; }
+    #rag-c01-lab1-corpus .kb-svg .cid { font-size: 11.5px; font-weight: 700; fill: var(--ink); }
+    #rag-c01-lab1-corpus .kb-svg .cg { font-size: 11px; fill: var(--ink-2); }
+    #rag-c01-lab1-corpus .kb-svg .qp { font-size: 12px; font-weight: 600; fill: var(--ink); }
+    #rag-c01-lab1-corpus .kb-svg .note { font-size: 12px; font-weight: 600; fill: var(--risk); }
+    #rag-c01-lab1-corpus .kb-svg .par-t { font-size: 13px; font-weight: 700; fill: var(--state); }
+    #rag-c01-lab1-corpus .kb-svg .par-s { font-size: 11.5px; fill: var(--ink-2); }
+    #rag-c01-lab1-corpus .kb-rail { position: relative; height: 46px; }
+    #rag-c01-lab1-corpus .kb-rail > p { position: absolute; left: 0; right: 0; top: 0; font-size: 16px; line-height: 1.36; margin: 0; }
+    #rag-c01-lab1-corpus .cites { display: flex; flex-wrap: wrap; gap: 8px; }
+    #rag-c01-lab1-corpus .cite { font-size: 14.5px; padding: 6px 12px 6px 8px; }
+    #rag-c01-lab1-corpus .cite.paper { flex-direction: row; gap: 10px; border-radius: 10px; }
+    #rag-c01-lab1-corpus pre.code.kb-out { font-size: 11px; line-height: 1.4; padding: 8px 14px 10px; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 1</span> Northwind support · step 1 of 4</div>
+  <h2 class="title">Write the corpus and the labelled queries before any retriever</h2>
+  <div class="lab-head">
+    <span class="run">python3.12 -m venv .venv &amp;&amp; source .venv/bin/activate</span>
+    <span class="run">pip install "numpy==2.5.4" "bm25s==0.3.15" "PyStemmer==3.1.0"</span>
+    <span class="tiny">no env vars</span>
+    <a class="cite repo" href="https://github.com/xhluca/bm25s" target="_blank" rel="noopener"><b>Repo</b>&nbsp;xhluca/bm25s</a>
+  </div>
+  <div class="kb-grid fill">
+    <div class="code-wrap">
+      <div class="code-head">northwind_rag/kb.py</div>
+      <pre class="code kb-c" data-lang="python" data-focus="1:2-20, 2:21-27, 3:28-33"><code># kb.py -- shared corpus + labelled queries (gold chunk ids) for all labs
+DOCS = {
+    "D1": "Returns &amp; Refunds Policy (US), v2026-09",
+    "D2": "Warranty Policy: Tents and Backpacks",
+    "D3": "Payments Troubleshooting Runbook for Support Agents",
+    "D4": "Shipping &amp; Delivery FAQ",
+}
+CHUNKS = [
+    ("c01", "D1", "Northwind Outfitters accepts returns of unworn items within 30 days of delivery. "
+                  "Items must have original tags attached."),
+    ("c02", "D1", "Refunds are issued to the original payment method within 5-7 business days "
+                  "after the warehouse scans the return."),
+    ("c03", "D1", "Final-sale items, gift cards and personalised (monogrammed) products cannot be returned."),
+    ("c04", "D1", "Members of the Trailhead loyalty programme get an extended window of 60 days."),
+    # c05-c06, c08-c10 omitted on the slide: damaged parcels, tent and backpack warranty
+    ("c07", "D2", "The window starts on the purchase date, not the delivery date. "
+                  "Proof of purchase is required."),
+    ("c11", "D3", "Error E-4012 means the card issuer declined the payment. "
+                  "Ask the customer to contact their bank or use another card."),
+    # c12-c18 omitted on the slide: 3-D Secure timeout, P-220 gift card, shipping, duties
+]
+QUERIES = {  # query_id: (text, set of relevant chunk ids)
+    "q01": ("how long do I have to send back a jacket I haven't worn?", {"c01"}),
+    "q02": ("customer sees E-4012 at checkout", {"c11"}),
+    "q11": ("loyalty member: how long is the return window and when is the refund paid?", {"c04", "c02"}),
+    "q15": ("P-220", {"c13"}),
+    # q03-q10, q12-q14 omitted on the slide
+}
+IDS = [c[0] for c in CHUNKS]
+TEXT = {c[0]: c[2] for c in CHUNKS}
+DOC_OF = {c[0]: c[1] for c in CHUNKS}
+def doc_text(doc_id: str) -> str:
+    return DOCS[doc_id] + "\n\n" + "\n".join(t for _, d, t in CHUNKS if d == doc_id)</code></pre>
+    </div>
+    <div class="stack kb-right">
+      <svg class="kb-svg" id="kb-svg" width="556" height="280" viewBox="0 0 556 280" aria-label="18 chunk cards in 4 documents; 15 query pills link to their gold chunks"></svg>
+      <div class="steps-rail kb-rail">
+        <p data-step="1" data-until="2"><span>Keep chunks as a naive splitter leaves them. <code>c07</code> never says tent or warranty.</span></p>
+        <p data-step="2" data-until="3"><span>Mix paraphrases (<code>q01</code>), exact codes (<code>q02</code>, <code>q15</code>) and a two-part question: <code>q11</code> has two gold chunks.</span></p>
+        <p data-step="3" data-until="4"><span><code>IDS</code>, <code>TEXT</code>, <code>DOC_OF</code> map ids to text. <code>doc_text()</code> rebuilds one parent document.</span></p>
+        <p data-step="4"><span>15 queries show the method only. One flipped query moves recall@5 by 6.7 points. Decide with 100-300 real ticket queries.</span></p>
+      </div>
+      <div class="code-wrap">
+        <div class="code-head">folder · northwind_rag/</div>
+        <pre class="code kb-o" data-lang="bash"><code>kb.py  evalkit.py  lab2_bm25.py   <span class="dim"># this chapter</span>
+lab3_hybrid.py  lab4_qdrant.py  lab5_cross_encoder.py ...  <span class="dim"># later</span></code></pre>
+      </div>
+      <div class="code-wrap out" data-step="4">
+        <div class="code-head">output · expected</div>
+        <pre class="code kb-out" data-lang="bash"><code>$ python -c "import kb; print(len(kb.CHUNKS), len(kb.DOCS), len(kb.QUERIES))"
+<span class="ok">18 4 15</span>   <span class="dim"># full kb.py: 18 chunks, 4 docs, 15 queries</span></code></pre>
+      </div>
+      <div class="cites">
+        <a class="cite paper" href="https://arxiv.org/abs/2610.31606" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.31606 How Ground Truth Shapes Retrieval Scores</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    This is the run-it-Monday slide for Lab 1: make a Python 3.12 venv, pin numpy 2.5.4, bm25s 0.3.15 and PyStemmer 3.1.0, and write kb.py before any retriever exists. The slide shows 7 of the 18 chunks and 4 of the 15 queries; the full file is in the lab handout. Walk the three focus bands: the chunks stay as a naive splitter leaves them (c07 never names the tent), the queries mix paraphrases, exact error codes and one two-part question with two gold chunks, and the helpers map ids to text and rebuild a parent document. Analogy: the labelled set is the answer key you write before you grade any exam. Likely question: "Are 15 queries enough?" No: one flipped query moves recall@5 by 6.7 points, so decisions need 100-300 labelled queries from real support tickets, labelled at the evidence-span level. Next: evalkit.py turns these gold sets into four numbers.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const DOCS = [
+    { id: "D1", name: "D1 Returns", tone: "var(--human)", soft: "var(--human-soft)", chunks: [["c01", "30 days"], ["c02", "refund 5-7d"], ["c03", "final sale"], ["c04", "loyalty 60d"], ["c05", "damaged"]] },
+    { id: "D2", name: "D2 Warranty", tone: "var(--state)", soft: "var(--state-soft)", chunks: [["c06", "tent 2 yr"], ["c07", "start date"], ["c08", "exclusions"], ["c09", "pack 5 yr"], ["c10", "claims"]] },
+    { id: "D3", name: "D3 Payments", tone: "var(--tool)", soft: "var(--tool-soft)", chunks: [["c11", "E-4012"], ["c12", "E-4019"], ["c13", "P-220"], ["c14", "no CVV"]] },
+    { id: "D4", name: "D4 Shipping", tone: "var(--agent)", soft: "var(--agent-soft)", chunks: [["c15", "free > $75"], ["c16", "express"], ["c17", "PO boxes"], ["c18", "duties"]] }
+  ];
+  const GOLD = { q01: ["c01"], q02: ["c11"], q03: ["c02"], q04: ["c03"], q05: ["c06"], q06: ["c07"], q07: ["c05"], q08: ["c12"],
+                 q09: ["c13"], q10: ["c15"], q11: ["c04", "c02"], q12: ["c17"], q13: ["c18"], q14: ["c09"], q15: ["c13"] };
+  const CODEQ = { q02: 1, q15: 1 };
+  const CW = 124, CH = 26, CGAP = 30, X0 = 12, COLGAP = 12, CY0 = 112;
+  const PW = 56, PH = 24, PX0 = 26;
+  const cardPos = {};
+  DOCS.forEach((d, di) => d.chunks.forEach(([c], i) => (cardPos[c] = { x: X0 + di * (CW + COLGAP), y: CY0 + i * CGAP, di, i })));
+  const qids = Object.keys(GOLD);
+  const pillPos = (k) => (k < 8 ? { x: PX0 + k * (PW + 8), y: 4 } : { x: PX0 + 32 + (k - 8) * (PW + 8), y: 38 });
+  let prev = -1, svgEl = null, cards = {}, outers = {}, pills = [], lines = [], note = null, parent = null, all = [];
+
+  function el(p, tag, attrs, txt) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (txt !== undefined) e.textContent = txt;
+    p.appendChild(e);
+    return e;
+  }
+  function build(svg) {
+    svg.innerHTML = "";
+    cards = {}; outers = {}; pills = []; lines = [];
+    // gold lines sit under the cards, the headers and the pills
+    const gLines = el(svg, "g", {});
+    DOCS.forEach((d, di) => el(svg, "text", { class: "dh", x: X0 + di * (CW + COLGAP) + 4, y: 100, fill: d.tone,
+      stroke: "var(--bg)", "stroke-width": 5, "paint-order": "stroke", "stroke-linejoin": "round" }, d.name));
+    DOCS.forEach((d) => d.chunks.forEach(([c, gist]) => {
+      const p = cardPos[c];
+      const outer = el(svg, "g", { transform: `translate(${p.x},${p.y})` });
+      const g = el(outer, "g", {});
+      el(g, "rect", { width: CW, height: CH, rx: 7, fill: "var(--surface-2)", stroke: d.tone, "stroke-width": 1.4 });
+      el(g, "rect", { width: 5, height: CH, rx: 2, fill: d.tone });
+      el(g, "text", { class: "cid", x: 12, y: 17 }, c);
+      el(g, "text", { class: "cg", x: 42, y: 17 }, gist);
+      cards[c] = g; outers[c] = outer;
+    }));
+    qids.forEach((q, k) => {
+      const pp = pillPos(k);
+      GOLD[q].forEach((c) => {
+        const cp = cardPos[c];
+        const x1 = pp.x + PW / 2, y1 = pp.y + PH, x2 = cp.x + 30, y2 = cp.y + 4;
+        const len = Math.hypot(x2 - x1, y2 - y1);
+        const col = q === "q11" ? "var(--model)" : CODEQ[q] ? "var(--tool)" : "var(--human)";
+        const ln = el(gLines, "line", { x1, y1, x2, y2, stroke: col, "stroke-width": q === "q11" || CODEQ[q] ? 2.4 : 1.3,
+          "stroke-linecap": "round", "stroke-dasharray": len, "stroke-dashoffset": len, opacity: q === "q11" || CODEQ[q] ? 0.95 : 0.55 });
+        ln._len = len; ln._q = q; lines.push(ln);
+      });
+      const g = el(el(svg, "g", { transform: `translate(${pp.x},${pp.y})` }), "g", {});
+      const hot = q === "q11" ? "var(--model)" : CODEQ[q] ? "var(--tool)" : "var(--human)";
+      el(g, "rect", { width: PW, height: PH, rx: 12, fill: "var(--surface-2)", stroke: hot, "stroke-width": q === "q11" || CODEQ[q] ? 2.2 : 1.3 });
+      el(g, "text", { class: "qp", x: PW / 2, y: 16, "text-anchor": "middle" }, q);
+      pills.push(g);
+    });
+    // c07 warning: the chunk does not name its product
+    const c7 = cardPos.c07;
+    note = el(svg, "g", {});
+    el(note, "rect", { x: c7.x - 3, y: c7.y - 3, width: CW + 6, height: CH + 6, rx: 9, fill: "none", stroke: "var(--risk)", "stroke-width": 2, "stroke-dasharray": "5 4" });
+    el(note, "text", { class: "note", x: c7.x + CW / 2, y: 274, "text-anchor": "middle" }, "c07: no product name");
+    // doc_text("D2"): the five D2 cards become one parent card
+    const d2x = X0 + (CW + COLGAP);
+    parent = el(svg, "g", {});
+    el(parent, "rect", { x: d2x - 4, y: CY0 - 4, width: CW + 8, height: 74, rx: 10, fill: "var(--surface-2)", stroke: "var(--state)", "stroke-width": 2.4 });
+    el(parent, "text", { class: "par-t", x: d2x + 8, y: CY0 + 18 }, 'doc_text("D2")');
+    el(parent, "text", { class: "par-s", x: d2x + 8, y: CY0 + 38 }, "title + c06..c10");
+    el(parent, "text", { class: "par-s", x: d2x + 8, y: CY0 + 56 }, "one parent doc");
+    all = [].concat(Object.values(cards), Object.values(outers), pills, lines, [note, parent]);
+  }
+  function render(slide, n, animate) {
+    gsap.killTweensOf(all);
+    const fwd = animate && n === prev + 1;
+    const cardList = DOCS.flatMap((d) => d.chunks.map(([c]) => cards[c]));
+    const d2 = DOCS[1].chunks.map(([c]) => outers[c]);
+    // step 1: the 18 chunk cards
+    if (n === 1 && fwd) gsap.fromTo(cardList, { opacity: 0, y: -14 }, { opacity: 1, y: 0, duration: 0.4, stagger: 0.04, ease: "back.out(2)" });
+    else gsap.set(cardList, { opacity: n >= 1 ? 1 : 0, y: 0 });
+    if (n === 1 && fwd) gsap.fromTo(note, { opacity: 0 }, { opacity: 1, duration: 0.4, delay: 0.9 });
+    else gsap.set(note, { opacity: n === 1 || n === 2 ? 1 : 0 });
+    // step 2: query pills drop in and draw lines to their gold chunks
+    if (n === 2 && fwd) {
+      gsap.fromTo(pills, { opacity: 0, y: -30 }, { opacity: 1, y: 0, duration: 0.45, stagger: 0.05, ease: "bounce.out" });
+      lines.forEach((ln) => {
+        const k = qids.indexOf(ln._q);
+        gsap.fromTo(ln, { attr: { "stroke-dashoffset": ln._len } }, { attr: { "stroke-dashoffset": 0 }, duration: 0.55, delay: 0.35 + k * 0.05, ease: "power2.out" });
+      });
+    } else {
+      gsap.set(pills, { opacity: n >= 2 ? 1 : 0, y: 0 });
+      lines.forEach((ln) => gsap.set(ln, { attr: { "stroke-dashoffset": n >= 2 ? 0 : ln._len } }));
+    }
+    // step 3+: D2 cards stack into one parent document; gold lines fade back
+    const stacked = n >= 3;
+    d2.forEach((g, i) => {
+      const p = cardPos[DOCS[1].chunks[i][0]];
+      const ty = stacked ? CY0 + i * 4 : p.y;
+      const to = { attr: { transform: `translate(${p.x},${ty})` } };
+      if (n === 3 && fwd) gsap.to(g, { ...to, duration: 0.6, delay: i * 0.06, ease: "power3.inOut" });
+      else gsap.set(g, to);
+    });
+    if (n === 3 && fwd) gsap.fromTo(parent, { opacity: 0, scale: 0.9, transformOrigin: "50% 0%" }, { opacity: 1, scale: 1, duration: 0.45, delay: 0.6, ease: "back.out(1.8)" });
+    else gsap.set(parent, { opacity: stacked ? 1 : 0, scale: 1 });
+    gsap.set(lines, { opacity: (i) => (stacked ? 0 : (lines[i]._q === "q11" || CODEQ[lines[i]._q] ? 0.95 : 0.55)) });
+    prev = n;
+  }
+  Deck.register("rag-c01-lab1-corpus", {
+    enter(slide, step) { svgEl = slide.querySelector("#kb-svg"); build(svgEl); prev = -1; render(slide, step, false); },
+    step(slide, n, animate) { if (!note || !slide.contains(note)) build(slide.querySelector("#kb-svg")); render(slide, n, animate); },
+    leave() { gsap.killTweensOf(all); prev = -1; }
+  });
+})();
+</script>

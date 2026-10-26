@@ -1,0 +1,119 @@
+<section class="slide" id="custom-interview-c04-whiteboard-synth-pipeline" data-tone="state" data-title="Whiteboard: synthetic QA pipeline">
+  <div class="kicker"><span class="pill">Whiteboard</span> System design</div>
+  <h2 class="title">Design a synthetic QA pipeline that is safe to train on</h2>
+
+  <div class="grid" style="grid-template-columns: 1fr 600px; gap: 28px; align-items: start">
+    <div class="panel tight k-state" style="padding:14px 20px">
+      <h4>Prompt</h4>
+      <p style="margin:0;font-size:19px;line-height:1.4">Train an enterprise knowledge agent (HR policies) with RL. You have the document corpus, few labels and a frozen eval set.</p>
+      <div class="tags"><span class="tag t-state">corpus: yes</span><span class="tag t-human">labels: few</span><span class="tag t-risk">eval: frozen</span></div>
+    </div>
+    <div class="panel tight k-model" data-step="4" data-fx="bar" style="padding:12px 20px;gap:6px">
+      <div class="row" style="justify-content:space-between;align-items:center"><h4 style="font-size:19px">KARLBench total score</h4><span class="delta up">+6.3 after KARL</span></div>
+      <div style="display:grid;grid-template-columns:150px 1fr 48px;gap:4px 12px;align-items:center;font-size:16px">
+        <span>GLM 4.5 Air base</span><div class="bar"><i style="--v:75.1%;background:var(--muted)"></i></div><b>52.6</b>
+        <span>KARL</span><div class="bar"><i style="--v:84.1%"></i></div><b>58.9</b>
+        <span>KARL, 10 traces</span><div class="bar"><i style="--v:96.4%"></i></div><b>67.5</b>
+      </div>
+      <div class="row" style="justify-content:space-between;align-items:center;font-size:15px;color:var(--ink-2)"><span>= Claude 4.6 Opus, ~33% lower cost</span><a class="cite doc" style="padding:2px 8px;font-size:14px" href="https://www.databricks.com/karl.pdf" target="_blank" rel="noopener"><b>Doc</b>&nbsp;KARL tech report</a></div>
+    </div>
+  </div>
+
+  <div class="diagram" style="width:1392px;height:212px"
+       data-wires="cor>syn@1{state}; syn>dec@2{agent} [Q-A]; dec>sol@3{tool}; sol>pas@3{model}; pas>qua@3{tool}; qua>rlm@4{agent}; rlm>nxt@4:flow:dash{model}:br; nxt>syn@4:flow:dash{model}:lb">
+    <div class="node n-state" id="cor" style="left:0;top:30px;width:130px;height:70px;padding:10px 12px"><span class="nt">Corpus</span><span class="ns">docs+index</span></div>
+    <div class="node n-agent" id="syn" style="left:210px;top:30px;width:130px;height:70px;padding:10px 12px" data-step="1" data-fx="pop"><span class="nt">Synth</span><span class="ns">Q-A agent</span></div>
+    <div class="node n-tool" id="dec" style="left:420px;top:30px;width:130px;height:70px;padding:10px 12px" data-step="2" data-fx="pop"><span class="nt">Decontam</span><span class="ns">dedup agent</span></div>
+    <div class="node n-model" id="sol" style="left:630px;top:30px;width:130px;height:70px;padding:10px 12px" data-step="3" data-fx="pop"><span class="nt">Solvers ×N</span><span class="ns">agents</span></div>
+    <div class="node n-tool" id="pas" style="left:840px;top:30px;width:130px;height:70px;padding:10px 12px" data-step="3" data-fx="pop"><span class="nt">Pass-rate</span><span class="ns">0 &lt; k &lt; N</span></div>
+    <div class="node n-agent" id="qua" style="left:1050px;top:30px;width:130px;height:70px;padding:10px 12px" data-step="3" data-fx="pop"><span class="nt">Quality</span><span class="ns">filter</span></div>
+    <div class="node n-model" id="rlm" style="left:1260px;top:30px;width:130px;height:70px;padding:10px 12px" data-step="4" data-fx="pop"><span class="nt">RL</span><span class="ns">OAPL</span></div>
+    <div class="node n-model pill" id="nxt" style="left:420px;top:146px;width:780px;height:42px;padding:6px 16px;flex-direction:row;align-items:center;justify-content:center;gap:12px" data-step="4" data-fx="pop"><span class="nt" style="font-size:16px">next round</span><span class="ns">the improved agent writes new Q-A</span></div>
+    <svg id="c04wb-tok" viewBox="0 0 1392 212" width="1392" height="212" style="position:absolute;left:0;top:0;z-index:3;pointer-events:none;overflow:visible"></svg>
+    <div id="c04wb-count" data-step="1" style="position:absolute;left:0;top:118px;width:190px;font:600 16px/1.4 var(--f-mono);color:var(--ink-2)"></div>
+  </div>
+
+  <div class="grid" style="grid-template-columns: 1fr 600px; gap: 28px; align-items: start">
+    <div class="stack" style="gap:12px">
+    <div class="steps-rail" style="gap:8px">
+      <div data-step="1" style="font-size:17px">Ground each question in retrieved chunks. Seed with a few real examples.</div>
+      <div data-step="2" style="font-size:17px">Decontaminate against the eval and few-shot sets first.</div>
+      <div data-step="3" style="font-size:17px">Drop questions that all or no solvers pass: no learning signal.</div>
+      <div data-step="4" style="font-size:17px">Train off-policy. The better agent writes the next round.</div>
+    </div>
+      <div data-step="5" class="cites" style="padding-left:46px"><a class="cite paper" style="flex-direction:row;gap:10px;border-radius:10px;padding:3px 10px;font-size:14px" href="https://arxiv.org/abs/2610.21229" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.21229 · What should we remove? RLVR decontamination</a></div>
+    </div>
+    <div class="gotcha" data-step="5" style="font-size:16px;padding:10px 16px;gap:4px 12px;grid-template-columns:86px 1fr">
+      <b>Symptom</b><span>"Never solved" items look like the hard tail.</span>
+      <b class="why">Cause</b><span>Many are broken: wrong reference or ambiguous.</span>
+      <b class="fix">Fix</b><span>Review them. Cosine-only decontam: 88% false removals.</span>
+    </div>
+  </div>
+
+  <aside class="notes">Read the prompt aloud and let the candidate draw before you reveal anything. The corpus is the HR-policy corpus from the relevance-rubric question, and the decontamination stage reuses the candidates-then-judge policy from the previous slide. The strong answer is the Databricks KARL pipeline from tech report section 4.1: a synthesis agent explores the corpus with vector search, a dedup agent decontaminates against the eval and few-shot data, solver agents attempt each question, and the pass-rate filter drops questions that every solver or no solver gets right, because both give zero learning signal. A quality-filter agent removes ambiguous items and wrong reference answers, then off-policy RL trains the agent, and the improved agent synthesizes the next round. Analogy: it is an exam committee that writes questions from the textbook, removes the ones copied from the final exam, and throws out questions that every student or no student can answer. The numbers to know: KARLBench 52.6 for the GLM 4.5 Air base, 58.9 after KARL, and 67.5 with 10 parallel traces, equal to Claude 4.6 Opus at about 33% lower cost; the token counts in the animation are an illustrative batch. Likely follow-up: "Why not keep the never-solved items as hard examples?" Many are broken, so review them, and never decontaminate with a cosine threshold alone: at 0.80, 88% of sampled removals were false (arXiv 2610.21229). Hand-off: the debug drill shows the same leak in a split: one unit in both train and test.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-interview-c04-whiteboard-synth-pipeline";
+  const CX = [65, 275, 485, 695, 905, 1115, 1325]; // node centres
+  const LANE = 14;                                   // token lane above the nodes
+  // node index where each token leaves the batch: 2 decontam, 4 pass-rate, 5 quality, 9 = kept
+  const FATE = [4, 9, 2, 9, 5, 4, 9, 2, 9, 4, 9, 9];
+  const NEVER = 9;                                   // the pass-rate drop that no solver solved -> review
+  const END = [0, 1, 2, 5, 6, 6];                    // last built node per step
+  let tl = null, toks = [];
+
+  function build(slide) {
+    const svg = slide.querySelector("#c04wb-tok");
+    if (svg._built) { toks = svg._toks; return; }
+    svg.innerHTML = "";
+    toks = FATE.map(() => {
+      const c = document.createElementNS(NS, "circle");
+      c.setAttribute("cx", CX[0]); c.setAttribute("cy", LANE); c.setAttribute("r", 7);
+      c.setAttribute("fill", "var(--state)"); c.setAttribute("opacity", 0);
+      svg.appendChild(c); return c;
+    });
+    svg._built = true; svg._toks = toks;
+  }
+
+  function label(n) {
+    const end = END[Math.min(n, END.length - 1)];
+    if (n < 1) return "";
+    if (end < 2) return "batch: 12 drafted<br><span style='color:var(--muted);font-size:13px'>illustrative batch</span>";
+    let kept = 0, drop = 0;
+    FATE.forEach((f) => (f <= end ? drop++ : kept++));
+    const review = end >= 4 ? "<br><span style='color:var(--human)'>1 to review</span>" : "";
+    return `<span style='color:var(--state)'>kept ${kept}</span> · <span style='color:var(--risk)'>dropped ${drop}</span>${review}<br><span style='color:var(--muted);font-size:13px'>illustrative batch</span>`;
+  }
+
+  function render(slide, n) {
+    build(slide);
+    if (tl) { tl.kill(); tl = null; }
+    const box = slide.querySelector("#c04wb-count");
+    if (box) box.innerHTML = label(n);
+    if (n < 1) { toks.forEach((t) => gsap.set(t, { attr: { cx: CX[0], cy: LANE }, opacity: 0 })); return; }
+    const end = END[Math.min(n, END.length - 1)];
+    tl = gsap.timeline({ repeat: -1, repeatDelay: 0.8 });
+    toks.forEach((t, i) => {
+      const f = FATE[i], dropped = f <= end, stop = dropped ? f : end;
+      const d = i * 0.22, dur = (CX[stop] - CX[0]) / 380;
+      tl.set(t, { attr: { cx: CX[0], cy: LANE, fill: "var(--state)", r: 7 }, opacity: 0 }, 0);
+      tl.to(t, { opacity: 1, duration: 0.15 }, d);
+      tl.to(t, { attr: { cx: CX[stop] }, duration: dur, ease: "none" }, d + 0.15);
+      if (dropped) {
+        tl.set(t, { attr: { fill: i === NEVER ? "var(--human)" : "var(--risk)" } }, d + 0.15 + dur);
+        tl.to(t, { attr: { cy: LANE - 22, r: 4 }, opacity: 0, duration: 0.5, ease: "power2.in" }, d + 0.2 + dur);
+      } else {
+        tl.to(t, { attr: { r: 11 }, opacity: 0, duration: 0.4 }, d + 0.15 + dur);
+      }
+    });
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0); },
+    step(slide, n) { render(slide, n); },
+    leave() { if (tl) { tl.kill(); tl = null; } gsap.killTweensOf(toks); }
+  });
+})();
+</script>

@@ -1,0 +1,260 @@
+<section class="slide" id="custom-c09-lab8-route-defer" data-tone="human" data-title="Lab 8: route or defer on cost">
+  <style>
+    #custom-c09-lab8-route-defer { gap: 20px; }
+    #custom-c09-lab8-route-defer .rd-grid { display: grid; grid-template-columns: 786px minmax(0, 1fr); gap: 22px; min-height: 0; }
+    #custom-c09-lab8-route-defer .rd-left, #custom-c09-lab8-route-defer .rd-right { display: flex; flex-direction: column; gap: 11px; min-width: 0; }
+    #custom-c09-lab8-route-defer .lab-head { font-size: 13.5px; gap: 10px; }
+    #custom-c09-lab8-route-defer .lab-head .run { font-size: 14.5px; padding: 7px 11px; }
+    #custom-c09-lab8-route-defer .lab-head a.cite { display: inline-flex; flex-direction: row; align-items: center; gap: 8px; padding: 5px 10px 5px 8px; border-radius: 10px; border: 1px solid var(--line); background: color-mix(in oklab, var(--surface) 60%, transparent); font-size: 12.5px; }
+    #custom-c09-lab8-route-defer .code-head { padding: 7px 14px; font-size: 13px; }
+    #custom-c09-lab8-route-defer .rd-code pre.code { font-size: 10.7px; line-height: 15.4px; padding: 10px 12px 12px; }
+    #custom-c09-lab8-route-defer .rd-out pre.code { font-size: 10.3px; line-height: 15px; padding: 8px 12px 10px; }
+    #custom-c09-lab8-route-defer .steps-rail { gap: 7px; }
+    #custom-c09-lab8-route-defer .steps-rail > * { font-size: 14.2px; line-height: 1.32; grid-template-columns: 28px minmax(0, 1fr); gap: 9px; }
+    #custom-c09-lab8-route-defer .steps-rail > *::before { width: 24px; height: 24px; font-size: 13px; }
+    #custom-c09-lab8-route-defer .steps-rail code { font-size: .84em; }
+    #custom-c09-lab8-route-defer pre.code, #custom-c09-lab8-route-defer pre.code *, #custom-c09-lab8-route-defer code, #custom-c09-lab8-route-defer svg text { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #c09rd-svg text { font-family: var(--f-mono); }
+  </style>
+  <div class="kicker"><span class="pill">Lab 8</span> Acme ticket triage · step 4 of 4</div>
+  <h2 class="title">Route when P(correct) beats 0.8, otherwise defer: cost falls 51%</h2>
+  <div class="rd-grid fill">
+    <div class="rd-left">
+      <div class="code-wrap rd-code">
+        <div class="code-head">triage/route_or_defer.py · scikit-learn==1.9.1 · numpy==2.5.4 · 8-class router</div>
+        <pre class="code" data-lang="python" data-focus="1:12-15, 2:16-21, 3:22-31, 4:32-36"><code>import numpy as np
+from sklearn.datasets import make_classification
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import train_test_split
+C_OK, C_TRIAGE, C_WRONG = 0.0, 1.0, 5.0     # cost model used in arXiv:2610.31657
+rng = np.random.default_rng(3)   # stand-in: 24,000 tickets, 8 team queues
+X, y = make_classification(n_samples=24_000, n_features=30, n_informative=12,
+                           n_classes=8, n_clusters_per_class=1, class_sep=0.9, random_state=3)
+X_tr, X_tmp, y_tr, y_tmp = train_test_split(X, y, test_size=0.5, stratify=y, random_state=3)
+X_cal, X_te, y_cal, y_te = train_test_split(X_tmp, y_tmp, test_size=0.5, stratify=y_tmp, random_state=3)
+clf = LogisticRegression(max_iter=2000).fit(X_tr, y_tr)
+def per_ticket_cost(proba, y_true, t):
+    conf, pred = proba.max(axis=1), proba.argmax(axis=1)
+    route = conf >= t
+    return np.where(route, np.where(pred == y_true, C_OK, C_WRONG), C_TRIAGE)
+# 1) Select the threshold on the CALIBRATION split only, then freeze it.
+p_cal, p_te = clf.predict_proba(X_cal), clf.predict_proba(X_te)
+grid = np.round(np.arange(0.0, 1.0001, 0.01), 2)
+cal_cost = [per_ticket_cost(p_cal, y_cal, t).mean() for t in grid]
+t_star = grid[int(np.argmin(cal_cost))]
+t_break_even = (C_WRONG - C_TRIAGE) / (C_WRONG - C_OK)   # route iff P(correct) > 0.8
+# 2) Evaluate frozen policies ONCE on the test split.
+always_route = per_ticket_cost(p_te, y_te, 0.0)
+always_defer = per_ticket_cost(p_te, y_te, 1.01)
+tuned = per_ticket_cost(p_te, y_te, t_star)
+coverage = (p_te.max(axis=1) >= t_star).mean()
+print(f"accuracy (always route) {(p_te.argmax(1) == y_te).mean():.3f}")
+print(f"t* from calibration = {t_star:.2f}   analytic break-even = {t_break_even:.2f}")
+print(f"test cost/ticket  always-route={always_route.mean():.3f}  "
+      f"always-defer={always_defer.mean():.3f}  tuned={tuned.mean():.3f}  coverage={coverage:.2%}")
+print(f"wrong routes: always-route={(always_route == C_WRONG).mean():.1%}  tuned={(tuned == C_WRONG).mean():.1%}")
+# 3) Paired ratio bootstrap of the relative cost reduction vs always-route.
+idx = rng.integers(0, len(y_te), size=(5000, len(y_te)))
+ratio = 1 - tuned[idx].mean(axis=1) / always_route[idx].mean(axis=1)
+lo, hi = np.percentile(ratio, [2.5, 97.5])
+print(f"relative cost reduction {1 - tuned.mean() / always_route.mean():.1%}  95% CI [{lo:.1%}, {hi:.1%}]")</code></pre>
+      </div>
+    </div>
+    <div class="rd-right">
+      <div class="lab-head"><span class="run">python route_or_defer.py</span><a class="cite paper" href="https://arxiv.org/abs/2610.31657" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.31657 Cost-Aware Abstention</a></div>
+      <svg id="c09rd-svg" viewBox="0 0 588 250" width="588" height="250" role="img" aria-label="100 test-ticket dots on a confidence axis from 0 to 1, each dot 60 tickets, green when the router is correct and red when it is wrong. Step 1: a threshold line at 0.5 splits defer (cost 1) on the left from route (cost 0 or 5) on the right. Step 2: the line sweeps from 0 to 1 while the calibration cost per ticket is drawn as a curve that falls from 1.976 to a minimum of 0.926 near 0.8 and rises to 1.000; the line then locks at t* 0.79 next to the analytic break-even 0.80. Step 3: three bars: always-route 1.942, always-defer 1.000, tuned 0.946; 22.08 percent of tickets are routed and the deferred dots turn violet. Step 4: two donuts show wrong routes falling from 38.8 percent to 3.3 percent, and the cost reduction is 51.3 percent, 95 percent CI 49.7 to 52.8."></svg>
+      <div class="code-wrap out rd-out" data-step="3">
+        <div class="code-head">output · real run (scikit-learn 1.8.0), re-run by the verifier</div>
+        <pre class="code" data-lang="none"><code>accuracy (always route) 0.612
+<span class="ok">t* from calibration = 0.79   analytic break-even = 0.80</span>
+test cost/ticket  always-route=1.942  always-defer=1.000  <span class="ok">tuned=0.946</span>  coverage=22.08%
+wrong routes: always-route=<span class="err">38.8%</span>  tuned=<span class="ok">3.3%</span>
+<span class="ok">relative cost reduction 51.3%  95% CI [49.7%, 52.8%]</span></code></pre>
+      </div>
+      <div class="steps-rail">
+        <div data-step="1"><span>Each ticket costs 0 (right route), 1 (human) or 5 (wrong route). String labels: compare <code>clf.classes_[proba.argmax(1)]</code>.</span></div>
+        <div data-step="2"><span>Pick t on calibration only, then freeze it. Break-even (5−1)/(5−0) = 0.80; t* = 0.79 agrees.</span></div>
+        <div data-step="3"><span>Test once. Show both baselines, coverage and wrong routes: tuned is only 5% cheaper than all-human.</span></div>
+        <div data-step="4"><span>Same resampled tickets for both policies. Correctness AUROC near 0.5: no threshold can help.</span></div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">This is the last step of Lab 8: an 8-class router (the four product areas split into eight team queues; make_classification is a feature-level stand-in for the ticket model) either sends a ticket to a queue or defers it to a human, and the costs decide, not a 0.5 habit. Step 1: each ticket costs 0 when routed correctly, 1 when a human triages it, and 5 when it lands in the wrong queue, which is the cost model of arXiv 2610.31657; the mean is your metric. Step 2: sweep the threshold on the calibration split, take the cheapest point, 0.79, and freeze it; it matches the analytic break-even (5 minus 1) over (5 minus 0) = 0.80 because logistic regression is fairly well calibrated. Step 3: evaluate once on test and show both trivial baselines: cost drops from 1.942 to 0.946 per ticket, but always-defer costs 1.000, so with 61 percent accuracy the honest headline is "route 22 percent, about 5 percent cheaper than all-human". Analogy: a junior agent who answers only the tickets they are sure of and escalates the rest. Likely question: "Can I use LLM confidences here?" Check correctness AUROC first; the paper found GPT-4o-mini few-shot emitted one confidence value, AUROC 0.500, so no threshold could help. Next: the gotchas that hit the cleanlab step on a real laptop and a real vendor file.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c09-lab8-route-defer";
+  // 100 test tickets sampled at evenly spaced confidence quantiles of the real run (1 dot = 60 of 6,000);
+  // 61 correct / 39 wrong overall, 22 routed at t* with 3 wrong: the counts in the output pane.
+  const C = [0.17,0.24,0.26,0.27,0.29,0.3,0.31,0.32,0.32,0.33,0.34,0.35,0.35,0.36,0.36,0.37,0.38,0.38,0.39,0.4,0.4,0.41,0.41,0.42,0.43,0.43,0.44,0.44,0.45,0.45,0.46,0.46,0.47,0.48,0.48,0.49,0.49,0.5,0.5,0.51,0.52,0.52,0.53,0.53,0.54,0.55,0.56,0.56,0.57,0.57,0.58,0.59,0.59,0.6,0.61,0.61,0.62,0.63,0.64,0.64,0.65,0.66,0.67,0.67,0.68,0.69,0.7,0.7,0.71,0.72,0.73,0.74,0.74,0.75,0.76,0.77,0.78,0.785,0.797,0.81,0.82,0.82,0.84,0.85,0.86,0.87,0.87,0.88,0.89,0.9,0.91,0.92,0.93,0.94,0.94,0.95,0.96,0.97,0.98,1.0];
+  const F = "0100100101001010010101001010101010101010110101011010110101101101101101110111011101111110111110111111";
+  // cal_cost from the real run, t = 0.00 .. 1.00 step 0.01
+  const CAL = [1.976,1.976,1.976,1.976,1.976,1.976,1.976,1.976,1.976,1.976,1.976,1.976,1.976,1.976,1.976,1.976,1.976,1.976,1.976,1.975,1.974,1.972,1.969,1.962,1.955,1.940,1.925,1.911,1.889,1.873,1.850,1.825,1.797,1.768,1.736,1.700,1.674,1.637,1.589,1.554,1.522,1.496,1.462,1.429,1.390,1.363,1.335,1.308,1.281,1.251,1.222,1.200,1.183,1.163,1.138,1.119,1.103,1.084,1.064,1.053,1.034,1.029,1.017,1.011,1.003,0.991,0.985,0.978,0.975,0.963,0.959,0.956,0.954,0.949,0.942,0.934,0.933,0.931,0.927,0.926,0.926,0.930,0.928,0.929,0.932,0.930,0.931,0.932,0.937,0.937,0.946,0.949,0.953,0.960,0.964,0.969,0.975,0.980,0.987,0.996,1.000];
+  const X0 = 44, XW = 524, AXIS = 214, TSTAR = 0.79;
+  const xOf = (t) => X0 + t * XW;
+  const yOf = (c) => 28 + (2.0 - c) / 1.1 * 84;
+  let S = null;
+
+  function mk(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  }
+  const pathTo = (k) => CAL.slice(0, k + 1).map((c, i) => (i ? "L" : "M") + xOf(i / 100).toFixed(1) + " " + yOf(c).toFixed(1)).join(" ");
+  const arc = (cx, cy, r, f) => {
+    const a = Math.max(0.0001, Math.min(0.9999, f)) * 2 * Math.PI;
+    const x = cx + r * Math.sin(a), y = cy - r * Math.cos(a);
+    return `M${cx} ${cy - r} A${r} ${r} 0 ${f > 0.5 ? 1 : 0} 1 ${x.toFixed(2)} ${y.toFixed(2)}`;
+  };
+
+  function build(slide) {
+    const svg = slide.querySelector("#c09rd-svg");
+    if (svg._S) return svg._S;
+    svg.innerHTML = "";
+    const s = { prev: -1 };
+    // dot axis
+    mk("path", { d: `M${X0} ${AXIS} H${X0 + XW}`, stroke: "var(--line-2)", "stroke-width": 1.5 }, svg);
+    [0, 0.2, 0.4, 0.6, 0.8, 1].forEach((t) => {
+      mk("path", { d: `M${xOf(t)} ${AXIS} v5`, stroke: "var(--line-2)" }, svg);
+      mk("text", { x: xOf(t), y: AXIS + 16, "text-anchor": "middle", "font-size": 10.5, fill: "var(--muted)" }, svg, t.toFixed(1));
+    });
+    mk("text", { x: X0, y: 246, "font-size": 10.5, fill: "var(--muted)" }, svg, "max predict_proba · 1 dot = 60 test tickets ·");
+    mk("circle", { cx: 371, cy: 242.5, r: 4, fill: "var(--state)" }, svg);
+    mk("text", { x: 379, y: 246, "font-size": 10.5, fill: "var(--muted)" }, svg, "correct");
+    mk("circle", { cx: 440, cy: 242.5, r: 4, fill: "var(--risk)" }, svg);
+    mk("text", { x: 448, y: 246, "font-size": 10.5, fill: "var(--muted)" }, svg, "wrong");
+    // dots stacked by 0.025-wide bins
+    const lvl = {};
+    s.dots = C.map((c, i) => {
+      const b = Math.floor(c / 0.025), k = lvl[b] = (lvl[b] || 0) + 1;
+      const d = mk("circle", { cx: xOf(c), cy: AXIS - 6 - (k - 1) * 9, r: 3.9, fill: F[i] === "1" ? "var(--state)" : "var(--risk)", opacity: 0 }, svg);
+      return { el: d, c, ok: F[i] === "1", routed: c >= TSTAR };
+    });
+    // chart: calibration cost per ticket
+    s.chart = mk("g", { opacity: 0 }, svg);
+    mk("path", { d: `M${X0} 24 V114 H${X0 + XW}`, stroke: "var(--line-2)", fill: "none" }, s.chart);
+    [2.0, 1.5, 1.0].forEach((c) => {
+      mk("text", { x: X0 - 6, y: yOf(c) + 4, "text-anchor": "end", "font-size": 10, fill: "var(--muted)" }, s.chart, c.toFixed(1));
+      mk("path", { d: `M${X0} ${yOf(c)} H${X0 + XW}`, stroke: "var(--line)", "stroke-dasharray": "2 4" }, s.chart);
+    });
+    mk("text", { x: X0 + 6, y: 14, "font-size": 11, "font-weight": 700, fill: "var(--ink)" }, s.chart, "cal_cost per ticket vs t");
+    s.curve = mk("path", { d: pathTo(0), stroke: "var(--human)", "stroke-width": 2.6, fill: "none" }, s.chart);
+    s.counter = mk("text", { x: X0 + XW, y: 14, "text-anchor": "end", "font-size": 11.5, "font-weight": 700, fill: "var(--human)" }, s.chart, "");
+    s.minDot = mk("circle", { cx: xOf(TSTAR), cy: yOf(0.926), r: 4.5, fill: "var(--human)", opacity: 0 }, s.chart);
+    // threshold line + break-even mark
+    s.line = mk("path", { d: `M0 22 V${AXIS + 2}`, stroke: "var(--human)", "stroke-width": 2.2, opacity: 0 }, svg);
+    s.be = mk("g", { opacity: 0 }, svg);
+    mk("path", { d: `M${xOf(0.8) + 4} 120 V${AXIS + 2}`, stroke: "var(--model)", "stroke-width": 1.6, "stroke-dasharray": "4 3" }, s.be);
+    mk("text", { x: xOf(0.8) + 10, y: 134, "font-size": 10.5, "font-weight": 700, fill: "var(--model)" }, s.be, "0.80 break-even");
+    s.tLbl = mk("text", { x: xOf(TSTAR) - 8, y: 134, "text-anchor": "end", "font-size": 10.5, "font-weight": 700, fill: "var(--human)", opacity: 0 }, svg, "t* = 0.79 (cal, frozen)");
+    // side labels: step 1 (line at 0.5) and step 3 (line at t*)
+    s.side1 = mk("g", { opacity: 0 }, svg);
+    mk("text", { x: xOf(0.5) - 10, y: 150, "text-anchor": "end", "font-size": 11, "font-weight": 700, fill: "var(--human)" }, s.side1, "← defer: cost 1");
+    mk("text", { x: xOf(0.5) + 10, y: 150, "font-size": 11, "font-weight": 700, fill: "var(--ink-2)" }, s.side1, "route: 0 if right, 5 if wrong →");
+    mk("text", { x: xOf(0.5) + 10, y: 20, "font-size": 11, "font-weight": 700, fill: "var(--human)" }, s.side1, "t");
+    s.side3 = mk("g", { opacity: 0 }, svg);
+    mk("text", { x: xOf(TSTAR) - 10, y: 152, "text-anchor": "end", "font-size": 11, "font-weight": 700, fill: "var(--human)" }, s.side3, "deferred to humans 77.92%");
+    mk("text", { x: xOf(TSTAR) + 10, y: 152, "font-size": 11, "font-weight": 700, fill: "var(--state)" }, s.side3, "routed 22.08%");
+    // step 3 bars
+    s.bars = mk("g", { opacity: 0 }, svg);
+    const BX = 150, K = 190;
+    mk("text", { x: 0, y: 14, "font-size": 11, "font-weight": 700, fill: "var(--ink)" }, s.bars, "test cost per ticket (evaluated once)");
+    s.barEls = [["always-route", 1.942, "var(--risk)", "1.942"], ["always-defer", 1.000, "var(--human)", "1.000"], ["tuned t*=0.79", 0.946, "var(--state)", "0.946"]].map(([lab, v, col, txt], i) => {
+      const y = 26 + i * 30;
+      mk("text", { x: BX - 8, y: y + 14, "text-anchor": "end", "font-size": 11, fill: "var(--ink-2)" }, s.bars, lab);
+      const r = mk("rect", { x: BX, y, width: 0, height: 19, rx: 4, fill: col }, s.bars);
+      const t = mk("text", { x: BX + v * K + 7, y: y + 14, "font-size": 11.5, "font-weight": 700, fill: col, opacity: 0 }, s.bars, txt);
+      return { r, t, w: v * K };
+    });
+    // step 4 donuts
+    s.don = mk("g", { opacity: 0 }, svg);
+    mk("text", { x: 0, y: 14, "font-size": 11, "font-weight": 700, fill: "var(--ink)" }, s.don, "wrong routes on test");
+    s.arcs = [[70, 0.388, "38.8%", "always-route"], [210, 0.033, "3.3%", "tuned"]].map(([cx, f, txt, lab]) => {
+      mk("circle", { cx, cy: 64, r: 30, fill: "none", stroke: "var(--line)", "stroke-width": 12 }, s.don);
+      const a = mk("path", { d: arc(cx, 64, 30, f), fill: "none", stroke: "var(--risk)", "stroke-width": 12 }, s.don);
+      mk("text", { x: cx, y: 68, "text-anchor": "middle", "font-size": 12, "font-weight": 700, fill: "var(--risk)" }, s.don, txt);
+      mk("text", { x: cx, y: 112, "text-anchor": "middle", "font-size": 10.5, fill: "var(--muted)" }, s.don, lab);
+      return { a, f, len: 2 * Math.PI * 30 * f };
+    });
+    mk("path", { d: "M112 64 H160", stroke: "var(--ink-2)", "stroke-width": 1.8 }, s.don);
+    mk("path", { d: "M153 59 L160 64 L153 69", stroke: "var(--ink-2)", "stroke-width": 1.8, fill: "none" }, s.don);
+    mk("text", { x: 300, y: 52, "font-size": 24, "font-weight": 800, fill: "var(--state)" }, s.don, "−51.3% cost");
+    mk("text", { x: 300, y: 74, "font-size": 11, fill: "var(--ink-2)" }, s.don, "vs always-route · 95% CI [49.7%, 52.8%]");
+    mk("text", { x: 300, y: 92, "font-size": 11, fill: "var(--ink-2)" }, s.don, "paired: 5,000 resamples, same tickets");
+    mk("text", { x: 300, y: 110, "font-size": 11, "font-weight": 700, fill: "var(--human)" }, s.don, "vs always-defer: 1.000 → 0.946");
+    svg._S = s;
+    return s;
+  }
+
+  function lineAt(s, t, top) { s.line.setAttribute("d", `M${xOf(t).toFixed(1)} ${top || 22} V${AXIS + 2}`); }
+
+  function render(s, n, animate) {
+    if (s.tl) { s.tl.kill(); s.tl = null; }
+    const all = [s.chart, s.line, s.be, s.tLbl, s.side1, s.side3, s.bars, s.don, s.minDot, ...s.dots.map((d) => d.el), ...s.barEls.flatMap((b) => [b.r, b.t]), ...s.arcs.map((a) => a.a)];
+    gsap.killTweensOf(all);
+    const to = (el, v, d, dur) => (animate ? gsap.to(el, { ...v, duration: dur || 0.45, delay: d || 0 }) : gsap.set(el, v));
+    // dots
+    s.dots.forEach((d, i) => {
+      const deferred = n >= 3 && !d.routed;
+      const fill = deferred ? "var(--human)" : d.ok ? "var(--state)" : "var(--risk)";
+      const op = n >= 1 ? (deferred ? 0.45 : 1) : 0;
+      const ring = n >= 4 && d.routed && !d.ok;
+      d.el.setAttribute("stroke", ring ? "var(--ink)" : "none");
+      d.el.setAttribute("stroke-width", ring ? 1.6 : 0);
+      d.el.setAttribute("fill", fill);
+      to(d.el, { opacity: op, attr: { r: ring ? 5.2 : 3.9 } }, n >= 1 && s.prev < 1 ? i * 0.008 : 0, 0.4);
+    });
+    to(s.side1, { opacity: n === 1 ? 1 : 0 }, n === 1 ? 0.5 : 0);
+    to(s.side3, { opacity: n >= 3 ? 1 : 0 }, n >= 3 ? 0.3 : 0);
+    to(s.line, { opacity: n >= 1 ? 1 : 0 });
+    // chart (step 2 only), bars (step 3), donuts (step 4)
+    to(s.chart, { opacity: n === 2 ? 1 : 0 });
+    to(s.bars, { opacity: n === 3 ? 1 : 0 }, n === 3 ? 0.15 : 0);
+    to(s.don, { opacity: n >= 4 ? 1 : 0 }, n >= 4 ? 0.15 : 0);
+    to(s.be, { opacity: n >= 2 ? 1 : 0 }, n === 2 && animate ? 2.9 : 0);
+    to(s.tLbl, { opacity: n >= 2 ? 1 : 0 }, n === 2 && animate ? 2.9 : 0);
+    to(s.minDot, { opacity: n === 2 ? 1 : 0 }, n === 2 && animate ? 2.9 : 0);
+    s.barEls.forEach((b, i) => {
+      to(b.r, { attr: { width: n === 3 ? b.w : 0 } }, n === 3 ? 0.3 + i * 0.25 : 0, 0.7);
+      to(b.t, { opacity: n === 3 ? 1 : 0 }, n === 3 ? 0.9 + i * 0.25 : 0);
+    });
+    s.arcs.forEach((a, i) => {
+      a.a.style.strokeDasharray = a.len + " 400";
+      if (animate && n >= 4 && s.prev < 4) gsap.fromTo(a.a, { strokeDashoffset: a.len }, { strokeDashoffset: 0, duration: 0.9, delay: 0.3 + i * 0.4 });
+      else gsap.set(a.a, { strokeDashoffset: 0 });
+    });
+    // threshold line position and sweep
+    if (n === 2 && animate) {
+      const p = { t: 0 };
+      const upd = () => {
+        const k = Math.max(0, Math.min(100, Math.round(p.t * 100)));
+        lineAt(s, p.t);
+        s.counter.textContent = `t = ${(k / 100).toFixed(2)}   cost = ${CAL[k].toFixed(3)}`;
+      };
+      let maxK = 0;
+      s.curve.setAttribute("d", pathTo(0));
+      s.tl = gsap.timeline();
+      s.tl.to(p, { t: 1, duration: 2.3, ease: "none", onUpdate: () => { upd(); const k = Math.round(p.t * 100); if (k > maxK) { maxK = k; s.curve.setAttribute("d", pathTo(k)); } } })
+          .to(p, { t: TSTAR, duration: 0.6, ease: "power2.inOut", onUpdate: upd });
+    } else {
+      lineAt(s, n === 1 ? 0.5 : n >= 2 ? TSTAR : 0, n >= 3 ? 120 : 22);
+      s.curve.setAttribute("d", pathTo(100));
+      s.counter.textContent = `t* = 0.79   cost = ${CAL[79].toFixed(3)}`;
+    }
+    s.prev = n;
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { S = build(slide); S.prev = -1; render(S, step, false); },
+    step(slide, n, animate) { S = build(slide); render(S, n, animate); },
+    leave(slide) {
+      const svg = slide.querySelector("#c09rd-svg");
+      if (svg && svg._S && svg._S.tl) { svg._S.tl.kill(); svg._S.tl = null; }
+      if (svg) gsap.killTweensOf(svg.querySelectorAll("*"));
+    }
+  });
+})();
+</script>

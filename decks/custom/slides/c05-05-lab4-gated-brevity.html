@@ -1,0 +1,251 @@
+<section class="slide tight" id="custom-c05-lab4-gated-brevity" data-tone="model" data-title="Lab 4: gated brevity reward">
+  <style>
+    #custom-c05-lab4-gated-brevity .gb-grid { display: grid; grid-template-columns: 720px 1fr; gap: 28px; min-height: 0; }
+    #custom-c05-lab4-gated-brevity .gb-left, #custom-c05-lab4-gated-brevity .gb-right { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+    #custom-c05-lab4-gated-brevity pre.code { font-size: 11.6px; line-height: 1.36; padding: 10px 16px 12px; }
+    #custom-c05-lab4-gated-brevity .code-head { padding: 8px 14px; font-size: 13.5px; }
+    #custom-c05-lab4-gated-brevity .lab-head { font-size: 15px; gap: 12px; }
+    #custom-c05-lab4-gated-brevity .lab-head .run { font-size: 15px; padding: 7px 11px; }
+    #custom-c05-lab4-gated-brevity .gb-rail { gap: 8px; }
+    #custom-c05-lab4-gated-brevity .gb-rail > * { font-size: 16px; line-height: 1.35; grid-template-columns: 30px 1fr; gap: 10px; }
+    #custom-c05-lab4-gated-brevity .gb-rail > *::before { width: 26px; height: 26px; font-size: 13px; }
+    #custom-c05-lab4-gated-brevity .gb-rail code { font-size: .84em; }
+    #custom-c05-lab4-gated-brevity .gb-out pre.code { font-size: 12.5px; line-height: 1.4; padding: 8px 16px 10px; }
+    #custom-c05-lab4-gated-brevity .gotcha { grid-template-columns: 84px 1fr; gap: 3px 12px; padding: 10px 16px; font-size: 14.5px; line-height: 1.4; }
+    #custom-c05-lab4-gated-brevity .gotcha > b { font-size: 12.5px; line-height: 1.7; }
+    #custom-c05-lab4-gated-brevity a.cite.paper { display: inline-flex; flex-direction: row; align-items: center; gap: 8px; font-size: 14px; padding: 5px 12px 5px 8px; border-radius: 10px; border: 1px solid var(--line); background: color-mix(in oklab, var(--surface) 60%, transparent); }
+    #custom-c05-lab4-gated-brevity pre.code, #custom-c05-lab4-gated-brevity pre.code *, #custom-c05-lab4-gated-brevity code, #custom-c05-lab4-gated-brevity svg text { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 4</span> Acme claims payout calculator · step 4 of 5</div>
+  <h2 class="title">Pay for brevity only when the payout is right, and ramp it in</h2>
+  <div class="gb-grid fill">
+    <div class="gb-left">
+      <div class="lab-head"><span class="run">python lab4_rewards.py</span><span class="small">CPU · trl 1.16.0</span><a class="cite paper" href="https://arxiv.org/abs/2610.21404" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.21404 Multi-Reward Hacking</a></div>
+      <div class="code-wrap">
+        <div class="code-head">claims_rl/lab4_rewards.py · gated brevity reward with a warm-up</div>
+        <pre class="code" data-lang="python" data-focus="1:2-7, 2:13-14, 3:16-21, 4:26-32"><code>import re
+# literal backslash; r"\boxed" would mean word-boundary + "oxed"
+BOX_RE = re.compile(r"\\boxed\{([^{}]*)\}")
+def _is_correct(text, gold):
+    m = BOX_RE.findall(text)
+    try:
+        return bool(m) and abs(float(m[-1].replace(",", "").replace("$", "")) - float(gold)) &lt; 0.01
+    except ValueError:
+        return False
+def gated_brevity_reward(completions, completion_ids, solution, trainer_state=None,
+                         log_metric=None, target_tokens=120, warmup_steps=50, **kwargs):
+    """Brevity credit ONLY for correct answers (anchor = correctness), ramped in after warm-up."""
+    step = trainer_state.global_step if trainer_state is not None else warmup_steps
+    ramp = min(1.0, step / warmup_steps)
+    out, gated = [], 0
+    for c, ids, gold in zip(completions, completion_ids, solution, strict=True):
+        if not _is_correct(c[0]["content"], gold):
+            out.append(0.0)          # wrong + short earns nothing (no auxiliary-only credit)
+            gated += 1
+            continue
+        out.append(ramp * max(0.0, 1.0 - len(ids) / (2 * target_tokens)))
+    if log_metric is not None:
+        log_metric("brevity/gated_frac", gated / len(out))
+        log_metric("brevity/ramp", ramp)
+    return out
+if __name__ == "__main__":
+    class S: global_step = 25
+    comps = [[{"content": r"...so \boxed{8500}"}], [{"content": r"\boxed{1}"}],
+             [{"content": r"long... \boxed{8500}"}]]
+    ids = [[0] * 40, [0] * 5, [0] * 200]
+    print(gated_brevity_reward(comps, ids, ["8500"] * 3, trainer_state=S(),
+                               log_metric=lambda k, v: print(k, v)))</code></pre>
+      </div>
+    </div>
+    <div class="gb-right">
+      <svg id="c05gb-svg" viewBox="0 0 644 272" width="644" height="272" aria-label="A 2 by 2 grid: rows correct and wrong, columns short and long. The short correct answer (40 tokens) gets 0.833 at full ramp, the long correct answer (200 tokens) gets 0.167, and the short wrong answer would get 0.98 without the gate. A warm-up dial turns from 1.0 to 0.5 at step 25 of 50 and all bars halve to 0.417 and 0.083. Then the wrong short cell is crossed out: 0.0, no auxiliary-only credit."></svg>
+      <div class="steps-rail gb-rail">
+        <div data-step="1"><span><code>BOX_RE</code> needs a literal backslash. Correct = the last <code>\boxed{}</code> within $0.01 of gold.</span></div>
+        <div data-step="2"><span>TRL passes <code>trainer_state</code> to every reward, so a warm-up needs no custom trainer.</span></div>
+        <div data-step="3"><span>Wrong answers get 0.0: a TAG-style anchor on correctness.</span></div>
+      </div>
+      <div class="code-wrap out gb-out" data-step="4">
+        <div class="code-head">output · ran on CPU (exact)</div>
+        <pre class="code" data-lang="none"><code><span class="ok">brevity/gated_frac 0.3333333333333333</span>   <span class="dim"># 1 of 3 answers is wrong</span>
+<span class="ok">brevity/ramp 0.5</span>                      <span class="dim"># step 25 of a 50-step warm-up</span>
+<span class="ok">[0.4166666666666667, 0.0, 0.08333333333333331]</span></code></pre>
+      </div>
+      <div class="gotcha" data-step="5">
+        <b>Symptom</b><span><code>TypeError: unsupported operand type(s) for *: 'int' and 'list'</code></span>
+        <b class="why">Cause</b><span>A dataset column named <code>target_tokens</code> silently overrides the default with a list.</span>
+        <b class="fix">Fix</b><span>Rename the column or the parameter. Every column arrives as a kwarg.</span>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">This is step 4 of the claims lab: we want shorter answers, but only short answers that are right. Step 1: the regex needs a literal backslash before boxed, and an answer counts as correct when the last boxed number is within one cent of the gold payout. Step 2: TRL hands trainer_state to every reward function, so the brevity credit ramps from 0 to 1 over the first 50 steps, and at step 25 it is exactly one half. Step 3 is the gate: a wrong answer gets 0.0 no matter how short it is, which is the minimal version of TAG from arXiv 2610.21404, where gating gave 0.581 pass@4 against 0.220 for a plain sum. Think of a taxi driver who is paid for a fast trip only when the passenger reaches the right address. Likely question: "Why not just add 0.1 times a length score?" Because inside a GRPO group a short wrong answer then beats a long right one, and the policy learns to be short and wrong.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c05-lab4-gated-brevity";
+  // the 3 self-test completions (lab-rl Lab 4); brevity = max(0, 1 - len(ids) / 240) before the ramp
+  const CELLS = [
+    { r: 0, c: 0, text: "…so \\boxed{8500}", tok: 40, base: 1 - 40 / 240 },
+    { r: 0, c: 1, text: "long… \\boxed{8500}", tok: 200, base: 1 - 200 / 240 },
+    { r: 1, c: 0, text: "\\boxed{1}", tok: 5, base: 0, ghost: 1 - 5 / 240 },
+    { r: 1, c: 1, text: "", tok: 0, base: 0, empty: true },
+  ];
+  const CAPS = [
+    "3 test completions · gold payout 8500 · target_tokens 120",
+    "after warm-up (ramp 1.0): short + right earns most",
+    "step 25 of 50: ramp 0.5, every bar halves",
+    "the gate: wrong + short earns 0.0 · no auxiliary-only credit",
+    "the grid matches the printed output exactly",
+    "the grid matches the printed output exactly",
+  ];
+  const CX = [80, 300], CY = [30, 146], CW = 206, CH = 104, BW = 178;
+  const DIAL = { x: 580, y: 136, r: 50 };
+  let S = null, tl = null;
+
+  const el = (parent, tag, attrs, style, text) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (style) Object.assign(e.style, style);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  };
+  const mono = (w, s) => `${w} ${s}px var(--f-mono)`;
+  const f3 = (v) => v.toFixed(3);
+
+  function needle(v) {
+    const a = Math.PI - Math.PI * v;
+    S.needle.setAttribute("x2", DIAL.x + Math.cos(a) * (DIAL.r - 8));
+    S.needle.setAttribute("y2", DIAL.y - Math.sin(a) * (DIAL.r - 8));
+    S.arc.style.strokeDashoffset = S.arcLen * (1 - v);
+    S.dialV.textContent = v.toFixed(2);
+  }
+
+  function build(svg) {
+    svg.innerHTML = "";
+    el(svg, "text", { x: CX[0] + CW / 2, y: 18, "text-anchor": "middle" }, { font: mono(700, 13), fill: "var(--muted)" }, "SHORT");
+    el(svg, "text", { x: CX[1] + CW / 2, y: 18, "text-anchor": "middle" }, { font: mono(700, 13), fill: "var(--muted)" }, "LONG");
+    el(svg, "text", { x: 0, y: CY[0] + CH / 2 + 5 }, { font: mono(700, 14), fill: "var(--state)" }, "correct");
+    el(svg, "text", { x: 0, y: CY[1] + CH / 2 + 5 }, { font: mono(700, 14), fill: "var(--risk)" }, "wrong");
+    const cells = CELLS.map((d) => {
+      const x = CX[d.c], y = CY[d.r];
+      const g = el(svg, "g", {});
+      const box = el(g, "rect", { x, y, width: CW, height: CH, rx: 12 }, { fill: "var(--surface-2)", stroke: "var(--line-2)", strokeWidth: 2 });
+      const card = el(g, "g", {});
+      if (d.empty) {
+        el(card, "text", { x: x + 14, y: y + 30 }, { font: mono(600, 12.5), fill: "var(--muted)" }, "no test sample");
+        el(card, "text", { x: x + 14, y: y + 50 }, { font: mono(500, 12), fill: "var(--muted)" }, "gated like wrong + short");
+      } else {
+        el(card, "text", { x: x + 14, y: y + 24 }, { font: mono(700, 13), fill: "var(--ink)" }, d.text);
+        el(card, "text", { x: x + 14, y: y + 42 }, { font: mono(500, 12), fill: "var(--muted)" }, `${d.tok} tokens`);
+      }
+      const track = el(g, "rect", { x: x + 14, y: y + 52, width: BW, height: 18, rx: 6 }, { fill: "var(--surface)", stroke: "var(--line-2)", strokeWidth: 1.5 });
+      const ghost = el(g, "rect", { x: x + 14, y: y + 52, width: 0, height: 18, rx: 6 }, { fill: "var(--risk-soft)", stroke: "var(--risk)", strokeWidth: 2, strokeDasharray: "5 4" });
+      const bar = el(g, "rect", { x: x + 14, y: y + 52, width: 0, height: 18, rx: 6 }, { fill: d.r === 0 ? "var(--state)" : "var(--risk)" });
+      const val = el(g, "text", { x: x + 14, y: y + 92 }, { font: mono(700, 15), fill: "var(--ink)" }, "");
+      const cross = el(g, "g", {});
+      el(cross, "line", { x1: x + 8, y1: y + 8, x2: x + CW - 8, y2: y + CH - 8 }, { stroke: "var(--risk)", strokeWidth: 4, strokeLinecap: "round" });
+      el(cross, "line", { x1: x + CW - 8, y1: y + 8, x2: x + 8, y2: y + CH - 8 }, { stroke: "var(--risk)", strokeWidth: 4, strokeLinecap: "round" });
+      return { d, g, box, card, track, ghost, bar, val, cross };
+    });
+    // warm-up dial
+    el(svg, "text", { x: DIAL.x, y: 40, "text-anchor": "middle" }, { font: mono(700, 13), fill: "var(--muted)" }, "WARM-UP");
+    el(svg, "path", { d: `M${DIAL.x - DIAL.r} ${DIAL.y} A${DIAL.r} ${DIAL.r} 0 0 1 ${DIAL.x + DIAL.r} ${DIAL.y}` }, { fill: "none", stroke: "var(--line-2)", strokeWidth: 10, strokeLinecap: "round" });
+    const arc = el(svg, "path", { d: `M${DIAL.x - DIAL.r} ${DIAL.y} A${DIAL.r} ${DIAL.r} 0 0 1 ${DIAL.x + DIAL.r} ${DIAL.y}` }, { fill: "none", stroke: "var(--model)", strokeWidth: 10, strokeLinecap: "round" });
+    const arcLen = Math.PI * DIAL.r;
+    arc.style.strokeDasharray = arcLen;
+    el(svg, "text", { x: DIAL.x - DIAL.r, y: DIAL.y + 20, "text-anchor": "middle" }, { font: mono(600, 11), fill: "var(--muted)" }, "0");
+    el(svg, "text", { x: DIAL.x + DIAL.r, y: DIAL.y + 20, "text-anchor": "middle" }, { font: mono(600, 11), fill: "var(--muted)" }, "1");
+    const needleL = el(svg, "line", { x1: DIAL.x, y1: DIAL.y, x2: DIAL.x, y2: DIAL.y }, { stroke: "var(--ink)", strokeWidth: 3.5, strokeLinecap: "round" });
+    el(svg, "circle", { cx: DIAL.x, cy: DIAL.y, r: 6 }, { fill: "var(--ink)" });
+    const dialV = el(svg, "text", { x: DIAL.x, y: DIAL.y + 44, "text-anchor": "middle" }, { font: mono(700, 20), fill: "var(--model)" }, "");
+    const dialS = el(svg, "text", { x: DIAL.x, y: DIAL.y + 64, "text-anchor": "middle" }, { font: mono(500, 11.5), fill: "var(--muted)" }, "");
+    el(svg, "text", { x: DIAL.x, y: DIAL.y + 80, "text-anchor": "middle" }, { font: mono(500, 11.5), fill: "var(--muted)" }, "min(1, step/50)");
+    const cap = el(svg, "text", { x: 0, y: 268 }, { font: mono(700, 13.5), fill: "var(--ink-2)" }, "");
+    S = { svg, cells, arc, arcLen, needle: needleL, dialV, dialS, cap, dial: { v: 1 } };
+  }
+
+  function kill() {
+    if (tl) { tl.kill(); tl = null; }
+    if (S) gsap.killTweensOf([S.dial, ...S.cells.flatMap((c) => [c.card, c.bar, c.ghost, c.cross, c.box])]);
+  }
+
+  function render(n, animate) {
+    if (!S) return;
+    kill();
+    const anim = animate && !matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const ramp = n >= 2 ? 0.5 : 1;
+    S.cap.textContent = CAPS[Math.min(n, CAPS.length - 1)];
+    S.cap.style.fill = n === 3 ? "var(--risk)" : "var(--ink-2)";
+    S.dialS.textContent = n >= 2 ? "step 25 of 50" : n >= 1 ? "step ≥ 50" : "";
+    tl = gsap.timeline();
+    // dial
+    if (anim && n === 2) {
+      S.dial.v = 0; needle(0);
+      tl.to(S.dial, { v: 0.5, duration: 1.0, ease: "power2.inOut", onUpdate: () => needle(S.dial.v) }, 0);
+    } else { S.dial.v = n >= 1 ? ramp : 0; needle(S.dial.v); if (n < 1) S.dialV.textContent = ""; }
+    S.cells.forEach((c, i) => {
+      const d = c.d, show = n >= 1;
+      const gated = n >= 3;
+      const ghostW = d.ghost && !gated ? d.ghost * ramp * BW : 0;
+      const barW = d.base * ramp * BW;
+      // value label for this step
+      let label = "";
+      if (show) {
+        if (d.empty) label = gated ? "0.0" : "";
+        else if (d.ghost) label = gated ? "0.0 · no credit" : `no gate: ${f3(d.ghost * ramp)}`;
+        else label = f3(d.base * ramp);
+      }
+      c.val.textContent = label;
+      c.val.style.fill = d.ghost || d.empty ? "var(--risk)" : "var(--state)";
+      c.box.style.stroke = n >= 4 && !d.empty ? "var(--model)" : (d.ghost && gated ? "var(--risk)" : "var(--line-2)");
+      c.box.style.fill = d.ghost && gated ? "var(--risk-soft)" : "var(--surface-2)";
+      gsap.set(c.track, { opacity: show && !d.empty ? 1 : 0 });
+      const showCross = !!d.ghost && gated;
+      if (anim && n === 1 && !d.empty) {
+        // the completion drops into its cell, then its bar grows
+        gsap.set(c.card, { opacity: 0, y: -40 });
+        gsap.set(c.bar, { attr: { width: 0 } });
+        gsap.set(c.ghost, { attr: { width: 0 } });
+        gsap.set(c.val, { opacity: 0 });
+        tl.to(c.card, { opacity: 1, y: 0, duration: 0.5, ease: "bounce.out" }, i * 0.25)
+          .to(c.bar, { attr: { width: barW }, duration: 0.6, ease: "power2.out" }, i * 0.25 + 0.45)
+          .to(c.ghost, { attr: { width: ghostW }, duration: 0.6, ease: "power2.out" }, i * 0.25 + 0.45)
+          .to(c.val, { opacity: 1, duration: 0.3 }, i * 0.25 + 0.7);
+      } else if (anim && n === 2 && !d.empty) {
+        gsap.set([c.card, c.val], { opacity: 1, y: 0 });
+        gsap.set(c.bar, { attr: { width: d.base * BW } });
+        gsap.set(c.ghost, { attr: { width: d.ghost ? d.ghost * BW : 0 } });
+        tl.to(c.bar, { attr: { width: barW }, duration: 1.0, ease: "power2.inOut" }, 0)
+          .to(c.ghost, { attr: { width: ghostW }, duration: 1.0, ease: "power2.inOut" }, 0);
+      } else if (anim && n === 3 && d.ghost) {
+        gsap.set([c.card, c.val], { opacity: 1, y: 0 });
+        gsap.set(c.bar, { attr: { width: 0 } });
+        gsap.set(c.ghost, { attr: { width: d.ghost * 0.5 * BW } });
+        tl.to(c.ghost, { attr: { width: 0 }, duration: 0.6, ease: "power2.in" }, 0.3);
+      } else {
+        gsap.set(c.card, { opacity: show ? 1 : 0, y: 0 });
+        gsap.set(c.val, { opacity: 1 });
+        gsap.set(c.bar, { attr: { width: show ? barW : 0 } });
+        gsap.set(c.ghost, { attr: { width: show ? ghostW : 0 } });
+      }
+      if (showCross && anim && n === 3) {
+        gsap.set(c.cross, { opacity: 0, scale: 1.3, transformOrigin: "50% 50%" });
+        tl.to(c.cross, { opacity: 0.45, scale: 1, duration: 0.4, ease: "back.out(2)" }, 0.8);
+      } else gsap.set(c.cross, { opacity: showCross ? 0.45 : 0, scale: 1 });
+      if (anim && n === 4 && !d.empty) {
+        tl.fromTo(c.box, { strokeWidth: 2 }, { strokeWidth: 5, duration: 0.25, yoyo: true, repeat: 3 }, i * 0.15);
+      } else c.box.style.strokeWidth = n >= 4 && !d.empty ? 3 : 2;
+    });
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { kill(); build(slide.querySelector("#c05gb-svg")); render(step || 0, false); },
+    step(slide, n, animate) {
+      if (!S || !slide.contains(S.svg)) build(slide.querySelector("#c05gb-svg"));
+      render(n, animate);
+    },
+    leave() { kill(); },
+  });
+})();
+</script>

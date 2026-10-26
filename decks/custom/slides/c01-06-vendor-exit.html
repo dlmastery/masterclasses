@@ -1,0 +1,181 @@
+<section class="slide" id="custom-c01-vendor-exit" data-tone="agent" data-title="Vendor exit risk">
+  <div class="kicker"><span class="pill">Gotcha</span> managed services · Oct 2026</div>
+  <h2 class="title">Managed tuning can vanish: keep data, graders and evals portable</h2>
+  <div class="stack fill" style="gap:14px">
+    <div class="vx-tiles">
+      <div class="vx-tile" data-i="0"><b>OpenAI</b><span>RFT on o4-mini</span><i class="vx-st" data-step="1" data-fx="pop" style="--sc:var(--risk)">RFT ended 2026-10-23</i></div>
+      <div class="vx-tile" data-i="1"><b>Vertex AI</b><span>Gemini RFT</span><i class="vx-st" data-step="2" data-fx="pop" style="--sc:var(--tool)">Pre-GA · not for production</i></div>
+      <div class="vx-tile" data-i="2"><b>Fireworks</b><span>managed RFT</span><i class="vx-st" data-step="3" data-fx="pop" style="--sc:var(--muted)">no new RFT jobs</i></div>
+    </div>
+
+    <div class="vx-low">
+      <div class="gotcha vx-g" data-step="1" data-until="2">
+        <b>Symptom</b><span>A new RFT job on <code>o4-mini</code> is rejected.</span>
+        <b class="why">Cause</b><span>"OpenAI is winding down the fine-tuning platform." New orgs: closed since 2026-05-07. Orgs with no fine-tuned inference: closed 2026-07-02. Active customers: last new jobs 2027-01-06. <code>ft-o4-mini</code>, the RFT model, shut down 2026-10-23. Graders are being deprecated too.</span>
+        <b class="fix">Fix</b><span>Keep the grader as plain Python that you own.</span>
+      </div>
+      <div class="gotcha vx-g" data-step="2" data-until="3">
+        <b>Symptom</b><span>The tuned Gemini model cannot go to production.</span>
+        <b class="why">Cause</b><span>Vertex RFT is Pre-GA, <code>v1beta1</code> only: it "may not be used for commercial or production purposes", and "do not use proprietary, sensitive, or other confidential data".</span>
+        <b class="fix">Fix</b><span>Prototype only. Plan the GA migration now.</span>
+      </div>
+      <div class="gotcha vx-g" data-step="3" data-until="4">
+        <b>Symptom</b><span>Fireworks refuses a new managed RFT job.</span>
+        <b class="why">Cause</b><span>Managed Training "no longer accepts new RFT jobs". Existing jobs keep running. The docs give no date.</span>
+        <b class="fix">Fix</b><span>Own the portable assets: dataset JSONL, reward code and eval set.</span>
+      </div>
+
+      <div class="vx-fix" data-step="4" data-fx="fade">
+        <div class="code-wrap">
+          <div class="code-head">refunds/grade.py · no SDK import</div>
+          <pre class="code" data-lang="python" data-focus="4:3-9, 5:10-11, 6:12-17"><code>import json, re
+def grade(sample, item) -> float:
+    m = re.search(r"\{.*?\}", sample["output_text"], re.DOTALL)
+    try:
+        out = json.loads(m.group(0)) if m else None
+    except json.JSONDecodeError:
+        out = None
+    if not isinstance(out, dict):
+        return 0.0
+    if out.get("decision") != item["gold_decision"]:
+        return 0.0
+    try:
+        amt = float(out["refund_amount"])
+        ok = abs(amt - float(item["gold_amount"])) &lt;= 0.01
+    except (KeyError, TypeError, ValueError):
+        ok = False
+    return 1.0 if ok else 0.5</code></pre>
+        </div>
+        <div class="vx-right">
+          <div class="vx-explain" data-until="7">
+            <div class="steps-rail">
+              <div data-step="4"><span>Parse defensively. No JSON, bad JSON or a JSON list gives 0.0. The grader never raises.</span></div>
+              <div data-step="5"><span>Gold labels come from the dataset row (<code>item</code>), not from a vendor API.</span></div>
+              <div data-step="6"><span>Smooth score: 1.0 right amount, 0.5 right decision only, 0.0 wrong.</span></div>
+            </div>
+            <div class="code-wrap out" data-step="6">
+              <div class="code-head">expected · item = approve, 49.99</div>
+              <pre class="code xs" data-lang="bash"><code>{"decision":"approve","refund_amount":49.99}  <span class="ok">-> 1.0</span>
+{"decision":"approve","refund_amount":40}     <span class="dim">-> 0.5</span>
+Sure! I approved it.                          <span class="err">-> 0.0</span></code></pre>
+            </div>
+          </div>
+          <div class="vx-fan" data-step="7" data-fx="fade">
+            <svg class="vx-arrows" width="664" height="380" style="position:absolute;left:0;top:0;overflow:visible;pointer-events:none"></svg>
+            <div class="vx-folder" style="position:absolute;left:0;top:96px;width:210px">
+              <div class="vx-fh">refunds/</div>
+              <div>train.jsonl</div>
+              <div>val.jsonl</div>
+              <div class="vx-grade">grade.py</div>
+              <div>eval_set.jsonl</div>
+            </div>
+            <div class="node n-model vx-be" style="left:290px;top:0;width:374px"><span class="nt">TRL GRPOTrainer</span><span class="ns">reward(completions, **kw) → list</span></div>
+            <div class="node n-agent vx-be" style="left:290px;top:128px;width:374px"><span class="nt">Vertex AI RFT</span><span class="ns">return 2 * grade(...) - 1</span></div>
+            <div class="node n-tool vx-be" style="left:290px;top:256px;width:374px"><span class="nt">Bedrock RFT</span><span class="ns">call grade() in the Lambda reward</span></div>
+            <p class="vx-say">Swap the backend. Keep the assets.</p>
+            <div class="vx-cites">
+              <a class="cite doc" href="https://developers.openai.com/api/docs/deprecations" target="_blank" rel="noopener"><b>OpenAI</b>&nbsp;deprecations</a>
+              <a class="cite doc" href="https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/tuning/reinforcement-tuning" target="_blank" rel="noopener"><b>Vertex</b>&nbsp;Gemini RFT</a>
+              <a class="cite doc" href="https://docs.fireworks.ai/fine-tuning/reinforcement-fine-tuning-models" target="_blank" rel="noopener"><b>Fireworks</b>&nbsp;RFT</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <style>
+    #custom-c01-vendor-exit .vx-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+    #custom-c01-vendor-exit .vx-tile { position: relative; height: 86px; padding: 12px 18px; border-radius: 14px; border: 1.5px solid var(--line-2); background: var(--surface); display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 14px; row-gap: 8px; align-items: baseline; transition: box-shadow .4s; }
+    #custom-c01-vendor-exit .vx-tile b { font: 700 24px/1.1 var(--f-body); color: var(--ink); }
+    #custom-c01-vendor-exit .vx-tile span { font: 500 17px/1.2 var(--f-mono); color: var(--muted); }
+    #custom-c01-vendor-exit .vx-tile.on { box-shadow: 0 0 0 3px color-mix(in oklab, var(--risk) 35%, transparent); }
+    #custom-c01-vendor-exit .vx-st { grid-column: 1 / -1; justify-self: start; font: 800 17px/1 var(--f-mono); font-style: normal; text-transform: uppercase; letter-spacing: .03em; color: var(--sc); border: 2px solid var(--sc); border-radius: 6px; padding: 5px 8px; }
+    #custom-c01-vendor-exit .vx-low { position: relative; flex: 1; min-height: 0; }
+    #custom-c01-vendor-exit .vx-g { position: absolute; left: 0; right: 0; top: 10px; grid-template-columns: 130px 1fr; gap: 14px 18px; padding: 24px 28px; font-size: 23px; line-height: 1.45; }
+    #custom-c01-vendor-exit .vx-g > b { font-size: 18px; }
+    #custom-c01-vendor-exit .vx-fix { position: absolute; inset: 0; display: grid; grid-template-columns: 700px 1fr; gap: 28px; }
+    #custom-c01-vendor-exit pre.code { font-size: 17px; padding: 14px 22px 16px; }
+    #custom-c01-vendor-exit pre.code.xs { font-size: 15px; }
+    #custom-c01-vendor-exit pre.code, #custom-c01-vendor-exit pre.code * { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #custom-c01-vendor-exit .vx-right { position: relative; }
+    #custom-c01-vendor-exit .vx-explain { position: absolute; inset: 0; display: flex; flex-direction: column; gap: 20px; }
+    #custom-c01-vendor-exit .steps-rail > * { font-size: 20px; }
+    #custom-c01-vendor-exit .vx-fan { position: absolute; inset: 0; }
+    #custom-c01-vendor-exit .vx-folder { border: 1.5px solid var(--state); border-radius: 14px; background: var(--state-soft); padding: 12px 16px; display: grid; gap: 6px; font: 500 17px/1.3 var(--f-mono); color: var(--ink-2); }
+    #custom-c01-vendor-exit .vx-folder .vx-fh { font-weight: 700; color: var(--state); font-size: 19px; }
+    #custom-c01-vendor-exit .vx-folder .vx-grade { color: var(--state); font-weight: 700; }
+    #custom-c01-vendor-exit .vx-be .ns { font-size: 16px; white-space: nowrap; }
+    #custom-c01-vendor-exit .vx-say { position: absolute; left: 0; top: 380px; margin: 0; font-size: 21px; color: var(--state); font-weight: 600; }
+    #custom-c01-vendor-exit .vx-cites { position: absolute; left: 0; right: 0; bottom: 0; display: flex; gap: 8px; flex-wrap: nowrap; }
+    #custom-c01-vendor-exit .vx-cites .cite { font-size: 14px; }
+  </style>
+  <aside class="notes">Tell the problem first. OpenAI is winding down self-serve fine-tuning: organizations that never fine-tuned lost job creation on 7 May 2026, organizations with no fine-tuned inference in the last 60 days lost it on 2 July 2026, and active customers can create new jobs only until 6 January 2027. RFT ran on o4-mini, and the ft-o4-mini snapshot shut down on 23 October 2026, so OpenAI RFT has already ended. Vertex Gemini RFT is Pre-GA and not for production or confidential data, and Fireworks managed RFT takes no new jobs. Recap the three dates on the tiles before the next click. The lesson is like moving house: the furniture is your training data, your grader and your eval set, and the vendor is only the truck. The grade function has no SDK import, so the same logic runs behind a TRL reward function, a Vertex code reward or a Bedrock Lambda reward, with a thin adapter for each. A likely question: "is the score scale the same everywhere?" Not quite: Vertex clips rewards to the range -1 to 1, so the Vertex adapter maps 0..1 to -1..1 with 2 * score - 1; chapter 4 shows the full adapters. Next: eight checks that turn this chapter into a decision.</aside>
+</section>
+<script>
+(() => {
+  const ID = "custom-c01-vendor-exit";
+  const NS = "http://www.w3.org/2000/svg";
+  let prev = -1, loops = [];
+
+  function tiles(slide, n, animate) {
+    const t = [...slide.querySelectorAll(".vx-tile")];
+    t.forEach((el, i) => el.classList.toggle("on", n === i + 1));
+    gsap.killTweensOf(t[2]);
+    // Fireworks: tile greys out from step 3
+    if (n >= 3) {
+      if (animate && n === 3 && prev === 2) gsap.to(t[2], { filter: "grayscale(1)", opacity: 0.6, duration: 0.8 });
+      else gsap.set(t[2], { filter: "grayscale(1)", opacity: 0.6 });
+    } else gsap.set(t[2], { filter: "none", opacity: 1 });
+  }
+
+  function arrows(slide, n, animate) {
+    loops.forEach((l) => l.kill()); loops = [];
+    const svg = slide.querySelector(".vx-arrows");
+    svg.innerHTML = "";
+    if (n < 7) return;
+    const fan = slide.querySelector(".vx-fan"), folder = slide.querySelector(".vx-folder"), row = slide.querySelector(".vx-grade");
+    const sx = folder.offsetLeft + folder.offsetWidth, sy = folder.offsetTop + row.offsetTop + row.offsetHeight / 2;
+    [...fan.querySelectorAll(".vx-be")].forEach((be, i) => {
+      const ex = be.offsetLeft - 10, ey = be.offsetTop + be.offsetHeight / 2;
+      const p = document.createElementNS(NS, "path");
+      p.setAttribute("d", `M${sx},${sy} C${sx + 40},${sy} ${ex - 40},${ey} ${ex},${ey}`);
+      p.setAttribute("fill", "none"); p.setAttribute("stroke", "var(--state)"); p.setAttribute("stroke-width", "2.8");
+      svg.appendChild(p);
+      const head = document.createElementNS(NS, "path");
+      head.setAttribute("d", `M${ex + 10},${ey} L${ex},${ey - 6} L${ex},${ey + 6} Z`);
+      head.setAttribute("fill", "var(--state)");
+      svg.appendChild(head);
+      const L = p.getTotalLength();
+      if (animate && prev === 6) {
+        gsap.fromTo(p, { strokeDasharray: L, strokeDashoffset: L }, { strokeDashoffset: 0, duration: 0.8, delay: 0.25 + i * 0.18, ease: "power2.inOut" });
+        gsap.fromTo(head, { opacity: 0 }, { opacity: 1, duration: 0.3, delay: 0.95 + i * 0.18 });
+      }
+      // a reward pulse travels from grade.py to each backend (index-based phase)
+      const c = document.createElementNS(NS, "circle");
+      c.setAttribute("r", 5); c.setAttribute("fill", "var(--state)"); c.setAttribute("opacity", 0);
+      svg.appendChild(c);
+      const pr = { t: 0 };
+      loops.push(gsap.to(pr, { t: 1, duration: 1.6, ease: "none", repeat: -1, delay: 1.2 + i * 0.5, onUpdate: () => {
+        const pt = p.getPointAtLength(pr.t * L);
+        c.setAttribute("cx", pt.x); c.setAttribute("cy", pt.y); c.setAttribute("opacity", Math.sin(pr.t * Math.PI).toFixed(2));
+      } }));
+    });
+  }
+
+  function render(slide, n, animate) {
+    tiles(slide, n, animate);
+    arrows(slide, n, animate);
+    prev = n;
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { prev = step; render(slide, step, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) {
+      loops.forEach((l) => l.kill()); loops = [];
+      gsap.killTweensOf(slide.querySelectorAll(".vx-tile, .vx-arrows path"));
+      prev = -1;
+    }
+  });
+})();
+</script>

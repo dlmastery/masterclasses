@@ -1,0 +1,55 @@
+<section class="slide" id="adk-c01-lab-sessions" data-tone="state" data-title="Lab 1: sessions are isolated">
+  <style>
+    #adk-c01-lab-sessions pre.code, #adk-c01-lab-sessions pre.code * { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #adk-c01-lab-sessions a.cite.paper { flex-direction: row; padding: 8px 14px 8px 10px; gap: 10px; border-radius: 10px; border: 1px solid var(--line); background: color-mix(in oklab, var(--surface) 60%, transparent); }
+    #adk-c01-lab-sessions .gotcha code { white-space: normal; overflow-wrap: anywhere; }
+    #adk-c01-lab-sessions .gotcha > span { min-width: 0; }
+    #adk-c01-lab-sessions .ss-main { display: grid; grid-template-columns: 780px 1fr; gap: 36px; align-items: center; }
+    #adk-c01-lab-sessions .ss-left, #adk-c01-lab-sessions .ss-right { gap: 24px; min-width: 0; }
+    #adk-c01-lab-sessions .lane { border-radius: 16px; border: 2px solid color-mix(in oklab, var(--state) 55%, transparent); background: color-mix(in oklab, var(--state) 5%, transparent); padding: 16px 18px 18px; display: grid; gap: 12px; }
+    #adk-c01-lab-sessions .lane .ll { font: 700 17px/1 var(--f-mono); color: var(--state); }
+    #adk-c01-lab-sessions .lane .ll span { color: var(--muted); font-weight: 500; }
+    #adk-c01-lab-sessions .chips { display: flex; gap: 10px; flex-wrap: wrap; }
+    #adk-c01-lab-sessions .chip { font: 600 16px/1 var(--f-mono); padding: 9px 12px; border-radius: 9px; background: var(--tool-soft); border: 1.5px solid var(--tool); color: var(--ink); }
+    #adk-c01-lab-sessions .chip.t { line-height: 1.35; background: var(--model-soft); border-color: var(--model); }
+    #adk-c01-lab-sessions .empty { font: 500 17px/1.35 var(--f-mono); color: var(--ink-2); border: 1.5px dashed var(--line-2); border-radius: 10px; padding: 12px 14px; }
+    #adk-c01-lab-sessions .key { font: 600 18px/1.4 var(--f-mono); color: var(--ink-2); }
+    #adk-c01-lab-sessions .key b { color: var(--state); }
+  </style>
+  <div class="kicker"><span class="pill">Lab 1</span> Acme refund desk · step 8 of 8</div>
+  <h2 class="title">A new user and session start with no history from other customers</h2>
+  <div class="ss-main fill">
+    <div class="ss-left stack">
+      <div class="code-wrap">
+        <div class="code-head">labs/adk/lab1-refund-tools/run_refund.py · excerpt</div>
+        <pre class="code" data-lang="python" data-focus="1:1-3, 2:4"><code>    # 3) Isolation: a new user/session does not see Dana's history.
+    await runner.run_debug("What did I ask before?",
+                           user_id="cust-li", session_id="li-1")
+    await runner.close()</code></pre>
+      </div>
+      <p class="key" data-step="1">A session is keyed by <b>app_name</b> + <b>user_id</b> + <b>session_id</b>.</p>
+      <div class="gotcha" data-step="3">
+        <b>Symptom</b><span><code>Session not found: &lt;id&gt;</code></span>
+        <b class="why">Cause</b><span>The id was never created, or was created under another <code>app_name</code>.</span>
+        <b class="fix">Fix</b><span>Call <code>create_session</code> first, or pass <code>auto_create_session=True</code> to <code>Runner</code>.</span>
+      </div>
+    </div>
+    <div class="ss-right stack">
+      <div class="lane" data-step="1">
+        <span class="ll">cust-dana <span>· session.id</span></span>
+        <div class="chips" data-fx="stagger"><span class="chip">call lookup_order</span><span class="chip">call check_refund_…</span><span class="chip t">A-1003 is refundable</span></div>
+      </div>
+      <div class="lane" data-step="2">
+        <span class="ll">cust-li <span>· li-1</span></span>
+        <span class="empty">no events from Dana</span>
+        <span class="chip t" style="justify-self:start">"I don't have any earlier messages from you in this conversation."</span>
+      </div>
+    </div>
+  </div>
+  <div class="cites">
+    <a class="cite repo" href="https://github.com/google/adk-python/tree/v2.13.0" target="_blank" rel="noopener"><b>Repo</b>&nbsp;google/adk-python v2.13.0 · runners.py</a>
+  </div>
+  <aside class="notes">
+    Sessions are keyed by app name, user id and session id. Step 1: Dana's session holds her tool calls and the answer about A-1003. Step 2: cust-li with session li-1 starts empty, so the agent says it has no earlier messages; run_debug created that session on first use. This is the isolation you want between customers. Step 3: the most common runner error is "Session not found: <id>", raised as SessionNotFoundError, a subclass of ValueError: the id was never created or was created under a different app_name. Fix it with create_session first, or Runner(..., auto_create_session=True). Related warning: if InMemoryRunner gets no app_name, ADK prints "App name mismatch detected" because the agent folder implies "refund_agent". Analogy: each session is a separate ticket folder; a new customer gets a new empty folder. Likely question: "Where does history live in production?" In a persistent session service, which Chapter 2 adds. Lab 1 ends here; next we move policy out of the prompt into callbacks.
+  </aside>
+</section>

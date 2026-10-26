@@ -1,0 +1,106 @@
+<section class="slide" id="adk-c01-callbacks-cap" data-tone="tool" data-title="Build: refund cap in before_tool">
+  <style>
+    #adk-c01-callbacks-cap pre.code, #adk-c01-callbacks-cap pre.code * { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #adk-c01-callbacks-cap .cc-main { display: grid; grid-template-columns: 740px 1fr; gap: 40px; align-items: center; }
+    #adk-c01-callbacks-cap .cc-right { gap: 24px; min-width: 0; }
+    #adk-c01-callbacks-cap svg { display: block; overflow: visible; }
+    #adk-c01-callbacks-cap svg text { font-family: var(--f-mono); }
+    #adk-c01-callbacks-cap .wire { fill: none; stroke: var(--line-2); stroke-width: 3; }
+    #adk-c01-callbacks-cap .nd-t { font: 700 20px var(--f-body); fill: var(--ink); }
+    #adk-c01-callbacks-cap .nd-s { font-size: 15px; fill: var(--muted); }
+    #adk-c01-callbacks-cap .hl { font-size: 16px; font-weight: 600; fill: var(--ink-2); }
+    #adk-c01-callbacks-cap .capl { font-size: 16px; font-weight: 700; fill: var(--tool); }
+    #adk-c01-callbacks-cap .tok text { font-size: 17px; font-weight: 700; fill: var(--ink); }
+    #adk-c01-callbacks-cap .verd { font-size: 17px; font-weight: 700; }
+  </style>
+  <div class="kicker"><span class="pill">Build</span> Acme refund desk · before_tool: refund cap</div>
+  <h2 class="title">before_tool_callback blocks a $2,000 refund before the tool runs</h2>
+  <div class="cc-main fill">
+    <div class="code-wrap good">
+      <div class="code-head">labs/adk/lab1-refund-guardrails/refund_agent/agent.py · excerpt</div>
+      <pre class="code" data-lang="python" data-focus="1:3, 2:4-7, 3:8, 4:10-13"><code>def refund_cap(tool: BaseTool, args: dict[str, Any],
+               tool_context: ToolContext) -> Optional[dict]:
+    cap = tool_context.state.get("app:refund_cap_usd", 1500)
+    amount = args.get("amount_usd", 0)
+    if tool.name == "issue_refund" and amount > cap:
+        msg = f"Refunds over ${cap} are blocked by policy."
+        return {"status": "error", "error_message": msg}
+    return None                        # None = run the tool
+
+root_agent = Agent(
+    # ... name, model, instruction, tools as before
+    before_tool_callback=refund_cap,
+)</code></pre>
+    </div>
+    <div class="cc-right stack">
+      <svg id="cc-svg" viewBox="0 0 600 300" width="600" height="300" aria-label="A refund request passes or bounces at before_tool_callback">
+        <path class="wire" d="M120 150 H440"/>
+        <rect x="0" y="113" width="120" height="74" rx="14" style="fill:var(--model-soft);stroke:var(--model)" stroke-width="2"/>
+        <text class="nd-t" x="60" y="156" text-anchor="middle">LLM</text>
+        <rect id="cc-tool" x="440" y="113" width="160" height="74" rx="14" style="fill:var(--tool-soft);stroke:var(--tool)" stroke-width="2"/>
+        <text class="nd-t" x="520" y="157" text-anchor="middle">issue_refund</text>
+        <g id="cc-sh" transform="translate(290,150)"><path d="M0,-30 L25,-19 L25,4 C25,21 12,30 0,36 C-12,30 -25,21 -25,4 L-25,-19 Z" stroke-width="3" style="fill:var(--state-soft);stroke:var(--state)"/></g>
+        <text class="hl" x="290" y="92" text-anchor="middle">before_tool_callback</text>
+        <text class="capl" id="cc-cap" x="290" y="222" text-anchor="middle">cap = $1,500 · app:refund_cap_usd</text>
+        <g id="cc-t1" class="tok"><rect x="-52" y="-18" width="104" height="36" rx="18" style="fill:var(--bg);stroke:var(--risk)" stroke-width="2.5"/><text x="0" y="6" text-anchor="middle">$2,000</text></g>
+        <g id="cc-t2" class="tok"><rect x="-38" y="-18" width="76" height="36" rx="18" style="fill:var(--bg);stroke:var(--state)" stroke-width="2.5"/><text x="0" y="6" text-anchor="middle">$80</text></g>
+        <text class="verd" id="cc-v1" x="200" y="272" text-anchor="middle" style="fill:var(--risk)">$2,000 · tool skipped</text>
+        <text class="verd" id="cc-v2" x="520" y="272" text-anchor="middle" style="fill:var(--state)">$80 · tool runs</text>
+      </svg>
+      <div class="code-wrap out" data-step="2">
+        <div class="code-head">tool result the model reads · illustrative</div>
+        <pre class="code sm" data-lang="none"><code><span class="err">{'status': 'error', 'error_message':
+ 'Refunds over $1500 are blocked by policy.'}</span></code></pre>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    Step 1: the cap is data, read from app: state with a default of 1500, so ops can change it without a deploy. Step 2: when issue_refund asks for more than the cap, the callback returns an error dict; any non-None value from a before_tool callback skips the tool, and the model reads the dict as the tool result, so it can explain the limit to the customer. Step 3: return None to let the tool run, as the $80 refund does. Step 4: wire it with before_tool_callback=refund_cap on the Agent; the callback runs for every tool, so check tool.name. Pitfall: returning {} also skips the tool, while False and None do not. Analogy: the till refuses a refund over the limit, whatever the clerk was told. Likely question: "Why not raise an exception?" Because the model can read an error dict and recover; an exception ends the turn. Next: redaction and metering.
+  </aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c01-callbacks-cap";
+  let tl = null, last = -1;
+  function render(slide, n, animate) {
+    if (tl) { tl.kill(); tl = null; }
+    const q = (s) => slide.querySelector(s);
+    const t1 = q("#cc-t1"), t2 = q("#cc-t2"), sh = q("#cc-sh"), cap = q("#cc-cap"), v1 = q("#cc-v1"), v2 = q("#cc-v2"), shp = q("#cc-sh path"), tool = q("#cc-tool");
+    gsap.killTweensOf([t1, t2, sh, cap, v1, v2]);
+    gsap.set(cap, { autoAlpha: n >= 1 ? 1 : 0 });
+    gsap.set(t1, { autoAlpha: n >= 2 ? 1 : 0, x: 200, y: 150 });
+    gsap.set(v1, { autoAlpha: n >= 2 ? 1 : 0 });
+    gsap.set(t2, { autoAlpha: n >= 3 ? 1 : 0, x: 520, y: 220 });
+    gsap.set(v2, { autoAlpha: n >= 3 ? 1 : 0 });
+    gsap.set(sh, { scale: 1, transformOrigin: "50% 50%" });
+    shp.style.stroke = n === 2 ? "var(--risk)" : "var(--state)";
+    shp.style.fill = n === 2 ? "var(--risk-soft)" : "var(--state-soft)";
+    tool.style.stroke = n >= 3 ? "var(--state)" : "var(--tool)";
+    const fwd = animate && n === last + 1;
+    last = n;
+    if (!fwd) return;
+    tl = gsap.timeline();
+    if (n === 1) tl.from(cap, { autoAlpha: 0, y: 10, duration: 0.4 });
+    if (n === 2) {
+      gsap.set(v1, { autoAlpha: 0 });
+      tl.fromTo(t1, { x: 60, y: 150, autoAlpha: 1 }, { x: 255, duration: 0.6, ease: "power1.in" })
+        .to(sh, { scale: 1.35, duration: 0.14, yoyo: true, repeat: 1 })
+        .to(t1, { x: 200, duration: 0.4, ease: "back.out(3)" }, "<")
+        .to(v1, { autoAlpha: 1, duration: 0.3 });
+    }
+    if (n === 3) {
+      gsap.set(v2, { autoAlpha: 0 });
+      tl.fromTo(t2, { x: 60, y: 150, autoAlpha: 1 }, { x: 290, duration: 0.5, ease: "none" })
+        .to(sh, { scale: 1.2, duration: 0.12, yoyo: true, repeat: 1 }, "<0.4")
+        .to(t2, { x: 520, duration: 0.5, ease: "none" })
+        .to(t2, { y: 220, duration: 0.35, ease: "power2.out" })
+        .to(v2, { autoAlpha: 1, duration: 0.3 });
+    }
+  }
+  Deck.register(ID, {
+    enter(slide, n) { last = n - 1; render(slide, n, false); last = n; },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { if (tl) { tl.kill(); tl = null; } last = -1; }
+  });
+})();
+</script>

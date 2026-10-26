@@ -1,0 +1,145 @@
+<section class="slide" id="rag-interview-c02-wb-multitenant" data-tone="state" data-title="Whiteboard: multi-tenant vector store">
+  <style>
+    #rag-interview-c02-wb-multitenant .diagram .node { min-width: 0; padding: 12px 16px; }
+    #rag-interview-c02-wb-multitenant .diagram .node .nt { font-size: 20px; }
+    #rag-interview-c02-wb-multitenant .diagram .node .ns { font-size: 15px; }
+    #rag-interview-c02-wb-multitenant .prompt-card { padding: 11px 16px; gap: 4px; }
+    #rag-interview-c02-wb-multitenant .prompt-card .lbl { font: 700 14px/1 var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--human); }
+    #rag-interview-c02-wb-multitenant .prompt-card .txt { font-size: 17px; line-height: 1.4; }
+    #rag-interview-c02-wb-multitenant ol.seq { gap: 12px; }
+    #rag-interview-c02-wb-multitenant ol.seq > li { font-size: 18px; line-height: 1.34; padding-left: 42px; color: var(--ink-2); }
+    #rag-interview-c02-wb-multitenant ol.seq > li::before { width: 28px; height: 28px; font-size: 14px; }
+    #rag-interview-c02-wb-multitenant ol.seq .gloss { display: block; font-size: 15px; color: var(--muted); margin-top: 2px; }
+    #rag-interview-c02-wb-multitenant .flags { padding: 9px 14px; font-size: 17px; line-height: 1.36; border-radius: 12px; border: 1px solid var(--risk); background: var(--risk-soft); color: var(--ink-2); }
+    #rag-interview-c02-wb-multitenant .flags b { color: var(--risk); }
+    #rag-interview-c02-wb-multitenant .cites { gap: 8px; align-items: flex-start; }
+    #rag-interview-c02-wb-multitenant .cites .cite { font-size: 14px; padding: 5px 9px 5px 7px; gap: 6px; flex-direction: row; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); }
+    #rag-interview-c02-wb-multitenant .slot { display: grid; }
+    #rag-interview-c02-wb-multitenant .slot > * { grid-area: 1 / 1; align-self: start; }
+    #rag-interview-c02-wb-multitenant pre.code { font-size: 16px; line-height: 1.5; padding: 10px 16px 12px; }
+    #rag-interview-c02-wb-multitenant .code-wrap .code-head { padding: 7px 14px; font-size: 14px; }
+    #rag-interview-c02-wb-multitenant pre.code, #rag-interview-c02-wb-multitenant pre.code code { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+  </style>
+  <div class="kicker"><span class="pill">Whiteboard</span> system design</div>
+  <h2 class="title">Whiteboard: a vector store for 10,000 tenants with per-user ACLs</h2>
+  <div class="grid fill" style="grid-template-columns: 860px 1fr; gap: 28px">
+    <div class="stack" style="gap:14px">
+      <div class="diagram" id="mt-dg" style="width:860px;height:380px"
+           data-wires="user>auth@1:bt:flow{human}; auth>router@1:rl:flow [groups]; router>partA@2:rl [ACL filter]; router>shared@2:rl:flow{state} [ACL filter]; router>v2@4:bt:dash [dual-read]; leak>shared@5:tb:dash{risk} [CI asserts]; leak>partA@5:rt:dash{risk}">
+        <div class="group g-state" style="left:520px;top:0;width:300px;height:262px" data-step="2"><span class="gl">index v1 · pgvector</span></div>
+        <div class="node n-human pill" id="user" style="left:0;top:0;width:180px" data-on="1:hot"><span class="nt">User</span><span class="ns">OIDC token</span></div>
+        <div class="node n-tool" id="auth" style="left:0;top:150px;width:180px" data-step="1" data-fx="pop"><span class="nt">Auth</span><span class="ns">groups claim</span></div>
+        <div class="node n-agent" id="router" style="left:250px;top:150px;width:190px" data-step="1" data-fx="pop" data-on="2:hot"><span class="nt">Tenant router</span><span class="ns">tenant_id</span></div>
+        <div class="node n-state" id="partA" style="left:550px;top:36px;width:240px" data-step="2" data-fx="pop"><span class="nt">Partition t42</span><span class="ns">big tenant</span></div>
+        <div class="node n-state" id="shared" style="left:550px;top:156px;width:240px" data-step="2" data-fx="pop" data-on="3:hot"><span class="nt">Default partition</span><span class="ns">small tenants</span>
+          <svg id="mt-dots" viewBox="0 0 192 16" width="192" height="16" aria-label="Vectors in the default partition; the ACL filter keeps only the allowed ones"></svg>
+        </div>
+        <div class="node n-state" id="v2" style="left:250px;top:296px;width:250px" data-step="4" data-fx="pop" data-on="4:hot"><span class="nt">Index v2</span><span class="ns">same partitions, new embedder</span>
+          <svg id="mt-toggle" viewBox="0 0 172 30" width="172" height="30" aria-label="Serving index switch from v1 to v2"></svg>
+        </div>
+        <div class="node n-risk" id="leak" style="left:570px;top:304px;width:200px" data-step="5" data-fx="pop" data-on="5:hot"><span class="nt">Leak test</span><span class="ns">CI, every store</span></div>
+      </div>
+      <div class="slot">
+        <div class="code-wrap" data-step="2" data-until="5">
+          <div class="code-head">partitions.sql · pgvector 0.8.7</div>
+          <pre class="code" data-lang="sql"><code>CREATE TABLE chunks (id bigint, tenant_id int, group_id int,
+  embedding vector(768)) PARTITION BY LIST (tenant_id);
+CREATE TABLE chunks_t42 PARTITION OF chunks FOR VALUES IN (42);
+CREATE TABLE chunks_shared PARTITION OF chunks DEFAULT;
+CREATE INDEX ON chunks USING hnsw (embedding vector_cosine_ops);</code></pre>
+        </div>
+        <div class="code-wrap" data-step="5">
+          <div class="code-head">leak_test.py · np, conn from search.py · golden_q.npy = embedded golden queries</div>
+          <pre class="code" data-lang="python"><code>USERS = {"ana": (42, [7, 9]), "bo": (43, [7])}  # stub: (tenant, groups) from IdP
+SQL = ("SELECT tenant_id, group_id FROM chunks WHERE tenant_id = %s"
+       " AND group_id = ANY(%s) ORDER BY embedding &lt;=&gt; %s LIMIT 5")
+for user, (tenant, groups) in USERS.items():
+    for q in np.load("golden_q.npy"):               # same embedder as ingest
+        for t, g in conn.execute(SQL, (tenant, groups, q)).fetchall():
+            assert t == tenant and g in groups, f"LEAK: {user}"</code></pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="stack" style="gap:12px">
+      <div class="panel k-human tight prompt-card">
+        <span class="lbl">Prompt</span>
+        <div class="txt">Design the vector layer for a B2B SaaS: <b>10,000 tenants</b> (a few huge, most tiny), <b>per-user permissions</b>, and an embedding-model upgrade next quarter.</div>
+      </div>
+      <ol class="seq">
+        <li data-step="1"><b>Identity:</b> groups claim from the OIDC token. Store groups, not users.</li>
+        <li data-step="2"><b>Isolation:</b> big tenants get a partition; small tenants share the default.</li>
+        <li data-step="3"><b>ACL:</b> filter inside the search, in the vector and BM25 legs.<span class="gloss">Recall loss = stale index + filters that cut graph paths.</span></li>
+        <li data-step="4"><b>Versioning:</b> dual-read = query v1 and v2, serve v1, compare recall.</li>
+        <li data-step="5"><b>CI:</b> leak test per user × golden query; rowcount == LIMIT.</li>
+      </ol>
+      <div class="flags" data-step="6"><b>Red flags:</b> service-account identity; a post-filter after ranking; one index for every tenant.</div>
+      <div class="cites">
+        <a class="cite repo" href="https://github.com/pgvector/pgvector/blob/master/README.md" target="_blank" rel="noopener"><b>pgvector</b>&nbsp;README · Multitenancy</a>
+        <a class="cite doc" href="https://www.notion.com/blog/two-years-of-vector-search-at-notion" target="_blank" rel="noopener"><b>Notion</b>&nbsp;p50 70–100 → 50–70 ms</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2610.15130" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.15130</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Read the prompt aloud and ask for the identity source before the candidate draws any index. Step 1: the groups claim comes from the authenticated token, never from the prompt. Store group ids on the chunks, so a membership change touches the identity provider and no vector is re-indexed. Step 2: the pgvector README recommends PARTITION BY LIST (tenant_id) for multi-tenancy. Huge tenants get their own partition; small tenants share the DEFAULT partition. A tenant whose recall@10 falls below its target (its SLO, service-level objective) moves to its own partition. Step 3: the ACL filter runs inside the search on every store, and in both legs of a hybrid search (BM25 keywords plus vectors) before fusion. The paper 2610.15130 splits the recall loss into staleness (new rows and ACL changes not yet merged into the index) and filtered navigability (a strict filter cuts the graph paths, so the walk cannot reach the matching rows; the 4-of-10 result on the filter slide). Step 4: dual-read sends each query to v1 and v2, serves v1, and logs v2 recall on the golden set; flip when v2 is equal or better. Notion's p50 fell from 70–100 ms to 50–70 ms with 60% lower search spend after its move to turbopuffer, with the embedder upgrade in the same migration. Step 5: the leak test runs in CI against every store and asserts that no row from another tenant or group comes back. Likely follow-up: "What happens when a user leaves a group?" The identity provider changes one membership; no vector is re-indexed.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "rag-interview-c02-wb-multitenant";
+  const N = 12, ALLOWED = [1, 6, 9];                      // 3 of 12 vectors pass tenant + group filter
+  let tweens = [], dots = [], knob = null, v2lab = null, v1lab = null;
+
+  const mk = (p, tag, attrs, style) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (style) Object.assign(e.style, style);
+    p.appendChild(e);
+    return e;
+  };
+  const T = (tw) => { tweens.push(tw); return tw; };
+  function kill() { tweens.forEach((t) => t.kill()); tweens = []; }
+
+  function build(slide) {
+    const ds = slide.querySelector("#mt-dots"), tg = slide.querySelector("#mt-toggle");
+    ds.innerHTML = ""; tg.innerHTML = "";
+    dots = Array.from({ length: N }, (_, i) => mk(ds, "circle", { cx: 8 + i * 16, cy: 8, r: 5.5 }, { fill: "var(--state)", opacity: 0.6 }));
+    v1lab = mk(tg, "text", { x: 0, y: 20 }, { fill: "var(--state)", fontFamily: "var(--f-mono)", fontSize: "14px", fontWeight: 700 });
+    v1lab.textContent = "serve v1";
+    mk(tg, "rect", { x: 80, y: 5, width: 54, height: 22, rx: 11 }, { fill: "var(--line)", stroke: "var(--line-2)" });
+    knob = mk(tg, "circle", { cx: 91, cy: 16, r: 8 }, { fill: "var(--state)" });
+    v2lab = mk(tg, "text", { x: 142, y: 20 }, { fill: "var(--muted)", fontFamily: "var(--f-mono)", fontSize: "14px", fontWeight: 700 });
+    v2lab.textContent = "v2";
+  }
+
+  function render(n, animate) {
+    if (!knob) return;
+    kill();
+    dots.forEach((d, i) => {
+      const keep = ALLOWED.includes(i);
+      const op = n >= 3 ? (keep ? 1 : 0.14) : 0.6;
+      const r = n >= 3 && keep ? 7 : 5.5;
+      if (animate && n === 3) T(gsap.to(d, { opacity: op, attr: { r }, duration: 0.45, delay: 0.3 + i * 0.05 }));
+      else gsap.set(d, { opacity: op, attr: { r } });
+    });
+    const on = n >= 4;
+    const cx = on ? 123 : 91;
+    if (animate && n === 4) {
+      gsap.set(knob, { attr: { cx: 91 } });
+      T(gsap.to(knob, { attr: { cx }, duration: 0.55, delay: 1.2, ease: "back.out(1.6)",
+        onStart: () => { knob.style.fill = "var(--agent)"; v2lab.style.fill = "var(--agent)"; v1lab.style.fill = "var(--muted)"; } }));
+    } else {
+      gsap.set(knob, { attr: { cx } });
+      knob.style.fill = on ? "var(--agent)" : "var(--state)";
+      v2lab.style.fill = on ? "var(--agent)" : "var(--muted)";
+      v1lab.style.fill = on ? "var(--muted)" : "var(--state)";
+    }
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { build(slide); render(step, false); },
+    step(slide, n, animate) { if (!knob) build(slide); render(n, animate); },
+    leave() { kill(); }
+  });
+})();
+</script>

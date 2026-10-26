@@ -1,0 +1,123 @@
+<section class="slide" id="adk-c03-gotcha-fix" data-tone="risk" data-title="Gotcha fix: DEFAULT_ROUTE and Literal">
+  <style>
+    #adk-c03-gotcha-fix .g7-main { display: grid; grid-template-columns: 800px 1fr; gap: 36px; align-items: start; }
+    #adk-c03-gotcha-fix .g7-right { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+    #adk-c03-gotcha-fix .g7-fig { border: 1px solid var(--line); border-radius: 16px; background: var(--surface); padding: 14px 14px 10px; }
+    #adk-c03-gotcha-fix .g7-fig svg { display: block; width: 100%; height: auto; overflow: visible; }
+    #adk-c03-gotcha-fix svg text { font-family: var(--f-mono); }
+    #adk-c03-gotcha-fix .g7-nt { fill: var(--ink); font-size: 20px; font-weight: 700; }
+    #adk-c03-gotcha-fix .g7-wire { fill: none; stroke: var(--line-2); stroke-width: 2.5; }
+    #adk-c03-gotcha-fix .g7-key rect { fill: var(--surface-2); stroke: var(--line-2); stroke-width: 1.5; }
+    #adk-c03-gotcha-fix .g7-key text { fill: var(--ink-2); font-size: 17px; font-weight: 700; }
+    #adk-c03-gotcha-fix .g7-key.ok rect { stroke: var(--state); fill: var(--state-soft); }
+    #adk-c03-gotcha-fix .g7-key.ok text { fill: var(--state); }
+    #adk-c03-gotcha-fix .g7-tok circle { fill: var(--agent); }
+    #adk-c03-gotcha-fix .g7-tok text { fill: var(--agent); font-size: 19px; font-weight: 700; paint-order: stroke; stroke: var(--surface); stroke-width: 6px; stroke-linejoin: round; }
+    #adk-c03-gotcha-fix .g7-tok .cap { fill: var(--risk); }
+    #adk-c03-gotcha-fix .cap2 { display: grid; }
+    #adk-c03-gotcha-fix .cap2 > * { grid-area: 1 / 1; font-size: 23px; line-height: 1.4; color: var(--ink-2); }
+    #adk-c03-gotcha-fix .cap2 code { font-size: .82em; }
+    #adk-c03-gotcha-fix, #adk-c03-gotcha-fix * { font-variant-ligatures: none !important; }
+    #adk-c03-gotcha-fix .out pre.code .dim { color: #a3abd6; opacity: 1; }
+    #adk-c03-gotcha-fix .cites .cite { display: inline-flex; flex-direction: row; align-items: center; gap: 10px; white-space: nowrap; padding: 6px 12px 6px 10px; border-radius: 10px; }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> Graph routing · 2 of 2</div>
+  <h2 class="title">Close the label set with Literal and catch the rest with DEFAULT</h2>
+  <div class="g7-main fill">
+    <div class="code-wrap good">
+      <div class="code-head">labs/adk/c03-ticket-triage/ticket_triage/agent.py · excerpt</div>
+      <pre class="code" data-lang="python" data-focus="1:1, 2:4-5, 3:13-14"><code>from google.adk.workflow import DEFAULT_ROUTE
+
+class Triage(BaseModel):
+  labels: list[Literal["billing", "outage", "how_to", "other"]]
+  priority: Literal["p1", "p2", "p3"]
+
+def route_ticket(node_input: Triage):
+  yield Event(output=node_input.model_dump(),
+              route=list(node_input.labels))
+
+root_agent = Workflow(name="ticket_triage", edges=[
+    ("START", intake, classify, route_ticket),
+    (route_ticket, {"billing": billing, "outage": page_oncall,
+                    "how_to": how_to, DEFAULT_ROUTE: human_queue}),
+])</code></pre>
+    </div>
+    <div class="g7-right">
+      <div class="g7-fig">
+        <svg id="g7f-svg" viewBox="0 0 620 320" aria-label="With a DEFAULT edge, the route 'Billing' goes to human_queue. With a Literal schema the route is 'billing' and takes the billing edge.">
+          <path class="g7-wire" d="M184 150 L236 150"/>
+          <path class="g7-wire" id="g7f-w1" d="M240 150 C 320 150, 330 36, 424 36"/>
+          <path class="g7-wire" d="M240 150 C 320 150, 330 116, 424 116"/>
+          <path class="g7-wire" d="M240 150 C 320 150, 330 196, 424 196"/>
+          <path class="g7-wire" id="g7f-wd" d="M240 150 C 320 150, 330 284, 424 284" style="stroke:var(--human);stroke-dasharray:6 6"/>
+          <circle cx="240" cy="150" r="5" style="fill:var(--line-2)"/>
+          <rect x="2" y="122" width="182" height="56" rx="12" style="fill:var(--tool-soft);stroke:var(--tool);stroke-width:2"/>
+          <text class="g7-nt" x="93" y="157" text-anchor="middle">route_ticket</text>
+          <rect id="g7f-n1" x="424" y="12" width="192" height="48" rx="12" style="fill:var(--agent-soft);stroke:var(--agent);stroke-width:2"/><text class="g7-nt" x="520" y="43" text-anchor="middle">billing</text>
+          <rect x="424" y="92" width="192" height="48" rx="12" style="fill:var(--tool-soft);stroke:var(--tool);stroke-width:2"/><text class="g7-nt" x="520" y="123" text-anchor="middle">page_oncall</text>
+          <rect x="424" y="172" width="192" height="48" rx="12" style="fill:var(--agent-soft);stroke:var(--agent);stroke-width:2"/><text class="g7-nt" x="520" y="203" text-anchor="middle">how_to</text>
+          <g id="g7f-n3"><rect id="g7f-n3r" x="424" y="260" width="192" height="48" rx="12" style="fill:var(--human-soft);stroke:var(--human);stroke-width:2"/><text class="g7-nt" x="520" y="291" text-anchor="middle">human_queue</text></g>
+          <g class="g7-key" id="g7f-k1"><rect x="326" y="20" width="92" height="30" rx="7"/><text x="372" y="41" text-anchor="middle">billing</text></g>
+          <g class="g7-key"><rect x="326" y="101" width="92" height="30" rx="7"/><text x="372" y="122" text-anchor="middle">outage</text></g>
+          <g class="g7-key"><rect x="326" y="181" width="92" height="30" rx="7"/><text x="372" y="202" text-anchor="middle">how_to</text></g>
+          <g class="g7-key" id="g7f-kd"><rect x="314" y="269" width="104" height="30" rx="7" style="stroke:var(--human)"/><text x="366" y="290" text-anchor="middle" style="fill:var(--human)">DEFAULT</text></g>
+          <g class="g7-tok" id="g7f-tok" opacity="0"><circle cx="0" cy="0" r="10"/><text id="g7f-tokt" x="-8" y="-18"></text></g>
+        </svg>
+      </div>
+      <div class="cap2">
+        <p data-until="1">Two changes. Use both.</p>
+        <p data-step="1" data-until="2">Import <code>DEFAULT_ROUTE</code> from <code>google.adk.workflow</code>.</p>
+        <p data-step="2" data-until="3">A <code>Literal</code> set: the model can only emit <code>"billing"</code>.</p>
+        <p data-step="3">An unmatched route now reaches a human, not a log line.</p>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">The fix has two halves, and you want both. Step 1: import DEFAULT_ROUTE from google.adk.workflow; the top-level google.adk package does not export it. Its value is the string "__DEFAULT__". Step 2: classify into a Literal set, so the model can only emit legal labels; the token is now 'billing' and takes the billing edge. Step 3: add the DEFAULT_ROUTE edge to human_queue: any route that matches no key, for example the label other, now reaches a person instead of ending in a log line. In the figure the dashed violet wire is that default edge. DEFAULT runs only when no other key matches, and it cannot be combined with other routes in one list: that raises "GraphValidationError: DEFAULT_ROUTE cannot be combined with other routes in a list". Analogy: the Literal set is a form with tick boxes instead of a free-text field; DEFAULT is the "return to sender" stamp. A likely question: "If I have Literal, why DEFAULT?" Because other is a legal label with no branch, and because schemas change faster than edge maps. Next: two errors that do fail loudly.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c03-gotcha-fix";
+  let tl = null;
+  const q = (s, id) => s.querySelector("#" + id);
+  const BAD = "route=['<tspan class=\"cap\">B</tspan>illing']", GOOD = "route=['billing']";
+  const at = (s, id, f) => { const p = q(s, id); const L = p.getTotalLength(); const pt = p.getPointAtLength(L * Math.max(0, Math.min(1, f))); return [pt.x, pt.y]; };
+  function tokAt(s, x, y, op, html) { const t = q(s, "g7f-tok"); t.setAttribute("transform", `translate(${x},${y})`); t.setAttribute("opacity", op); if (html) q(s, "g7f-tokt").innerHTML = html; }
+  function setDefault(s, d) {
+    const wd = q(s, "g7f-wd"), L = wd.getTotalLength();
+    wd.style.strokeDasharray = d >= 1 ? "6 6" : `${L * d} ${L}`;
+    q(s, "g7f-kd").setAttribute("opacity", d);
+    q(s, "g7f-n3").setAttribute("opacity", 0.3 + 0.7 * d);
+  }
+  function base(s, n) {
+    setDefault(s, n >= 3 ? 1 : 0);
+    q(s, "g7f-k1").classList.toggle("ok", n >= 2);
+    q(s, "g7f-n1").style.strokeWidth = n === 2 ? 4 : 2;
+    q(s, "g7f-n3r").style.strokeWidth = n >= 3 ? 4 : 2;
+    tokAt(s, 240, 150, 0, n >= 2 ? GOOD : BAD);
+  }
+  function stop() { if (tl) { tl.kill(); tl = null; } }
+  function build(s, n, animate) {
+    stop();
+    base(s, n);
+    if (!animate) return;
+    if (n === 2) {
+      q(s, "g7f-k1").classList.remove("ok"); q(s, "g7f-n1").style.strokeWidth = 2;
+      tl = gsap.timeline({ delay: 0.3 })
+        .to({ u: 0 }, { u: 1, duration: 1.3, ease: "power1.inOut", onUpdate() { const u = this.targets()[0].u; const [x, y] = at(s, "g7f-w1", u); tokAt(s, x, y, 1, GOOD); if (u > 0.6) q(s, "g7f-k1").classList.add("ok"); } })
+        .call(() => { tokAt(s, 424, 36, 0); q(s, "g7f-n1").style.strokeWidth = 4; });
+    } else if (n === 3) {
+      setDefault(s, 0); q(s, "g7f-n3r").style.strokeWidth = 2;
+      const o = { t: 0 };
+      tl = gsap.timeline({ delay: 0.3 })
+        .to(o, { t: 1, duration: 0.8, ease: "power1.inOut", onUpdate: () => setDefault(s, o.t) })
+        .to({ u: 0 }, { u: 1, duration: 1.2, ease: "power1.inOut", onUpdate() { const u = this.targets()[0].u; const [x, y] = at(s, "g7f-wd", u); tokAt(s, x, y, 1, "route=['other']"); } })
+        .call(() => { tokAt(s, 424, 284, 0); q(s, "g7f-n3r").style.strokeWidth = 4; });
+    }
+  }
+  Deck.register(ID, {
+    enter(slide, n) { build(slide, n || 0, false); },
+    step(slide, n, animate) { build(slide, n, animate); },
+    leave() { stop(); }
+  });
+})();
+</script>

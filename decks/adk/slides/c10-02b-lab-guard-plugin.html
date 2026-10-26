@@ -1,0 +1,243 @@
+<section class="slide tight" id="adk-c10-lab-guard-plugin" data-tone="risk" data-title="Lab 10.1: HrGuardPlugin">
+  <style>
+    #adk-c10-lab-guard-plugin .gp { display: grid; grid-template-columns: 730px minmax(0, 1fr); gap: 22px; align-items: start; }
+    #adk-c10-lab-guard-plugin .col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+    #adk-c10-lab-guard-plugin pre.code { font-size: 17px; line-height: 1.45; padding: 12px 16px 14px; }
+    #adk-c10-lab-guard-plugin .out pre.code { font-size: 16px; line-height: 1.45; }
+    #adk-c10-lab-guard-plugin svg.onion { display: block; overflow: visible; }
+    #adk-c10-lab-guard-plugin .caps { display: grid; }
+    #adk-c10-lab-guard-plugin .caps > * { grid-area: 1 / 1; }
+    #adk-c10-lab-guard-plugin .cap { font-size: 21px; line-height: 1.4; color: var(--ink-2); margin: 0; }
+    #adk-c10-lab-guard-plugin .cap b { color: var(--ink); }
+  </style>
+  <div class="kicker"><span class="pill">Lab 10</span> Acme HR assistant · step 1 of 3</div>
+  <h2 class="title">HrGuardPlugin redacts SSNs and refuses other employees' bands</h2>
+  <div class="gp fill">
+    <div class="col">
+      <div class="code-wrap">
+        <div class="code-head">labs/adk/c10-acme-hr/hr_agent/agent.py · excerpt</div>
+        <pre class="code" data-lang="python" data-focus="1:4-9, 2:11-16"><code>SSN = re.compile(r"\b\d{3}-\d{2}-\d{4}\b")
+
+class HrGuardPlugin(BasePlugin):       # __init__: name="hr_guard"
+    async def before_model_callback(self, *, callback_context,
+                                    llm_request):
+        for content in llm_request.contents or []:
+            for part in content.parts or []:
+                if part.text and SSN.search(part.text):
+                    part.text = SSN.sub("[REDACTED-SSN]", part.text)
+        return None                    # None = continue
+    async def before_tool_callback(self, *, tool, tool_args,
+                                   tool_context):
+        caller = tool_context.state.get("employee_id")
+        if (tool.name == "get_salary_band"
+                and tool_args.get("employee_id") != caller):
+            return {"status": "error", "error_message":
+                    "You can only view your own salary band."}</code></pre>
+      </div>
+      <div class="caps">
+      <p class="cap" data-step="1" data-until="2">Rewrite each SSN in place, then return <code>None</code>: the model call goes on.</p>
+      <p class="cap" data-step="2" data-until="3">A returned dict <b>replaces</b> the tool result. The tool never runs.</p>
+      <p class="cap" data-step="3">Plugin hooks are keyword-only, and the name is <code>tool_args</code>.</p>
+      </div>
+    </div>
+    <div class="col">
+      <svg class="onion" viewBox="0 0 640 380" width="640" height="380" aria-label="Two rings around the Gemini model. The outer ring is HrGuardPlugin, the inner ring is ModelArmorPlugin. Step 1: a user turn with an SSN reaches the outer ring and the SSN becomes REDACTED-SSN. Step 2: a get_salary_band call for E-2002 is stopped at the own-id check on the outer ring."></svg>
+      <div class="code-wrap out" data-step="3">
+        <div class="code-head">adk web · output · illustrative</div>
+        <pre class="code" data-lang="none"><code>user&gt; What is the salary band of E-2002?
+[execute_tool get_salary_band] -&gt;
+<span class="err"> {"status":"error","error_message":
+  "You can only view your own salary band."}</span>
+agent&gt; I'm sorry, I can only share your own band.</code></pre>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Our own HrGuardPlugin is the outer ring: plain, deterministic code that runs before the model and before every tool. Press once: before_model_callback walks every part of the request and rewrites any SSN to REDACTED-SSN in place; returning None means "continue", so the model still runs, only on clean text. Press again: before_tool_callback compares the employee id in the tool arguments with the caller's id in session state; a returned dict replaces the tool result, so get_salary_band never runs for E-2002. Press again: the illustrative output shows the error dict and the polite reply. Plugin hooks are keyword-only and the argument is tool_args; an agent-level before_tool_callback gets args instead, which is a common copy-paste bug. Analogy: the badge reader at the office door knows exactly which room you may enter. Likely question: "Why not let Model Armor do the salary check?" Authorization is a fixed rule that must hold every time, so it belongs in code; a classifier is the second layer. Full file: labs/adk/c10-acme-hr/hr_agent/agent.py.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "adk-c10-lab-guard-plugin";
+  const MAP = [0, 1, 2, 2];            // slide step -> onion state 0..4
+  // geometry (viewBox 640 x 380)
+  const REQ_Y = 190;
+  const CORE = { x: 270, y: 160, w: 100, h: 60 };
+  const USER = [52, REQ_Y], REPLY = [584, 95], TOOL = [584, 287];
+  const REPLY_PATH = [[370, 180], [528, 95]];
+  const TOOL_PATH = [[370, 200], [528, 285]];
+  const DOTS = {
+    redact:  { x: 164, y: REQ_Y, tone: "risk", label: "redact",   lx: 164, ly: 170, a: "middle" },
+    prompt:  { x: 237, y: REQ_Y, tone: "tool", label: "prompt",   lx: 237, ly: 224, a: "middle" },
+    resp:    { x: 436, y: 144.5, tone: "tool", label: "response", lx: 424, ly: 136, a: "end" },
+    toolout: { x: 436, y: 235.5, tone: "tool", label: "tool out", lx: 426, ly: 258, a: "end" },
+    own:     { x: 516, y: 278.5, tone: "risk", label: "own id",   lx: 504, ly: 306, a: "end" },
+  };
+  let P = null, tl = null, svgEl = null;
+
+  const el = (parent, tag, attrs, style, text) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (style) Object.assign(e.style, style);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  };
+  const mono = (w, s) => ({ font: `${w} ${s}px var(--f-mono)` });
+  const lerp = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+
+  function box(root, x, y, w, h, tone, title, sub) {
+    const g = el(root, "g", {});
+    const r = el(g, "rect", { x, y, width: w, height: h, rx: 12 }, { fill: `var(--${tone}-soft)`, stroke: `var(--${tone})`, strokeWidth: 2.2 });
+    el(g, "text", { x: x + w / 2, y: y + (sub ? 23 : h / 2 + 6), "text-anchor": "middle" }, { ...mono(700, 16), fill: "var(--ink)" }, title);
+    if (sub) el(g, "text", { x: x + w / 2, y: y + 43, "text-anchor": "middle" }, { ...mono(500, 14), fill: "var(--muted)" }, sub);
+    return { g, r };
+  }
+  function chip(root) {
+    const g = el(root, "g", {}, { opacity: 0 });
+    const r = el(g, "rect", { x: -40, y: -14, width: 80, height: 28, rx: 8 }, { fill: "var(--surface-2)", stroke: "var(--human)", strokeWidth: 2 });
+    const t = el(g, "text", { x: 0, y: 5, "text-anchor": "middle" }, { ...mono(700, 14), fill: "var(--ink)" }, "");
+    return { g, r, t };
+  }
+  function chipSet(c, text, tone) {
+    c.t.textContent = text;
+    const w = Math.max(64, text.length * 8.7 + 22);
+    c.r.setAttribute("x", -w / 2); c.r.setAttribute("width", w);
+    c.r.style.stroke = `var(--${tone})`;
+    c.r.style.fill = tone === "risk" ? "var(--risk-soft)" : tone === "state" ? "var(--state-soft)" : "var(--surface-2)";
+  }
+  function chipAt(c, p) { c.g.setAttribute("transform", `translate(${p[0].toFixed(1)} ${p[1].toFixed(1)})`); }
+  function dotSet(d, s) {
+    const tone = s === "ok" ? "state" : s === "no" ? "risk" : d.tone;
+    d.c.style.fill = s === "idle" ? "var(--surface-2)" : `var(--${tone})`;
+    d.c.style.stroke = `var(--${tone})`;
+    d.m.textContent = s === "ok" ? "✓" : s === "no" ? "✕" : "";
+  }
+
+  function build(svg) {
+    svg.innerHTML = "";
+    const root = el(svg, "g", {});
+    el(root, "rect", { x: 124, y: 10, width: 392, height: 360, rx: 30 }, { fill: "color-mix(in oklab, var(--risk) 5%, transparent)", stroke: "var(--risk)", strokeWidth: 2.6 });
+    el(root, "text", { x: 320, y: 38, "text-anchor": "middle" }, { ...mono(800, 17), fill: "var(--risk)" }, "HrGuardPlugin");
+    el(root, "rect", { x: 204, y: 62, width: 232, height: 256, rx: 24 }, { fill: "color-mix(in oklab, var(--tool) 8%, var(--surface))", stroke: "var(--tool)", strokeWidth: 2.6 });
+    el(root, "text", { x: 320, y: 90, "text-anchor": "middle" }, { ...mono(800, 15), fill: "var(--tool)" }, "ModelArmorPlugin");
+    const line = (a, b) => el(root, "line", { x1: a[0], y1: a[1], x2: b[0], y2: b[1] }, { stroke: "var(--line-2)", strokeWidth: 2.4, strokeDasharray: "5 6" });
+    line([104, REQ_Y], [CORE.x, REQ_Y]);
+    line(REPLY_PATH[0], REPLY_PATH[1]);
+    line(TOOL_PATH[0], TOOL_PATH[1]);
+    box(root, CORE.x, CORE.y, CORE.w, CORE.h, "model", "Gemini", "3.5-flash");
+    box(root, 0, REQ_Y - 27, 104, 54, "human", "user turn", "E-1001");
+    const reply = box(root, 528, 70, 112, 50, "human", "reply");
+    const tool = box(root, 528, 260, 112, 54, "tool", "get_salary", "_band");
+    const dots = {};
+    for (const k in DOTS) {
+      const d = { ...DOTS[k] };
+      el(root, "text", { x: d.lx, y: d.ly, "text-anchor": d.a }, { ...mono(700, 14), fill: `var(--${d.tone})` }, d.label);
+      d.c = el(root, "circle", { cx: d.x, cy: d.y, r: 10 }, { strokeWidth: 2.4 });
+      d.m = el(root, "text", { x: d.x, y: d.y + 5, "text-anchor": "middle" }, { ...mono(800, 14), fill: "#fff" }, "");
+      dots[k] = d;
+    }
+    P = { root, reply, tool, dots, chips: [chip(root), chip(root), chip(root)] };
+  }
+
+  // the state that holds after onion state s
+  function finalState(s) {
+    const { dots, chips, tool, reply } = P;
+    chips.forEach((c) => gsap.set(c.g, { opacity: 0 }));
+    for (const k in dots) dotSet(dots[k], "idle");
+    tool.r.style.opacity = 0.55; reply.r.style.opacity = 0.55;
+    const show = (text, tone, p) => { chipSet(chips[0], text, tone); chipAt(chips[0], p); gsap.set(chips[0].g, { opacity: 1 }); };
+    if (s >= 1) dotSet(dots.redact, "ok");
+    if (s === 1) show("[REDACTED-SSN]", "state", [300, 292]);
+    if (s === 2) { dotSet(dots.own, "no"); show("E-2002", "risk", [470, 340]); }
+    if (s >= 3) {
+      ["prompt", "toolout", "resp", "own"].forEach((k) => dotSet(dots[k], "ok"));
+      tool.r.style.opacity = 1; reply.r.style.opacity = 1;
+    }
+    if (s === 3) show("band L5", "state", [REPLY[0], REPLY[1] + 48]);
+    if (s >= 4) { dotSet(dots.prompt, "no"); show("ignore all previous…", "risk", [306, 292]); }
+  }
+
+  function move(t, c, pts, at, dur) {
+    const proxy = { k: 0 };
+    t.fromTo(proxy, { k: 0 }, { k: 1, duration: dur, ease: "power1.inOut", onUpdate: () => {
+      const seg = pts.length - 1, f = proxy.k * seg, i = Math.min(seg - 1, Math.floor(f));
+      chipAt(c, lerp(pts[i], pts[i + 1], f - i));
+    } }, at);
+  }
+  function shake(t, c, base, at) {
+    const proxy = { k: 0 };
+    t.fromTo(proxy, { k: 0 }, { k: 1, duration: 0.4, ease: "none", onUpdate: () => chipAt(c, [base[0] + Math.sin(proxy.k * Math.PI * 6) * 5, base[1]]) }, at);
+  }
+  const pulse = (t, d, s, at) => t.call(() => dotSet(d, s), null, at).fromTo(d.c, { attr: { r: 10 } }, { attr: { r: 15 }, duration: 0.18, yoyo: true, repeat: 1 }, at);
+
+  function play(s) {
+    const { dots, chips, tool, reply } = P;
+    const [a, b, c] = chips;
+    tl = gsap.timeline({ onComplete: () => finalState(s) });
+    const on = (ch, text, tone, p, at) => tl.call(() => { chipSet(ch, text, tone); chipAt(ch, p); }, null, at).to(ch.g, { opacity: 1, duration: 0.2 }, at);
+    if (s === 1) {
+      on(a, "SSN 123-45-6789", "human", USER, 0);
+      move(tl, a, [USER, [dots.redact.x, REQ_Y]], 0.2, 0.8);
+      pulse(tl, dots.redact, "ok", 1.0);
+      tl.call(() => chipSet(a, "[REDACTED-SSN]", "state"), null, 1.05);
+      move(tl, a, [[dots.redact.x, REQ_Y], [300, 292]], 1.35, 0.7);
+    } else if (s === 2) {
+      on(a, "E-2002", "human", TOOL_PATH[0], 0);
+      move(tl, a, [TOOL_PATH[0], [dots.own.x, dots.own.y]], 0.2, 0.9);
+      pulse(tl, dots.own, "no", 1.1);
+      tl.call(() => chipSet(a, "E-2002", "risk"), null, 1.1);
+      shake(tl, a, [dots.own.x, dots.own.y], 1.15);
+      move(tl, a, [[dots.own.x, dots.own.y], [470, 340]], 1.6, 0.3);
+    } else if (s === 3) {
+      pulse(tl, dots.prompt, "ok", 0);
+      on(a, "E-1001", "human", TOOL_PATH[0], 0.25);
+      move(tl, a, [TOOL_PATH[0], [dots.own.x, dots.own.y]], 0.4, 0.6);
+      pulse(tl, dots.own, "ok", 1.0);
+      move(tl, a, [[dots.own.x, dots.own.y], TOOL], 1.2, 0.4);
+      tl.to(a.g, { opacity: 0, duration: 0.15 }, 1.6).to(tool.r, { opacity: 1, duration: 0.2 }, 1.6);
+      on(b, "band L5", "tool", TOOL, 1.75);
+      move(tl, b, [TOOL, [dots.toolout.x, dots.toolout.y]], 1.85, 0.7);
+      pulse(tl, dots.toolout, "ok", 2.55);
+      move(tl, b, [[dots.toolout.x, dots.toolout.y], TOOL_PATH[0]], 2.75, 0.35);
+      tl.to(b.g, { opacity: 0, duration: 0.15 }, 3.1);
+      on(c, "reply", "human", REPLY_PATH[0], 3.2);
+      move(tl, c, [REPLY_PATH[0], [dots.resp.x, dots.resp.y]], 3.3, 0.4);
+      pulse(tl, dots.resp, "ok", 3.7);
+      move(tl, c, [[dots.resp.x, dots.resp.y], REPLY], 3.9, 0.5);
+      tl.to(reply.r, { opacity: 1, duration: 0.2 }, 4.4).to(c.g, { opacity: 0, duration: 0.2 }, 4.5);
+    } else if (s === 4) {
+      on(a, "ignore all previous…", "human", USER, 0);
+      move(tl, a, [USER, [dots.redact.x, REQ_Y]], 0.2, 0.7);
+      tl.fromTo(dots.redact.c, { attr: { r: 10 } }, { attr: { r: 14 }, duration: 0.15, yoyo: true, repeat: 1 }, 0.9);
+      move(tl, a, [[dots.redact.x, REQ_Y], [dots.prompt.x, REQ_Y]], 1.1, 0.5);
+      pulse(tl, dots.prompt, "no", 1.6);
+      tl.call(() => chipSet(a, "ignore all previous…", "risk"), null, 1.6);
+      shake(tl, a, [dots.prompt.x, REQ_Y], 1.65);
+      move(tl, a, [[dots.prompt.x, REQ_Y], [306, 292]], 2.1, 0.3);
+    }
+  }
+
+  function stop() {
+    if (tl) tl.kill();
+    tl = null;
+    if (P) gsap.killTweensOf([...P.chips.map((c) => c.g), ...Object.values(P.dots).map((d) => d.c), P.tool.r, P.reply.r]);
+  }
+  let last = 0;
+  function render(slide, n, animate) {
+    const svg = slide.querySelector("svg.onion");
+    if (svg !== svgEl || !svg.childElementCount) { build(svg); svgEl = svg; }
+    stop();
+    const s = MAP[Math.max(0, Math.min(n, MAP.length - 1))];
+    const prev = MAP[Math.max(0, Math.min(n - 1, MAP.length - 1))];
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (animate && n > 0 && s !== prev && s > 0 && !reduce) { finalState(s - 1); play(s); }
+    else finalState(s);
+    last = n;
+  }
+  Deck.register(ID, {
+    enter(slide, n) { svgEl = null; render(slide, n || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { stop(); },
+  });
+})();
+</script>

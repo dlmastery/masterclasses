@@ -1,0 +1,238 @@
+<section class="slide" id="adk-interview-c01-qa-dynamic-modes" data-tone="agent" data-title="Q&amp;A: dynamic nodes and agent modes">
+  <style>
+    #adk-interview-c01-qa-dynamic-modes .lay { display: grid; grid-template-columns: 600px 1fr; gap: 36px; align-items: start; }
+    #adk-interview-c01-qa-dynamic-modes .qa { gap: 8px; padding-left: 12px; border-left: 4px solid transparent; border-radius: 4px; transition: opacity .35s, border-color .35s; }
+    #adk-interview-c01-qa-dynamic-modes .qa.cur:not(.past) { border-left-color: var(--agent); }
+    #adk-interview-c01-qa-dynamic-modes .qa.past { opacity: .5; }
+    #adk-interview-c01-qa-dynamic-modes .qa .q { font-size: 20px; line-height: 1.3; }
+    #adk-interview-c01-qa-dynamic-modes .qa .a { font-size: 19px; line-height: 1.34; padding: 8px 16px; }
+    #adk-interview-c01-qa-dynamic-modes .qa .a b { display: block; }
+    #adk-interview-c01-qa-dynamic-modes .qa .a .ev { display: block; margin-top: 3px; font-size: 16px; line-height: 1.35; color: var(--muted); }
+    #adk-interview-c01-qa-dynamic-modes .qa .a .ev.fix { color: var(--ink-2); }
+    #adk-interview-c01-qa-dynamic-modes .swap { display: grid; }
+    #adk-interview-c01-qa-dynamic-modes .swap > * { grid-area: 1 / 1; align-self: start; }
+    #adk-interview-c01-qa-dynamic-modes pre.code { font-size: 14.5px; line-height: 1.45; padding: 10px 18px 12px; }
+    #adk-interview-c01-qa-dynamic-modes .code-head { padding: 7px 14px; font-size: 14px; }
+    #adk-interview-c01-qa-dynamic-modes .callout { font-size: 18px; }
+    #adk-interview-c01-qa-dynamic-modes svg.viz { display: block; width: 720px; height: 210px; overflow: visible; }
+    #adk-interview-c01-qa-dynamic-modes .modes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    #adk-interview-c01-qa-dynamic-modes .modes > div { border: 1px solid var(--line-2); border-radius: 10px; padding: 7px 10px; font-size: 15px; line-height: 1.3; color: var(--ink-2); background: var(--surface-2); }
+    #adk-interview-c01-qa-dynamic-modes .modes code { display: block; font-size: 15px; font-weight: 700; color: var(--model); background: none; border: 0; padding: 0; margin-bottom: 2px; }
+    #adk-interview-c01-qa-dynamic-modes .cites { display: flex; gap: 8px; flex-wrap: nowrap; align-items: center; flex: none; }
+    #adk-interview-c01-qa-dynamic-modes .cites .cite { font-size: 14px; padding: 5px 11px 5px 8px; white-space: nowrap; flex: none; display: inline-flex; flex-direction: row; align-items: center; gap: 8px; }
+  </style>
+  <div class="kicker">Interview · dynamic nodes and agent modes · Q&amp;A 3 of 3</div>
+  <h2 class="title">Dynamic nodes and agent modes: three production traps</h2>
+  <div class="lay fill">
+    <div class="stack" style="gap:14px">
+      <div class="qa" data-on="1:cur 2:past">
+        <div class="q">Static graph, or a dynamic node that calls ctx.run_node?</div>
+        <div class="a" data-step="1" data-fx="up"><b>Static when you can draw the flow; dynamic when the fan-out size is known only at runtime.</b><span class="ev">Set max_parallel_workers: the Python default is unlimited.</span></div>
+      </div>
+      <div class="qa" data-on="2:cur 3:past">
+        <div class="q">Your orchestrator calls ctx.run_node and raises a ValueError. What is missing?</div>
+        <div class="a" data-step="2" data-fx="up"><b>@node(rerun_on_resume=True): on resume, the parent re-runs from the top.</b><span class="ev">Finished children replay from history. Keep side effects in children.</span></div>
+      </div>
+      <div class="qa" data-on="3:cur">
+        <div class="q">You port a SequentialAgent to a Workflow, and billing forgets the ticket text. Why?</div>
+        <div class="a" data-step="3" data-fx="up"><b>A Workflow node defaults to single_turn, with include_contents="none".</b><span class="ev">billing gets only the classify output.</span><span class="ev fix" data-step="4" data-fx="fade">Fix: include_contents="default", or put the ticket in state and read {ticket}.</span></div>
+      </div>
+    </div>
+
+    <div class="stack" style="gap:14px">
+      <svg class="viz" id="dmq-svg" viewBox="0 0 720 210" aria-label="A capped parallel worker, a dynamic orchestrator that replays children on resume, and a single_turn node that loses the ticket text"></svg>
+      <div class="swap">
+        <div class="callout tip" data-until="1">Answer before you click: when the graph is fixed, what the resume rule is, and what a node sees.</div>
+        <div class="code-wrap" data-step="1" data-until="2">
+          <div class="code-head">invoice_audit/agent.py · static graph, capped worker</div>
+          <pre class="code" data-lang="python" data-focus="1:5"><code>from google.adk import Event, Workflow
+from google.adk.workflow import node
+def split_lines(node_input: str):
+  return [l.strip() for l in node_input.split(";") if l.strip()]
+@node(parallel_worker=True, max_parallel_workers=4)  # default: unlimited
+def check_line(node_input: str):
+  return float(node_input.rsplit("$", 1)[1]) &lt;= 250.0
+def summarize(node_input: list):
+  yield Event(message=f"{sum(node_input)} of {len(node_input)} lines OK")
+root_agent = Workflow(name="invoice_audit",
+    edges=[("START", split_lines, check_line, summarize)])</code></pre>
+        </div>
+        <div class="code-wrap" data-step="2" data-until="3">
+          <div class="code-head">invoice_audit/agent.py · dynamic fan-out</div>
+          <pre class="code" data-lang="python" data-focus="2:5"><code>import asyncio
+from google.adk import Agent, Context, Event
+from google.adk.workflow import node
+auditor = Agent(name="auditor", instruction="Audit the line in the message.")
+@node(rerun_on_resume=True)         # required for any ctx.run_node caller
+async def orchestrate(ctx: Context, node_input: str):
+  lines = [l.strip() for l in node_input.split(";") if l.strip()]
+  raw = await asyncio.gather(*[
+    ctx.run_node(auditor, node_input=l, use_sub_branch=True)  # isolate runs
+    for l in lines])
+  yield Event(output=raw)</code></pre>
+        </div>
+        <div class="stack" data-step="3" data-until="4" style="gap:10px">
+          <div class="code-wrap out">
+            <div class="code-head">adk run ticket_triage · output · illustrative · before</div>
+            <pre class="code" data-lang="none"><code>[classify]: {"labels": ["billing"], "priority": "p2"}
+<span class="err">[billing]: Which charge do you mean? Please share the details.</span>
+<span class="dim"># billing never saw "I was charged twice for order A-1001"</span></code></pre>
+          </div>
+          <div class="modes">
+            <div><code>single_turn</code>node default, one shot</div>
+            <div><code>task</code>asks the user, typed exit</div>
+            <div><code>chat</code>root only, right after START</div>
+          </div>
+        </div>
+        <div class="stack" data-step="4" style="gap:10px">
+          <div class="code-wrap good">
+            <div class="code-head">ticket_triage/agent.py · after</div>
+            <pre class="code" data-lang="python" data-focus="4:5"><code>from google.adk import Agent, Workflow
+classify = Agent(name="classify",
+                 instruction="Label the support ticket in the user message.")
+billing = Agent(name="billing", mode="single_turn",
+                include_contents="default",      # sees the ticket text
+                instruction="Write the billing reply to the customer.")
+root_agent = Workflow(name="ticket_triage",
+                      edges=[("START", classify, billing)])</code></pre>
+          </div>
+          <div class="modes">
+            <div><code>single_turn</code>node default, one shot</div>
+            <div><code>task</code>asks the user, typed exit</div>
+            <div><code>chat</code>root only, right after START</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="cites">
+    <a class="cite doc" href="https://adk.dev/graphs/dynamic/" target="_blank" rel="noopener"><b>ADK docs</b>&nbsp;Dynamic workflows</a>
+    <a class="cite repo" href="https://github.com/google/adk-python/tree/v2.13.0/contributing/samples/workflows" target="_blank" rel="noopener"><b>adk-python v2.13.0</b>&nbsp;samples/workflows</a>
+    <a class="cite repo" href="https://github.com/google/adk-python/issues/5780" target="_blank" rel="noopener"><b>adk-python #5780</b>&nbsp;SequentialAgent port loses context</a>
+  </div>
+  <aside class="notes">
+    This slide comes after the debug drill on purpose: static cycles are done, and now the graph changes at runtime. Q1: use a static graph when you can draw the flow, because the graph checks edge schemas at construction time and adk web draws it; use a dynamic @node with ctx.run_node when the number of branches is known only at runtime. For a map over a list, a parallel_worker node runs once per item, and the diagram shows the cap: 4 run, 2 wait. In Python max_parallel_workers defaults to None, which means unlimited, while TypeScript defaults to 8. Q2: a node that calls ctx.run_node must set rerun_on_resume=True, or it raises "ValueError: A node must have rerun_on_resume=True"; on resume the parent re-runs from the top and finished children replay their cached outputs, so the orchestrator must stay thin and side effects belong in children. use_sub_branch=True keeps parallel children from seeing each other's events. Q3: inside a Workflow an LlmAgent node with no mode resolves to single_turn, and the Workflow sets include_contents="none" unless you set it yourself (checked in the v2.13.0 source, _workflow_graph_utils.py L163-168), so billing gets only the Triage JSON. Fix it with include_contents="default", or, more robust across versions, write the ticket to state and read {ticket} in the instruction, as the triage intake does. The three modes: single_turn is the node default, task chats with the user until it has a typed result, and chat never finishes a node, so it is legal only right after START; validation rejects chat after any other node. Analogy: a single_turn node is a contractor who gets a work order, not the whole email thread. Likely question: "Why not give every node the full history?" Cost and leakage: parallel single_turn workers should see only their own branch.
+  </aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-interview-c01-qa-dynamic-modes";
+  const NS = "http://www.w3.org/2000/svg";
+  let loops = [], S = null;
+  const mk = (p, tag, a = {}, st = {}) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); Object.assign(e.style, st); p.appendChild(e); return e; };
+  const txt = (p, x, y, s, st = {}, anchor = "middle") => { const t = mk(p, "text", { x, y, "text-anchor": anchor }, Object.assign({ font: "600 17px var(--f-display)", fill: "var(--ink)" }, st)); t.textContent = s; return t; };
+  const box = (p, x, y, w, h, tone, label, sub, dash) => {
+    const g = mk(p, "g");
+    g._r = mk(g, "rect", { x, y, width: w, height: h, rx: 11 }, { fill: `color-mix(in oklab, var(--${tone}) 10%, var(--bg))`, stroke: `var(--${tone})`, strokeWidth: 2, strokeDasharray: dash ? "6 5" : "none" });
+    g._t = txt(g, x + w / 2, y + h / 2 + (sub ? -3 : 6), label, { font: `600 ${h < 40 ? 15 : 17}px var(--f-display)` });
+    if (sub) g._s = txt(g, x + w / 2, y + h / 2 + 15, sub, { font: "500 13.5px var(--f-mono)", fill: "var(--muted)" });
+    return g;
+  };
+  const wire = (p, d, tone, dash) => mk(p, "path", { d, fill: "none" }, { stroke: `var(--${tone})`, strokeWidth: 2.2, strokeDasharray: dash ? "6 6" : "none", markerEnd: `url(#${ID}-arr-${tone})` });
+  const dot = (p, tone) => mk(p, "circle", { r: 6, cx: -50, cy: -50 }, { fill: `var(--${tone})`, opacity: 0 });
+
+  function build(svg) {
+    svg.innerHTML = "";
+    const defs = mk(svg, "defs");
+    ["ink-2", "state", "risk", "tool", "model"].forEach((t) => {
+      const m = mk(defs, "marker", { id: `${ID}-arr-${t}`, viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto-start-reverse" });
+      mk(m, "path", { d: "M0 0 L10 5 L0 10 z" }, { fill: `var(--${t})` });
+    });
+    const s = {};
+    /* scene A: capped parallel worker, 4 run and 2 wait */
+    const A = s.A = mk(svg, "g");
+    box(A, 0, 82, 140, 46, "tool", "split_lines", "6 lines");
+    s.wk = [];
+    for (let i = 0; i < 6; i++) {
+      const y = 2 + i * 35, run = i < 4;
+      s.wk.push({ y: y + 15, run });
+      wire(A, `M140 105 C 200 105, 200 ${y + 15}, 262 ${y + 15}`, "ink-2", !run);
+      box(A, 264, y, 190, 30, run ? "tool" : "ink-2", run ? `check_line · ${i + 1}` : `queued · ${i + 1}`, null, !run);
+      if (run) wire(A, `M454 ${y + 15} C 510 ${y + 15}, 510 105, 562 105`, "ink-2");
+    }
+    box(A, 564, 82, 156, 46, "state", "summarize", "list of 6");
+    txt(A, 642, 160, "4 run · 2 wait", { font: "700 16px var(--f-mono)", fill: "var(--tool)" });
+    s.dA = [0, 1, 2, 3].map(() => dot(A, "tool"));
+    s.dA.forEach((d) => A.insertBefore(d, A.firstChild));
+    /* scene B: dynamic orchestrator, children replay on resume */
+    const B = s.B = mk(svg, "g");
+    box(B, 0, 92, 220, 54, "tool", "orchestrate", "rerun_on_resume=True");
+    mk(B, "path", { d: "M180 92 C 180 40, 40 40, 40 88", fill: "none" }, { stroke: "var(--risk)", strokeWidth: 2.2, strokeDasharray: "6 5", markerEnd: `url(#${ID}-arr-risk)` });
+    txt(B, 110, 32, "resume: re-run from top", { font: "600 15px var(--f-mono)", fill: "var(--risk)" });
+    const kids = [["auditor · line 1", "replayed from history", "state"], ["auditor · line 2", "replayed from history", "state"], ["auditor · line 3", "runs now", "model"]];
+    s.kidP = kids.map(([l, sub, tone], i) => {
+      const y = 10 + i * 68;
+      box(B, 400, y, 240, 50, tone, l, sub);
+      return wire(B, `M220 119 C 310 119, 310 ${y + 25}, 398 ${y + 25}`, tone === "state" ? "state" : "ink-2", tone === "state");
+    });
+    s.dB = dot(B, "model");
+    B.insertBefore(s.dB, B.firstChild);
+    /* scene C: SequentialAgent port, billing loses the ticket text */
+    const C = s.C = mk(svg, "g");
+    box(C, 0, 80, 100, 46, "ink-2", "START");
+    box(C, 170, 76, 190, 54, "model", "classify", "single_turn");
+    s.bill = box(C, 470, 76, 220, 54, "risk", "billing", "single_turn");
+    s.pC1 = wire(C, "M100 103 L168 103", "ink-2");
+    s.pC2 = wire(C, "M360 103 L468 103", "ink-2");
+    txt(C, 414, 64, "input:", { font: "600 14px var(--f-mono)", fill: "var(--muted)" });
+    txt(C, 414, 82, "Triage only", { font: "600 14px var(--f-mono)", fill: "var(--muted)" });
+    s.noteBad = mk(C, "g");
+    txt(s.noteBad, 580, 160, 'include_contents="none"', { font: "600 15px var(--f-mono)", fill: "var(--risk)" });
+    txt(s.noteBad, 580, 182, "✕ ticket text lost", { font: "700 16px var(--f-mono)", fill: "var(--risk)" });
+    s.noteOk = mk(C, "g");
+    txt(s.noteOk, 580, 160, 'include_contents="default"', { font: "600 15px var(--f-mono)", fill: "var(--state)" });
+    txt(s.noteOk, 580, 182, "✓ sees the ticket", { font: "700 16px var(--f-mono)", fill: "var(--state)" });
+    s.dC = dot(C, "model");
+    C.insertBefore(s.dC, C.firstChild);
+    return s;
+  }
+
+  const kill = () => { loops.forEach((t) => t.kill()); loops = []; };
+  const along = (d, path, dur, delay, extra = {}) => {
+    const L = path.getTotalLength(), o = { t: 0 };
+    return gsap.to(o, Object.assign({ t: 1, duration: dur, delay, repeat: -1, repeatDelay: 0.6, ease: "none",
+      onUpdate: () => { const pt = path.getPointAtLength(o.t * L); d.setAttribute("cx", pt.x); d.setAttribute("cy", pt.y); d.style.opacity = o.t < 0.03 || o.t > 0.97 ? 0 : 1; } }, extra));
+  };
+  const hidden = (p, d) => mk(p, "path", { d, fill: "none" }, { stroke: "none" });
+
+  function render(slide, n, animate) {
+    if (!S) return;
+    kill();
+    if (S.tmp) S.tmp.forEach((p) => p.remove());
+    S.tmp = [];
+    const D = animate ? 0.5 : 0;
+    const set = (el, v) => (D ? gsap.to(el, Object.assign({ duration: D }, v)) : gsap.set(el, v));
+    set(S.A, { autoAlpha: n <= 1 ? (n === 1 ? 1 : 0.25) : 0 });
+    set(S.B, { autoAlpha: n === 2 ? 1 : 0 });
+    set(S.C, { autoAlpha: n >= 3 ? 1 : 0 });
+    const ok = n >= 4;
+    S.bill._r.style.stroke = ok ? "var(--state)" : "var(--risk)";
+    S.bill._r.style.fill = ok ? "color-mix(in oklab, var(--state) 10%, var(--bg))" : "color-mix(in oklab, var(--risk) 10%, var(--bg))";
+    S.noteBad.style.display = ok ? "none" : "";
+    S.noteOk.style.display = ok ? "" : "none";
+    if (n === 1) {
+      S.wk.forEach((w, i) => {
+        if (!w.run) return;
+        const p = hidden(S.A, `M140 105 C 200 105, 200 ${w.y}, 262 ${w.y} L454 ${w.y} C 510 ${w.y}, 510 105, 562 105`);
+        S.tmp.push(p);
+        loops.push(along(S.dA[i], p, 2.2, i * 0.25));
+      });
+    } else if (n === 2) {
+      loops.push(along(S.dB, S.kidP[2], 1.6, 0));
+    } else if (n >= 3) {
+      const p = hidden(S.C, "M100 103 L468 103");
+      S.tmp.push(p);
+      loops.push(along(S.dC, p, 2.0, 0));
+    }
+  }
+
+  Deck.register(ID, {
+    enter(slide, n) {
+      S = build(slide.querySelector("#dmq-svg"));
+      render(slide, n || 0, false);
+    },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { kill(); if (S) gsap.killTweensOf([S.A, S.B, S.C]); }
+  });
+})();
+</script>

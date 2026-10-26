@@ -1,0 +1,80 @@
+<section class="slide tight" id="adk-c07-lab-skill" data-tone="agent" data-title="Lab 7.4: the refund Skill folder">
+  <style>
+    #adk-c07-lab-skill .sk-grid { display: grid; grid-template-columns: 720px 1fr; gap: 40px; align-items: start; }
+    #adk-c07-lab-skill .sk-col { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+    #adk-c07-lab-skill pre.code .dim { opacity: .95; color: #9aa3cf; }
+    /* three disclosure levels: the focal element on the right */
+    #adk-c07-lab-skill .lvls { display: flex; flex-direction: column; gap: 14px; }
+    #adk-c07-lab-skill .lv { display: grid; grid-template-columns: 64px 1fr; align-items: center; gap: 16px; padding: 16px 20px; border-radius: 14px;
+      border: 2px dashed var(--line-2); background: var(--surface); opacity: .45; transition: opacity .4s, border-color .4s, background .4s; }
+    #adk-c07-lab-skill .lv i { font: 800 22px/1 var(--f-mono); font-style: normal; color: #fff; background: var(--muted); border-radius: 10px; padding: 10px 0; text-align: center; }
+    #adk-c07-lab-skill .lv b { display: block; font: 700 21px/1.25 var(--f-mono); color: var(--ink); }
+    #adk-c07-lab-skill .lv span { display: block; margin-top: 4px; font-size: 18px; line-height: 1.35; color: var(--ink-2); }
+    #adk-c07-lab-skill .lv.on { opacity: 1; border-style: solid; }
+    #adk-c07-lab-skill .lv.l1.on { border-color: var(--agent); background: var(--agent-soft); } #adk-c07-lab-skill .lv.l1.on i { background: var(--agent); }
+    #adk-c07-lab-skill .lv.l2.on { border-color: var(--state); background: var(--state-soft); } #adk-c07-lab-skill .lv.l2.on i { background: var(--state); }
+    #adk-c07-lab-skill .lv.l3.on { border-color: var(--tool); background: var(--tool-soft); } #adk-c07-lab-skill .lv.l3.on i { background: var(--tool); }
+    #adk-c07-lab-skill .sk-cap { position: relative; height: 64px; }
+    #adk-c07-lab-skill .sk-cap > p { position: absolute; inset: 0 0 auto 0; font-size: 21px; line-height: 1.4; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 7</span> Acme refund team · step 4 of 6</div>
+  <h2 class="title">A refund Skill is a folder: SKILL.md, a policy file and a script</h2>
+  <div class="sk-grid fill">
+    <div class="sk-col">
+      <div class="code-wrap">
+        <div class="code-head">refund_skill_agent/skills/refund-policy/SKILL.md</div>
+        <pre class="code" data-lang="yaml" data-focus="1:2-5, 2:6-8, 3:10-16, 4:11-14"><code>---
+name: refund-policy
+description: Decide refund eligibility and partial-refund
+  amounts for Acme orders. Use for any refund, return
+  or chargeback question.
+metadata:
+  adk_additional_tools:
+    - lookup_order
+---
+Step 1: Call `lookup_order` with the order id.
+Step 2: Read `references/policy.md` for the return windows.
+Step 3: If the order is past the full-refund window but
+inside 60 days, run `scripts/prorate.py` with args
+{"amount": &lt;amount&gt;, "days": &lt;days_since_purchase&gt;}.
+Step 4: Answer REFUNDABLE, PARTIAL_REFUND &lt;amount&gt;, or
+NOT_REFUNDABLE with one reason.</code></pre>
+      </div>
+    </div>
+    <div class="sk-col">
+      <div class="lvls">
+        <div class="lv l1" data-k="1"><i>L1</i><div><b>name + description</b><span>Always in the prompt. The model picks a skill from this.</span></div></div>
+        <div class="lv l2" data-k="3"><i>L2</i><div><b>SKILL.md body</b><span>Added when the model calls <code>load_skill</code>.</span></div></div>
+        <div class="lv l3" data-k="4"><i>L3</i><div><b>references/ · scripts/</b><span>Read or run only when a step asks.</span></div></div>
+      </div>
+      <div class="sk-cap">
+        <p data-step="1" data-until="2">Until it loads the skill, the model sees only these lines.</p>
+        <p data-step="2" data-until="3"><code>adk_additional_tools</code> is a YAML list. Loading unlocks <code>lookup_order</code>.</p>
+        <p data-step="3" data-until="4">The body names the file to read and the script to run.</p>
+        <p data-step="4">Folder name = <code>name:</code>. Next slide: the policy file and the script.</p>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Step 4 of the Acme refund team: the policy that lived in the refund_agent instruction moves into an Agent Skill, which is just a folder: labs/adk/lab7-acme-refunds/refund_skill_agent/skills/refund-policy. SKILL.md has YAML frontmatter and a body. The frontmatter name and description are level 1: they are all the model sees until it decides to load the skill, so write the description as a trigger ("Use for any refund, return or chargeback question"). The metadata key adk_additional_tools lists lookup_order; it must be a YAML list, and the tool reaches the model only after the skill loads. The body is level 2: four steps that name the reference file and the script. policy.md and prorate.py are level 3: the model reads or runs them only when a step asks. Think of a binder on a shelf: the spine is level 1, the table of contents is level 2, and the appendices are level 3. A likely question: "Must the folder name match name:?" Yes, the loader raises a ValueError otherwise; the gotcha slide shows it.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c07-lab-skill";
+  let tw = [];
+  const clear = () => { tw.forEach((t) => t.kill()); tw = []; };
+  function render(slide, n, animate) {
+    clear();
+    slide.querySelectorAll(".lv").forEach((el) => {
+      const k = +el.dataset.k, on = n >= k, was = el.classList.contains("on");
+      el.classList.toggle("on", on);
+      if (on && !was && animate) tw.push(gsap.fromTo(el, { x: -24 }, { x: 0, duration: 0.5, ease: "power3.out" }));
+      else gsap.set(el, { x: 0 });
+    });
+  }
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { clear(); if (slide) gsap.killTweensOf(slide.querySelectorAll(".lv")); },
+  });
+})();
+</script>

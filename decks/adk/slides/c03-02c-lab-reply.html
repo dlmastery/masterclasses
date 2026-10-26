@@ -1,0 +1,54 @@
+<section class="slide" id="adk-c03-lab-reply" data-tone="agent" data-title="Lab 3.1: the LLM node and the graph">
+  <style>
+    #adk-c03-lab-reply .rp-main { display: grid; grid-template-columns: 860px 1fr; gap: 40px; align-items: start; }
+    #adk-c03-lab-reply .rp-right { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
+    #adk-c03-lab-reply .out pre.code { font-size: 17px; white-space: pre-wrap; }
+    #adk-c03-lab-reply .out pre.code code { white-space: pre-wrap; }
+    #adk-c03-lab-reply .out .cmd { color: #7ee2b8; }
+    #adk-c03-lab-reply .cap { display: grid; }
+    #adk-c03-lab-reply .cap > * { grid-area: 1 / 1; font-size: 24px; line-height: 1.4; color: var(--ink-2); }
+    #adk-c03-lab-reply .cap code { font-size: .82em; }
+    #adk-c03-lab-reply, #adk-c03-lab-reply * { font-variant-ligatures: none !important; }
+    #adk-c03-lab-reply .out pre.code .dim { color: #a3abd6; opacity: 1; }
+    #adk-c03-lab-reply .cites .cite { display: inline-flex; flex-direction: row; align-items: center; gap: 10px; white-space: nowrap; padding: 6px 12px 6px 10px; border-radius: 10px; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 3.1</span> Acme refund desk · 3 of 3</div>
+  <h2 class="title">One Agent node calls the LLM, and one tuple wires the graph</h2>
+  <div class="rp-main fill">
+    <div class="code-wrap">
+      <div class="code-head">labs/adk/c03-refund-flow/refund_flow/agent.py · excerpt</div>
+      <pre class="code" data-lang="python" data-focus="1:4-7, 2:10-12, 3:14-16"><code>write_reply = Agent(
+    name="write_reply",
+    model="gemini-3.5-flash",
+    instruction=("You are a refunds agent. Case: {refund_case}. "
+                 # ... eligible: confirm; else offer store credit
+                 "Max 3 sentences."),
+    output_key="reply_text",
+)
+
+def audit_log(reply_text: str):     # read from state by name
+  yield Event(message=f"[audit] reply length={len(reply_text)}"
+                      " chars. WORKFLOW COMPLETED.")
+
+root_agent = Workflow(name="refund_flow", edges=[
+    ("START", parse_request, check_policy, write_reply, audit_log),
+])</code></pre>
+    </div>
+    <div class="rp-right">
+      <div class="cap">
+        <p data-until="1">The LLM node is an <code>Agent</code>. The other three nodes are functions.</p>
+        <p data-step="1" data-until="2"><code>{refund_case}</code> reads state. <code>output_key</code> saves the answer as <code>reply_text</code>.</p>
+        <p data-step="2" data-until="3"><code>audit_log</code> gets <code>reply_text</code> by name. <code>yield Event(message=…)</code> makes <code>adk run</code> print it.</p>
+        <p data-step="3" data-until="4">One chain tuple: each node runs once, in this order.</p>
+        <p data-step="4">A-1001 is 12 days old, so the refund is approved.</p>
+      </div>
+      <div class="code-wrap out" data-step="4">
+        <div class="code-head">output · illustrative</div>
+        <pre class="code" data-lang="none"><code><span class="cmd">$ adk run refund_flow "refund A-1001 arrived broken"</span>
+[write_reply]: Thanks for reaching out about order A-1001. Your refund of $89.00 has been approved …
+<span class="ok">[refund_flow]: [audit] reply length=142 chars. WORKFLOW COMPLETED.</span></code></pre>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">The last piece of the refund chain: one Agent node and the graph itself. Step 1: the write_reply prompt reads {refund_case} from state, not the RefundCase on the edge, and output_key stores the model's answer in state as reply_text. The comment inside the instruction marks where the slide cuts the prompt; the full text is in the lab file. Step 2: audit_log has a parameter called reply_text, and parameter binding defaults to state, so the engine fills it from state by name. It yields an Event with a message because adk run prints only message events; a plain return only sets the node output. Step 3: one chain tuple wires all four nodes; "START" as a string works only inside a chain tuple. Step 4 is the run: A-1001 was delivered 12 days ago, inside the 30-day window, so the reply confirms the refund. The output is illustrative: the model text is invented, the event shape is real. A likely question: "Why yield instead of return?" Return only sets output, and the CLI prints nothing for output-only events. Next: follow the data through this run.</aside>
+</section>

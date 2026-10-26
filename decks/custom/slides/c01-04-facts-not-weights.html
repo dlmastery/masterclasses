@@ -1,0 +1,141 @@
+<style>
+#custom-c01-facts-not-weights .paper:not(.cite) { padding: 16px 22px; gap: 8px; }
+#custom-c01-facts-not-weights .paper .find { font-size: 19px; }
+#custom-c01-facts-not-weights .paper .so { font-size: 19px; }
+#custom-c01-facts-not-weights .cite.paper { flex-direction: row; gap: 10px; padding: 8px 14px 8px 10px; border-radius: 10px; border-color: var(--line); }
+#custom-c01-facts-not-weights .pb { display: grid; grid-template-columns: 170px 1fr 78px; gap: 12px; align-items: center; font-size: 18px; color: var(--ink-2); }
+#custom-c01-facts-not-weights .pb .bar { height: 20px; background: var(--line); }
+#custom-c01-facts-not-weights .pb .bar > i { background: var(--model); }
+#custom-c01-facts-not-weights .pb .bar > i.base { background: var(--faint); }
+#custom-c01-facts-not-weights .pb b { font: 700 19px/1 var(--f-mono); text-align: right; color: var(--ink); }
+#custom-c01-facts-not-weights .fn-h { font: 700 15px/1 var(--f-mono); text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+#custom-c01-facts-not-weights svg text { font-family: var(--f-mono); }
+</style>
+<section class="slide" id="custom-c01-facts-not-weights" data-tone="agent" data-title="Facts go to RAG, not SFT">
+  <div class="kicker"><span class="pill">arXiv</span> Aug 2026 · knowledge-aligned SFT</div>
+  <h2 class="title">SFT on facts the base lacks raises hallucination: filter or retrieve</h2>
+  <div class="grid fill" style="grid-template-columns:820px 1fr;gap:36px">
+    <svg id="fw-svg" viewBox="0 0 820 560" width="820" height="560" aria-label="Recall Rewrite: probe each claim against the base model, drop the claims it cannot recall"></svg>
+    <div class="stack" style="gap:18px">
+      <div class="paper" data-step="3">
+        <div class="pid">arXiv:2608.30987 <span>31 Aug 2026</span></div>
+        <h4>Stick to What You Know: Knowledge-Aligned SFT</h4>
+        <div class="find">Targets with facts the base lacks drive hallucination. <b>Recall Rewrite</b> keeps only recalled claims and cuts it (Qwen3 4B, OLMo 3 7B).</div>
+        <div class="so">Acme: put refund-policy numbers in RAG. Use SFT for format and tone.</div>
+      </div>
+      <div class="panel tight stack" data-step="4" data-fx="bar" style="gap:10px">
+        <div class="fn-h">If you must internalize facts · arXiv 2607.21861</div>
+        <div class="small" style="margin:0">Documents baked into a LoRA adapter, closed-book QA:</div>
+        <div class="pb"><span>raw targets</span><div class="bar"><i class="base" style="--v:57.7%"></i></div><b data-to="57.7" data-dec="1" data-suf="%">57.7%</b></div>
+        <div class="pb"><span>curated answers</span><div class="bar"><i style="--v:85.7%"></i></div><b data-to="85.7" data-dec="1" data-suf="%">85.7%</b></div>
+        <div class="small c-state" style="margin:0;font-weight:600">Curate the targets first.</div>
+      </div>
+      <div class="push" style="display:flex;gap:10px;flex-wrap:wrap">
+        <a class="cite paper" href="https://arxiv.org/abs/2608.30987" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2608.30987</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2607.21861" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2607.21861</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Start with the Acme failure: the refunds assistant gives wrong policy numbers, and the reflex is to fine-tune them in. Read the left side as the method of the August paper. One SFT target answer holds 10 claims. A probe asks the base model about each claim 8 times; a claim is kept only if at least 5 of the 8 probes recall it, and the target is rewritten without the dropped claims. The first paper shows that SFT targets with facts the base does not know drive hallucination, and Recall Rewrite reduced factual hallucination on the WildHalu and Biography tests. The dots and the bar are an illustration of the method, not the paper's data. Think of SFT as teaching a style of answering, not as filling a library: the library is retrieval. The honest counterpoint is the July paper: if you must bake documents into a LoRA adapter, curation into short canonical answers moved closed-book accuracy from 57.7% to 85.7%. A third paper, SFT-as-Context (arXiv 2610.11132), is about keeping general skills after SFT; we cover it in the SFT chapter on forgetting. A likely question is "how much does hallucination drop?": the paper reports the reduction per benchmark; read the tables before you quote a single number. Next: who actually trains in 2026, and what they train.</aside>
+</section>
+<script>
+(() => {
+  const ID = "custom-c01-facts-not-weights";
+  const NS = "http://www.w3.org/2000/svg";
+  const RECALL = [8, 7, 2, 8, 6, 1, 8, 0, 7, 3]; // illustrative: probes (of 8) the base answers correctly
+  const KEEP = 5;                               // keep a claim when >= 5 of 8 probes recall it
+  const Y0 = 96, DY = 40, DX0 = 200, DDX = 34, MX = 650, MY = 80, MH = 380;
+  const HI = 0.45, LO = 0.2;                    // illustrative meter levels
+  let dots = [], rows = [], rects = [], labs = [], strikes = [], tags = [], meterG, meter, mval, mlab, foot, tw = [];
+
+  function el(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e); return e;
+  }
+  function build(svg) {
+    svg.innerHTML = ""; dots = []; rows = []; rects = []; labs = []; strikes = []; tags = [];
+    el("text", { x: 0, y: 22, "font-size": 17, "font-weight": 700, fill: "var(--ink-2)" }, svg, "SFT target: 10 claims");
+    el("text", { x: DX0 + 3.5 * DDX, y: 22, "font-size": 17, "font-weight": 700, "text-anchor": "middle", fill: "var(--ink-2)" }, svg, "ask the base 8×");
+    el("text", { x: 0, y: 50, "font-size": 16, fill: "var(--muted)" }, svg, "rule: keep a claim if ≥ 5 of 8 probes recall it");
+    RECALL.forEach((r, i) => {
+      const y = Y0 + i * DY;
+      const g = el("g", {}, svg);
+      rects.push(el("rect", { x: 0, y: y - 14, width: 150, height: 28, rx: 6, fill: "var(--agent-soft)", stroke: "var(--agent)", "stroke-width": 1 }, g));
+      labs.push(el("text", { x: 12, y: y + 6, "font-size": 16, fill: "var(--ink)" }, g, "claim " + (i + 1)));
+      rows.push(g);
+      for (let j = 0; j < 8; j++) {
+        const hit = ((i * 3 + j * 5) % 8) < r;
+        const c = el("circle", { cx: DX0 + j * DDX, cy: y, r: 11, fill: "var(--line-2)" }, svg);
+        c._hit = hit; dots.push(c);
+      }
+      strikes.push(el("line", { x1: 0, y1: y, x2: DX0 + 7 * DDX + 12, y2: y, stroke: "var(--muted)", "stroke-width": 2.5, opacity: 0 }, svg));
+      tags.push(el("text", { x: DX0 + 8 * DDX + 4, y: y + 6, "font-size": 17, "font-weight": 700, fill: r >= KEEP ? "var(--state)" : "var(--muted)", opacity: 0 }, svg, r >= KEEP ? "keep" : "drop"));
+    });
+    // hallucination meter with a 0-100% axis; hidden until the probes are coloured
+    meterG = el("g", { opacity: 0 }, svg);
+    el("text", { x: MX - 30, y: 22, "font-size": 18, "font-weight": 700, fill: "var(--ink-2)" }, meterG, "hallucination");
+    el("rect", { x: MX, y: MY, width: 60, height: MH, rx: 10, fill: "var(--line)" }, meterG);
+    [[1, "100%"], [0.5, "50%"], [0, "0"]].forEach(([f, t]) => {
+      const y = MY + MH * (1 - f);
+      el("line", { x1: MX - 8, y1: y, x2: MX, y2: y, stroke: "var(--line-2)", "stroke-width": 2 }, meterG);
+      el("text", { x: MX - 12, y: y + 5, "font-size": 15, "text-anchor": "end", fill: "var(--muted)" }, meterG, t);
+    });
+    meter = el("rect", { x: MX, y: MY + MH * (1 - HI), width: 60, height: MH * HI, rx: 10, fill: "var(--risk)", opacity: .85 }, meterG);
+    mval = el("text", { x: MX + 72, y: MY + MH * (1 - HI) + 8, "font-size": 24, "font-weight": 700, fill: "var(--risk)" }, meterG, "~45%");
+    mlab = el("text", { x: MX + 30, y: MY + MH + 28, "font-size": 16, "text-anchor": "middle", fill: "var(--muted)" }, meterG, "SFT on 10 claims");
+    foot = el("text", { x: 0, y: 552, "font-size": 16, fill: "var(--muted)" }, svg, "illustrative pattern, not the paper's data · green = recalled");
+  }
+  function meterAt(f) { return { attr: { y: MY + MH * (1 - f), height: MH * f } }; }
+  function render(slide, n, animate) {
+    tw.forEach((t) => t.kill()); tw = [];
+    const d = animate ? 1 : 0;
+    // step 1: colour the probes, the meter appears at the "before" level
+    dots.forEach((c, k) => {
+      const fill = n >= 1 ? (c._hit ? "var(--state)" : "var(--risk)") : "var(--line-2)";
+      gsap.set(c, { attr: { fill, r: 11 } });
+      if (d && n === 1) tw.push(gsap.fromTo(c, { attr: { r: 0 } }, { attr: { r: 11 }, duration: .35, delay: .3 + k * 0.012, ease: "back.out(2)" }));
+    });
+    if (d && n === 1) tw.push(gsap.fromTo(meterG, { attr: { opacity: 0 } }, { attr: { opacity: 1 }, duration: .5, delay: 1.2 }));
+    else meterG.setAttribute("opacity", n >= 1 ? 1 : 0);
+    // step 2: drop the claims the base cannot recall, the meter falls
+    RECALL.forEach((r, i) => {
+      const drop = n >= 2 && r < KEEP;
+      const rowDots = dots.slice(i * 8, i * 8 + 8);
+      rects[i].setAttribute("fill", drop ? "var(--line)" : "var(--agent-soft)");
+      rects[i].setAttribute("stroke", drop ? "var(--muted)" : "var(--agent)");
+      labs[i].setAttribute("fill", drop ? "var(--muted)" : "var(--ink)");
+      const rv = { opacity: drop ? 0.6 : 1 }, dv = { opacity: drop ? 0.3 : 1 };
+      if (d && n === 2) { tw.push(gsap.to(rows[i], { ...rv, duration: .5, delay: .2 + i * .05 })); tw.push(gsap.to(rowDots, { ...dv, duration: .5, delay: .2 + i * .05 })); }
+      else { gsap.set(rows[i], rv); gsap.set(rowDots, dv); }
+      gsap.set(strikes[i], { opacity: drop ? 0.6 : 0 });
+      gsap.set(tags[i], { opacity: n >= 2 ? 1 : 0 });
+    });
+    const f = n >= 2 ? LO : HI;
+    const vy = MY + MH * (1 - f) + 8;
+    if (d && n === 2) {
+      tw.push(gsap.to(meter, { ...meterAt(f), duration: 1.2, delay: .7, ease: "power3.out" }));
+      tw.push(gsap.to(mval, { attr: { y: vy }, duration: 1.2, delay: .7, ease: "power3.out" }));
+    } else { gsap.set(meter, meterAt(f)); mval.setAttribute("y", vy); }
+    mval.textContent = n >= 2 ? "~20%" : "~45%";
+    mlab.textContent = n >= 2 ? "SFT on 6 claims" : "SFT on 10 claims";
+    foot.textContent = n >= 2 ? "illustrative pattern, not the paper's data · 6 of 10 claims kept" : "illustrative pattern, not the paper's data · green = recalled";
+  }
+  let last = -1, built = false;
+  Deck.register(ID, {
+    enter(slide, step) {
+      if (!built) { build(slide.querySelector("#fw-svg")); built = true; }
+      if (step !== last) render(slide, step, false);
+    },
+    step(slide, n, animate) {
+      if (!built) { build(slide.querySelector("#fw-svg")); built = true; }
+      last = n; render(slide, n, animate);
+    },
+    leave() { tw.forEach((t) => t.kill()); tw = []; last = -1; }
+  });
+  // if the deck booted on this slide before the hook was registered, sync now
+  const s0 = Deck.slides && Deck.slides[Deck.index];
+  if (s0 && s0.id === ID) { build(s0.querySelector("#fw-svg")); built = true; last = Deck.step; render(s0, Deck.step, false); }
+})();
+</script>

@@ -1,0 +1,154 @@
+<section class="slide tight" id="adk-c04-lab-loop-gate" data-tone="model" data-title="Lab 4.5: the gate bounds the loop">
+  <style>
+    #adk-c04-lab-loop-gate .lg-grid { display: grid; grid-template-columns: 760px 1fr; gap: 28px; align-items: start; }
+    #adk-c04-lab-loop-gate .lg-left { display: flex; flex-direction: column; gap: 22px; }
+    #adk-c04-lab-loop-gate pre.code { font-size: 17px; }
+    #adk-c04-lab-loop-gate .cap { position: relative; height: 64px; }
+    #adk-c04-lab-loop-gate .cap > p { position: absolute; left: 0; right: 0; top: 0; margin: 0; font-size: 21px; line-height: 1.4; color: var(--ink-2); }
+    #adk-c04-lab-loop-gate .cap code { font-size: .9em; }
+    #adk-c04-lab-loop-gate .lg-tok { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; z-index: 3; }
+    #adk-c04-lab-loop-gate .lg-count { position: absolute; left: 384px; top: 0; width: 220px; box-sizing: border-box; z-index: 2; padding: 10px 14px; border-radius: 14px;
+      border: 2px solid var(--model); background: var(--surface); font: 600 18px/1.4 var(--f-mono); color: var(--ink-2); }
+    #adk-c04-lab-loop-gate .lg-count .v { font-size: 30px; color: var(--model); }
+    #adk-c04-lab-loop-gate .lg-count .g { display: block; }
+    #adk-c04-lab-loop-gate .lg-count .g.bad { color: var(--risk); }
+    #adk-c04-lab-loop-gate .lg-count .g.good { color: var(--state); }
+  </style>
+  <div class="kicker"><span class="pill">Lab 4</span> Acme back office · step 5 of 8</div>
+  <h2 class="title">The gate is the only bound: compliant exits, round 3 escalates</h2>
+  <div class="lg-grid fill">
+    <div class="lg-left">
+      <div class="code-wrap">
+        <div class="code-head">labs/adk/c04-copy-review/copy_review/agent.py · excerpt</div>
+        <pre class="code" data-lang="python" data-focus="1:1-2, 2:7-9, 3:3-4, 4:5-6, 5:11-14"><code>def gate(ctx: Context, node_input: Review):
+  ctx.state["round"] = ctx.state["round"] + 1
+  if node_input.grade == "compliant":
+    yield Event(route="done")
+  elif ctx.state["round"] &gt;= MAX_ROUNDS:   # MAX_ROUNDS = 3
+    yield Event(route="escalate")
+  else:
+    yield Event(state={"feedback": node_input.feedback},
+                route="retry")
+
+root_agent = Workflow(name="copy_review", edges=[
+    ("START", brief, write_copy, review_copy, gate),
+    (gate, {"retry": write_copy, "done": publish,
+            "escalate": escalate})])</code></pre>
+      </div>
+      <div class="cap">
+        <p data-until="1">"A graph cycle is not bounded automatically." The gate counts rounds.</p>
+        <p data-step="1" data-until="2">Round 1: the reviewer says <code>needs_fix</code>.</p>
+        <p data-step="2" data-until="3"><code>retry</code> sends the feedback back to the same writer. Round 2 passes.</p>
+        <p data-step="3" data-until="4"><code>done</code> exits to <code>publish</code>.</p>
+        <p data-step="4" data-until="5">If round 3 still fails, <code>escalate</code> hands the draft to Legal.</p>
+        <p data-step="5">Reuse the <code>write_copy</code> object. The routed back-edge makes the cycle legal.</p>
+      </div>
+    </div>
+    <div class="diagram lg-stage" style="width:604px;height:540px"
+         data-wires="lg-brief>lg-write:bt; lg-write>lg-review [draft]; lg-review>lg-gate:bt; lg-gate>lg-write:lb [retry]; lg-gate>lg-publish:bt [done]; lg-gate>lg-escalate:lr:dash [round 3]">
+      <div class="node n-tool" id="lg-brief" style="left:0;top:0;width:220px"><span class="nt">brief</span><span class="ns">round = 0</span></div>
+      <div class="node n-model" id="lg-write" style="left:0;top:150px;width:220px"><span class="nt">write_copy</span><span class="ns">LLM · draft</span></div>
+      <div class="node n-model" id="lg-review" style="left:384px;top:150px;width:220px"><span class="nt">review_copy</span><span class="ns">LLM · Review</span></div>
+      <div class="node n-tool" id="lg-gate" style="left:384px;top:310px;width:220px"><span class="nt">gate</span><span class="ns">round += 1</span></div>
+      <div class="node n-state" id="lg-publish" style="left:384px;top:466px;width:220px"><span class="nt">publish</span><span class="ns">compliant</span></div>
+      <div class="node n-human ghost" id="lg-escalate" style="left:0;top:466px;width:220px"><span class="nt">escalate</span><span class="ns">to Legal</span></div>
+      <div class="lg-count">round <b class="v">–</b> / 3<span class="g">grade: –</span></div>
+    </div>
+  </div>
+  <aside class="notes">gate is the only thing that stops the loop: a graph cycle has no max_iterations, and the docs say it plainly, "A graph cycle is not bounded automatically." Walk the steps with the counter, which only goes up. Round 1: the writer drafts, the reviewer says needs_fix, gate adds one to round and routes retry with the feedback in state. Round 2: the same write_copy object revises the draft, the reviewer says compliant, and gate routes done to publish. Step 4 is the other exit: if round 3 still fails, gate routes escalate and a person in Legal takes the draft. publish and escalate get draft and round as parameters because function parameters that are not node_input or ctx are looked up in ctx.state by name. Step 5 is the edges: the back-edge reuses the same write_copy object, and because it is routed, validation accepts the cycle. Think of a junior copywriter and a compliance officer: after three rejections the draft goes to a lawyer instead of a fourth try. A likely question: "Why count in state and not in a Python variable?" State is saved with the session, so the count survives a resume and shows up in traces and evals.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c04-lab-loop-gate";
+  const NS = "http://www.w3.org/2000/svg";
+  // wire order in data-wires: 0 brief>write, 1 write>review, 2 review>gate, 3 gate>write (retry), 4 gate>publish, 5 gate>escalate
+  const NODES = ["lg-brief", "lg-write", "lg-review", "lg-gate", "lg-publish", "lg-escalate"];
+  // the counter only goes up
+  const FINAL = {
+    0: { round: "–", grade: "–", cls: "", lit: [] },
+    1: { round: "1", grade: "needs_fix", cls: "bad", lit: ["lg-gate"] },
+    2: { round: "2", grade: "compliant", cls: "good", lit: ["lg-gate"] },
+    3: { round: "2", grade: "compliant", cls: "good", lit: ["lg-publish"] },
+    4: { round: "3", grade: "needs_fix", cls: "bad", lit: ["lg-escalate"] },
+    5: { round: "3", grade: "needs_fix", cls: "bad", lit: ["lg-write"] }
+  };
+  let tl = null, retry = null, dot = null;
+  function setCounter(dg, round, grade, cls) {
+    dg.querySelector(".lg-count .v").textContent = round;
+    const g = dg.querySelector(".lg-count .g");
+    g.textContent = "grade: " + grade;
+    g.className = "g" + (cls ? " " + cls : "");
+  }
+  function setLit(dg, lit) { NODES.forEach((id) => { const el = dg.querySelector("#" + id); if (el) el.classList.toggle("lit", lit.includes(id)); }); }
+  function stop() {
+    if (tl) { tl.kill(); tl = null; }
+    if (retry) { retry.kill(); retry = null; }
+    if (dot) gsap.killTweensOf(dot);
+  }
+  function render(slide, n, animate) {
+    stop();
+    const dg = slide.querySelector(".lg-stage");
+    if (!dg) return;
+    const k = Math.max(0, Math.min(5, n));
+    const f = FINAL[k];
+    let svg = dg.querySelector("svg.lg-tok");
+    if (!svg) { svg = document.createElementNS(NS, "svg"); svg.setAttribute("class", "lg-tok"); dg.appendChild(svg); }
+    svg.innerHTML = "";
+    dot = null;
+    const paths = [...dg.querySelectorAll("svg.wires path.w")];
+    paths.forEach((p, i) => {
+      const hot = (i === 3 && (k === 2 || k === 5)) || (i === 4 && k === 3) || (i === 5 && k === 4);
+      p.classList.toggle("hot", hot);
+      const ar = p.parentNode.querySelector(".arrow");
+      if (ar) ar.classList.toggle("hot", hot);
+    });
+    setCounter(dg, f.round, f.grade, f.cls); setLit(dg, f.lit);
+    if (k === 0) return;
+    if (paths.length < 6) { retry = gsap.delayedCall(0.35, () => render(slide, n, animate)); return; }
+    dot = document.createElementNS(NS, "circle");
+    dot.setAttribute("r", 9); dot.setAttribute("fill", "var(--model)"); dot.setAttribute("opacity", 0);
+    svg.appendChild(dot);
+    const ride = (i, dur) => {
+      const p = paths[i], L = p.getTotalLength(), o = { t: 0 };
+      return gsap.to(o, { t: 1, duration: dur, ease: "power1.inOut", onStart: () => dot.setAttribute("opacity", 1),
+        onUpdate: () => { const pt = p.getPointAtLength(o.t * L); dot.setAttribute("cx", pt.x); dot.setAttribute("cy", pt.y); } });
+    };
+    const hide = () => dot.setAttribute("opacity", 0);
+    if (k === 5) {
+      // the cycle: the same write_copy instance -> review_copy -> gate -> back
+      tl = gsap.timeline({ repeat: -1, repeatDelay: 0.4 });
+      tl.add(ride(1, 0.7)).add(ride(2, 0.5)).add(ride(3, 0.8)).call(hide);
+      return;
+    }
+    if (!animate) return;
+    tl = gsap.timeline();
+    if (k === 1) {
+      setCounter(dg, "0", "–", ""); setLit(dg, ["lg-write"]);
+      tl.add(ride(0, 0.5)).add(ride(1, 0.8))
+        .call(() => { setCounter(dg, "0", "needs_fix", "bad"); setLit(dg, ["lg-review"]); })
+        .add(ride(2, 0.6), "+=0.2")
+        .call(() => { setCounter(dg, "1", "needs_fix", "bad"); setLit(dg, ["lg-gate"]); hide(); });
+    } else if (k === 2) {
+      setCounter(dg, "1", "needs_fix", "bad"); setLit(dg, ["lg-gate"]);
+      tl.add(ride(3, 0.9), "+=0.2")
+        .call(() => setLit(dg, ["lg-write"]))
+        .add(ride(1, 0.8), "+=0.2")
+        .call(() => { setCounter(dg, "1", "compliant", "good"); setLit(dg, ["lg-review"]); })
+        .add(ride(2, 0.6), "+=0.25")
+        .call(() => { setCounter(dg, "2", "compliant", "good"); setLit(dg, ["lg-gate"]); hide(); });
+    } else if (k === 3) {
+      setLit(dg, ["lg-gate"]);
+      tl.add(ride(4, 0.7), "+=0.2").call(() => { setLit(dg, ["lg-publish"]); hide(); });
+    } else if (k === 4) {
+      setCounter(dg, "2", "needs_fix", "bad"); setLit(dg, ["lg-gate"]);
+      tl.call(() => setCounter(dg, "3", "needs_fix", "bad"), null, 0.3)
+        .add(ride(5, 0.8), "+=0.2").call(() => { setLit(dg, ["lg-escalate"]); hide(); });
+    }
+  }
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { stop(); }
+  });
+})();
+</script>

@@ -1,0 +1,188 @@
+<section class="slide tight" id="adk-c05-gotcha-hitl" data-tone="human" data-title="Gotcha: HITL bugs">
+  <style>
+    #adk-c05-gotcha-hitl pre.code, #adk-c05-gotcha-hitl code { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #adk-c05-gotcha-hitl .gh-body { display: grid; grid-template-columns: 560px minmax(0, 1fr); gap: 28px; align-items: start; }
+    #adk-c05-gotcha-hitl .gh-left { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+    #adk-c05-gotcha-hitl .gotcha { grid-template-columns: 84px 1fr; gap: 6px 12px; padding: 14px 18px; font-size: 17px; line-height: 1.35; }
+    #adk-c05-gotcha-hitl .gotcha > b { font-size: 13px; line-height: 1.7; }
+    #adk-c05-gotcha-hitl .gotcha .gh-n { grid-column: 1 / -1; font: 700 23px/1.2 var(--f-display); color: var(--ink); }
+    #adk-c05-gotcha-hitl .gotcha .gh-n i { font-style: normal; color: var(--risk); font-family: var(--f-mono); margin-right: 8px; }
+    #adk-c05-gotcha-hitl .gotcha .gh-src { color: var(--muted); font: 500 14px var(--f-mono); }
+    #adk-c05-gotcha-hitl .gotcha code { font-size: 15px; }
+    #adk-c05-gotcha-hitl .gh-stage { display: grid; min-width: 0; }
+    #adk-c05-gotcha-hitl .gh-set { grid-area: 1 / 1; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+    #adk-c05-gotcha-hitl .code-head { padding: 7px 14px; font-size: 13px; }
+    #adk-c05-gotcha-hitl pre.code { font-size: 15px; line-height: 1.45; padding: 10px 16px 12px; }
+    #adk-c05-gotcha-hitl .gh-cites { display: flex; gap: 8px; flex-wrap: wrap; }
+    #adk-c05-gotcha-hitl .gh-cites .cite { font-size: 13px; padding: 4px 9px; }
+    #adk-c05-gotcha-hitl .gh-fig { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); padding: 10px 14px; }
+    #adk-c05-gotcha-hitl .gh-fig svg { display: block; width: 100%; height: auto; overflow: visible; }
+    #adk-c05-gotcha-hitl svg text { font-family: var(--f-mono); }
+    #adk-c05-gotcha-hitl .gh-lbl { font-size: 18px; font-weight: 700; }
+    #adk-c05-gotcha-hitl .gh-cnt { font-size: 16px; fill: var(--muted); font-weight: 700; }
+    #adk-c05-gotcha-hitl .gh-chip { fill: var(--human-soft); stroke: var(--human); stroke-width: 2.5; }
+    #adk-c05-gotcha-hitl .gh-chipt { fill: var(--ink); font-size: 17px; font-weight: 700; }
+    #adk-c05-gotcha-hitl .gh-box { fill: var(--state-soft); stroke: var(--state); stroke-width: 2.5; }
+    #adk-c05-gotcha-hitl .gh-boxt { fill: var(--ink); font-size: 15px; }
+    #adk-c05-gotcha-hitl .gh-mark { font-size: 17px; font-weight: 700; }
+    #adk-c05-gotcha-hitl .gh-div { stroke: var(--line); stroke-width: 1.2; stroke-dasharray: 4 4; }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> Human-in-the-loop</div>
+  <h2 class="title sm">HITL bugs: changing interrupt ids, string replies and None predicates</h2>
+  <div class="gh-body fill">
+    <div class="gh-left">
+      <div class="gotcha">
+        <span class="gh-n"><i>1</i>The gate asks forever</span>
+        <b data-step="1">Symptom</b><span data-step="1">The manager answers. The node asks again.</span>
+        <b class="fix" data-step="1">Fix</b><span data-step="1">Build the id from <code>invocation_id</code> + <code>run_id</code>.</span>
+      </div>
+      <div class="gotcha">
+        <span class="gh-n"><i>2</i>The reply has the wrong shape</span>
+        <b data-step="2">Symptom</b><span data-step="2"><code>ValidationError</code> when the manager types <code>approve</code>.</span>
+        <b class="fix" data-step="2">Fix</b><span data-step="2">Accept a <code>str</code> and parse it yourself.</span>
+      </div>
+      <div class="gotcha">
+        <span class="gh-n"><i>3</i>The gate never opens <span class="gh-src">· open #7010</span></span>
+        <b data-step="3">Symptom</b><span data-step="3">An $820 refund runs with no prompt.</span>
+        <b class="fix" data-step="3">Fix</b><span data-step="3">Return a real <code>bool</code> on every path.</span>
+      </div>
+      <div class="gh-cites" data-step="3">
+        <a class="cite doc" href="https://adk.dev/graphs/human-input/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;adk.dev/graphs/human-input</a>
+        <a class="cite repo" href="https://github.com/google/adk-python/issues/7010" target="_blank" rel="noopener"><b>Repo</b>&nbsp;adk-python #7010</a>
+      </div>
+    </div>
+    <div class="gh-stage">
+      <div class="gh-set" data-step="1" data-until="2">
+        <div class="code-wrap bad">
+          <div class="code-head">refund_approval/agent.py · manager_gate</div>
+          <pre class="code" data-lang="python"><code>from uuid import uuid4
+@node(rerun_on_resume=True)
+def manager_gate(ctx: Context, amount: float, draft: str):
+  iid = str(uuid4())                    # a new id on every rerun
+  answer = ctx.resume_inputs.get(iid)   # always None: ask again</code></pre>
+        </div>
+        <div class="code-wrap good">
+          <div class="code-head">refund_approval/agent.py · manager_gate</div>
+          <pre class="code" data-lang="python"><code>  iid = f"refund_approval_{ctx.invocation_id}_{ctx.run_id}"
+  answer = ctx.resume_inputs.get(iid)   # found on the rerun</code></pre>
+        </div>
+        <div class="gh-fig">
+          <svg id="gh-svg" viewBox="0 0 700 196" aria-label="A uuid interrupt id changes on each rerun and the lookup misses; a deterministic id stays fixed and hits">
+            <defs>
+              <marker id="gh-ar-r" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z" style="fill:var(--risk)"/></marker>
+              <marker id="gh-ar-g" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z" style="fill:var(--state)"/></marker>
+            </defs>
+            <text class="gh-lbl" x="0" y="44" style="fill:var(--risk)">uuid4()</text>
+            <text class="gh-cnt" id="gh-ca" x="0" y="70">asked 1×</text>
+            <rect class="gh-chip" id="gh-chipa" x="170" y="24" width="200" height="46" rx="10"/>
+            <text class="gh-chipt" id="gh-ta" x="270" y="53" text-anchor="middle">id=3f2a…</text>
+            <line id="gh-la" x1="374" y1="47" x2="374" y2="47" stroke-width="3" style="stroke:var(--risk)" marker-end="url(#gh-ar-r)"/>
+            <text class="gh-mark" id="gh-ma" x="422" y="32" text-anchor="middle" style="fill:var(--risk)">✕ miss</text>
+            <rect class="gh-box" id="gh-boxa" x="476" y="24" width="224" height="46" rx="10"/>
+            <text class="gh-boxt" id="gh-ba" x="588" y="52" text-anchor="middle">answer under 3f2a…</text>
+            <line class="gh-div" x1="0" y1="98" x2="700" y2="98"/>
+            <text class="gh-lbl" x="0" y="130" style="fill:var(--state)">invocation_id</text>
+            <text class="gh-lbl" x="0" y="152" style="fill:var(--state)">+ run_id</text>
+            <text class="gh-cnt" id="gh-cb" x="0" y="178">asked 1×</text>
+            <rect class="gh-chip" x="170" y="122" width="200" height="46" rx="10"/>
+            <text class="gh-chipt" x="270" y="151" text-anchor="middle">…_e7…_1</text>
+            <line id="gh-lb" x1="374" y1="145" x2="374" y2="145" stroke-width="3" style="stroke:var(--state)" marker-end="url(#gh-ar-g)"/>
+            <text class="gh-mark" id="gh-mb" x="422" y="130" text-anchor="middle" style="fill:var(--state)">✓ hit</text>
+            <rect class="gh-box" id="gh-boxb" x="476" y="122" width="224" height="46" rx="10"/>
+            <text class="gh-boxt" id="gh-bb" x="588" y="150" text-anchor="middle">answer under …_1</text>
+          </svg>
+        </div>
+      </div>
+      <div class="gh-set" data-step="2" data-until="3">
+        <div class="code-wrap bad">
+          <div class="code-head">refund_approval/agent.py · manager_gate</div>
+          <pre class="code" data-lang="python"><code>  answer = ctx.resume_inputs.get(iid)   # the manager typed: approve
+  d = ManagerDecision.model_validate(answer)
+<span class="err"># pydantic_core.ValidationError: 1 validation error for ManagerDecision</span></code></pre>
+        </div>
+        <div class="code-wrap good">
+          <div class="code-head">refund_approval/agent.py · manager_gate</div>
+          <pre class="code" data-lang="python"><code>  answer = ctx.resume_inputs.get(iid)
+  if isinstance(answer, str):           # "approve" stays a str
+    # a str covers approve/reject only: anything else = reject.
+    # Notes and partial amounts still need a JSON reply.
+    answer = {"approved": answer.strip().lower() == "approve"}
+  d = ManagerDecision.model_validate(answer)</code></pre>
+        </div>
+      </div>
+      <div class="gh-set" data-step="3">
+        <div class="code-wrap bad">
+          <div class="code-head">refund_approval/agent.py · tool-level FunctionTool (#7010)</div>
+          <pre class="code" data-lang="python"><code>from google.adk.tools import FunctionTool
+def needs_ok(amount: float, **_) -&gt; bool:  # **_ takes the other args
+  amount &gt; AUTO_APPROVE_LIMIT              # no return: Python returns None
+FunctionTool(issue_refund, require_confirmation=needs_ok)</code></pre>
+        </div>
+        <div class="code-wrap good">
+          <div class="code-head">refund_approval/agent.py · write @node predicates the same way</div>
+          <pre class="code" data-lang="python"><code>from google.adk.tools import FunctionTool
+def needs_ok(amount: float, **_) -&gt; bool:
+  if amount &gt; AUTO_APPROVE_LIMIT:
+    return True
+  return False                             # never fall through
+FunctionTool(issue_refund, require_confirmation=needs_ok)</code></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">These three bugs hit the Acme refund gate after the lab works on your laptop; the slide shows each bug first and then its fix. First, the interrupt id must be the same on every rerun of a rerun_on_resume node. With uuid4 the id changes on each rerun, so resume_inputs.get never matches and the manager is asked again; the animation shows the lookup missing, while the id built from invocation_id and run_id hits the stored answer on the first resume. Second, replies are JSON-parsed when possible, so the word approve stays a string and ManagerDecision.model_validate raises ValidationError; response_schema "does not reshape the reply", so accept a string and parse it yourself, and remember that this simple parser turns anything except approve into a reject and loses notes and partial amounts, so ask for JSON when you need those. Third, issue 7010, still open, is about the tool-level FunctionTool predicate: ADK uses cast(bool, ...), which does nothing at runtime, so a predicate that returns None is falsy and an 820-dollar refund runs with no prompt; return a real bool on every path, and write the predicate of the node-level decorator from the last slide the same way. The double-star underscore parameter takes the other tool arguments, so the predicate only names the one it needs. Think of the interrupt id as a cloakroom ticket: if you print a new ticket every time you come back, you never get your coat. A likely question: "Why not just reuse one fixed string?" Reuse is supported, but the docstring still recommends unique ids per loop pass, which the revise loop in Lab 5 step 1 needs. Next: the same kind of traps on the payout side, in retry and resume.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c05-gotcha-hitl";
+  const A_IDS = ["3f2a…", "9c7e…", "b41d…"];
+  const X0 = 374, X1 = 470;
+  let tw = null;
+  const clamp = (x) => Math.max(0, Math.min(1, x));
+  const q = (s, sel) => s.querySelector(sel);
+  // p in [0,1]: three phases. phase 0 = first ask (answer stored), phases 1-2 = reruns that look the answer up.
+  function render(s, p) {
+    const ph = p >= 1 ? 2 : Math.floor(p * 3);
+    const u = p >= 1 ? 1 : p * 3 - ph;
+    const stored = ph >= 1 || u > 0.45;
+    // row A: uuid id regenerates on each rerun and misses
+    q(s, "#gh-ta").textContent = "id=" + A_IDS[ph];
+    const flash = ph >= 1 && u < 0.2;
+    q(s, "#gh-chipa").style.strokeWidth = flash ? "4.5" : "2.5";
+    q(s, "#gh-chipa").style.stroke = ph >= 1 ? "var(--risk)" : "var(--human)";
+    const arr = ph >= 1 ? clamp((u - 0.2) / 0.4) : 0;
+    q(s, "#gh-la").setAttribute("x2", String(X0 + (X1 - X0) * arr));
+    q(s, "#gh-la").setAttribute("opacity", arr > 0 ? "1" : "0");
+    const missed = ph >= 1 && u > 0.6;
+    q(s, "#gh-ma").setAttribute("opacity", missed ? "1" : "0");
+    const askedA = 1 + (ph >= 1 ? (ph - 1) + (u > 0.6 ? 1 : 0) : 0);
+    q(s, "#gh-ca").textContent = "asked " + askedA + "×";
+    q(s, "#gh-ca").style.fill = askedA > 1 ? "var(--risk)" : "var(--muted)";
+    q(s, "#gh-boxa").setAttribute("opacity", stored ? "1" : "0.25");
+    q(s, "#gh-ba").setAttribute("opacity", stored ? "1" : "0");
+    // row B: deterministic id stays fixed and hits on the first rerun
+    const arrB = ph >= 1 ? (ph >= 2 ? 1 : clamp((u - 0.2) / 0.4)) : 0;
+    q(s, "#gh-lb").setAttribute("x2", String(X0 + (X1 - X0) * arrB));
+    q(s, "#gh-lb").setAttribute("opacity", arrB > 0 ? "1" : "0");
+    q(s, "#gh-mb").setAttribute("opacity", ph >= 2 || (ph === 1 && u > 0.6) ? "1" : "0");
+    q(s, "#gh-cb").textContent = "asked 1×";
+    q(s, "#gh-boxb").setAttribute("opacity", stored ? "1" : "0.25");
+    q(s, "#gh-bb").setAttribute("opacity", stored ? "1" : "0");
+  }
+  function stop() { if (tw) tw.kill(); tw = null; }
+  function build(s, n, animate) {
+    stop();
+    const st = { p: n >= 1 ? 1 : 0 };
+    if (animate && n === 1) st.p = 0;
+    render(s, st.p);
+    if (animate && n === 1) {
+      tw = gsap.to(st, { p: 1, duration: 4.2, ease: "none", delay: 0.5, onUpdate: () => render(s, st.p) });
+    }
+  }
+  Deck.register(ID, {
+    enter(slide, n) { if (!tw) build(slide, n || 0, false); },
+    step(slide, n, animate) { build(slide, n, animate); },
+    leave() { stop(); }
+  });
+})();
+</script>

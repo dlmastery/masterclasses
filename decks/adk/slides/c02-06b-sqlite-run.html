@@ -1,0 +1,74 @@
+<section class="slide tight" id="adk-c02-sqlite-run" data-tone="state" data-title="Build: run it twice">
+  <style>
+    #adk-c02-sqlite-run .c02z-grid { display: grid; grid-template-columns: 790px 1fr; gap: 30px; align-items: start; }
+    #adk-c02-sqlite-run .c02z-left, #adk-c02-sqlite-run .c02z-right { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+    #adk-c02-sqlite-run .out { align-self: stretch; }
+    #adk-c02-sqlite-run .out pre.code { line-height: 1.65; padding: 16px 20px 18px; }
+    #adk-c02-sqlite-run .stat { flex-direction: row; align-items: center; gap: 22px; padding: 18px 22px; border-radius: 16px; border: 2px solid var(--state); background: color-mix(in oklab, var(--state) 6%, var(--surface)); }
+    #adk-c02-sqlite-run .stat .n { font-size: 84px; color: var(--state); min-width: 64px; text-align: center; }
+  </style>
+  <div class="kicker"><span class="pill">Build</span> Acme claims API · sessions that survive a restart</div>
+  <h2 class="title">Seed claim_id once, then every run appends to the same file</h2>
+  <div class="c02z-grid fill">
+    <div class="c02z-left">
+      <div class="code-wrap">
+        <div class="code-head">labs/adk/lab2-claims-api/claims/claims_followup.py · excerpt</div>
+        <pre class="code c17" data-lang="python" data-focus="1:4-6, 2:8-12, 3:13-15"><code>async def main(text: str) -&gt; None:
+    # ... runner = Runner(app=app, session_service=sessions, ...)
+    sid, uid = "claim-77", "u-tom"
+    old = await sessions.get_session(app_name="claims_api",
+                                     user_id=uid, session_id=sid)
+    delta = None if old else {"claim_id": sid}  # seed once
+    msg = types.UserContent(parts=[types.Part(text=text)])
+    async for ev in runner.run_async(
+            user_id=uid, session_id=sid,
+            new_message=msg, state_delta=delta):
+        if ev.is_final_response() and ev.content and ev.content.parts:
+            print(f"[{ev.author}] {ev.content.parts[0].text}")
+    s = await sessions.get_session(app_name="claims_api",
+                                   user_id=uid, session_id=sid)
+    print(f"(events stored: {len(s.events)})")</code></pre>
+      </div>
+    </div>
+    <div class="c02z-right">
+      <div class="code-wrap out">
+        <div class="code-head">output · illustrative · two separate processes</div>
+        <pre class="code sm" data-lang="output"><code><span data-step="2"><span class="dim"># process 1: "My car is a 2024 Civic."</span>
+[claims_followup] Noted: a 2024 Civic on claim-77.
+<span class="ok">(events stored: 2)</span></span>
+<span data-step="3"><span class="dim"># process 2: "Which car did I say I have?"</span>
+[claims_followup] You said you have a 2024 Civic.
+<span class="ok">(events stored: 4)</span></span></code></pre>
+      </div>
+      <div class="stat"><span class="n" id="c02z-n">0</span><span class="l">events in claims_sessions.db for claim-77</span></div>
+      <div class="c02-cap">
+        <p data-until="1">Run the script twice, as two processes. Both open the same file.</p>
+        <p data-step="1" data-until="2">Seed <code>claim_id</code> on first contact only. Later runs find the session.</p>
+        <p data-step="2" data-until="3">Process 1 stores 2 events: the message and the reply.</p>
+        <p data-step="3">Process 2 loads them, answers, and adds 2 more.</p>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">The main function of claims_followup.py, run as two separate processes. Click 1: get_session tells first contact from a returning session; the script seeds claim_id only on first contact, because a delta on every run would write the same value in a new event each turn. The same id is stored as claim_id, so there is one key for the claim. Click 2: process 1 sends "My car is a 2024 Civic." and stores 2 events, the user message and the reply. Click 3: process 2 asks "Which car did I say I have?"; it loads claim-77 from the file, answers with the Civic, and the count goes to 4. Analogy: each run adds two pages to the same claim folder. A likely question: "Can adk web open this file?" Yes: adk web --session_service_uri sqlite:///claims_sessions.db opens the same store.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c02-sqlite-run";
+  const obj = { v: 0 };
+  function render(slide, n, animate) {
+    if (window.c02Focus) window.c02Focus(slide, n);
+    const num = slide.querySelector("#c02z-n");
+    gsap.killTweensOf(obj);
+    const to = n >= 3 ? 4 : n >= 2 ? 2 : 0;
+    if (animate && (n === 2 || n === 3)) {
+      obj.v = n === 3 ? 2 : 0;
+      gsap.to(obj, { v: to, duration: 0.8, delay: 0.4, ease: "none", onUpdate: () => (num.textContent = String(Math.round(obj.v))) });
+    } else { obj.v = to; num.textContent = String(to); }
+  }
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { gsap.killTweensOf(obj); },
+  });
+})();
+</script>

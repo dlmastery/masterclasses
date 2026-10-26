@@ -1,0 +1,156 @@
+<section class="slide" id="adk-interview-c05-qa-production" data-tone="risk" data-title="Q&amp;A: deploy targets and sessions">
+  <style>
+    #adk-interview-c05-qa-production .qp-grid { display: grid; grid-template-columns: 1fr 640px; gap: 30px; min-height: 0; }
+    #adk-interview-c05-qa-production .qp-left { display: flex; flex-direction: column; gap: 18px; padding-left: 16px; min-width: 0; }
+    #adk-interview-c05-qa-production .qa { gap: 8px; position: relative; transition: opacity .45s; }
+    #adk-interview-c05-qa-production .qa::before { content: ""; position: absolute; left: -16px; top: 2px; bottom: 2px; width: 4px; border-radius: 4px; background: var(--risk); opacity: 0; transition: opacity .45s; }
+    #adk-interview-c05-qa-production .qa.cur::before { opacity: 1; }
+    #adk-interview-c05-qa-production .qa.cur.past::before { opacity: 0; }
+    #adk-interview-c05-qa-production .qa.past { opacity: .55; }
+    #adk-interview-c05-qa-production .qa .q { font-size: 21px; }
+    #adk-interview-c05-qa-production .qa .a { font-size: 17.5px; line-height: 1.42; padding: 9px 14px; }
+    #adk-interview-c05-qa-production .qa .a code { font-size: .86em; font-variant-ligatures: none; }
+    #adk-interview-c05-qa-production .a .tags { display: inline-flex; gap: 8px; margin-left: 6px; vertical-align: 1px; }
+    #adk-interview-c05-qa-production .a .tag { font-size: 14px; padding: 5px 9px 5px 8px; }
+    #adk-interview-c05-qa-production .sen { border-radius: 4px; transition: background .35s; }
+    #adk-interview-c05-qa-production .sen.lit { background: color-mix(in oklab, var(--risk) 16%, transparent); }
+    #adk-interview-c05-qa-production .qp-prog { margin-top: auto; height: 8px; }
+    #adk-interview-c05-qa-production .qp-prog > i { width: 0; background: var(--risk); }
+    #adk-interview-c05-qa-production .cites { gap: 8px; flex-wrap: wrap; }
+    #adk-interview-c05-qa-production .cite { font-size: 13.5px; padding: 6px 10px 6px 8px; white-space: nowrap; flex: none; }
+    #adk-interview-c05-qa-production .viz { position: relative; height: 640px; }
+    #adk-interview-c05-qa-production .vp { position: absolute; inset: 0; display: flex; flex-direction: column; gap: 14px; padding: 16px 18px; border-radius: 16px; border: 1px solid var(--line); border-top: 3px solid var(--risk); background: var(--surface); }
+    #adk-interview-c05-qa-production .vp h4 { font-size: 19px; }
+    #adk-interview-c05-qa-production .vp > .code-wrap { align-self: stretch; }
+    #adk-interview-c05-qa-production .tcols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+    #adk-interview-c05-qa-production .tc { padding: 14px 14px 16px; border-radius: 12px; border: 1.5px solid var(--line-2); background: var(--surface-2); display: flex; flex-direction: column; gap: 8px; transition: border-color .35s, box-shadow .35s, transform .35s; }
+    #adk-interview-c05-qa-production .tc b { font-size: 19px; color: var(--ink); }
+    #adk-interview-c05-qa-production .tc span { font-size: 16px; line-height: 1.4; color: var(--ink-2); }
+    #adk-interview-c05-qa-production .tc code { font: 600 14.5px/1.3 var(--f-mono); color: var(--risk); overflow-wrap: anywhere; white-space: normal; }
+    #adk-interview-c05-qa-production .tc.pick { border-color: var(--risk); transform: translateY(-3px); box-shadow: 0 0 0 3px color-mix(in oklab, var(--risk) 22%, transparent), 0 16px 40px -20px var(--risk); }
+    #adk-interview-c05-qa-production pre.code.xs { font-size: 13.5px; padding: 10px 14px 12px; }
+    #adk-interview-c05-qa-production .code-wrap .code-head { font-size: 13px; padding: 8px 14px; }
+    #adk-interview-c05-qa-production .callout { font-size: 15.5px; line-height: 1.4; padding: 10px 14px; }
+  </style>
+  <div class="kicker">Interview · deploy · Q&amp;A 2 of 3</div>
+  <h2 class="title">Pick the deploy target, then keep sessions off the instance</h2>
+  <div class="qp-grid fill">
+    <div class="qp-left">
+      <div class="qa" data-on="1:cur 2:past">
+        <div class="q">Agent Runtime, Cloud Run or GKE?</div>
+        <div class="a" data-step="1"><span class="sen" data-k="0"><b>Agent Runtime</b>: managed sessions, least ops.</span> <span class="sen" data-k="1"><b>Cloud Run</b>: your API and revisions.</span> <span class="sen" data-k="2"><b>GKE</b>: your cluster, private by default.</span><span class="tags"><span class="tag t-tool">ClusterIP</span></span></div>
+      </div>
+      <div class="qa" data-on="2:cur 3:past">
+        <div class="q">How do Cloud Run sessions survive a recycled instance?</div>
+        <div class="a" data-step="2">Pass <code>--session_service_uri</code> with a shared store. Without it, sessions live in memory and die with the instance.<span class="tags"><span class="tag t-state">agentengine://ID</span></span></div>
+      </div>
+      <div class="qa" data-on="3:cur">
+        <div class="q">How do you call the private service safely?</div>
+        <div class="a" data-step="3">Send an <b>identity</b> token and grant <code>roles/run.invoker</code>. An access token gets 403. Never ship <code>--with_ui</code>.<span class="tags"><span class="tag t-risk">403 = wrong token</span></span></div>
+      </div>
+      <div class="bar qp-prog"><i></i></div>
+      <div class="cites">
+        <a class="cite doc" href="https://adk.dev/deploy/cloud-run/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;ADK: deploy to Cloud Run</a>
+        <a class="cite codelab" href="https://codelabs.developers.google.com/next26/adk-deploy-scale" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;adk-deploy-scale</a>
+      </div>
+    </div>
+
+    <div class="viz">
+      <div class="vp" data-until="1">
+        <h4>Pick the target by who owns sessions and ops</h4>
+        <p class="small" style="color:var(--muted)">Answer first, then press → for the model answer.</p>
+      </div>
+
+      <div class="vp" data-step="1" data-until="2">
+        <h4>Pick the target by who owns sessions and ops</h4>
+        <div class="tcols">
+          <div class="tc" data-k="0"><b>Agent Runtime</b><span>Managed sessions and Memory Bank. Google runs it.</span><code>adk deploy agent_engine</code></div>
+          <div class="tc" data-k="1"><b>Cloud Run</b><span>Your FastAPI routes, revisions, traffic split.</span><code>adk deploy cloud_run</code></div>
+          <div class="tc" data-k="2"><b>GKE</b><span>Your cluster. No public IP by default.</span><code>ClusterIP default</code></div>
+        </div>
+        <div class="code-wrap term">
+          <div class="code-head">deploy-gke.sh · google-adk[gcp]==2.13.0</div>
+          <pre class="code xs" data-lang="bash"><code>$ adk deploy gke --project=$PROJECT --region=$REGION \
+    --cluster_name=agents-prod \
+    --service_type=ClusterIP refund_agent  # LoadBalancer = public</code></pre>
+        </div>
+      </div>
+
+      <div class="vp" data-step="2" data-until="3">
+        <h4>One shared session store for every instance</h4>
+        <div class="code-wrap term">
+          <div class="code-head">deploy.sh · google-adk[gcp]==2.13.0 · output illustrative</div>
+          <pre class="code xs" data-lang="bash"><code># 1) create the Agent Runtime instance once: it prints the ID
+$ adk deploy agent_engine --project=$PROJECT --region=$REGION \
+    --display_name="refund-agent" refund_agent
+Created a new instance: projects/my-proj/locations/us-central1/
+    reasoningEngines/1234567890      <span class="dim"># the ID</span>
+
+# 2) Cloud Run keeps its sessions in that instance
+$ adk deploy cloud_run --project=$PROJECT --region=$REGION \
+    --service_name=refund-agent \
+    --session_service_uri="agentengine://1234567890" \
+    refund_agent \
+    -- --no-allow-unauthenticated --min-instances=1
+# everything after "--" goes straight to gcloud run deploy</code></pre>
+        </div>
+        <div class="callout pitfall"><span>No <code>--session_service_uri</code>: the container falls back to in-memory sessions. They are lost when an instance is recycled.</span></div>
+        <div class="callout tip"><span>Postgres also works: any SQLAlchemy URL, with <code>google-adk[db]</code>.</span></div>
+      </div>
+
+      <div class="vp" data-step="3">
+        <h4>Private service: identity token, invoker role</h4>
+        <div class="code-wrap term">
+          <div class="code-head">smoke.sh · output illustrative</div>
+          <pre class="code xs" data-lang="bash"><code>$ URL=$(gcloud run services describe refund-agent \
+    --region=$REGION --format='value(status.url)')
+$ TOKEN=$(gcloud auth print-identity-token)
+$ curl -X POST -H "Authorization: Bearer $TOKEN" \
+    $URL/apps/refund_agent/users/u1/sessions/s1
+200
+$ BAD=$(gcloud auth print-access-token)
+$ curl -X POST -H "Authorization: Bearer $BAD" \
+    $URL/apps/refund_agent/users/u1/sessions/s2
+403 Forbidden   # access token: wrong kind of token</code></pre>
+        </div>
+        <div class="code-wrap out">
+          <div class="code-head">adk deploy cloud_run --with_ui …</div>
+          <pre class="code xs" data-lang="none"><code><span class="err">WARNING: ADK Web is for development purposes. It has access to all
+data and should not be used in production.</span></code></pre>
+        </div>
+        <div class="callout tip"><span>Keep <code>--no-allow-unauthenticated</code>. Put IAP, API Gateway or Gemini Enterprise in front for users.</span></div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Read each question and let the candidate answer before you reveal the step. For question 1, a strong answer chooses the target by who owns sessions and operations: Agent Runtime manages sessions and Memory Bank for you, Cloud Run gives you your own API surface and revisions, GKE gives you your own cluster and adk deploy gke defaults to ClusterIP. For question 2, name the trap: without --session_service_uri the Cloud Run container falls back to in-memory sessions that die with the instance. The agentengine:// ID is the number at the end of the resource name that adk deploy agent_engine prints; pass --agent_engine_id on later deploys, or every deploy creates a new instance. For question 3, the 403 comes from sending an access token to a private Cloud Run service: send an identity token and grant roles/run.invoker. Analogy: the coat check keeps your coat at the front desk, not in one waiter's pocket. Likely follow-up: "Which store would you pick?" Agent Runtime if you want managed sessions; a managed Postgres URL with google-adk[db] if you already run Cloud SQL. Next: what breaks silently when you upgrade ADK.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-interview-c05-qa-production";
+  let tw = [];
+  const kill = () => { tw.forEach((t) => t.kill()); tw = []; };
+  function render(slide, n, animate) {
+    kill();
+    const bar = slide.querySelector(".qp-prog > i");
+    const v = Math.min(n, 3) / 3 * 100;
+    if (animate) tw.push(gsap.to(bar, { width: v + "%", duration: 0.7, ease: "power2.out" }));
+    else gsap.set(bar, { width: v + "%" });
+    // Q1: each target card lights with its sentence, then all settle
+    const cols = [...slide.querySelectorAll(".tc")], sens = [...slide.querySelectorAll(".sen")];
+    cols.forEach((c) => c.classList.remove("pick")); sens.forEach((s) => s.classList.remove("lit"));
+    if (n === 1 && animate) {
+      const tl = gsap.timeline({ delay: 0.5 });
+      [0, 1, 2].forEach((k) => {
+        tl.call(() => { cols.forEach((c) => c.classList.toggle("pick", +c.dataset.k === k)); sens.forEach((s) => s.classList.toggle("lit", +s.dataset.k === k)); }, null, k * 1.6);
+      });
+      tl.call(() => { cols.forEach((c) => c.classList.remove("pick")); sens.forEach((s) => s.classList.remove("lit")); }, null, 4.8);
+      tw.push(tl);
+    }
+  }
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { kill(); }
+  });
+})();
+</script>

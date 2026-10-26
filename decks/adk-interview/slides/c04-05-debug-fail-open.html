@@ -1,0 +1,216 @@
+<section class="slide" id="adk-interview-c04-debug-fail-open" data-tone="tool" data-title="Debug: refund gate fails open">
+  <style>
+    #adk-interview-c04-debug-fail-open .fo-main { display: grid; grid-template-columns: 790px 1fr; gap: 26px; min-height: 0; }
+    #adk-interview-c04-debug-fail-open .fo-left { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+    #adk-interview-c04-debug-fail-open .fo-left > .code-wrap { width: 100%; }
+    #adk-interview-c04-debug-fail-open .code-wrap .code-head { padding: 8px 14px; font-size: 14px; }
+    #adk-interview-c04-debug-fail-open .fo-codebox { display: flex; }
+    #adk-interview-c04-debug-fail-open .fo-gut { flex: none; width: 40px; padding: 10px 0 12px; text-align: right; font: 400 16px/1.5 var(--f-mono); color: #6f78a8; white-space: pre; user-select: none; position: relative; z-index: 2; }
+    #adk-interview-c04-debug-fail-open .fo-codebox pre.code { flex: 1; font-size: 16px; line-height: 1.5; padding: 10px 16px 12px 16px; }
+    #adk-interview-c04-debug-fail-open .code-wrap .band { background: color-mix(in oklab, var(--tool) 22%, transparent); border-left: 3px solid var(--tool); }
+    #adk-interview-c04-debug-fail-open pre.code .l-new { color: #7ee2b8; }
+    #adk-interview-c04-debug-fail-open pre.code .l-new .token { color: #7ee2b8; }
+    #adk-interview-c04-debug-fail-open pre.code:not(.fixed) .l-new { display: none; }
+    #adk-interview-c04-debug-fail-open pre.code.fixed .l-old { display: none; }
+    #adk-interview-c04-debug-fail-open .code-wrap.out pre.code { font-size: 14px; line-height: 1.5; padding: 10px 16px 12px; white-space: pre-wrap; }
+    #adk-interview-c04-debug-fail-open .code-wrap.out pre.code code { white-space: pre-wrap; }
+    #adk-interview-c04-debug-fail-open pre.code .u { color: #c3c9ef; font-weight: 600; }
+    #adk-interview-c04-debug-fail-open .fo-outs { display: grid; }
+    #adk-interview-c04-debug-fail-open .fo-outs > pre { grid-area: 1 / 1; margin: 0; }
+    #adk-interview-c04-debug-fail-open .fo-right { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+    #adk-interview-c04-debug-fail-open .lab-head { gap: 12px; flex-wrap: nowrap; }
+    #adk-interview-c04-debug-fail-open .lab-head .pins { font: 500 13px/1.3 var(--f-mono); color: var(--muted); white-space: nowrap; }
+    #adk-interview-c04-debug-fail-open .panel.k-risk { padding: 9px 16px; font-size: 17px; line-height: 1.4; display: block; }
+    #adk-interview-c04-debug-fail-open .steps-rail { gap: 6px; }
+    #adk-interview-c04-debug-fail-open .steps-rail > * { font-size: 16px; line-height: 1.35; grid-template-columns: 30px 1fr; align-items: center; }
+    #adk-interview-c04-debug-fail-open .steps-rail > *::before { width: 26px; height: 26px; font-size: 13px; }
+    #adk-interview-c04-debug-fail-open .steps-rail code { font-size: .88em; }
+    #adk-interview-c04-debug-fail-open .gotcha { font-size: 15.5px; line-height: 1.38; padding: 10px 16px; grid-template-columns: 76px 1fr; gap: 4px 12px; }
+    #adk-interview-c04-debug-fail-open .gotcha > b { font-size: 12.5px; }
+    #adk-interview-c04-debug-fail-open .fo-cites { display: flex; gap: 8px; flex-wrap: wrap; margin-top: auto; }
+    #adk-interview-c04-debug-fail-open .fo-cites a.cite { font-size: 12.5px; }
+    #adk-interview-c04-debug-fail-open #fo-gate text { font-family: var(--f-mono); }
+  </style>
+  <div class="kicker"><span class="pill">Debug this</span> tool confirmation</div>
+  <h2 class="title">Debug this: a $1,299 refund ran with no approval prompt</h2>
+  <div class="fo-main fill">
+    <div class="fo-left">
+      <div class="code-wrap bad" id="fo-code">
+        <div class="code-head">refund_agent/agent.py</div>
+        <div class="fo-codebox">
+          <div class="fo-gut" aria-hidden="true">1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17</div>
+          <pre class="code" data-lang="python" data-focus="2:16-17, 3:11-12, 4:12"><code>from google.adk import Agent
+from google.adk.tools import FunctionTool, ToolContext
+
+def issue_refund(order_id: str, amount_usd: float) -&gt; dict:
+    """Refund to the original payment method. Irreversible."""
+    return {"status": "success", "refund_id": f"RF-{order_id}"}
+
+def needs_approval(order_id: str, amount_usd: float,
+                   tool_context: ToolContext) -&gt; bool:
+    limit = tool_context.state.get("app:approval_limit_usd")
+    if limit is None:
+        return              # limit not set in this environment
+    return amount_usd &gt; float(limit)
+
+root_agent = Agent(name="refund_agent", model="gemini-3.5-flash",
+    tools=[FunctionTool(issue_refund,
+                        require_confirmation=needs_approval)])</code></pre>
+        </div>
+      </div>
+      <div class="code-wrap out" data-step="1">
+        <div class="code-head">output · illustrative</div>
+        <div class="fo-outs">
+          <pre class="code" data-lang="none" data-until="4"><code><span class="u">[user]:</span> Refund $1299 on order A-1002
+<span class="err">[refund_agent]: Done. Refund RF-A-1002 for $1,299.00 has been issued.</span></code></pre>
+          <pre class="code" data-lang="none" data-step="4"><code><span class="u">[user]:</span> Refund $1299 on order A-1002   <span class="dim"># after the fix</span>
+<span class="ok">[HITL confirm] Please approve or reject the tool call issue_refund() by responding with a FunctionResponse with an expected ToolConfirmation payload.</span>
+<span class="dim"># approve: click Confirm in adk web, or send FunctionResponse(name="adk_request_confirmation", response={"confirmed": True})</span></code></pre>
+        </div>
+      </div>
+    </div>
+    <div class="fo-right">
+      <div class="lab-head"><span class="run">adk run refund_agent</span><span class="pins">google-adk==2.13.0</span></div>
+      <div class="panel k-risk" data-step="1"><b>Symptom.</b> Staging: a $1,299 refund ran with no approval prompt. Production asks, with the same code.</div>
+      <svg id="fo-gate" viewBox="0 0 572 170" width="572" height="170" aria-label="A refund call passes or stops at the require_confirmation gate"></svg>
+      <div class="steps-rail">
+        <div data-step="2"><span>Line 17 hands <code>needs_approval</code> to ADK, which runs it before each call. Staging never sets <code>app:approval_limit_usd</code>. What comes back?</span></div>
+        <div data-step="3"><span>Lines 11-12: a bare <code>return</code> gives <code>None</code>. <code>None</code> is falsy, so no prompt.</span></div>
+      </div>
+      <div class="gotcha" data-step="3">
+        <b>Symptom</b><span>The gate is skipped. The refund runs.</span>
+        <b class="why">Cause</b><span>ADK treats a falsy result (<code>None</code>, <code>0</code>, <code>""</code>) as "no confirmation needed". Python never checks the <code>-&gt; bool</code> hint. Issue #7010 asks ADK to reject non-bool (PR #7012 open as of google-adk 2.13.0).</span>
+        <b class="fix">Fix</b><span>Fail closed: <code>return True</code> on line 12. Test: unset the limit; the run must stop at the prompt.</span>
+      </div>
+      <div class="fo-cites">
+        <a class="cite repo" href="https://github.com/google/adk-python/issues/7010" target="_blank" rel="noopener"><b>Issue</b>&nbsp;adk-python #7010</a>
+        <a class="cite doc" href="https://adk.dev/tools-custom/confirmation/" target="_blank" rel="noopener"><b>ADK docs</b>&nbsp;Tool confirmation</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Show the code and the output, and ask the room why staging skips the prompt that production shows. Click 2, the hint: line 17 hands needs_approval to ADK, which calls it before every issue_refund call with the same arguments as the tool, so give it the same parameter names (or **kwargs); ADK adds tool_context only because the function declares it. Line 10 reads app:approval_limit_usd, which production sets when it creates sessions and staging never sets. Click 3, the answer: lines 11-12 return None, None is falsy, and ADK treats any falsy result as "no confirmation needed". Python never enforces the -> bool hint; issue #7010 asks ADK to reject non-bool results, and PR #7012 was still open as of google-adk 2.13.0, so check its status before class. Click 4, the fix: line 12 becomes return True, so missing configuration means a human approves. To approve, click Confirm in adk web, or send a FunctionResponse named adk_request_confirmation with confirmed True. Test it: unset the limit and assert that the run stops at the confirmation prompt. Analogy: a door lock that opens when its battery is missing. Likely follow-up: never gate an irreversible action with "ask before refunding" in the prompt; gate it in code. This closes the chapter: the refund cap, the guard plugin and this fail-closed gate are the controls that chapter 5 tests and ships.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "adk-interview-c04-debug-fail-open";
+  const X_START = 18, X_GATE = 160, X_PASSED = 322;
+  const HX = 286, HY = 44;   // gate hinge
+  let svg, token, bar, chip, chipText, gateLabel, box, boxSub, ask, track, cfg, built = false;
+  const el = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); parent.appendChild(e); return e; };
+
+  function build(root) {
+    svg = root.querySelector("#fo-gate");
+    svg.innerHTML = "";
+    // the path the call travels
+    track = el("line", { x1: 30, y1: 88, x2: 440, y2: 88, stroke: "var(--line-2)", "stroke-width": 3, "stroke-dasharray": "6 6" }, svg);
+    // the predicate chip above the hinge
+    chip = el("rect", { x: 186, y: 2, width: 200, height: 30, rx: 9, fill: "var(--surface)", stroke: "var(--human)", "stroke-width": 2 }, svg);
+    chipText = el("text", { x: 286, y: 22, "font-size": 14, "font-weight": 700, "text-anchor": "middle", fill: "var(--human)" }, svg);
+    el("line", { x1: HX, y1: 32, x2: HX, y2: HY, stroke: "var(--human)", "stroke-width": 2 }, svg);
+    // the gate: ONE bar on a hinge; it swings up 90 degrees to open
+    bar = el("rect", { x: HX - 6, y: HY, width: 12, height: 88, rx: 4, fill: "var(--human)" }, svg);
+    el("circle", { cx: HX, cy: HY, r: 7, fill: "var(--surface)", stroke: "var(--ink-2)", "stroke-width": 2.5 }, svg);
+    gateLabel = el("text", { x: 300, y: 128, "font-size": 13, "font-weight": 700, "text-anchor": "start", fill: "var(--human)" }, svg);
+    // the tool
+    box = el("rect", { x: 440, y: 58, width: 128, height: 60, rx: 12, fill: "var(--tool-soft)", stroke: "var(--tool)", "stroke-width": 2 }, svg);
+    el("text", { x: 504, y: 84, "font-size": 14, "font-weight": 700, "text-anchor": "middle", fill: "var(--ink)" }, svg).textContent = "issue_refund";
+    boxSub = el("text", { x: 504, y: 104, "font-size": 12, "text-anchor": "middle", fill: "var(--muted)" }, svg);
+    // the refund call
+    token = el("g", {}, svg);
+    el("rect", { x: 0, y: 68, width: 100, height: 40, rx: 20, fill: "var(--model-soft)", stroke: "var(--model)", "stroke-width": 2 }, token);
+    el("text", { x: 50, y: 93, "font-size": 15, "font-weight": 700, "text-anchor": "middle", fill: "var(--ink)" }, token).textContent = "$1,299";
+    // environment config (shown from clue 1)
+    cfg = el("g", {}, svg);
+    el("rect", { x: 0, y: 138, width: 568, height: 30, rx: 8, fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 1.5 }, cfg);
+    el("text", { x: 284, y: 158, "font-size": 12.5, "text-anchor": "middle", fill: "var(--ink-2)" }, cfg).textContent = "staging: app:approval_limit_usd missing · prod: set at create_session";
+    // the approval prompt when the gate holds
+    ask = el("g", { opacity: 0 }, svg);
+    el("rect", { x: 160, y: 30, width: 104, height: 30, rx: 15, fill: "var(--human)" }, ask);
+    el("text", { x: 212, y: 50, "font-size": 15, "font-weight": 700, "text-anchor": "middle", fill: "#fff" }, ask).textContent = "approve?";
+    built = true;
+  }
+
+  function fixCode(slide) {
+    const pre = slide.querySelector("#fo-code pre.code");
+    if (!pre || pre._fx || !pre._hl) return;
+    const code = pre.querySelector("code");
+    const lines = code.innerHTML.split("\n");
+    lines[11] = `<span class="l-old">${lines[11]}</span><span class="l-new">        return True         # fail closed: a human approves</span>`;
+    code.innerHTML = lines.join("\n");
+    pre._fx = true;
+  }
+
+  function kill() {
+    if (!built) return;
+    gsap.killTweensOf([token, bar, ask, chip, cfg]);
+  }
+
+  function paint(slide, n, animate) {
+    kill();
+    fixCode(slide);
+    const fixed = n >= 4;
+    const wrap = slide.querySelector("#fo-code");
+    if (wrap) {
+      wrap.classList.toggle("bad", !fixed);
+      wrap.classList.toggle("good", fixed);
+      const pre = wrap.querySelector("pre.code");
+      if (pre) pre.classList.toggle("fixed", fixed);
+    }
+    const open = n === 3, held = fixed;
+    const gateCol = open ? "var(--risk)" : "var(--human)";
+    chipText.textContent = open ? "needs_approval → None" : held ? "needs_approval → True" : "needs_approval → ?";
+    chipText.setAttribute("fill", gateCol);
+    chip.setAttribute("stroke", gateCol);
+    bar.setAttribute("fill", gateCol);
+    gateLabel.textContent = open ? "fail open" : held ? "fail closed" : "require_confirmation";
+    gateLabel.setAttribute("fill", gateCol);
+    box.setAttribute("stroke", open ? "var(--risk)" : "var(--tool)");
+    box.setAttribute("fill", open ? "var(--risk-soft)" : "var(--tool-soft)");
+    boxSub.textContent = open ? "ran: RF-A-1002" : held ? "waits for yes" : "";
+    boxSub.setAttribute("fill", open ? "var(--risk)" : "var(--muted)");
+    track.setAttribute("stroke", open ? "var(--risk)" : "var(--line-2)");
+    gsap.set(cfg, { autoAlpha: n >= 2 ? 1 : 0 });
+
+    const angle = open ? -90 : 0;
+    const tx = open ? X_PASSED : held ? X_GATE : X_START;
+    if (animate && (open || held)) {
+      gsap.set(token, { x: X_START });
+      gsap.to(bar, { rotation: angle, svgOrigin: HX + " " + HY, duration: 0.5, ease: "power2.inOut" });
+      gsap.to(token, { x: tx, duration: open ? 1.1 : 0.8, delay: open ? 0.35 : 0.1, ease: "power2.inOut" });
+    } else {
+      gsap.set(bar, { rotation: angle, svgOrigin: HX + " " + HY });
+      gsap.set(token, { x: tx });
+    }
+    if (held) {
+      gsap.set(ask, { opacity: animate ? 0 : 1, scale: 1, transformOrigin: "50% 50%" });
+      if (animate) gsap.to(ask, { opacity: 1, duration: 0.3, delay: 0.85 });
+      gsap.to(ask, { scale: 1.07, transformOrigin: "50% 50%", duration: 0.7, repeat: -1, yoyo: true, ease: "sine.inOut", delay: animate ? 1.2 : 0 });
+    } else {
+      gsap.set(ask, { opacity: 0, scale: 1 });
+    }
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { build(slide); paint(slide, step || 0, false); },
+    step(slide, n, animate) { if (!built) build(slide); paint(slide, n, animate); },
+    leave() { kill(); }
+  });
+})();
+</script>

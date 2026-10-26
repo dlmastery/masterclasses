@@ -1,0 +1,138 @@
+<section class="slide tight" id="adk-c05-lab-retry" data-tone="tool" data-title="Lab 5B.2: RetryConfig backoff">
+  <style>
+    #adk-c05-lab-retry pre.code, #adk-c05-lab-retry code { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #adk-c05-lab-retry .rt-body { display: grid; grid-template-columns: 790px minmax(0, 1fr); gap: 36px; align-items: start; }
+    #adk-c05-lab-retry .rt-col { display: flex; flex-direction: column; gap: 30px; min-width: 0; padding-top: 8px; }
+    #adk-c05-lab-retry #rt-svg { display: block; overflow: visible; }
+    #adk-c05-lab-retry #rt-svg text { font-family: var(--f-mono); }
+  </style>
+  <div class="kicker"><span class="pill">Lab 5B</span> Acme payouts · step 2 of 6</div>
+  <h2 class="title">RetryConfig retries the gateway 503 with exact 0.5 s and 1.0 s waits</h2>
+  <div class="rt-body fill">
+    <div class="code-wrap">
+      <div class="code-head">labs/adk/lab5b-payouts-durable/payouts/app.py · excerpt</div>
+      <pre class="code" data-lang="python" data-focus="1:1-2, 2:10-11, 3:12-13"><code>@node(retry_config=RetryConfig(max_attempts=4, initial_delay=0.5,
+                               backoff_factor=2.0, jitter=0.0,
+                               exceptions=[ConnectionError,
+                                           "NodeTimeoutError"]),
+      timeout=2.0)
+async def pay(ctx: Context, node_input: str):  # the analyst's reply
+  yield Event(message=f"gateway attempt {ctx.attempt_count}")
+  if node_input.strip().lower() != "yes":
+    yield Event(output="CANCELLED"); return
+  if ctx.attempt_count &lt; 3:
+    raise ConnectionError("gateway 503")   # attempts 1-2 fail, 3 pays
+  key = "payout-" + ctx.invocation_id      # same key on every run
+  yield Event(output=f"PAID idempotency_key={key}")</code></pre>
+    </div>
+    <div class="rt-col">
+      <svg id="rt-svg" viewBox="0 0 566 250" width="566" height="250" aria-label="Retry timeline for the pay node: attempts 1 and 2 fail with 503, waits of 0.5 s and 1.0 s, attempt 3 pays, attempt 4 is unused"></svg>
+      <div class="code-wrap out" data-step="2">
+        <div class="code-head">output · illustrative</div>
+        <pre class="code sm" data-lang="none"><code><span class="err">[payouts] gateway attempt 1</span>
+<span class="err">[payouts] gateway attempt 2</span>
+[payouts] gateway attempt 3
+<span class="ok" data-step="3">OUTPUT: PAID idempotency_key=payout-e-9c1…</span></code></pre>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Step 2 of Lab 5B is the pay node. Walk the RetryConfig line first: max_attempts counts the first try, so 4 means one try and up to three retries, and with jitter at zero the waits are exact: 0.5 seconds and then 1.0 second, because the delay is initial_delay times backoff_factor to the power attempt minus one. The node fails twice with a gateway 503 and pays on attempt 3, which ctx.attempt_count shows; the fourth slot stays unused. The last click is the idempotency key: payout- plus the invocation id, the same value on every retry and every resume, so the gateway can drop a duplicate charge. The output needs the driver main(), which the next slides build. Think of backoff as a polite caller: wait a little, then a little longer, so a busy line has time to clear. A likely question: "Is the attempt counter saved?" No: after an interrupt or a restart the node gets its full retry budget back.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c05-lab-retry";
+  const NS = "http://www.w3.org/2000/svg";
+  const PX = 130;                                   // 1 s of wait = 130 px
+  const Y = 120;                                    // timeline row centre
+  const BW = 72, BH = 76;                           // attempt box size
+  const A = [{ x: 0, ok: false }, { x: BW + 0.5 * PX, ok: false }, { x: 2 * BW + 1.5 * PX, ok: true }];
+  const W = [{ x: BW, s: 0.5 }, { x: 2 * BW + 0.5 * PX, s: 1.0 }];
+  const X4 = 494;
+  let tw = [], R = null;
+
+  function mk(tag, attrs, parent) {
+    const e = document.createElementNS(NS, tag);
+    for (const [a, v] of Object.entries(attrs)) e.setAttribute(a, v);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function txt(parent, x, y, s, attrs) { const t = mk("text", Object.assign({ x, y, "font-size": 16, fill: "var(--ink-2)" }, attrs || {}), parent); t.textContent = s; return t; }
+  function cross(g, cx, cy, r) { r = r || 9; mk("path", { d: `M${cx - r},${cy - r} L${cx + r},${cy + r} M${cx + r},${cy - r} L${cx - r},${cy + r}`, stroke: "var(--risk)", "stroke-width": 3.5, "stroke-linecap": "round" }, g); }
+  function check(g, cx, cy, r) { r = r || 10; mk("path", { d: `M${cx - r},${cy} L${cx - r / 4},${cy + r * 0.75} L${cx + r},${cy - r * 0.8}`, fill: "none", stroke: "var(--state)", "stroke-width": 3.5, "stroke-linecap": "round", "stroke-linejoin": "round" }, g); }
+
+  function build(svg) {
+    svg.innerHTML = "";
+    R = { plan: null, fill: [], waits: [] };
+    txt(svg, 0, 22, "delay = 0.5 × 2.0^(n−1)", { "font-size": 17, fill: "var(--muted)" });
+    R.total = txt(svg, 566, 26, "waited 0.0 s", { "font-size": 28, "font-weight": 800, "text-anchor": "end", fill: "var(--ink)" });
+    const plan = mk("g", {}, svg); R.plan = plan;
+    [...A.map((a) => a.x), X4].forEach((x, i) => {
+      mk("rect", { x, y: Y - BH / 2, width: BW, height: BH, rx: 12, fill: "var(--surface)", stroke: "var(--line-2)", "stroke-width": 2, "stroke-dasharray": "6 4" }, plan);
+      txt(plan, x + BW / 2, Y + 9, String(i + 1), { "font-size": 26, "font-weight": 700, "text-anchor": "middle", fill: "var(--muted)" });
+    });
+    W.forEach((w) => {
+      mk("rect", { x: w.x, y: Y - 14, width: w.s * PX, height: 28, rx: 6, fill: "none", stroke: "var(--tool)", "stroke-width": 1.5, "stroke-dasharray": "5 3" }, plan);
+      txt(plan, w.x + (w.s * PX) / 2, Y - 26, `${w.s.toFixed(1)} s`, { "font-size": 20, "font-weight": 700, "text-anchor": "middle", fill: "var(--tool)" });
+    });
+    mk("line", { x1: A[2].x + BW + 2, y1: Y, x2: X4 - 4, y2: Y, stroke: "var(--line-2)", "stroke-width": 2, "stroke-dasharray": "2 5" }, plan);
+    txt(plan, X4 + BW / 2, Y + 66, "unused", { "font-size": 16, "text-anchor": "middle", fill: "var(--muted)" });
+    W.forEach((w) => { R.waits.push(mk("rect", { x: w.x, y: Y - 14, width: 0, height: 28, rx: 6, fill: "var(--tool)", opacity: 0.85 }, svg)); });
+    A.forEach((a, i) => {
+      const g = mk("g", {}, svg);
+      mk("rect", { x: a.x, y: Y - BH / 2, width: BW, height: BH, rx: 12, fill: "var(--surface)" }, g);
+      mk("rect", { x: a.x, y: Y - BH / 2, width: BW, height: BH, rx: 12, fill: a.ok ? "var(--state-soft)" : "var(--risk-soft)", stroke: a.ok ? "var(--state)" : "var(--risk)", "stroke-width": 2.5 }, g);
+      txt(g, a.x + 22, Y + 9, String(i + 1), { "font-size": 26, "font-weight": 700, "text-anchor": "middle", fill: "var(--ink)" });
+      (a.ok ? check : cross)(g, a.x + 50, Y);
+      txt(g, a.x + BW / 2, Y + 66, a.ok ? "PAID" : "503", { "font-size": 18, "font-weight": 700, "text-anchor": "middle", fill: a.ok ? "var(--state)" : "var(--risk)" });
+      R.fill.push(g);
+    });
+    const key = mk("g", {}, svg); R.key = key;
+    mk("rect", { x: 0, y: 214, width: 566, height: 36, rx: 18, fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 1.5 }, key);
+    txt(key, 283, 238, "idempotency key = payout-<invocation_id>", { "font-size": 17, "font-weight": 700, "text-anchor": "middle", fill: "var(--state)" });
+  }
+
+  function clear() { tw.forEach((t) => t.kill()); tw = []; }
+  function vis(e, on, animate, ghost) {
+    gsap.killTweensOf(e);
+    const off = ghost === undefined ? 0 : ghost;
+    if (!on) gsap.set(e, { opacity: off });
+    else if (animate) tw.push(gsap.fromTo(e, { opacity: off }, { opacity: 1, duration: 0.45 }));
+    else gsap.set(e, { opacity: 1 });
+  }
+  function render(slide, n, animate) {
+    const svg = slide.querySelector("#rt-svg");
+    if (!svg) return;
+    if (!svg.childElementCount) build(svg);
+    clear();
+    vis(R.plan, n >= 1, animate && n === 1, 0.35);
+    R.fill.forEach((g) => { gsap.killTweensOf(g); gsap.set(g, { opacity: 0, scale: 1, transformOrigin: "center" }); });
+    R.waits.forEach((r) => { gsap.killTweensOf(r); gsap.set(r, { attr: { width: 0 } }); });
+    R.total.textContent = "waited 0.0 s";
+    if (n >= 2) {
+      if (animate && n === 2) {
+        let t = 0.2;
+        const c = { v: 0 };
+        A.forEach((a, i) => {
+          tw.push(gsap.fromTo(R.fill[i], { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1, duration: 0.35, delay: t, ease: "back.out(2.5)" }));
+          t += 0.45;
+          if (W[i]) {
+            tw.push(gsap.to(R.waits[i], { attr: { width: W[i].s * PX }, duration: W[i].s, delay: t, ease: "none" }));
+            tw.push(gsap.to(c, { v: i === 0 ? 0.5 : 1.5, duration: W[i].s, delay: t, ease: "none", onUpdate: () => { R.total.textContent = `waited ${c.v.toFixed(1)} s`; } }));
+            t += W[i].s + 0.1;
+          }
+        });
+      } else {
+        R.fill.forEach((g) => gsap.set(g, { opacity: 1 }));
+        R.waits.forEach((r, i) => gsap.set(r, { attr: { width: W[i].s * PX } }));
+        R.total.textContent = "waited 1.5 s";
+      }
+    }
+    vis(R.key, n >= 3, animate && n === 3);
+  }
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { clear(); if (slide) gsap.killTweensOf(slide.querySelectorAll("#rt-svg *")); },
+  });
+})();
+</script>

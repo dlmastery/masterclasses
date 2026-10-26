@@ -1,0 +1,53 @@
+<section class="slide" id="adk-c03-lab-functions" data-tone="agent" data-title="Lab 3.1: function nodes">
+  <style>
+    #adk-c03-lab-functions .fn-main { display: grid; grid-template-columns: 820px 1fr; gap: 44px; align-items: start; }
+    #adk-c03-lab-functions .fn-right { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+    #adk-c03-lab-functions .fn-diag .node .nt { font-size: 21px; }
+    #adk-c03-lab-functions .fn-diag .node .ns { font-size: 16px; }
+    #adk-c03-lab-functions .cap { display: grid; }
+    #adk-c03-lab-functions .cap > * { grid-area: 1 / 1; font-size: 24px; line-height: 1.4; color: var(--ink-2); }
+    #adk-c03-lab-functions .cap code { font-size: .82em; }
+    #adk-c03-lab-functions, #adk-c03-lab-functions * { font-variant-ligatures: none !important; }
+    #adk-c03-lab-functions .out pre.code .dim { color: #a3abd6; opacity: 1; }
+    #adk-c03-lab-functions .cites .cite { display: inline-flex; flex-direction: row; align-items: center; gap: 10px; white-space: nowrap; padding: 6px 12px 6px 10px; border-radius: 10px; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 3.1</span> Acme refund desk · 2 of 3</div>
+  <h2 class="title">Type hints turn plain functions into typed graph nodes</h2>
+  <div class="fn-main fill">
+    <div class="code-wrap">
+      <div class="code-head">labs/adk/c03-refund-flow/refund_flow/agent.py · excerpt</div>
+      <pre class="code" data-lang="python" data-focus="1:7-9, 2:16, 3:14-15"><code>class RefundCase(BaseModel):
+  order_id: str
+  amount: float
+  days_since_delivery: int
+  eligible: bool
+
+def parse_request(node_input: str) -&gt; str:       # -&gt; "A-1001"
+  return next(t for t in node_input.split()
+              if t.upper().startswith("A-")).upper()
+
+def check_policy(ctx: Context, node_input: str) -&gt; RefundCase:
+  order = ORDERS[node_input]
+  eligible = order["days_since_delivery"] &lt;= 30   # 30-day policy
+  ctx.state["refund_case"] = {"order_id": node_input, **order,
+                              "eligible": eligible}
+  return RefundCase(order_id=node_input, eligible=eligible, **order)</code></pre>
+    </div>
+    <div class="fn-right">
+      <div class="diagram fn-diag" style="width:528px;height:400px"
+           data-wires="fn-parse>fn-check@1:bt [A-1001]; fn-check>fn-reply@2:bt [RefundCase]; fn-check>fn-state@3:rl:dash{state} [state]">
+        <div class="node n-tool" id="fn-parse" style="left:0;top:0;width:280px"><span class="nt">parse_request</span><span class="ns">str → str</span></div>
+        <div class="node n-tool" id="fn-check" style="left:0;top:160px;width:280px" data-on="2:hot"><span class="nt">check_policy</span><span class="ns">str → RefundCase</span></div>
+        <div class="node n-model ghost" id="fn-reply" style="left:0;top:320px;width:280px"><span class="nt">write_reply</span><span class="ns">next node</span></div>
+        <div class="node n-state" id="fn-state" style="left:388px;top:160px;width:140px" data-step="3" data-fx="pop"><span class="nt">ctx.state</span><span class="ns">refund_case</span></div>
+      </div>
+      <div class="cap">
+        <p data-until="1">Two plain Python functions. No decorator, no base class.</p>
+        <p data-step="1" data-until="2">The return value <code>"A-1001"</code> becomes the next node's <code>node_input</code>.</p>
+        <p data-step="2" data-until="3">A typed <code>RefundCase</code> rides the edge. The build checks it.</p>
+        <p data-step="3">The state write goes into the event's <code>state_delta</code>.</p>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Here are the two function nodes of the refund chain; the full file is labs/adk/c03-refund-flow/refund_flow/agent.py. A plain Python function becomes a FunctionNode, and its type hints become its input and output schemas. Step 1: parse_request returns the string "A-1001", and the edge hands it to check_policy as node_input. Step 2: check_policy returns a typed RefundCase. Because both ends of that edge declare a type, the Workflow checks that they match when you build it. The **order spread works because RefundCase ignores the extra category key. Step 3: check_policy also writes refund_case into ctx.state; that write goes into the event's state_delta, and the next slide's prompt reads it. Think of the edge as the conveyor belt and state as the noticeboard: the belt carries one item to the next station, and the noticeboard is for facts every station may read. A likely question: "Why both return and write state?" The return value is typed and checked; the state key is what a prompt template can read.</aside>
+</section>

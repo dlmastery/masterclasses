@@ -1,0 +1,126 @@
+<section class="slide tight" id="adk-c10-lab-otel-setup" data-tone="risk" data-title="Lab 10.2: traces without PII">
+  <style>
+    #adk-c10-lab-otel-setup .os { display: grid; grid-template-columns: 750px minmax(0, 1fr); gap: 22px; align-items: start; }
+    #adk-c10-lab-otel-setup .col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+    #adk-c10-lab-otel-setup pre.code { font-size: 17px; line-height: 1.5; padding: 12px 16px 14px; }
+    #adk-c10-lab-otel-setup svg { display: block; overflow: visible; }
+    #adk-c10-lab-otel-setup svg text { font-family: var(--f-mono); }
+    #adk-c10-lab-otel-setup .caps { display: grid; }
+    #adk-c10-lab-otel-setup .caps > * { grid-area: 1 / 1; }
+    #adk-c10-lab-otel-setup .cap { font-size: 21px; line-height: 1.4; color: var(--ink-2); margin: 0; }
+    #adk-c10-lab-otel-setup .cap b { color: var(--ink); }
+  </style>
+  <div class="kicker"><span class="pill">Lab 10</span> Acme HR assistant · step 2 of 3</div>
+  <h2 class="title">Three env lines keep employee data out of every span</h2>
+  <div class="lab-head"><span class="run">pip install "google-adk[gcp,otel]==2.13.0"</span><span>no <code>[otel]</code>: export is off, with one warning</span></div>
+  <div class="os fill">
+    <div class="col">
+      <div class="code-wrap">
+        <div class="code-head">labs/adk/c10-acme-hr/hr_traced.py · excerpt</div>
+        <pre class="code" data-lang="python" data-focus="1:5-9, 2:11-13, 3:15"><code>from google.adk.telemetry import google_cloud
+from google.adk.telemetry.setup import maybe_set_otel_providers
+# ... asyncio, os, trace, Runner, InMemorySessionService, types
+
+os.environ.setdefault("OTEL_SERVICE_NAME", "acme-hr")
+os.environ.setdefault("OTEL_RESOURCE_ATTRIBUTES",
+                      "deployment.environment=dev")
+os.environ.setdefault("ADK_CAPTURE_MESSAGE_CONTENT_IN_SPANS",
+                      "false")          # default: on
+
+hooks = ([google_cloud.get_gcp_exporters(enable_cloud_tracing=True)]
+         if os.getenv("TO_CLOUD") else [])
+maybe_set_otel_providers(otel_hooks_to_setup=hooks)
+
+from hr_agent.agent import app  # step 1: the guarded App</code></pre>
+      </div>
+      <div class="caps">
+        <p class="cap" data-step="1" data-until="2">Content capture <b>defaults to on</b>. Set it to <code>false</code> yourself.</p>
+        <p class="cap" data-step="2" data-until="3">No hooks: OTLP to <code>:4318</code>. <code>TO_CLOUD=1</code>: Cloud Trace, with <code>roles/telemetry.writer</code>.</p>
+        <p class="cap" data-step="3">Set up telemetry first, then import the app from step 1.</p>
+      </div>
+    </div>
+    <svg id="os-svg" viewBox="0 0 620 500" width="620" height="500" aria-label="A span card for generate_content. Before step 1 the message content row shows the user's question. At step 1 the service and environment rows light and the content is struck through with a not captured chip. At step 2 maybe_set_otel_providers routes spans to OTLP on localhost:4318 or, with TO_CLOUD=1, to Cloud Trace."></svg>
+  </div>
+  <aside class="notes">Step two of the Acme HR lab traces the guarded app from step one, and keeps employee data out of the spans. Press once: the three setdefault lines name the service and the environment, and turn content capture off; ADK_CAPTURE_MESSAGE_CONTENT_IN_SPANS defaults to on, so without this line every prompt and reply lands in every span, and the card on the right shows the question struck out. Press again: with no hooks, maybe_set_otel_providers still adds the generic OTLP exporter from OTEL_EXPORTER_OTLP_TRACES_ENDPOINT, for example Jaeger on port 4318; with TO_CLOUD=1 it sends OTLP over HTTP to telemetry.googleapis.com, which needs roles/telemetry.writer. Without the otel extra, export is disabled with only one warning, which is easy to miss. Press again: the app import comes after the setup lines. Analogy: a trace is a flight log many people can read; it records times and fuel, not the passengers' conversations. Likely question: "Where do I keep the full content for debugging?" In an access-controlled store, keyed by the trace id, not in the spans.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c10-lab-otel-setup", NS = "http://www.w3.org/2000/svg";
+  const ROWS = [
+    ["service.name", "acme-hr", 1],
+    ["deployment.environment", "dev", 1],
+    ["gen_ai.request.model", "gemini-3.5-flash", 0],
+    ["gen_ai.usage.input_tokens", "recorded", 0],
+  ];
+  let R = null, tw = [], loop = null;
+  const mk = (tag, a, p, t) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); if (t !== undefined) e.textContent = t; p.appendChild(e); return e; };
+  function build(svg) {
+    svg.innerHTML = "";
+    R = { svg, rows: [] };
+    mk("rect", { x: 1, y: 1, width: 618, height: 296, rx: 14, fill: "var(--surface)", stroke: "var(--line-2)", "stroke-width": 2 }, svg);
+    mk("rect", { x: 1, y: 1, width: 618, height: 46, rx: 14, fill: "var(--model-soft)" }, svg);
+    mk("text", { x: 20, y: 31, "font-size": 18, "font-weight": 700, fill: "var(--model)" }, svg, "span · generate_content");
+    ROWS.forEach(([k, v, lit], i) => {
+      const y = 86 + i * 40, g = mk("g", {}, svg);
+      const bg = mk("rect", { x: 10, y: y - 24, width: 600, height: 34, rx: 8, fill: "var(--state-soft)", opacity: 0 }, g);
+      mk("text", { x: 22, y, "font-size": 15, fill: "var(--muted)" }, g, k);
+      mk("text", { x: 330, y, "font-size": 16, "font-weight": 700, fill: v === "recorded" ? "var(--state)" : "var(--ink)" }, g, v);
+      R.rows.push({ bg, lit });
+    });
+    const cy = 86 + ROWS.length * 40;
+    mk("text", { x: 22, y: cy, "font-size": 15, fill: "var(--muted)" }, svg, "message content");
+    R.prompt = mk("text", { x: 330, y: cy, "font-size": 16, "font-weight": 600, fill: "var(--risk)" }, svg, "\"What is my salary band?\"");
+    R.strike = mk("line", { x1: 326, y1: cy - 6, x2: 326, y2: cy - 6, stroke: "var(--risk)", "stroke-width": 2.5 }, svg);
+    R.chip = mk("g", { opacity: 0 }, svg);
+    mk("rect", { x: 446, y: cy + 12, width: 150, height: 28, rx: 8, fill: "var(--state)" }, R.chip);
+    mk("text", { x: 521, y: cy + 31, "font-size": 15, "font-weight": 700, fill: "#fff", "text-anchor": "middle" }, R.chip, "not captured");
+    // routing
+    R.route = mk("g", { opacity: 0 }, svg);
+    const node = (x, y, w, t, s, tone) => {
+      mk("rect", { x, y, width: w, height: s ? 58 : 46, rx: 12, fill: `var(--${tone}-soft)`, stroke: `var(--${tone})`, "stroke-width": 2 }, R.route);
+      mk("text", { x: x + w / 2, y: y + (s ? 25 : 29), "font-size": 16, "font-weight": 700, fill: "var(--ink)", "text-anchor": "middle" }, R.route, t);
+      if (s) mk("text", { x: x + w / 2, y: y + 46, "font-size": 14, fill: "var(--muted)", "text-anchor": "middle" }, R.route, s);
+    };
+    R.w1 = mk("path", { d: "M250 376 C 250 404, 140 402, 140 434", fill: "none", stroke: "var(--state)", "stroke-width": 2.5 }, R.route);
+    R.w2 = mk("path", { d: "M370 376 C 370 404, 480 402, 480 434", fill: "none", stroke: "var(--agent)", "stroke-width": 2.5 }, R.route);
+    node(160, 330, 300, "maybe_set_otel_providers", "", "tool");
+    node(0, 436, 280, "OTLP · localhost:4318", "no hooks · Jaeger", "state");
+    node(340, 436, 280, "Cloud Trace", "TO_CLOUD=1", "agent");
+    R.d1 = mk("circle", { r: 7, fill: "var(--state)", opacity: 0 }, R.route);
+    R.d2 = mk("circle", { r: 7, fill: "var(--agent)", opacity: 0 }, R.route);
+  }
+  function along(p, d, f) { const L = p.getTotalLength(), q = p.getPointAtLength(L * f); d.setAttribute("cx", q.x); d.setAttribute("cy", q.y); }
+  function clear() { tw.forEach((t) => t.kill()); tw = []; if (loop) loop.kill(); loop = null; }
+  function render(slide, n, animate) {
+    const svg = slide.querySelector("#os-svg");
+    if (!R || R.svg !== svg || !svg.childElementCount) build(svg);
+    clear();
+    const anim = animate && !matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const off = n >= 1;
+    R.rows.forEach((r) => gsap.set(r.bg, { opacity: off && r.lit ? 1 : 0 }));
+    gsap.set(R.prompt, { attr: { fill: off ? "var(--muted)" : "var(--risk)" } });
+    if (anim && n === 1) {
+      gsap.set(R.strike, { attr: { x2: 326 } }); gsap.set(R.chip, { opacity: 0, y: 6 });
+      tw.push(gsap.to(R.strike, { attr: { x2: 592 }, duration: 0.6, delay: 0.2, ease: "power2.inOut" }));
+      tw.push(gsap.to(R.chip, { opacity: 1, y: 0, duration: 0.35, delay: 0.8 }));
+    } else {
+      gsap.set(R.strike, { attr: { x2: off ? 592 : 326 } }); gsap.set(R.chip, { opacity: off ? 1 : 0, y: 0 });
+    }
+    const routed = n >= 2;
+    if (anim && n === 2) { gsap.set(R.route, { opacity: 0 }); tw.push(gsap.to(R.route, { opacity: 1, duration: 0.5 })); }
+    else gsap.set(R.route, { opacity: routed ? 1 : 0 });
+    gsap.set([R.d1, R.d2], { opacity: 0 });
+    if (routed && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      const a = { f: 0 }, b = { f: 0 };
+      loop = gsap.timeline({ repeat: -1, repeatDelay: 0.5, delay: 0.4 });
+      loop.set(R.d1, { opacity: 1 }).fromTo(a, { f: 0 }, { f: 1, duration: 1, ease: "none", onUpdate: () => along(R.w1, R.d1, a.f) }).set(R.d1, { opacity: 0 })
+        .set(R.d2, { opacity: 1 }).fromTo(b, { f: 0 }, { f: 1, duration: 1, ease: "none", onUpdate: () => along(R.w2, R.d2, b.f) }).set(R.d2, { opacity: 0 });
+    }
+  }
+  Deck.register(ID, {
+    enter(slide, n) { render(slide, n || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { clear(); },
+  });
+})();
+</script>

@@ -1,0 +1,141 @@
+<section class="slide" id="adk-c09-lab-evalset" data-tone="model" data-title="Lab 9.5: Golden evalset">
+  <style>
+    #adk-c09-lab-evalset .c9-split { --c9l: 800px; position: relative; }
+    #adk-c09-lab-evalset .c9-cap { min-height: 100px; }
+    #adk-c09-lab-evalset .ev-fly { position: absolute; inset: 0; pointer-events: none; z-index: 6; }
+    #adk-c09-lab-evalset .ev-ghost { position: absolute; left: 0; top: 0; padding: 4px 10px; border-radius: 8px; white-space: nowrap;
+      font: 700 17px/1.3 var(--f-mono); color: var(--ink); background: var(--surface); border: 2px solid var(--gc, var(--model));
+      box-shadow: 0 8px 24px -8px rgba(0,0,0,.45); opacity: 0; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 9</span> Acme refund eval gate · step 5 of 15</div>
+  <h2 class="title">Each golden case stores the turn, the answer and the tools</h2>
+  <div class="c9-split fill">
+    <div class="code-wrap">
+      <div class="code-head">labs/adk/lab9-refund-eval/refund_agent/refund.evalset.json · case 2</div>
+      <pre class="code" data-lang="json" data-focus="1:4-5, 2:6-7, 3:8-12, 4:14-15"><code>{"eval_id": "large_refund_escalates",
+ "conversation": [{
+   "invocation_id": "inv-1",
+   "user_content": {"role": "user", "parts": [{"text":
+     "Refund A-2040 please, the TV is broken."}]},
+   "final_response": {"role": "model", "parts": [{"text":
+     "Above our 500 USD limit, so I opened ticket ESC-A-2040."}]},
+   "intermediate_data": {"tool_uses": [
+     {"name": "lookup_order", "args": {"order_id": "A-2040"}},
+     {"name": "escalate_to_human",
+      "args": {"order_id": "A-2040", "reason": "broken TV"}}
+   ]}
+ }],
+ "session_input": {"app_name": "refund_agent",
+                   "user_id": "eval_user", "state": {}}}</code></pre>
+    </div>
+    <div class="c9-col">
+      <svg class="c9-svg" id="ev-chat" viewBox="0 0 560 400" aria-label="The recorded chat: the customer asks for a refund of A-2040, the agent calls lookup_order and escalate_to_human, then answers that a ticket is open. At each step one element of the chat flies into its slot in the evalset JSON on the left."></svg>
+      <div class="c9-cap">
+        <p data-step="1" data-until="2"><code>user_content</code>: the turn the eval replays.</p>
+        <p data-step="2" data-until="3"><code>final_response</code>: the reference answer for the judge.</p>
+        <p data-step="3" data-until="4"><code>tool_uses</code>: the expected tools, in order.</p>
+        <p data-step="4"><code>session_input</code>: the app, the user and the start state.</p>
+      </div>
+    </div>
+    <div class="ev-fly"></div>
+  </div>
+  <aside class="notes">Step five: the recorded chats are now a golden evalset, and this is the file you keep in git. Each case stores four things: the user turn to replay, the reference answer for the judge, the expected tool calls in order, and the session the run starts from. The slide shows case 2, large_refund_escalates for A-2040; case 1, small_refund for A-1001, has the same keys with lookup_order and then issue_refund for 79 dollars. Click through and watch each part of the chat fly into its slot. Analogy: the evalset is the answer key of an exam, written once and reused for every build. A likely question: "Can I use camelCase keys?" Yes: the eval models accept snake_case and camelCase, but they forbid unknown keys, so a typo such as tool_use fails loudly.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c09-lab-evalset";
+  const NS = "http://www.w3.org/2000/svg";
+  // chat element, focus step, target JSON line, ghost label, tone
+  const ITEMS = [
+    { k: "user", step: 1, line: 4, label: "user_content", tone: "human" },
+    { k: "answer", step: 2, line: 6, label: "final_response", tone: "agent" },
+    { k: "t1", step: 3, line: 9, label: "tool_uses[0]", tone: "tool" },
+    { k: "t2", step: 3, line: 10, label: "tool_uses[1]", tone: "tool" },
+    { k: "sess", step: 4, line: 14, label: "session_input", tone: "state" },
+  ];
+  let R = null, tw = [];
+  function mk(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const [a, v] of Object.entries(attrs)) e.setAttribute(a, v);
+    if (text !== undefined) e.textContent = text;
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function bubble(p, x, y, w, tone, lines) {
+    const g = mk("g", {}, p);
+    const h = 20 + lines.length * 26;
+    const r = mk("rect", { x, y, width: w, height: h, rx: 12, fill: `var(--${tone}-soft)`, stroke: `var(--${tone})`, "stroke-width": 2 }, g);
+    lines.forEach((t, i) => mk("text", { x: x + 14, y: y + 29 + i * 26, "font-size": 18, "font-weight": 600, fill: "var(--ink)" }, g, t));
+    const tick = mk("text", { x: x + w + 10, y: y + h / 2 + 7, "font-size": 22, "font-weight": 800, fill: "var(--state)" }, g, "✓");
+    g._box = { x, y, w, h }; g._rect = r; g._tick = tick;
+    return g;
+  }
+  function build(svg) {
+    svg.innerHTML = "";
+    R = { svg };
+    mk("text", { x: 0, y: 22, "font-size": 18, "font-weight": 700, fill: "var(--state)" }, svg, "recorded chat → golden case");
+    R.user = bubble(svg, 116, 42, 400, "human", ["Refund A-2040, the TV is broken."]);
+    R.t1 = bubble(svg, 0, 108, 280, "tool", ["lookup_order(A-2040)"]);
+    R.t2 = bubble(svg, 0, 166, 330, "tool", ["escalate_to_human(A-2040)"]);
+    R.answer = bubble(svg, 0, 224, 420, "agent", ["Above our 500 USD limit, so I", "opened ticket ESC-A-2040."]);
+    R.sess = bubble(svg, 0, 326, 470, "state", ["refund_agent · eval_user · {}"]);
+  }
+  function clear() { tw.forEach((t) => t.kill()); tw = []; }
+  function off(el, box) {
+    let x = 0, y = 0, n = el;
+    while (n && n !== box) { x += n.offsetLeft; y += n.offsetTop; n = n.offsetParent; }
+    return { x, y };
+  }
+  function fly(slide, it, delay) {
+    const box = slide.querySelector(".c9-split");
+    const layer = box.querySelector(".ev-fly");
+    const pre = box.querySelector("pre.code[data-focus]");
+    const b = R[it.k]._box;
+    const so = off(R.svg, box), po = off(pre, box);
+    const sc = R.svg.getBoundingClientRect().width / 560 / (box.getBoundingClientRect().width / box.offsetWidth || 1);
+    const cs = getComputedStyle(pre);
+    const lh = parseFloat(cs.lineHeight), pt = parseFloat(cs.paddingTop);
+    const g = document.createElement("div");
+    g.className = "ev-ghost";
+    g.style.setProperty("--gc", `var(--${it.tone})`);
+    g.textContent = it.label;
+    layer.appendChild(g);
+    const tx = po.x + pre.offsetWidth - 230, ty = po.y + pt + (it.line - 1) * lh - 2;
+    tw.push(gsap.fromTo(g, { x: so.x + b.x * sc + 8, y: so.y + b.y * sc, opacity: 0 },
+      { keyframes: [
+        { opacity: 1, duration: 0.2 },
+        { x: tx, y: ty, duration: 0.85, ease: "power3.inOut" },
+        { opacity: 0, duration: 0.5, delay: 0.5 },
+      ], delay, onComplete: () => g.remove() }));
+  }
+  function render(slide, n, animate) {
+    const svg = slide.querySelector("#ev-chat");
+    if (!svg) return;
+    if (!R || R.svg !== svg || !svg.childElementCount) build(svg);
+    clear();
+    slide.querySelectorAll(".ev-ghost").forEach((g) => g.remove());
+    const all = [R.user, R.t1, R.t2, R.answer, R.sess];
+    gsap.killTweensOf([...all, ...all.map((b) => b._tick)]);
+    ITEMS.forEach((it) => {
+      const b = R[it.k];
+      const done = n >= it.step;
+      b._rect.setAttribute("stroke-dasharray", done ? "6 4" : "none");
+      if (animate && n === it.step) {
+        gsap.set(b, { opacity: 1 });
+        gsap.set(b._tick, { opacity: 0 });
+        tw.push(gsap.to(b, { opacity: 0.6, duration: 0.4, delay: 1.0 }));
+        tw.push(gsap.to(b._tick, { opacity: 1, duration: 0.3, delay: 1.0 }));
+        fly(slide, it, it.k === "t2" ? 0.25 : 0);
+      } else {
+        gsap.set(b, { opacity: done ? 0.6 : 1 });
+        gsap.set(b._tick, { opacity: done ? 1 : 0 });
+      }
+    });
+  }
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { clear(); slide.querySelectorAll(".ev-ghost").forEach((g) => g.remove()); },
+  });
+})();
+</script>

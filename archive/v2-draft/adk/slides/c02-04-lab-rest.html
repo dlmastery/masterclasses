@@ -1,0 +1,138 @@
+<section class="slide tight" id="adk-c02-lab-rest" data-tone="state" data-title="Lab 2.3: REST + SSE">
+  <style>
+    #adk-c02-lab-rest .lab-head { gap: 14px; flex-wrap: nowrap; }
+    #adk-c02-lab-rest .lab-head .small { font-size: 16px; white-space: nowrap; }
+    #adk-c02-lab-rest .rq { display: flex; flex-direction: column; gap: 10px; }
+    #adk-c02-lab-rest .rq-row { display: grid; grid-template-columns: 700px 1fr; gap: 24px; align-items: start; }
+    #adk-c02-lab-rest .rq-row .term pre.code { font-size: 15px; line-height: 1.4; padding: 9px 16px; }
+    #adk-c02-lab-rest .rq-r { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+    #adk-c02-lab-rest .rq-r.side { flex-direction: row; align-items: center; gap: 14px; }
+    #adk-c02-lab-rest .res { position: relative; border-radius: 10px; background: #070b22; color: #b9c2ee; font: 500 13.5px/1.45 var(--f-mono); padding: 8px 14px; white-space: pre; overflow: hidden; }
+    #adk-c02-lab-rest .res .ok { color: #7ee2b8; }
+    #adk-c02-lab-rest .res .dim { color: #6670a6; }
+    #adk-c02-lab-rest .res .al { border-radius: 4px; transition: background .4s, color .4s; }
+    #adk-c02-lab-rest .res .al.lit { background: color-mix(in oklab, var(--state) 40%, transparent); color: #eafff4; }
+    #adk-c02-lab-rest .res .cnt { position: absolute; right: 12px; top: 8px; color: var(--model); font-weight: 700; }
+    #adk-c02-lab-rest .rn { font-size: 15.5px; line-height: 1.35; color: var(--ink-2); }
+    #adk-c02-lab-rest .rn code { font-size: .86em; }
+    #adk-c02-lab-rest .evs { display: grid; gap: 5px; }
+    #adk-c02-lab-rest .ev { display: grid; grid-template-columns: 148px 1fr; gap: 10px; align-items: center; padding: 5px 12px; border-radius: 9px; font: 500 13.5px/1.25 var(--f-mono); color: var(--ink-2); border: 1.5px solid var(--tool); background: var(--tool-soft); }
+    #adk-c02-lab-rest .ev b { color: var(--ink); }
+    #adk-c02-lab-rest .ev span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #adk-c02-lab-rest .ev.fr { background: transparent; }
+    #adk-c02-lab-rest .ev.tx { border-color: var(--model); background: var(--model-soft); }
+    #adk-c02-lab-rest .foot { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; font-size: 15.5px; color: var(--ink-2); margin-top: 6px; }
+    #adk-c02-lab-rest .foot .cite { font-size: 13.5px; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 2</span> Northwind claims API · step 3 of 3</div>
+  <h2 class="title">adk api_server exposes the claims App as REST and SSE endpoints</h2>
+  <div class="lab-head">
+    <span class="run">adk api_server agents --port 8000</span>
+    <span class="small">Run it in the folder that holds <code>agents/</code>. Send the curl calls from a second terminal.</span>
+  </div>
+
+  <div class="rq fill">
+    <div class="rq-row">
+      <div class="code-wrap term"><pre class="code" data-lang="bash"><code>$ curl -s localhost:8000/list-apps</code></pre></div>
+      <div class="rq-r side"><div class="res"><span class="ok">["claims_api"]</span></div><span class="rn">The app name is the folder name.</span></div>
+    </div>
+    <div class="rq-row" data-step="1">
+      <div class="code-wrap term"><pre class="code" data-lang="bash"><code>$ curl -s -X POST localhost:8000/apps/claims_api/users/u-tom/sessions \
+    -H "Content-Type: application/json" \
+    -d '{"sessionId":"claim-77","state":{"channel":"email"}}'</code></pre></div>
+      <div class="rq-r">
+        <div class="res">{"id":"claim-77","appName":"claims_api","userId":"u-tom",
+ "state":{"channel":"email"},"events":[]}   <span class="dim"># illustrative</span></div>
+        <span class="rn">Create the session first, or start with <code>--auto_create_session</code>. Else <code>/run</code> gives <code>404 Session not found</code>.</span>
+      </div>
+    </div>
+    <div class="rq-row" data-step="2">
+      <div class="code-wrap term"><pre class="code" data-lang="bash"><code>$ curl -s -X POST localhost:8000/run \
+    -H "Content-Type: application/json" -d '{
+  "appName":"claims_api","userId":"u-tom","sessionId":"claim-77",
+  "newMessage":{"role":"user","parts":[
+    {"text":"What is my collision deductible on POL-448120?"}]}}'</code></pre></div>
+      <div class="rq-r">
+        <div class="evs" id="c02r-evs">
+          <div class="ev"><b>functionCall</b><span>lookup_policy {"policy_number":"POL-448120"}</span></div>
+          <div class="ev fr"><b>functionResponse</b><span>{"status":"success","collision_deductible_usd":500}</span></div>
+          <div class="ev tx"><b>text</b><span>"Your collision deductible on POL-448120 is $500."</span></div>
+        </div>
+        <span class="rn">A JSON list of Events. Bodies use camelCase; snake_case also works.</span>
+      </div>
+    </div>
+    <div class="rq-row" data-step="3">
+      <div class="code-wrap term"><pre class="code" data-lang="bash"><code>$ curl -N -X POST localhost:8000/run_sse \
+    -H "Content-Type: application/json" -d '{
+  "appName":"claims_api","userId":"u-tom","sessionId":"claim-77",
+  "newMessage":{"role":"user","parts":[{"text":"Is glass covered?"}]}}'</code></pre></div>
+      <div class="rq-r">
+        <div class="res"><span class="cnt" id="c02r-cnt">0 of 3</span><span class="sse">data: {"author":"claims_assistant", "functionCall": …}</span>
+<span class="sse">data: {"author":"claims_assistant", "functionResponse": …}</span>
+<span class="sse">data: {… "text":"Yes, glass is covered on POL-448120."}</span></div>
+        <span class="rn">One <code>data:</code> line per event, as it happens. <code>"streaming": true</code> also sends partial text chunks.</span>
+      </div>
+    </div>
+    <div class="rq-row" data-step="4">
+      <div class="code-wrap term"><pre class="code" data-lang="bash"><code>$ curl -s localhost:8000/apps/claims_api/users/u-tom/sessions/claim-77</code></pre></div>
+      <div class="rq-r">
+        <div class="res">"state": {"channel": "email", <span class="al">"audit_log": [
+   "lookup_policy({'policy_number': 'POL-448120'})",
+   "lookup_policy({'policy_number': 'POL-448120'})"]</span>}</div>
+        <span class="rn">The session holds one <code>audit_log</code> entry per tool call.</span>
+      </div>
+    </div>
+    <div class="foot">
+      <a class="cite repo" href="https://github.com/google/adk-python/blob/v2.13.0/src/google/adk/cli/api_server.py" target="_blank" rel="noopener"><b>Repo</b>&nbsp;google/adk-python · cli/api_server.py</a>
+      <span>Same routes as <code>adk deploy cloud_run</code>.</span>
+      <a class="cite doc" href="https://adk.dev/deploy/cloud-run/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Cloud Run</a>
+      <span>Windows: run the curl calls in Git Bash or WSL.</span>
+    </div>
+  </div>
+
+  <aside class="notes">Start the server in the folder that holds agents/, and drive it with curl from a second terminal. First, list-apps shows claims_api: the server names each app after its folder. Second, create the session with a business key, claim-77; if you skip that, /run answers with a 404 "Session not found", unless you start the server with --auto_create_session. Third, /run returns the whole turn as a JSON list of Events. The request bodies use camelCase, and snake_case names such as app_name also work because the request model accepts both. Fourth, /run_sse sends one data line per event while the turn runs; with "streaming": true in the body you also get partial text chunks, so expect more lines. Last, GET the session: the audit_log that the AuditPlugin wrote is in its state, one entry per tool call. Analogy: /run is a letter that arrives when the turn is done; /run_sse is a phone call that you hear as it happens. On Windows, the single-quoted JSON bodies break in PowerShell, so use Git Bash or WSL. These are the same routes that adk deploy cloud_run serves, but put authentication in front of them. Hand-off: this session remembers one chat; the next slide makes Tom known in every new session.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c02-lab-rest";
+  let els = null, calls = [];
+  const grab = (s) => ({
+    sse: [...s.querySelectorAll(".sse")],
+    evs: [...s.querySelectorAll("#c02r-evs .ev")],
+    al: s.querySelector(".res .al"),
+    cnt: s.querySelector("#c02r-cnt"),
+  });
+  function stop() { calls.forEach((c) => c.kill()); calls = []; if (els) gsap.killTweensOf([...els.sse, ...els.evs]); }
+  function render(slide, n, animate) {
+    els = grab(slide);
+    stop();
+    // /run: the three events arrive in order
+    if (n === 2 && animate) gsap.fromTo(els.evs, { autoAlpha: 0, x: -14 }, { autoAlpha: 1, x: 0, duration: 0.4, stagger: 0.35, delay: 0.4 });
+    else gsap.set(els.evs, { autoAlpha: 1, x: 0 });
+    // /run_sse: three data lines arrive one by one, the counter follows
+    const k = els.sse.length;
+    if (n === 3 && animate) {
+      gsap.set(els.sse, { autoAlpha: 0 });
+      els.cnt.textContent = `0 of ${k}`;
+      els.sse.forEach((l, i) => calls.push(gsap.delayedCall(0.6 + i * 0.7, () => {
+        gsap.fromTo(l, { autoAlpha: 0, x: -10 }, { autoAlpha: 1, x: 0, duration: 0.35 });
+        els.cnt.textContent = `${i + 1} of ${k}`;
+      })));
+    } else {
+      gsap.set(els.sse, { autoAlpha: 1, x: 0 });
+      els.cnt.textContent = `${k} of ${k}`;
+    }
+    // GET: audit_log lights up
+    els.al.classList.remove("lit");
+    if (n >= 4) {
+      if (animate && n === 4) calls.push(gsap.delayedCall(0.7, () => els.al.classList.add("lit")));
+      else els.al.classList.add("lit");
+    }
+  }
+  Deck.register(ID, {
+    enter(slide, n) { render(slide, n || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { stop(); },
+  });
+})();
+</script>

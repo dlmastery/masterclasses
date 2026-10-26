@@ -1,0 +1,40 @@
+<section class="slide tight" id="adk-c10-gotcha-versions" data-tone="risk" data-title="Gotcha: version skew">
+  <style>
+    #adk-c10-gotcha-versions .gv { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; align-items: start; }
+    #adk-c10-gotcha-versions pre.code { font-size: 18px; line-height: 1.6; padding: 14px 18px 16px; }
+    #adk-c10-gotcha-versions .gv > .code-wrap { width: 100%; }
+    #adk-c10-gotcha-versions table.t { font-size: 18px; line-height: 1.4; width: 100%; }
+    #adk-c10-gotcha-versions table.t th { padding: 10px 14px; }
+    #adk-c10-gotcha-versions table.t td { padding: 12px 14px; vertical-align: top; }
+    #adk-c10-gotcha-versions table.t td:first-child { font: 500 16px/1.45 var(--f-mono); color: var(--risk); width: 470px; }
+    #adk-c10-gotcha-versions table.t code { font-size: 16px; }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> Deployment · 3 of 3</div>
+  <h2 class="title">Pin the same versions on the laptop and in the cloud</h2>
+  <div class="gv">
+    <div class="code-wrap bad">
+      <div class="code-head">hr_agent/requirements.txt</div>
+      <pre class="code" data-lang="bash"><code>google-adk&gt;=1.20.0          # cloud resolves another version
+opentelemetry-sdk==1.45.1   # latest on PyPI</code></pre>
+    </div>
+    <div class="code-wrap good" data-step="4">
+      <div class="code-head">labs/adk/c10-acme-hr/hr_agent/requirements.txt</div>
+      <pre class="code" data-lang="bash"><code>google-adk[gcp,otel]==2.13.0
+google-cloud-agentplatform&gt;=2.2,&lt;3
+opentelemetry-sdk&gt;=1.39,&lt;=1.44</code></pre>
+    </div>
+  </div>
+  <table class="t">
+    <thead><tr><th>Error you see</th><th>Cause</th><th>Fix</th></tr></thead>
+    <tbody>
+      <tr data-step="1"><td>'LlmAgent' object has no attribute 'mode'</td><td>Unpinned <code>google-adk&gt;=1.20.0</code> (#6156)</td><td>Pin <code>==2.13.0</code></td></tr>
+      <tr data-step="2"><td>…exposes Client.agent_engines rather than Client.runtimes…</td><td>Old Agent Platform SDK</td><td><code>agentplatform&gt;=2.2</code></td></tr>
+      <tr data-step="3"><td>pip resolver conflict</td><td>ADK 2.13.0 needs <code>opentelemetry-sdk&lt;=1.44</code></td><td>Pin <code>&lt;=1.44</code></td></tr>
+    </tbody>
+  </table>
+  <div class="cites" data-step="4">
+    <a class="cite repo" href="https://github.com/google/adk-python/issues/6156" target="_blank" rel="noopener"><b>Repo</b>&nbsp;adk-python #6156</a>
+    <a class="cite doc" href="https://adk.dev/deploy/agent-runtime/deploy/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Deploy to Agent Runtime</a>
+  </div>
+  <aside class="notes">The third default is the requirements file. The before block is what many tutorials still show: a lower bound on google-adk and the latest OpenTelemetry. Press once: issue 6156 came from an unpinned google-adk that resolved to a different version in the cloud than on the laptop, and the deployed agent failed with "'LlmAgent' object has no attribute 'mode'". Press again: an old Agent Platform SDK gives "The installed Agent Platform SDK exposes Client.agent_engines rather than Client.runtimes"; google-adk[gcp] wants google-cloud-agentplatform 2.2 or newer. Press again: pinning opentelemetry-sdk 1.45.1, the latest on PyPI, breaks the install, because ADK 2.13.0 requires 1.39 to 1.44. Press again: the after file pins the exact ADK version and the two ranges ADK itself declares; use the same file locally and in the deploy. Analogy: a recipe that says "some flour" gives a different cake in every kitchen. Likely question: "How often should I move the pin?" ADK shipped 13 minor releases in 5 months; move it on purpose, behind the canary from this chapter.</aside>
+</section>

@@ -1,0 +1,253 @@
+<section class="slide tight" id="rag-c11-lab10-cache" data-tone="tool" data-title="Lab 10: semantic cache and latency budget">
+  <style>
+    #rag-c11-lab10-cache .lc-grid { display: grid; grid-template-columns: 790px 1fr; gap: 22px; align-items: start; }
+    #rag-c11-lab10-cache .lc-left, #rag-c11-lab10-cache .lc-right { gap: 8px; min-width: 0; }
+    #rag-c11-lab10-cache .code-wrap .code-head { padding: 6px 14px; font-size: 13px; }
+    #rag-c11-lab10-cache pre.code.lc-c { font-size: 10.5px; line-height: 1.27; padding: 7px 12px 8px; }
+    #rag-c11-lab10-cache pre.code.lc-t { font-size: 10.6px; line-height: 1.4; padding: 6px 12px 8px; }
+    #rag-c11-lab10-cache pre.code.lc-o { font-size: 10.6px; line-height: 1.4; padding: 6px 12px 8px; }
+    #rag-c11-lab10-cache .lab-head { gap: 10px; flex-wrap: nowrap; }
+    #rag-c11-lab10-cache .lab-head .run { font-size: 13px; padding: 7px 10px; flex: none; }
+    #rag-c11-lab10-cache .lab-head .tiny { font-size: 12.5px; line-height: 1.25; }
+    #rag-c11-lab10-cache .lc-rail { gap: 5px; }
+    #rag-c11-lab10-cache .lc-rail > div { font-size: 13.6px; line-height: 1.3; grid-template-columns: 24px 1fr; gap: 8px; }
+    #rag-c11-lab10-cache .lc-rail > div::before { width: 21px; height: 21px; border-radius: 6px; font-size: 11.5px; }
+    #rag-c11-lab10-cache .lc-rail code { font-size: .86em; }
+    #rag-c11-lab10-cache .gotcha { font-size: 13px; line-height: 1.3; padding: 8px 12px; grid-template-columns: 58px 1fr; gap: 2px 8px; }
+    #rag-c11-lab10-cache .gotcha > b { font-size: 11px; }
+    #rag-c11-lab10-cache .gotcha code { font-size: .84em; }
+    #rag-c11-lab10-cache .gotcha .er { display: block; font: 600 10.6px/1.32 var(--f-mono); color: var(--risk); }
+    #rag-c11-lab10-cache .lc-cites { display: flex; gap: 8px; flex-wrap: wrap; }
+    #rag-c11-lab10-cache .lc-cites .cite { font-size: 12px; padding: 3px 9px 3px 7px; }
+    #rag-c11-lab10-cache .lc-svg { display: block; overflow: visible; }
+    #rag-c11-lab10-cache .lc-svg text { font-family: var(--f-mono); }
+    #rag-c11-lab10-cache .lc-svg .hd { font-size: 10.5px; font-weight: 700; fill: var(--muted); letter-spacing: .04em; }
+    #rag-c11-lab10-cache .lc-svg .cnt { font-size: 11.5px; font-weight: 700; }
+    #rag-c11-lab10-cache .lc-svg .cnt.hit { fill: var(--state); } #rag-c11-lab10-cache .lc-svg .cnt.miss { fill: var(--model); }
+    #rag-c11-lab10-cache .lc-svg .pct { font-size: 10.5px; font-weight: 700; fill: var(--ink-2); }
+    #rag-c11-lab10-cache .lc-svg .rl { font-size: 10.5px; font-weight: 600; fill: var(--ink-2); }
+    #rag-c11-lab10-cache .lc-svg .st { font-size: 10px; font-weight: 700; }
+    #rag-c11-lab10-cache .lc-svg .st.hit { fill: var(--state); } #rag-c11-lab10-cache .lc-svg .st.miss { fill: var(--model); }
+    #rag-c11-lab10-cache .lc-svg .ms { font-size: 10px; font-weight: 600; fill: var(--muted); }
+    #rag-c11-lab10-cache .lc-svg .track { fill: var(--surface); stroke: var(--line); stroke-width: 1; }
+    #rag-c11-lab10-cache .lc-svg .seg-c { fill: var(--state); }
+    #rag-c11-lab10-cache .lc-svg .seg-l { fill: var(--model); opacity: .85; }
+    #rag-c11-lab10-cache .lc-svg .budget { stroke: var(--risk); stroke-width: 1.8; stroke-dasharray: 5 4; }
+    #rag-c11-lab10-cache .lc-svg .btxt { font-size: 10.5px; font-weight: 700; fill: var(--risk); }
+    #rag-c11-lab10-cache .lc-svg .axis { stroke: var(--line-2); stroke-width: 1; }
+    #rag-c11-lab10-cache .lc-svg .tk { font-size: 9.5px; fill: var(--muted); }
+    #rag-c11-lab10-cache .lc-svg .p95 { stroke: var(--ink-2); stroke-width: 1.2; stroke-dasharray: 3 3; }
+    #rag-c11-lab10-cache .lc-svg .lock rect.bd { fill: var(--risk-soft); stroke: var(--risk); stroke-width: 1.2; }
+    #rag-c11-lab10-cache .lc-svg .lock text { font-size: 9.8px; font-weight: 700; fill: var(--risk); }
+    #rag-c11-lab10-cache .lc-svg .lock .ic { fill: var(--risk); }
+    #rag-c11-lab10-cache .lc-svg .lock .sh { fill: none; stroke: var(--risk); stroke-width: 1.6; }
+    #rag-c11-lab10-cache .lc-svg .sto rect { fill: var(--state-soft); stroke: var(--state); stroke-width: 1.1; }
+    #rag-c11-lab10-cache .lc-svg .sto text { font-size: 9.5px; font-weight: 700; fill: var(--state); }
+    #rag-c11-lab10-cache .lc-svg .lg rect { rx: 2; }
+    #rag-c11-lab10-cache .lc-svg .lg text { font-size: 9.8px; fill: var(--muted); }
+  </style>
+  <div class="kicker"><span class="pill">Lab 10</span> GlobalCorp people team · step 4 of 4</div>
+  <h2 class="title">Cache repeated answers per region and policy version under 100 ms</h2>
+  <div class="lc-grid fill">
+    <div class="stack lc-left">
+      <div class="code-wrap">
+        <div class="code-head">lab10_cache_latency.py</div>
+        <pre class="code lc-c" data-lang="python" data-focus="1:13-16, 2:20-21, 3:37-42, 4:30-30, 5:13-13"><code>import statistics, time
+from google import genai
+from google.genai import types
+from redisvl.extensions.cache.llm import SemanticCache
+from redisvl.query.filter import Tag
+from redisvl.utils.vectorize import GoogleGenAIVectorizer
+
+BUDGET_MS = {"cache_lookup": 100, "llm": 2500, "total": 3000}
+BENEFITS = {"EU": "Gym subsidy: 50% of the membership, up to EUR 40 per month.",
+            "US": "Gym subsidy: 50% of the membership, up to USD 45 per month."}
+POLICY_VERSION = "2026-10"
+llm = genai.Client()
+cache = SemanticCache(name="globalcorp_faq", redis_url="redis://localhost:6379",
+    distance_threshold=0.08, ttl=24 * 3600,                       # stricter than the 0.1 default
+    vectorizer=GoogleGenAIVectorizer(model="gemini-embedding-001", task_type="SEMANTIC_SIMILARITY"),
+    filterable_fields=[{"name": "region", "type": "tag"}, {"name": "policy_version", "type": "tag"}])
+
+def answer(q: str, region: str) -&gt; tuple[str, dict]:
+    t, timings = time.perf_counter(), {}
+    scope = (Tag("region") == region) &amp; (Tag("policy_version") == POLICY_VERSION)
+    hit = cache.check(prompt=q, filter_expression=scope, num_results=1)
+    timings["cache_lookup"] = (time.perf_counter() - t) * 1000
+    if hit:
+        timings["total"] = timings["cache_lookup"]
+        return hit[0]["response"], timings
+    t1 = time.perf_counter()
+    resp = llm.models.generate_content(model="gemini-3.8-flash", contents=q,
+        config=types.GenerateContentConfig(system_instruction=f"Answer only from:\n{BENEFITS[region]}", temperature=0))
+    timings["llm"] = (time.perf_counter() - t1) * 1000
+    cache.store(prompt=q, response=resp.text, filters={"region": region, "policy_version": POLICY_VERSION})
+    timings["total"] = (time.perf_counter() - t) * 1000
+    return resp.text, timings
+
+QUERIES = [("How much is the gym subsidy?", "EU"), ("What does the gym benefit pay?", "EU"),
+           ("How much is the gym subsidy?", "US")]
+totals = []
+for q, region in QUERIES * 3:
+    text, tm = answer(q, region)
+    over = [k for k, v in tm.items() if v &gt; BUDGET_MS[k]]
+    totals.append(tm["total"])
+    print(f"{region:4} {tm['total']:7.0f} ms {'HIT ' if 'llm' not in tm else 'MISS'} {text[:45]!r} {over or ''}")
+print(f"p50={statistics.median(totals):.0f} ms  p95={statistics.quantiles(totals, n=20)[18]:.0f} ms")</code></pre>
+      </div>
+      <div class="lc-cites">
+        <a class="cite repo" href="https://github.com/redis/redis-vl-python/tree/v0.28.0" target="_blank" rel="noopener"><b>Repo</b>&nbsp;redis/redis-vl-python v0.28.0 · extensions/cache/llm/semantic.py</a>
+        <a class="cite repo" href="https://github.com/googleapis/python-genai/tree/v2.33.0" target="_blank" rel="noopener"><b>Repo</b>&nbsp;googleapis/python-genai v2.33.0</a>
+      </div>
+    </div>
+    <div class="stack lc-right">
+      <div class="lab-head"><span class="run">python lab10_cache_latency.py</span><span class="tiny">redisvl 0.28.0 · genai 2.33.0 · Redis 8</span></div>
+      <div class="code-wrap term">
+        <div class="code-head">setup · Redis 8 ships the Query Engine</div>
+        <pre class="code lc-t" data-lang="bash"><code>$ docker run -d --name redis -p 6379:6379 redis:8
+$ pip install "redisvl[google-genai]==0.28.0" "google-genai==2.33.0"</code></pre>
+      </div>
+      <svg class="lc-svg" id="lc-svg" viewBox="0 0 548 180" width="548" height="180" aria-label="Latency waterfall of the 9 requests in loop order against a 3,000 ms budget line. Request 1 (EU) misses: a short green cache-lookup segment plus a long coral LLM segment, 1430 ms. Request 2 (EU, paraphrase) hits in 38 ms. Request 3 (US) misses in 1390 ms because the EU entry is locked to region EU. Requests 4 to 9 hit in about 40 ms. A counter ends at HIT 7, MISS 2, with p50 40 ms and p95 1450 ms."></svg>
+      <div class="code-wrap out" data-step="3">
+        <div class="code-head">output · illustrative</div>
+        <pre class="code lc-o" data-lang="bash"><code><span class="dim">EU      1430 ms MISS 'Gym subsidy: 50%, up to EUR 40 per month.' </span>
+<span class="ok">EU        38 ms HIT  'Gym subsidy: 50%, up to EUR 40 per month.' </span>
+<span class="dim">US      1390 ms MISS 'Gym subsidy: 50%, up to USD 45 per month.' </span>
+<span class="ok">EU        35 ms HIT  ...</span>   <span class="dim"># 5 more HIT rows</span>
+<span class="ok">p50=40 ms  p95=1450 ms</span></code></pre>
+      </div>
+      <div class="steps-rail lc-rail">
+        <div data-step="1"><span><code>distance_threshold=0.08</code>: stricter than the 0.1 default (COSINE, 0-2).</span></div>
+        <div data-step="2"><span><code>scope</code> splits the cache like the ACL. A new <code>POLICY_VERSION</code> retires old answers.</span></div>
+        <div data-step="3"><span>Time each stage with <code>perf_counter()</code>. The loop flags any stage over <code>BUDGET_MS</code>.</span></div>
+        <div data-step="4"><span>Store only deterministic, non-personal, policy-scoped answers, with the same filters.</span></div>
+      </div>
+      <div class="gotcha" data-step="5">
+        <b>Error</b><span><span class="er">ValueError: Existing index globalcorp_faq schema does not match the user provided schema for the semantic cache. If you wish to overwrite the index schema, set overwrite=True during initialization.</span></span>
+        <b class="fix">Fix</b><span>Use a new <code>name=</code> per embedding model, or <code>overwrite=True</code> (drops old entries). Tune the threshold on labelled paraphrase pairs (<code>CacheThresholdOptimizer</code>).</span>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    This is the last step of Lab 10: a RedisVL semantic cache in front of Gemini, with a per-stage latency budget of 100 ms for the cache lookup, 2,500 ms for the LLM and 3,000 ms in total. Walk the bands: the cache uses gemini-embedding-001 and a distance threshold of 0.08, stricter than the 0.1 default, in Redis cosine units where lower is stricter; every lookup and every store carries the same region and policy-version tags, so an EU answer can never serve a US employee and bumping POLICY_VERSION retires every old answer at once. The waterfall shows the nine requests in loop order: two misses at about 1.4 s, then seven hits at about 40 ms, so p50 drops to 40 ms while p95 still shows the miss path. Analogy: the cache is a pigeonhole wall where each region and policy version has its own column, and a new handbook version gets a fresh wall. Likely question: "Why not cache personal answers too?" Because the key is the question text, not the person, so a personal answer would leak to the next employee who asks a similar question; also, when you change the embedding model or the filter fields, RedisVL refuses the old index with the schema error shown, so use a new cache name per model. In production, BENEFITS holds the cited File Search answer from step 3. Next: the three quiet failures of managed RAG and their guards.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  // 9 requests in loop order (QUERIES * 3); totals match the illustrative output: p50 40 ms, p95 1450 ms
+  const REQ = [
+    { r: "EU", hit: false, look: 40, llm: 1390, tot: 1430 },
+    { r: "EU", hit: true, tot: 38 },
+    { r: "US", hit: false, look: 40, llm: 1350, tot: 1390, lock: true },
+    { r: "EU", hit: true, tot: 35 }, { r: "EU", hit: true, tot: 41 }, { r: "US", hit: true, tot: 39 },
+    { r: "EU", hit: true, tot: 36 }, { r: "EU", hit: true, tot: 40 }, { r: "US", hit: true, tot: 42 },
+  ];
+  const X0 = 96, X1 = 532, BUD = 3000, sx = (ms) => X0 + (ms / BUD) * (X1 - X0);
+  const Y0 = 28, RH = 11, RG = 3.2, ry = (i) => Y0 + i * (RH + RG);
+  let B = null, tl = null, tweens = [];
+  const mk = (p, tag, attrs, cls) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (cls) e.setAttribute("class", cls);
+    p.appendChild(e); return e;
+  };
+  const tx = (p, x, y, t, cls, anchor) => { const e = mk(p, "text", { x, y }, cls); if (anchor) e.setAttribute("text-anchor", anchor); e.textContent = t; return e; };
+  function build(slide) {
+    const svg = slide.querySelector("#lc-svg");
+    svg.innerHTML = "";
+    const o = { rows: [] };
+    tx(svg, 0, 11, "9 REQUESTS · LOOP ORDER", "hd");
+    o.cH = tx(svg, 168, 11, "HIT 0", "cnt hit");
+    o.cM = tx(svg, 216, 11, "MISS 0", "cnt miss");
+    o.pct = tx(svg, 272, 11, "p50=40 ms  p95=1450 ms", "pct");
+    o.bTxt = tx(svg, X1, 23, "budget 3,000 ms", "btxt", "end");
+    const last = ry(REQ.length - 1) + RH;
+    mk(svg, "line", { x1: X0, y1: last + 6, x2: X1, y2: last + 6 }, "axis");
+    [0, 1000, 2000, 3000].forEach((v) => {
+      mk(svg, "line", { x1: sx(v), y1: last + 4, x2: sx(v), y2: last + 9 }, "axis");
+      tx(svg, sx(v), last + 20, v === 0 ? "0 ms" : v.toLocaleString("en-US"), "tk", v === 3000 ? "end" : v === 0 ? "start" : "middle");
+    });
+    mk(svg, "line", { x1: X1, y1: Y0 - 3, x2: X1, y2: last + 6 }, "budget");
+    o.p95 = mk(svg, "line", { x1: sx(1450), y1: Y0 - 3, x2: sx(1450), y2: last + 6 }, "p95");
+    REQ.forEach((q, i) => {
+      const g = mk(svg, "g", {});
+      const y = ry(i);
+      tx(g, 0, y + 8.8, `${i + 1}  ${q.r}`, "rl");
+      const st = tx(g, 44, y + 8.8, q.hit ? "HIT" : "MISS", "st " + (q.hit ? "hit" : "miss"));
+      mk(g, "rect", { x: X0, y, width: X1 - X0, height: RH, rx: 3 }, "track");
+      const c = mk(g, "rect", { x: X0, y, width: 0, height: RH, rx: 2 }, "seg-c");
+      const l = mk(g, "rect", { x: sx(q.look || 0), y, width: 0, height: RH, rx: 2 }, "seg-l");
+      const ms = tx(g, sx(q.tot) + 6, y + 8.8, `${q.tot} ms`, "ms");
+      const row = { g, st, c, l, ms, q };
+      if (!q.hit) {
+        const s = mk(g, "g", {}, "sto");
+        const x = sx(q.tot) + 58;
+        mk(s, "rect", { x, y: y - 0.5, width: 64, height: RH + 1, rx: 6 });
+        tx(s, x + 32, y + 9, "store()", "", "middle");
+        row.sto = s;
+      }
+      if (q.lock) {
+        const k = mk(g, "g", {}, "lock");
+        const x = sx(q.tot) + 128;
+        mk(k, "rect", { x, y: y - 1.5, width: 104, height: RH + 3, rx: 7 }, "bd");
+        mk(k, "path", { d: `M${x + 8},${y + 4} v-2 a3,3 0 0 1 6,0 v2` }, "sh");
+        mk(k, "rect", { x: x + 6.5, y: y + 4, width: 9, height: 6.5, rx: 1.2 }, "ic");
+        tx(k, x + 20, y + 8.8, "EU entry ≠ US", "");
+        row.lock = k;
+      }
+      o.rows.push(row);
+    });
+    const lg = mk(svg, "g", {}, "lg");
+    mk(lg, "rect", { x: 284, y: last + 13, width: 9, height: 8 }, "seg-c");
+    tx(lg, 297, last + 20, "cache", "");
+    mk(lg, "rect", { x: 332, y: last + 13, width: 9, height: 8 }, "seg-l");
+    tx(lg, 345, last + 20, "LLM", "");
+    B = o;
+  }
+  const segW = (q) => q.hit ? [sx(q.tot) - X0, 0] : [sx(q.look) - X0, sx(q.tot) - sx(q.look)];
+  function setRow(row, on) {
+    const [wc, wl] = segW(row.q);
+    gsap.set(row.c, { attr: { width: on ? wc : 0 } });
+    gsap.set(row.l, { attr: { width: on ? wl : 0 } });
+    gsap.set([row.ms, row.st], { opacity: on ? 1 : 0 });
+  }
+  function counts(k) {
+    // k = number of finished requests, in loop order
+    const done = REQ.slice(0, k);
+    B.cH.textContent = "HIT " + done.filter((q) => q.hit).length;
+    B.cM.textContent = "MISS " + done.filter((q) => !q.hit).length;
+  }
+  function stop() { if (tl) { tl.kill(); tl = null; } tweens.forEach((t) => t.kill()); tweens = []; }
+  function render(slide, n, animate) {
+    if (!B) build(slide);
+    stop();
+    // step 2+: region lock; step 4+: store() tags and the p50/p95 read-out
+    B.rows.forEach((row) => {
+      if (row.lock) gsap.set(row.lock, { opacity: n >= 2 ? 1 : 0 });
+      if (row.sto) gsap.set(row.sto, { opacity: n >= 4 ? 1 : 0 });
+    });
+    gsap.set([B.pct, B.p95], { opacity: n >= 4 ? 1 : 0 });
+    gsap.set([B.cH, B.cM], { opacity: n >= 3 ? 1 : 0.35 });
+    if (n < 3) { B.rows.forEach((row) => setRow(row, false)); counts(0); return; }
+    if (!(animate && n === 3)) { B.rows.forEach((row) => setRow(row, true)); counts(REQ.length); return; }
+    // step 3 animated: bars draw one request after another; the counter goes up in loop order
+    B.rows.forEach((row) => setRow(row, false)); counts(0);
+    tl = gsap.timeline();
+    B.rows.forEach((row, i) => {
+      const [wc, wl] = segW(row.q);
+      const tc = 0.18, tlm = row.q.hit ? 0 : 0.7;
+      tl.to(row.c, { attr: { width: wc }, duration: tc, ease: "none" });
+      if (wl) tl.to(row.l, { attr: { width: wl }, duration: tlm, ease: "power1.inOut" });
+      tl.set([row.ms, row.st], { opacity: 1 });
+      tl.call(() => counts(i + 1));
+      tl.to({}, { duration: 0.12 });
+    });
+  }
+  Deck.register("rag-c11-lab10-cache", {
+    enter(slide, step) { B = null; render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { stop(); }
+  });
+})();
+</script>

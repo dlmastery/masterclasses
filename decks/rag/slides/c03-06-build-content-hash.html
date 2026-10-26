@@ -1,0 +1,241 @@
+<section class="slide" id="rag-c03-build-content-hash" data-tone="state" data-title="Build: content-hash incremental ingest">
+  <style>
+    #rag-c03-build-content-hash .ch-main { display: grid; grid-template-columns: 820px 1fr; gap: 24px; }
+    #rag-c03-build-content-hash .ch-col { gap: 8px; min-width: 0; }
+    #rag-c03-build-content-hash .ch-swap { display: grid; align-items: start; }
+    #rag-c03-build-content-hash .ch-swap > * { grid-area: 1 / 1; }
+    #rag-c03-build-content-hash .code-wrap.out { width: 100%; }
+    #rag-c03-build-content-hash pre.code, #rag-c03-build-content-hash code { font-variant-ligatures: none; }
+    #rag-c03-build-content-hash .code-wrap.out .delta { margin-left: auto; font-size: 14px; }
+    #rag-c03-build-content-hash .paper:not(.cite) .pid { align-items: center; }
+    #rag-c03-build-content-hash .paper .pid .cite { margin-left: auto; display: inline-flex; flex-direction: row; align-items: center; gap: 8px; padding: 4px 9px 4px 6px; border-radius: 10px; font: 500 13px/1.2 var(--f-body); color: var(--muted); }
+    #rag-c03-build-content-hash .paper .pid .cite::before { width: 18px; height: 18px; }
+    #rag-c03-build-content-hash .ch-good pre.code { font-size: 13px; line-height: 1.45; padding: 14px 14px 16px; }
+    #rag-c03-build-content-hash .ch-bad pre.code { font-size: 15px; line-height: 1.5; padding: 16px 16px 18px; }
+    #rag-c03-build-content-hash .code-wrap.out pre.code { font-size: 12px; line-height: 1.45; padding: 9px 12px 10px; }
+    #rag-c03-build-content-hash .code-head { padding: 8px 14px; font-size: 13.5px; }
+    #rag-c03-build-content-hash .ch-fig { border: 1px solid var(--line); border-radius: 14px; background: var(--surface); padding: 8px 10px; }
+    #rag-c03-build-content-hash .ch-fig svg { display: block; overflow: visible; }
+    #rag-c03-build-content-hash svg text { font-family: var(--f-mono); }
+    #rag-c03-build-content-hash .ch-cap { fill: var(--ink-2); font-size: 13px; font-weight: 700; }
+    #rag-c03-build-content-hash .ch-hx { font-size: 9.5px; font-weight: 600; text-anchor: middle; }
+    #rag-c03-build-content-hash .ch-lbl { fill: var(--muted); font-size: 12px; font-weight: 600; }
+    #rag-c03-build-content-hash .ch-num { font-size: 15px; font-weight: 800; }
+    #rag-c03-build-content-hash .ch-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    #rag-c03-build-content-hash .ch-row .small { font-size: 15px; color: var(--ink-2); }
+    #rag-c03-build-content-hash .paper:not(.cite) { padding: 10px 14px; gap: 5px; }
+    #rag-c03-build-content-hash .paper h4 { font-size: 15.5px; line-height: 1.25; margin: 0; }
+    #rag-c03-build-content-hash .paper .find { font-size: 14.5px; line-height: 1.35; }
+    #rag-c03-build-content-hash .paper .so { font-size: 14px; line-height: 1.3; }
+    #rag-c03-build-content-hash .ch-pit { font-size: 15px; line-height: 1.38; padding: 10px 14px; }
+    #rag-c03-build-content-hash .cite { font-size: 13px; padding: 5px 9px 5px 7px; }
+  </style>
+  <div class="kicker">Build</div>
+  <h2 class="title">Content-hash IDs re-embed 5 of 42 chunks after an edit</h2>
+  <div class="ch-main fill">
+    <div class="ch-col ch-swap">
+      <div class="code-wrap bad ch-bad" data-step="1" data-until="2">
+        <div class="code-head">sync_claims.py · drop and rebuild</div>
+        <pre class="code" data-lang="python"><code>chroma, chunker, doc, model = ...   # omitted: setup as in AFTER
+chroma.delete_collection("claims")                 # every sync
+col = chroma.create_collection("claims", embedding_function=None)
+texts = [chunker.contextualize(chunk=ch)
+         for ch in chunker.chunk(dl_doc=doc)]
+col.add(ids=[f"{doc.origin.filename}#{i}" for i in range(len(texts))],
+        embeddings=model.encode_document(texts, normalize_embeddings=True),
+        documents=texts)</code></pre>
+      </div>
+      <div class="code-wrap good ch-good" data-step="2">
+        <div class="code-head">lab9_incremental_ingest.py · sentence-transformers 6.2.0 · chromadb 1.5.9</div>
+        <pre class="code" data-lang="python" data-focus="2:13-13, 3:17-19, 4:20-27"><code>import hashlib
+import chromadb
+from sentence_transformers import SentenceTransformer
+chunker, doc = ...   # omitted: Lab 2 HybridChunker (Qwen3 tokenizer, 512) + DoclingDocument
+MODEL, DIM = "Qwen/Qwen3-Embedding-0.6B", 256
+model = SentenceTransformer(MODEL, device="cpu", truncate_dim=DIM)
+col = chromadb.PersistentClient(path="./chroma_claims").get_or_create_collection(
+    name=f"claims_qwen3_{DIM}", embedding_function=None,
+    configuration={"hnsw": {"space": "cosine"}}, metadata={"embedding_model": MODEL, "dim": DIM})
+fresh = {}
+for ch in chunker.chunk(dl_doc=doc):
+    text = chunker.contextualize(chunk=ch)
+    cid = hashlib.sha256(f"{MODEL}|{DIM}|{text}".encode()).hexdigest()[:32]
+    pages = sorted({p.page_no for it in ch.meta.doc_items for p in it.prov})
+    fresh[cid] = (text, {"source": doc.origin.filename, "first_page": pages[0] if pages else -1,
+                         "heading": (ch.meta.headings or [""])[-1]})
+existing = set(col.get(where={"source": doc.origin.filename}, include=[])["ids"])
+to_add = [cid for cid in fresh if cid not in existing]
+to_delete = sorted(existing - fresh.keys())
+if to_add:
+    v = model.encode_document([fresh[c][0] for c in to_add], normalize_embeddings=True)
+    col.upsert(ids=to_add, embeddings=v, documents=[fresh[c][0] for c in to_add],
+               metadatas=[fresh[c][1] for c in to_add])
+if to_delete:
+    col.delete(ids=to_delete)
+print(f"chunks={len(fresh)} reused={len(fresh) - len(to_add)} embedded={len(to_add)} "
+      f"deleted={len(to_delete)} total_in_index={col.count()}")</code></pre>
+      </div>
+    </div>
+    <div class="ch-col stack">
+      <div class="ch-fig">
+        <svg id="ch-svg" viewBox="0 0 530 152" width="530" height="152" aria-label="42 chunk tiles: before, all are embedded on every sync; after an edit, 37 are reused, 5 are embedded and 4 old chunks are deleted">
+          <text id="ch-cap" class="ch-cap" x="0" y="14"></text>
+          <g id="ch-tiles"></g>
+          <text id="ch-gone-l" class="ch-lbl" x="0" y="119">old v1 chunks</text>
+          <g id="ch-gone"></g>
+          <g id="ch-counts">
+            <text class="ch-lbl" x="0" y="146">reuse</text><text id="ch-n-reuse" class="ch-num" x="48" y="146" style="fill:var(--state)">0</text>
+            <text class="ch-lbl" x="110" y="146">embed</text><text id="ch-n-embed" class="ch-num" x="158" y="146" style="fill:var(--tool)">0</text>
+            <text class="ch-lbl" x="220" y="146">delete</text><text id="ch-n-del" class="ch-num" x="276" y="146" style="fill:var(--risk)">0</text>
+          </g>
+        </svg>
+      </div>
+      <div class="code-wrap out" data-step="4">
+        <div class="code-head">output · illustrative · run 1, run 2<span class="delta up" data-step="4">embed calls 42 → 5</span></div>
+        <pre class="code" data-lang="out"><code>chunks=41 reused=0 embedded=41 deleted=0 total_in_index=41
+<span class="ok">chunks=42 reused=37 embedded=5 deleted=4 total_in_index=42</span></code></pre>
+      </div>
+      <div class="paper" data-step="5">
+        <div class="pid">arXiv 2610.31019 <span>2026-10-22</span><a class="cite paper" href="https://arxiv.org/abs/2610.31019" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.31019</a></div>
+        <h4>Chunk Recomputation under Real Document Revisions</h4>
+        <div class="find">120 real revision pairs: fixed-size chunking re-embeds <b>57-68%</b>, recursive <b>38-56%</b>, content-defined <b>43-54%</b>. Recall differs by <b>&lt;2 pts</b>.</div>
+        <div class="so">Log reused / embedded / deleted. reused=0 on a small edit = boundary drift.</div>
+      </div>
+      <div class="callout pitfall ch-pit" data-step="5"><span>Hash only the text, and a model upgrade keeps the old vectors. Put <code>MODEL</code> and <code>DIM</code> in the hash.</span></div>
+    </div>
+  </div>
+  <aside class="notes">
+    This build adds day-2 ingestion to the Northwind Mutual index: the claims policy changes, and we must not pay to embed it all again. Step 1 shows the naive sync: drop the collection, re-chunk, and embed all 42 chunks with the positional ids of Lab 2, so one edit changes every id. Steps 2 and 3: the id is a SHA-256 of model, dimension and chunk text, so an unchanged chunk keeps its id, and a model or dimension change gives new ids and a new collection name automatically; then the set difference gives 5 chunks to embed and 4 old chunks to delete. Analogy: a library that re-prints only the pages with new text, and removes the old pages from the shelf. Step 4 and 5: the second run makes 5 embed calls instead of 42, and the October paper on real Wikipedia revisions shows that the chunker choice decides how much you re-embed, with under 2 points of recall difference. Likely question: "Why Qwen3 and not Gemini here?" The claims policy stays on-prem, as in step 2, and Lab 2 chunked with the Qwen3 tokenizer at 512 tokens, so no chunk is cut at embed time. The same id diff works on the claim_chunks table in pgvector. Hand-off: the next two slides list the silent defaults that broke these steps in real projects.
+  </aside>
+</section>
+<script>
+(() => {
+  const ID = "rag-c03-build-content-hash";
+  const NS = "http://www.w3.org/2000/svg";
+  const N = 42, COLS = 14, TW = 34, TH = 22, DX = 37.5, DY = 26, Y0 = 24;
+  const CHANGED = [17, 18, 19, 20, 21];     // one edited section: 5 new chunks
+  const GONE = 4;                           // 4 v1 chunks of that section disappear
+  let tl = null;
+  const mk = (tag, attrs, parent, text) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text != null) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  };
+  const q = (s, sel) => s.querySelector(sel);
+  const hex = (i, salt) => (((i + 1) * 2654435761 + salt * 40503) >>> 0).toString(16).padStart(8, "0").slice(0, 4);
+
+  function ensure(s) {
+    const g = q(s, "#ch-tiles");
+    if (g.childNodes.length) return;
+    for (let i = 0; i < N; i++) {
+      const x = (i % COLS) * DX, y = Y0 + Math.floor(i / COLS) * DY;
+      const t = mk("g", { "data-i": i }, g);
+      mk("rect", { x, y, width: TW, height: TH, rx: 5, "stroke-width": 1.5 }, t);
+      mk("text", { class: "ch-hx", x: x + TW / 2, y: y + 15 }, t, hex(i, CHANGED.includes(i) ? 7 : 1));
+    }
+    const d = q(s, "#ch-gone");
+    for (let i = 0; i < GONE; i++) {
+      const x = 116 + i * DX, y = 104;
+      const t = mk("g", {}, d);
+      mk("rect", { x, y, width: TW, height: TH, rx: 5, "stroke-width": 1.5 }, t);
+      mk("text", { class: "ch-hx", x: x + TW / 2, y: y + 15 }, t, hex(CHANGED[i], 3));
+      mk("line", { x1: x + 3, y1: y + 11, x2: x + TW - 3, y2: y + 11, "stroke-width": 2 }, t);
+    }
+  }
+  const tiles = (s) => [...q(s, "#ch-tiles").children];
+  const gone = (s) => [...q(s, "#ch-gone").children];
+  const ST = {
+    hide: { fill: "transparent", stroke: "var(--line)", ink: "transparent", op: 0.35 },
+    plain: { fill: "var(--surface-2)", stroke: "var(--line-2)", ink: "var(--ink-2)", op: 1 },
+    embed: { fill: "var(--tool-soft)", stroke: "var(--tool)", ink: "var(--ink)", op: 1 },
+    reuse: { fill: "var(--state-soft)", stroke: "var(--state)", ink: "var(--ink-2)", op: 1 },
+    del: { fill: "var(--risk-soft)", stroke: "var(--risk)", ink: "var(--risk)", op: 0.55 }
+  };
+  const paint = (g, st) => {
+    const r = g.querySelector("rect"), t = g.querySelector("text"), l = g.querySelector("line");
+    r.setAttribute("fill", st.fill); r.setAttribute("stroke", st.stroke);
+    t.setAttribute("fill", st.ink); g.setAttribute("opacity", st.op);
+    if (l) l.setAttribute("stroke", st.stroke);
+  };
+  const labels = (s, positional) => tiles(s).forEach((t, i) => {
+    t.querySelector("text").textContent = positional ? "#" + i : hex(i, CHANGED.includes(i) ? 7 : 1);
+  });
+  const setCounts = (s, a, b, c) => { q(s, "#ch-n-reuse").textContent = a; q(s, "#ch-n-embed").textContent = b; q(s, "#ch-n-del").textContent = c; };
+
+  function finalState(s, n) {
+    const T = tiles(s), G = gone(s), cap = q(s, "#ch-cap");
+    labels(s, n === 1);
+    if (n < 1) {
+      T.forEach((t) => paint(t, ST.hide)); G.forEach((t) => t.setAttribute("opacity", 0));
+      q(s, "#ch-gone-l").setAttribute("opacity", 0); q(s, "#ch-counts").setAttribute("opacity", 0);
+      cap.textContent = "claims policy: 42 chunks";
+    } else if (n === 1) {
+      T.forEach((t) => paint(t, ST.embed)); G.forEach((t) => t.setAttribute("opacity", 0));
+      q(s, "#ch-gone-l").setAttribute("opacity", 0); q(s, "#ch-counts").setAttribute("opacity", 1);
+      setCounts(s, 0, 42, 0);
+      cap.textContent = "BEFORE: positional ids, every sync embeds 42 of 42";
+    } else if (n === 2) {
+      T.forEach((t) => paint(t, ST.plain)); G.forEach((t) => t.setAttribute("opacity", 0));
+      q(s, "#ch-gone-l").setAttribute("opacity", 0); q(s, "#ch-counts").setAttribute("opacity", 0);
+      cap.textContent = "id = sha256(MODEL|DIM|text)[:32]: same text, same id";
+    } else {
+      T.forEach((t, i) => paint(t, CHANGED.includes(i) ? ST.embed : ST.reuse)); G.forEach((t) => paint(t, ST.del));
+      q(s, "#ch-gone-l").setAttribute("opacity", 1); q(s, "#ch-counts").setAttribute("opacity", 1);
+      setCounts(s, 37, 5, 4);
+      cap.textContent = "run 2 after one section edit: diff the id sets";
+    }
+  }
+
+  function play(s, n) {
+    const T = tiles(s), G = gone(s);
+    tl = gsap.timeline({ onComplete: () => finalState(s, n) });
+    if (n === 1) {
+      finalState(s, 0);
+      labels(s, true);
+      q(s, "#ch-cap").textContent = "BEFORE: positional ids, every sync embeds 42 of 42";
+      q(s, "#ch-counts").setAttribute("opacity", 1);
+      setCounts(s, 0, 0, 0);
+      T.forEach((t, i) => {
+        tl.call(() => { paint(t, ST.embed); setCounts(s, 0, i + 1, 0); }, null, 0.04 * i);
+        tl.fromTo(t, { scale: 0.6 }, { scale: 1, transformOrigin: "50% 50%", duration: 0.3, ease: "back.out(2)" }, 0.04 * i);
+      });
+    } else if (n === 3) {
+      finalState(s, 2);
+      q(s, "#ch-cap").textContent = "run 2 after one section edit: diff the id sets";
+      q(s, "#ch-counts").setAttribute("opacity", 1);
+      q(s, "#ch-gone-l").setAttribute("opacity", 1);
+      setCounts(s, 0, 0, 0);
+      let r = 0;
+      T.forEach((t, i) => {
+        if (CHANGED.includes(i)) return;
+        const k = ++r;
+        tl.call(() => { paint(t, ST.reuse); setCounts(s, k, 0, 0); }, null, 0.025 * k);
+      });
+      CHANGED.forEach((i, k) => {
+        tl.call(() => { paint(T[i], ST.embed); setCounts(s, 37, k + 1, 0); }, null, 1.2 + 0.18 * k);
+        tl.fromTo(T[i], { scale: 0.5 }, { scale: 1, transformOrigin: "50% 50%", duration: 0.35, ease: "back.out(2.2)" }, 1.2 + 0.18 * k);
+      });
+      G.forEach((g, k) => {
+        tl.call(() => { paint(g, ST.plain); g.setAttribute("opacity", 1); }, null, 2.2 + 0.15 * k);
+        tl.call(() => { paint(g, ST.del); setCounts(s, 37, 5, k + 1); }, null, 2.6 + 0.15 * k);
+      });
+    }
+  }
+
+  function render(s, n, animate) {
+    ensure(s);
+    if (tl) { tl.kill(); tl = null; }
+    gsap.killTweensOf(tiles(s));
+    gsap.set(tiles(s), { scale: 1 });
+    if (animate && (n === 1 || n === 3)) play(s, n); else finalState(s, n);
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { if (tl) { tl.kill(); tl = null; } gsap.killTweensOf(tiles(slide)); }
+  });
+})();
+</script>

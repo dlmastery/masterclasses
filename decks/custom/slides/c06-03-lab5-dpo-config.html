@@ -1,0 +1,207 @@
+<section class="slide" id="custom-c06-lab5-dpo-config" data-tone="human" data-title="Lab 5: DPOConfig">
+  <style>
+    #custom-c06-lab5-dpo-config { gap: 20px; }
+    #custom-c06-lab5-dpo-config .g-cfg { display: grid; grid-template-columns: 720px 1fr; gap: 26px; min-height: 0; }
+    #custom-c06-lab5-dpo-config .cfg-left { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    #custom-c06-lab5-dpo-config .cfg-code pre.code { font-size: 12.5px; line-height: 1.34; padding: 10px 16px 10px; }
+    #custom-c06-lab5-dpo-config .code-head { padding: 7px 14px; font-size: 13.5px; }
+    #custom-c06-lab5-dpo-config .cfg-right { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    #custom-c06-lab5-dpo-config .lab-head { font-size: 15px; gap: 12px; }
+    #custom-c06-lab5-dpo-config .lab-head .run { font-size: 15px; padding: 7px 11px; }
+    #custom-c06-lab5-dpo-config .cfg-small pre.code { font-size: 11.5px; line-height: 1.4; padding: 8px 14px 9px; }
+    #custom-c06-lab5-dpo-config .steps-rail { gap: 8px; }
+    #custom-c06-lab5-dpo-config .steps-rail > * { font-size: 15px; line-height: 1.34; grid-template-columns: 30px 1fr; gap: 10px; }
+    #custom-c06-lab5-dpo-config .steps-rail > *::before { width: 26px; height: 26px; font-size: 14px; }
+    #custom-c06-lab5-dpo-config .cites { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: auto; }
+    #custom-c06-lab5-dpo-config .cites .cite { font-size: 14px; padding: 5px 10px 5px 8px; gap: 8px; }
+    #custom-c06-lab5-dpo-config .cites .cite::before { width: 18px; height: 18px; }
+    #custom-c06-lab5-dpo-config .cite.paper { flex-direction: row; border-radius: 10px; border: 1px solid var(--line); background: transparent; }
+    #custom-c06-lab5-dpo-config code { font-size: .88em; }
+    #custom-c06-lab5-dpo-config pre.code, #custom-c06-lab5-dpo-config pre.code *, #custom-c06-lab5-dpo-config code { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #c06cfg-svg text { font-family: var(--f-mono); font-variant-ligatures: none; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 5</span> Acme on-brand support replies · step 2 of 3</div>
+  <h2 class="title">DPOConfig: sigmoid plus SFT loss, beta 0.1, adapter-off reference</h2>
+  <div class="g-cfg fill">
+    <div class="cfg-left">
+      <div class="code-wrap cfg-code">
+        <div class="code-head">support_dpo/dpo_support.py · trl 1.16.0 · peft 0.21.2</div>
+        <pre class="code" data-lang="python" data-focus="1:7, 2:8, 3:14-18, 4:9"><code># dpo_support.py, part 2 of 2: trainer (imports are in part 1)
+split = ...  # DatasetDict from step 1: train 3,135 / test 165 pairs
+
+args = DPOConfig(
+    output_dir="support-dpo",
+    model_init_kwargs={"dtype": "bfloat16"},
+    beta=0.1,                   # KL strength: higher = stay closer to the start model
+    loss_type=["sigmoid", "sft"], loss_weights=[1.0, 0.2],  # DPO + NLL on chosen (RPO-style)
+    learning_rate=5e-6,         # LoRA; full FT default is 1e-6
+    per_device_train_batch_size=4, gradient_accumulation_steps=4,
+    max_length=1024, num_train_epochs=1,
+    eval_strategy="steps", eval_steps=50, logging_steps=10, report_to="trackio",
+)
+trainer = DPOTrainer(
+    model="Qwen/Qwen2.5-0.5B-Instruct",  # no ref_model: reference = adapter off
+    args=args, train_dataset=split["train"], eval_dataset=split["test"],
+    peft_config=LoraConfig(r=16, lora_alpha=32, target_modules="all-linear",
+                           task_type="CAUSAL_LM"),
+)
+trainer.train()
+trainer.save_model()</code></pre>
+      </div>
+      <div class="code-wrap out cfg-small" data-step="2">
+        <div class="code-head">output · one weight for two losses</div>
+        <pre class="code" data-lang="none"><code><span>&gt;&gt;&gt; DPOConfig(output_dir="x", loss_type=["sigmoid", "sft"], loss_weights=[1.0])</span>
+<span class="err">ValueError: loss_weights must have the same length as loss_type when combining</span>
+<span class="err">multiple losses. Got 1 weights for 2 loss types.</span></code></pre>
+      </div>
+      <div class="code-wrap cfg-small" data-step="5">
+        <div class="code-head">variation · change one line, compare on the same eval</div>
+        <pre class="code" data-lang="python"><code>loss_type=["sigmoid_norm"]  # SimPO-style length-normalised: compare mean reply length
+label_smoothing=0.1         # Robust DPO for noisy QA labels; must be in [0, 0.5)</code></pre>
+      </div>
+    </div>
+    <div class="cfg-right">
+      <div class="lab-head"><span class="run">python dpo_support.py</span><span class="small">one 16-24 GB GPU</span></div>
+      <svg id="c06cfg-svg" viewBox="0 0 640 316" width="600" height="296" role="img" aria-label="Top: the sigmoid DPO loss times 1.0 and the SFT NLL loss times 0.2 stack into one total loss bar. Bottom: a beta dial at 0.1 and a leash between the policy node and the reference node, which is the same base model with the adapter off. At step 4 the dial sweeps to 0.5 and the leash gets tight, then relaxes back."></svg>
+      <div class="steps-rail">
+        <div data-step="1"><span><code>beta</code> is the KL strength. A higher beta keeps the policy closer to the start model.</span></div>
+        <div data-step="2"><span>TRL 1.x takes a list of losses. <code>"sft"</code> adds NLL on the chosen reply. <code>loss_weights</code> must have the same length.</span></div>
+        <div data-step="3"><span>No <code>ref_model</code>: with PEFT, TRL turns the adapter off to get the reference. No second copy in memory.</span></div>
+        <div data-step="4"><span><code>5e-6</code> for LoRA (full-FT default <code>1e-6</code>). The best LR moves with model size and does not transfer across datasets: sweep LR × beta with short runs on the downstream eval.</span></div>
+      </div>
+      <div class="cites">
+        <a class="cite doc" href="https://huggingface.co/docs/trl/main/en/dpo_trainer" target="_blank" rel="noopener"><b>Docs</b>&nbsp;TRL DPO Trainer</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2610.27895" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.27895 DPO hyperparameter landscape</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">This is the trainer half of Lab 5: Qwen2.5-0.5B-Instruct with a LoRA adapter, trained by DPOTrainer in TRL 1.16.0 on the pairs from step 1. Step 1: beta is the strength of the KL leash to the reference; 0.1 is the default, and a higher value keeps the policy closer to the start model. Step 2: in TRL 1.x loss_type is a list, so sigmoid DPO plus an SFT term on the chosen reply is one line, and the two lists must have the same length or DPOConfig raises the error you see. Step 3: we pass no ref_model, because with PEFT the reference is the same base model with the adapter switched off, so there is only one model in memory. Analogy: beta is the length of a dog's leash, and the reference is the post it is tied to. Likely question: why 5e-6 and not the 1e-6 default? A LoRA adapter usually needs several times more, and the October 2026 hyperparameter-landscape paper says the best LR moves with model size and does not transfer across datasets, so sweep LR and beta with short runs scored on your own eval.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c06-lab5-dpo-config";
+  // geometry: loss bars on top, beta leash below; nodes 220 px apart
+  const BX = 168, W_DPO = 250, W_SFT = 210, W_SFT_W = 42;   // SFT bar x 0.2 -> 42 px
+  const NODE_Y = 232, NODE_H = 58, POL_R = 210, REF_L = 430, LEASH_Y = NODE_Y + NODE_H / 2;
+  const DIAL = { cx: 320, cy: 196, r: 34 };
+  let S = null, loop = null;
+
+  function mk(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  }
+  const sagOf = (b) => 52 - (Math.min(Math.max(b, 0.1), 0.5) - 0.1) / 0.4 * 50;  // 0.1 -> 52 px, 0.5 -> 2 px
+
+  function build(slide) {
+    const svg = slide.querySelector("#c06cfg-svg");
+    if (svg._S) return svg._S;
+    svg.innerHTML = "";
+    const s = { beta: { b: 0.1 } };
+
+    // --- loss composition (step 2)
+    s.loss = mk("g", { opacity: 0 }, svg);
+    mk("text", { x: 0, y: 14, "font-size": 14, "font-weight": 700, fill: "var(--ink)" }, s.loss, "loss per batch");
+    mk("text", { x: 0, y: 44, "font-size": 13, fill: "var(--ink-2)" }, s.loss, "sigmoid DPO");
+    mk("rect", { x: BX, y: 28, width: W_DPO, height: 24, rx: 6, fill: "var(--human-soft)", stroke: "var(--human)", "stroke-width": 1.5 }, s.loss);
+    mk("text", { x: BX + W_DPO + 12, y: 45, "font-size": 14, "font-weight": 700, fill: "var(--human)" }, s.loss, "x 1.0");
+    mk("text", { x: 0, y: 78, "font-size": 13, fill: "var(--ink-2)" }, s.loss, "SFT NLL (chosen)");
+    mk("rect", { x: BX, y: 62, width: W_SFT, height: 24, rx: 6, fill: "var(--model-soft)", stroke: "var(--model)", "stroke-width": 1.5 }, s.loss);
+    mk("text", { x: BX + W_SFT + 12, y: 79, "font-size": 14, "font-weight": 700, fill: "var(--model)" }, s.loss, "x 0.2");
+    mk("text", { x: 0, y: 118, "font-size": 13, "font-weight": 700, fill: "var(--ink)" }, s.loss, "total");
+    mk("line", { x1: 0, y1: 94, x2: 640, y2: 94, stroke: "var(--line-2)", "stroke-dasharray": "3 5" }, s.loss);
+    s.tA = mk("rect", { x: BX, y: 102, width: W_DPO, height: 24, rx: 6, fill: "var(--human)", opacity: .85 }, s.loss);
+    s.tB = mk("rect", { x: BX + W_DPO, y: 102, width: W_SFT_W, height: 24, rx: 4, fill: "var(--model)", opacity: .9 }, s.loss);
+    s.tT = mk("text", { x: BX + W_DPO + W_SFT_W + 12, y: 119, "font-size": 13, "font-weight": 700, fill: "var(--ink-2)" }, s.loss, "= 1.0·DPO + 0.2·NLL");
+
+    // --- captions for the leash region (one per step)
+    s.capKL = mk("text", { x: 0, y: 172, "font-size": 13.5, "font-weight": 700, fill: "var(--human)", opacity: 0 }, svg, "KL leash to the start model");
+    s.capSweep = mk("text", { x: 0, y: 172, "font-size": 13.5, "font-weight": 700, fill: "var(--tool)", opacity: 0 }, svg, "sweep LR x beta · 50-step runs");
+
+    // --- beta dial
+    s.dial = mk("g", { opacity: 0 }, svg);
+    const { cx, cy, r } = DIAL;
+    mk("path", { d: `M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`, fill: "none", stroke: "var(--line-2)", "stroke-width": 7, "stroke-linecap": "round" }, s.dial);
+    [0, 0.25, 0.5].forEach((v) => {
+      const a = Math.PI - (v / 0.5) * Math.PI;
+      mk("line", { x1: cx + Math.cos(a) * (r + 6), y1: cy - Math.sin(a) * (r + 6), x2: cx + Math.cos(a) * (r + 11), y2: cy - Math.sin(a) * (r + 11), stroke: "var(--faint)", "stroke-width": 2 }, s.dial);
+    });
+    s.needle = mk("line", { x1: cx, y1: cy, x2: cx - r, y2: cy, stroke: "var(--human)", "stroke-width": 3.5, "stroke-linecap": "round" }, s.dial);
+    mk("circle", { cx, cy, r: 5, fill: "var(--human)" }, s.dial);
+    s.bText = mk("text", { x: cx + r + 18, y: cy + 4, "font-size": 15, "font-weight": 700, fill: "var(--human)" }, s.dial, "beta = 0.10");
+
+    // --- policy and reference nodes + leash
+    s.nodes = mk("g", { opacity: 0 }, svg);
+    s.leash = mk("path", { d: "", fill: "none", stroke: "var(--human)", "stroke-width": 3.5, "stroke-linecap": "round", "stroke-dasharray": "2 7" }, s.nodes);
+    mk("rect", { x: 0, y: NODE_Y, width: POL_R, height: NODE_H, rx: 12, fill: "var(--model-soft)", stroke: "var(--model)", "stroke-width": 1.8 }, s.nodes);
+    mk("text", { x: POL_R / 2, y: NODE_Y + 24, "text-anchor": "middle", "font-size": 15, "font-weight": 700, fill: "var(--model)" }, s.nodes, "policy");
+    mk("text", { x: POL_R / 2, y: NODE_Y + 44, "text-anchor": "middle", "font-size": 12, fill: "var(--ink-2)" }, s.nodes, "base + LoRA r=16");
+    s.refBox = mk("rect", { x: REF_L, y: NODE_Y, width: 640 - REF_L, height: NODE_H, rx: 12, fill: "var(--surface)", stroke: "var(--muted)", "stroke-width": 1.8, "stroke-dasharray": "6 5" }, s.nodes);
+    mk("text", { x: (REF_L + 640) / 2, y: NODE_Y + 24, "text-anchor": "middle", "font-size": 15, "font-weight": 700, fill: "var(--ink)" }, s.nodes, "reference");
+    s.refA = mk("text", { x: (REF_L + 640) / 2, y: NODE_Y + 44, "text-anchor": "middle", "font-size": 12, fill: "var(--ink-2)" }, s.nodes, "the start model");
+    s.refB = mk("text", { x: (REF_L + 640) / 2, y: NODE_Y + 44, "text-anchor": "middle", "font-size": 12, "font-weight": 700, fill: "var(--state)", opacity: 0 }, s.nodes, "same base, adapter off");
+    s.mem = mk("text", { x: (REF_L + 640) / 2, y: 312, "text-anchor": "middle", "font-size": 12.5, "font-weight": 700, fill: "var(--state)", opacity: 0 }, svg, "1 model copy in memory");
+
+    svg._S = s;
+    return s;
+  }
+
+  function applyBeta(s, b) {
+    const { cx, cy, r } = DIAL;
+    const a = Math.PI - (Math.min(b, 0.5) / 0.5) * Math.PI;
+    s.needle.setAttribute("x2", cx + Math.cos(a) * r);
+    s.needle.setAttribute("y2", cy - Math.sin(a) * r);
+    s.bText.textContent = "beta = " + b.toFixed(2);
+    const sag = sagOf(b);
+    s.leash.setAttribute("d", `M ${POL_R} ${LEASH_Y} Q ${(POL_R + REF_L) / 2} ${LEASH_Y + sag * 2} ${REF_L} ${LEASH_Y}`);
+    s.leash.setAttribute("stroke-width", (3.5 + (Math.min(b, 0.5) - 0.1) / 0.4 * 1.5).toFixed(2));
+  }
+
+  function render(s, n, animate) {
+    const to = (el, v, d) => (animate ? gsap.to(el, { opacity: v, duration: .4, delay: d || 0, ease: "power2.out" }) : gsap.set(el, { opacity: v }));
+    if (loop) { loop.kill(); loop = null; }
+    gsap.killTweensOf(s.beta);
+    to(s.nodes, n >= 1 ? 1 : 0);
+    to(s.dial, n >= 1 ? 1 : 0);
+    to(s.capKL, n >= 1 && n < 4 ? 1 : 0);
+    to(s.capSweep, n >= 4 ? 1 : 0);
+    to(s.loss, n >= 2 ? 1 : 0);
+    // total bar builds from the two weighted parts
+    if (n >= 2 && animate && n === 2) {
+      gsap.fromTo(s.tA, { attr: { width: 0 } }, { attr: { width: W_DPO }, duration: .7, delay: .25, ease: "power2.out" });
+      gsap.fromTo(s.tB, { attr: { x: BX, width: W_SFT } , opacity: .3 }, { attr: { x: BX + W_DPO, width: W_SFT_W }, opacity: .9, duration: .8, delay: .9, ease: "power3.inOut" });
+      gsap.fromTo(s.tT, { opacity: 0 }, { opacity: 1, duration: .4, delay: 1.6 });
+    } else {
+      gsap.set(s.tA, { attr: { width: W_DPO } });
+      gsap.set(s.tB, { attr: { x: BX + W_DPO, width: W_SFT_W }, opacity: .9 });
+      gsap.set(s.tT, { opacity: 1 });
+    }
+    to(s.refA, n >= 3 ? 0 : 1);
+    to(s.refB, n >= 3 ? 1 : 0);
+    to(s.mem, n >= 3 ? 1 : 0);
+    gsap.set(s.refBox, { attr: { stroke: n >= 3 ? "var(--state)" : "var(--muted)" } });
+    s.beta.b = 0.1;
+    applyBeta(s, 0.1);
+    if (n === 4) {
+      // the dial sweeps 0.1 -> 0.5 (leash tight) and back (leash relaxed), looping
+      loop = gsap.timeline({ repeat: -1, repeatDelay: .5, delay: animate ? .5 : 0 });
+      loop.to(s.beta, { b: 0.5, duration: 1.4, ease: "power2.inOut", onUpdate: () => applyBeta(s, s.beta.b) })
+          .to(s.beta, { b: 0.1, duration: 1.4, ease: "power2.inOut", delay: .6, onUpdate: () => applyBeta(s, s.beta.b) });
+    }
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { S = build(slide); render(S, step, false); },
+    step(slide, n, animate) { S = build(slide); render(S, n, animate); },
+    leave(slide) {
+      if (loop) { loop.kill(); loop = null; }
+      const svg = slide.querySelector("#c06cfg-svg");
+      if (svg && svg._S) { gsap.killTweensOf(svg._S.beta); applyBeta(svg._S, 0.1); }
+      if (svg) gsap.killTweensOf(svg.querySelectorAll("*"));
+    }
+  });
+})();
+</script>

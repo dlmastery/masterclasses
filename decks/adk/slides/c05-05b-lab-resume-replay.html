@@ -1,0 +1,138 @@
+<section class="slide tight" id="adk-c05-lab-resume-replay" data-tone="tool" data-title="Lab 5B.5: process 2 replays">
+  <style>
+    #adk-c05-lab-resume-replay pre.code, #adk-c05-lab-resume-replay code { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #adk-c05-lab-resume-replay .rr-body { display: grid; grid-template-columns: 760px minmax(0, 1fr); gap: 36px; align-items: start; }
+    #adk-c05-lab-resume-replay .rr-col { display: flex; flex-direction: column; gap: 26px; min-width: 0; padding-top: 4px; }
+    #adk-c05-lab-resume-replay #rr-svg { display: block; overflow: visible; }
+    #adk-c05-lab-resume-replay #rr-svg text { font-family: var(--f-mono); }
+  </style>
+  <div class="kicker"><span class="pill">Lab 5B</span> Acme payouts · step 5 of 6</div>
+  <h2 class="title">Process 2 answers the pause and replays the finished node</h2>
+  <div class="rr-body fill">
+    <div class="code-wrap">
+      <div class="code-head">labs/adk/lab5b-payouts-durable/payouts/app.py · excerpt</div>
+      <pre class="code" data-lang="python" data-focus="1:4-7, 2:8, 3:9-11, 4:9-11"><code>  elif cmd == "resume":                       # answer the open pause
+    pending = json.load(open("pending.json"))
+    inv = pending["invocation_id"]
+    msg = types.Content(role="user", parts=[types.Part(
+        function_response=types.FunctionResponse(
+            id=pending["interrupt_id"], name="adk_request_input",
+            response={"result": arg}))])
+  # ... the same run_async loop as process 1
+    if ev.output is not None and ev.node_info and \
+        "/pay@" in (ev.node_info.path or ""):  # pay's output
+      print("OUTPUT:", ev.output)</code></pre>
+    </div>
+    <div class="rr-col">
+      <svg id="rr-svg" viewBox="0 0 596 290" width="596" height="290" aria-label="Process 2: a FunctionResponse answers analyst_review; kyc_lookup is replayed from history, pay fails twice and pays on attempt 3, and side_effects.log still has one line"></svg>
+      <div class="code-wrap out" data-step="3">
+        <div class="code-head">output · illustrative</div>
+        <pre class="code sm" data-lang="none"><code>$ python -m payouts.app resume yes
+<span class="err">[payouts] gateway attempt 1</span>
+<span class="err">[payouts] gateway attempt 2</span>
+<span class="ok">OUTPUT: PAID idempotency_key=payout-e-9c1…</span>
+<span data-step="4">$ cat side_effects.log
+<span class="ok">kyc_lookup ACME-GmbH</span></span></code></pre>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Step 5 of Lab 5B is process 2, a new Python interpreter. "resume yes" reads pending.json and sends a FunctionResponse named adk_request_input with the interrupt id and response {"result": "yes"}, exactly what adk run sends. analyst_review uses the hand-off pattern, so the reply becomes its output; "yes" is not JSON, so pay receives the str "yes". The workflow scans the recorded events of the invocation and fast-forwards kyc_lookup from its stored output, so only analyst_review and pay run. pay retries twice and pays on attempt 3, and the driver prints the pay node's output; it filters on node_info.path, because a function node's events carry the workflow's name as author, not the node's. The last click is the proof: side_effects.log still has exactly one line. Think of a film editor who jumps straight to the cut point instead of shooting the first scenes again. A likely question: "Is kyc_lookup ever run twice?" Not on a clean resume; only a node that crashed before its event was saved runs again, which is why the next slide talks about idempotency.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c05-lab-resume-replay";
+  const NS = "http://www.w3.org/2000/svg";
+  let tl = null, R = null;
+  function mk(tag, attrs, parent) {
+    const e = document.createElementNS(NS, tag);
+    for (const [a, v] of Object.entries(attrs)) e.setAttribute(a, v);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function txt(parent, x, y, s, attrs) { const t = mk("text", Object.assign({ x, y, "font-size": 16, fill: "var(--ink-2)" }, attrs || {}), parent); t.textContent = s; return t; }
+  function box(parent, x, y, w, h, tone, name, sub, dashed) {
+    const g = mk("g", {}, parent);
+    const r = mk("rect", { x, y, width: w, height: h, rx: 10, fill: `var(--${tone}-soft)`, stroke: `var(--${tone})`, "stroke-width": 2, "stroke-dasharray": dashed ? "6 4" : "none" }, g);
+    txt(g, x + w / 2, y + 28, name, { "font-size": 17, "font-weight": 700, "text-anchor": "middle", fill: "var(--ink)" });
+    const s = txt(g, x + w / 2, y + 52, sub, { "font-size": 15, "text-anchor": "middle", fill: `var(--${tone})` });
+    g._r = r; g._s = s;
+    return g;
+  }
+  function build(svg) {
+    svg.innerHTML = "";
+    const defs = mk("defs", {}, svg);
+    const m = mk("marker", { id: "rr-ah", viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto-start-reverse" }, defs);
+    mk("path", { d: "M0,0 L10,5 L0,10 z", fill: "var(--muted)" }, m);
+    R = {};
+    txt(svg, 0, 20, "process 2 · resume yes", { "font-size": 17, "font-weight": 700, fill: "var(--ink)" });
+    R.ctrBox = mk("rect", { x: 356, y: 0, width: 240, height: 30, rx: 15, fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 1.5 }, svg);
+    R.ctr = txt(svg, 476, 21, "side_effects.log: 1 line", { "font-size": 15, "font-weight": 700, "text-anchor": "middle", fill: "var(--state)" });
+    const Y = 112, H = 66;
+    R.kyc = box(svg, 0, Y, 176, H, "state", "kyc_lookup", "from history", true);
+    mk("line", { x1: 178, y1: Y + 33, x2: 206, y2: Y + 33, stroke: "var(--muted)", "stroke-width": 2, "marker-end": "url(#rr-ah)" }, svg);
+    R.rev = box(svg, 210, Y, 200, H, "human", "analyst_review", "waiting");
+    mk("line", { x1: 412, y1: Y + 33, x2: 440, y2: Y + 33, stroke: "var(--muted)", "stroke-width": 2, "marker-end": "url(#rr-ah)" }, svg);
+    R.pay = box(svg, 444, Y, 152, H, "tool", "pay", "waiting");
+    R.chip = mk("g", {}, svg);
+    mk("rect", { x: 206, y: 52, width: 208, height: 32, rx: 16, fill: "var(--human)" }, R.chip);
+    txt(R.chip, 310, 73, "FunctionResponse: yes", { "font-size": 15, "font-weight": 700, "text-anchor": "middle", fill: "#fff" });
+    // retry row: bar widths proportional to 0.5 s and 1.0 s
+    R.att = mk("g", {}, svg);
+    txt(R.att, 0, 262, "pay", { "font-size": 16, fill: "var(--muted)" });
+    const c = (x, col, label) => { const g = mk("g", {}, R.att); mk("circle", { cx: x, cy: 256, r: 15, fill: col }, g); txt(g, x, 262, label, { "font-size": 16, "font-weight": 700, "text-anchor": "middle", fill: "#fff" }); return g; };
+    R.a1 = c(70, "var(--risk)", "1");
+    R.b1 = mk("rect", { x: 92, y: 251, width: 90, height: 10, rx: 5, fill: "var(--line-2)" }, R.att);
+    R.a2 = c(204, "var(--risk)", "2");
+    R.b2 = mk("rect", { x: 226, y: 251, width: 180, height: 10, rx: 5, fill: "var(--line-2)" }, R.att);
+    R.a3 = c(428, "var(--state)", "3");
+    R.paid = txt(R.att, 454, 262, "PAID", { "font-size": 17, "font-weight": 700, fill: "var(--state)" });
+    txt(R.att, 137, 236, "0.5 s", { "font-size": 15, "text-anchor": "middle", fill: "var(--muted)" });
+    txt(R.att, 316, 236, "1.0 s", { "font-size": 15, "text-anchor": "middle", fill: "var(--muted)" });
+  }
+  function stop() { if (tl) tl.kill(); tl = null; }
+  function render(slide, n, animate) {
+    const svg = slide.querySelector("#rr-svg");
+    if (!svg) return;
+    if (!svg.childElementCount) build(svg);
+    stop();
+    const all = [R.chip, R.kyc, R.rev, R.pay, R.att, R.a1, R.a2, R.a3, R.b1, R.b2, R.paid, R.ctrBox];
+    gsap.killTweensOf(all);
+    gsap.set(all, { opacity: 1, x: 0, y: 0, scale: 1 });
+    gsap.set(R.chip, { opacity: n === 1 ? 1 : 0 });
+    gsap.set(R.kyc, { opacity: n >= 2 ? 1 : 0.25 });
+    gsap.set([R.rev, R.pay], { opacity: n >= 3 ? 1 : n >= 1 ? 0.5 : 0.25 });
+    gsap.set(R.att, { opacity: n >= 3 ? 1 : 0.2 });
+    gsap.set(R.b1, { attr: { width: 90 } }); gsap.set(R.b2, { attr: { width: 180 } });
+    R.rev._s.textContent = n >= 3 ? "answer: yes" : "waiting";
+    R.pay._s.textContent = n >= 3 ? "attempt 3/4" : "waiting";
+    R.ctr.textContent = n >= 4 ? "side_effects.log: still 1 line" : "side_effects.log: 1 line";
+    gsap.set(R.ctrBox, { attr: { "stroke-width": n >= 4 ? 3.5 : 1.5, width: n >= 4 ? 300 : 240, x: n >= 4 ? 296 : 356 } });
+    gsap.set(R.ctr, { attr: { x: n >= 4 ? 446 : 476 } });
+    if (!animate) return;
+    tl = gsap.timeline();
+    if (n === 1) tl.fromTo(R.chip, { opacity: 0, y: -40 }, { opacity: 1, y: 0, duration: 0.6, ease: "power2.out" });
+    else if (n === 2) tl.fromTo(R.kyc, { opacity: 0.25 }, { opacity: 1, duration: 0.3 })
+      .fromTo(R.kyc._r, { attr: { "stroke-width": 2 } }, { attr: { "stroke-width": 5 }, duration: 0.25, yoyo: true, repeat: 3 });
+    else if (n === 3) {
+      R.rev._s.textContent = "waiting"; R.pay._s.textContent = "waiting";
+      gsap.set([R.a1, R.a2, R.a3, R.paid, R.b1, R.b2], { opacity: 0 });
+      tl.to(R.rev, { opacity: 1, duration: 0.3 }).add(() => { R.rev._s.textContent = "answer: yes"; })
+        .to(R.pay, { opacity: 1, duration: 0.3 })
+        .add(() => { R.pay._s.textContent = "attempt 1/4"; })
+        .fromTo(R.a1, { opacity: 0, scale: 0.3, transformOrigin: "50% 50%" }, { opacity: 1, scale: 1, duration: 0.25, ease: "back.out(3)" })
+        .set(R.b1, { opacity: 1 }).fromTo(R.b1, { attr: { width: 0 } }, { attr: { width: 90 }, duration: 0.5, ease: "none" })
+        .add(() => { R.pay._s.textContent = "attempt 2/4"; })
+        .fromTo(R.a2, { opacity: 0, scale: 0.3, transformOrigin: "50% 50%" }, { opacity: 1, scale: 1, duration: 0.25, ease: "back.out(3)" })
+        .set(R.b2, { opacity: 1 }).fromTo(R.b2, { attr: { width: 0 } }, { attr: { width: 180 }, duration: 1.0, ease: "none" })
+        .add(() => { R.pay._s.textContent = "attempt 3/4"; })
+        .fromTo(R.a3, { opacity: 0, scale: 0.3, transformOrigin: "50% 50%" }, { opacity: 1, scale: 1, duration: 0.3, ease: "back.out(3)" })
+        .to(R.paid, { opacity: 1, duration: 0.2 });
+    } else if (n === 4) tl.fromTo(R.ctrBox, { attr: { "stroke-width": 1.5 } }, { attr: { "stroke-width": 5 }, duration: 0.3, yoyo: true, repeat: 3 });
+  }
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { stop(); if (slide) gsap.killTweensOf(slide.querySelectorAll("#rr-svg *")); },
+  });
+})();
+</script>

@@ -1,0 +1,76 @@
+<section class="slide" id="adk-c01-callbacks-redact" data-tone="state" data-title="Build: redact PII, meter tokens">
+  <style>
+    #adk-c01-callbacks-redact pre.code, #adk-c01-callbacks-redact pre.code * { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #adk-c01-callbacks-redact .cr-main { display: grid; grid-template-columns: 806px 1fr; gap: 36px; align-items: center; }
+    #adk-c01-callbacks-redact .cr-right { gap: 26px; min-width: 0; }
+    #adk-c01-callbacks-redact .box { border: 1px solid var(--line-2); border-radius: 18px; background: var(--surface); padding: 18px 20px 20px; display: grid; gap: 14px; }
+    #adk-c01-callbacks-redact .bh { font: 600 15px/1 var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+    #adk-c01-callbacks-redact .flow { display: grid; grid-template-columns: 1fr 46px 1fr; gap: 12px; align-items: center; }
+    #adk-c01-callbacks-redact .em { font: 600 17px/1.2 var(--f-mono); padding: 12px 12px; border-radius: 12px; text-align: center; border: 2px solid var(--risk); background: var(--risk-soft); color: var(--ink); }
+    #adk-c01-callbacks-redact .em.ok { border-color: var(--state); background: var(--state-soft); }
+    #adk-c01-callbacks-redact .shd { width: 40px; height: 46px; justify-self: center; background: var(--state); clip-path: path("M20,0 L40,9 L40,24 C40,36 30,42 20,46 C10,42 0,36 0,24 L0,9 Z"); }
+    #adk-c01-callbacks-redact .stat .n { font-size: 64px; color: var(--state); }
+    #adk-c01-callbacks-redact .stat .l { font-family: var(--f-mono); font-size: 17px; }
+    #adk-c01-callbacks-redact .cr-cap { font-size: 20px; line-height: 1.4; }
+  </style>
+  <div class="kicker"><span class="pill">Build</span> Acme refund desk · after_tool + after_model</div>
+  <h2 class="title">after_tool redacts emails, and after_model meters tokens into state</h2>
+  <div class="cr-main fill">
+    <div class="code-wrap good">
+      <div class="code-head">labs/adk/lab1-refund-guardrails/refund_agent/agent.py · excerpt</div>
+      <pre class="code" data-lang="python" data-focus="1:3-7, 2:12-15"><code>def redact_pii(tool: BaseTool, args: dict, tool_context: ToolContext,
+               tool_response: dict) -> Optional[dict]:
+    if tool.name == "lookup_order" and "order" in tool_response:
+        order = {k: EMAIL.sub("[email redacted]", v)
+                 if isinstance(v, str) else v
+                 for k, v in tool_response["order"].items()}
+        return {**tool_response, "order": order}
+    return None                     # None = keep the tool result
+
+def meter_tokens(callback_context: Context,
+                 llm_response: LlmResponse) -> Optional[LlmResponse]:
+    if llm_response.usage_metadata:
+        used = callback_context.state.get("tokens_used", 0)
+        callback_context.state["tokens_used"] = used + (
+            llm_response.usage_metadata.total_token_count or 0)
+    return None                     # None = keep the response</code></pre>
+    </div>
+    <div class="cr-right stack">
+      <div class="box" data-step="1">
+        <span class="bh">lookup_order result · email field</span>
+        <div class="flow"><span class="em" id="cr-in">li@example.com</span><span class="shd" id="cr-sh"></span><span class="em ok" id="cr-out">[email redacted]</span></div>
+      </div>
+      <div class="box" data-step="2">
+        <span class="bh">session state · illustrative</span>
+        <div class="stat"><div class="n" data-to="2875">2,875</div><div class="l">tokens_used after one turn</div></div>
+      </div>
+      <p class="cr-cap" data-step="3">The fourth hook, <code>block_card_numbers</code>, stops card numbers before the model. It is in the lab file.</p>
+    </div>
+  </div>
+  <aside class="notes">
+    Step 1: after_tool_callback sees the tool's response; a non-None return value replaces it, so the model never sees the customer's email, only "[email redacted]". Return None for every other tool to keep the original result. Step 2: after_model_callback runs after each model call; it adds usage_metadata.total_token_count to tokens_used in session state. A state write inside a callback goes into the event's state_delta, so it is persisted like any other state change. The number is illustrative. Step 3: the fourth hook, before_model_callback=block_card_numbers, checks the last user turn for a card number and returns a canned LlmResponse, so the model is never called; the code is in labs/adk/lab1-refund-guardrails. Pitfall: before_model only sees the request; injected text can also arrive inside a tool result, which is one more reason for after_tool checks. Analogy: redaction is the black marker on the copy, the meter is the electricity meter on the wall. Likely question: "Why not redact in the tool?" You can, but a callback applies one rule to every tool and every agent you attach it to.
+  </aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c01-callbacks-redact";
+  let tl = null;
+  Deck.register(ID, {
+    enter() {},
+    step(slide, n, animate) {
+      if (tl) { tl.kill(); tl = null; }
+      const a = slide.querySelector("#cr-in"), sh = slide.querySelector("#cr-sh"), b = slide.querySelector("#cr-out");
+      gsap.killTweensOf([a, sh, b]);
+      gsap.set([a, sh, b], { autoAlpha: 1, x: 0, scale: 1 });
+      if (!(animate && n === 1)) return;
+      tl = gsap.timeline({ delay: 0.3 });
+      tl.fromTo(b, { autoAlpha: 0 }, { autoAlpha: 0, duration: 0.01 })
+        .fromTo(a, { x: 0 }, { x: 90, duration: 0.6, ease: "power1.in" })
+        .fromTo(sh, { scale: 1 }, { scale: 1.3, duration: 0.15, yoyo: true, repeat: 1 })
+        .to(a, { autoAlpha: 0.35, x: 0, duration: 0.3 }, "<")
+        .fromTo(b, { autoAlpha: 0, x: -60 }, { autoAlpha: 1, x: 0, duration: 0.45, ease: "power3.out" });
+    },
+    leave() { if (tl) { tl.kill(); tl = null; } }
+  });
+})();
+</script>

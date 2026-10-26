@@ -1,0 +1,66 @@
+<section class="slide tight" id="adk-c00-code" data-tone="tool" data-title="The opening graph in code">
+  <style>
+    #adk-c00-code .cg { display: grid; grid-template-columns: 860px minmax(0, 1fr); gap: 30px; align-items: start; }
+    #adk-c00-code pre.code.cg-c { font-size: 20px; line-height: 1.27; padding: 10px 18px 12px; }
+    #adk-c00-code .code-wrap .code-head { padding: 7px 14px; font-size: 16px; }
+    #adk-c00-code .rcol { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+    #adk-c00-code .lab-head .run { font-size: 17px; }
+    #adk-c00-code .tree { font: 500 17px/1.45 var(--f-mono); color: var(--ink-2); background: var(--surface-2); border: 1px solid var(--line-2); border-radius: 10px; padding: 10px 14px; white-space: pre; }
+    #adk-c00-code .tree b { color: var(--ink); }
+    #adk-c00-code .tree i { font-style: normal; color: var(--muted); }
+    #adk-c00-code .steps-rail > * { font-size: 18px; line-height: 1.36; }
+    #adk-c00-code .steps-rail b { color: var(--ink); }
+    #adk-c00-code pre.code.cg-o { font-size: 16px; line-height: 1.45; padding: 10px 16px 12px; white-space: pre-wrap; }
+  </style>
+  <div class="kicker"><span class="pill">Preview</span> Lab 3 · Acme support desk · google-adk 2.13.0</div>
+  <h2 class="title">The opening graph is one Python file you can run</h2>
+  <div class="cg fill">
+    <div class="code-wrap">
+      <div class="code-head">acme_desk/agent.py</div>
+      <pre class="code cg-c" data-lang="python" data-focus="1:3-9, 2:10-12, 3:13-19, 4:20-23"><code>from google.adk import Agent, Context, Event, Workflow
+# + from typing import Literal; from pydantic import BaseModel
+class Ticket(BaseModel):
+  route: Literal["refund", "question"]
+  order_id: str = ""
+def intake(node_input: str):
+  yield Event(state={"ticket": node_input})
+classify = Agent(name="classify", output_schema=Ticket,
+  instruction="Label refund or question; copy order id: {ticket}")
+def pick(node_input: Ticket):
+  yield Event(route=node_input.route,
+              output=node_input.model_dump())
+def refund(ctx: Context, node_input: dict):
+  oid = node_input["order_id"]
+  ctx.state["outcome"] = f"refund queued for {oid}"
+answer = Agent(name="answer", output_key="outcome",
+  instruction="Answer in 2 sentences: {ticket}")
+def audit(outcome: str):      # read from ctx.state["outcome"]
+  yield Event(message=f"[audit] {outcome}")
+root_agent = Workflow(name="acme_desk", edges=[
+  ("START", intake, classify, pick),
+  (pick, {"refund": refund, "question": answer}),
+  (refund, audit), (answer, audit)])</code></pre>
+    </div>
+    <div class="rcol">
+      <div class="tree"><b>acme_desk/</b>     <i>run adk from its parent</i>
+  __init__.py  <i>from . import agent</i>
+  agent.py     <i>this file</i>
+  .env         <i>your key (next slide)</i></div>
+      <div class="lab-head"><span class="run">adk run acme_desk "Refund A-1001, broken"</span></div>
+      <div class="steps-rail">
+        <div data-step="1" data-fx="left"><span><b>classify</b> is the only model call on the refund path. <code>output_schema</code> keeps the label in a closed set. <code>{ticket}</code> reads session.state.</span></div>
+        <div data-step="2" data-fx="left"><span><b>pick</b> is plain code. It sends the label out as the <code>route</code>.</span></div>
+        <div data-step="3" data-fx="left"><span><b>refund</b> writes <code>outcome</code> to state. <b>answer</b> writes the same key with <code>output_key</code>. <b>audit</b> reads it by parameter name.</span></div>
+        <div data-step="4" data-fx="left"><span>The dict edge maps each route to a node. A label with no edge only logs a warning. Lab 3 adds <code>DEFAULT_ROUTE</code>.</span></div>
+      </div>
+      <div class="code-wrap out" data-step="5" data-fx="up">
+        <div class="code-head">output · illustrative</div>
+        <pre class="code cg-o" data-lang="bash"><code><span class="ok">[acme_desk]: [audit] refund queued for A-1001</span>
+<span class="dim"># pick and refund print nothing</span></code></pre>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    This is the graph from the first slide as real code; Lab 3 builds it step by step, so do not teach the API yet: point at the four highlighted ideas only, and do the setup on the next slide before you type along. There is no model= argument: Agent uses gemini-3.5-flash, the 2.13.0 default; set model= to pin another Gemini model id. Press once: classify has output_schema=Ticket, so its reply must be one of two labels plus an order id, and {ticket} in the instruction is read from session.state, where intake wrote it. Press again: pick is a plain function; it yields an Event whose route is that label. Press again: refund writes outcome into session.state and returns nothing, which is allowed; on the question path, answer writes the same key through output_key; audit gets outcome because a function parameter that is not node_input or ctx is read from state by name, and a missing key raises WorkflowDataError. Press again: the edges list maps "refund" to refund and "question" to answer; a label with no matching edge runs nothing and only logs a warning, which is why the schema is a Literal and why Lab 3 adds DEFAULT_ROUTE as the safety net. Last press: the run prints one line, because function nodes print under the workflow name and only events with a message print. Analogy: classify fills in a form, and pick is the clerk who files it in the right tray. Likely question: "Why not let the model call refund as a tool?" Because then a prompt decides whether money moves; here code decides, and you can unit-test pick without a model. Source: codelab "ADK 2 Orchestration" (codelabs.developers.google.com/adk2) and adk.dev/2.0.
+  </aside>
+</section>

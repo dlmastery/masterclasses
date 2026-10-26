@@ -1,0 +1,101 @@
+<section class="slide" id="adk-c06-errors-rewrite" data-tone="tool" data-title="Tool errors written for agents">
+  <style>
+    #adk-c06-errors-rewrite .er-grid { display: grid; grid-template-columns: 820px 1fr; gap: 36px; align-items: start; }
+    #adk-c06-errors-rewrite .er-left { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
+    #adk-c06-errors-rewrite .er-right { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+    #adk-c06-errors-rewrite svg { overflow: visible; display: block; }
+    #adk-c06-errors-rewrite svg text { font-family: var(--f-mono); }
+    #adk-c06-errors-rewrite .hd { font-size: 16px; font-weight: 700; fill: var(--muted); letter-spacing: .04em; }
+    #adk-c06-errors-rewrite .lb { font-size: 17px; font-weight: 600; fill: var(--ink-2); }
+    #adk-c06-errors-rewrite .vl { font-size: 18px; font-weight: 700; }
+  </style>
+  <div class="kicker">Build · Acme claims desk · errors</div>
+  <h2 class="title">Write tool errors as the next tool call, not a terminal command</h2>
+  <div class="er-grid fill">
+    <div class="er-left">
+      <div class="code-wrap bad" data-step="1">
+        <div class="code-head">claims_agent/claims_server.py · get_claim · developer-style</div>
+        <pre class="code" data-lang="python"><code>    if not SESSION["valid"]:
+        return {"status": "error", "message": "Session expired. "
+                "Run `claims-cli login` and retry."}</code></pre>
+      </div>
+      <div class="code-wrap good" data-step="2">
+        <div class="code-head">claims_agent/claims_server.py · adds login · agent-style</div>
+        <pre class="code" data-lang="python" data-focus="2:1-5, 3:7-9"><code>@mcp.tool()
+def login() -&gt; dict:
+    """Start a claims session. Call it when a session expired."""
+    SESSION["valid"] = True
+    return {"status": "ok"}
+# in get_claim; also add "login" to tool_filter
+    if not SESSION["valid"]:
+        return {"status": "error", "message": "Session expired. Call "
+                "claims_login, then call claims_get_claim again."}</code></pre>
+      </div>
+    </div>
+    <div class="er-right">
+      <svg id="er-svg" viewBox="0 0 536 440" width="536" height="440" aria-label="Recovery rates from arXiv 2609.35381. Expired credential: 45 percent with a terminal step, 84 percent when the error names a login tool. Rate limit: 6 percent with Wait before retrying, 88 percent when the error names the call to repeat.">
+        <text class="hd" x="0" y="20">EXPIRED CREDENTIAL · recovery</text>
+        <text class="lb" x="0" y="58">"Run ..." terminal step</text>
+        <text class="lb" x="0" y="138">login tool named</text>
+        <text class="hd" x="0" y="242">RATE LIMIT · recovery</text>
+        <text class="lb" x="0" y="280">"Wait before retrying."</text>
+        <text class="lb" x="0" y="360">"... call place_order again"</text>
+        <g style="fill:var(--line)">
+          <rect x="0" y="70" width="440" height="26" rx="6"/><rect x="0" y="150" width="440" height="26" rx="6"/>
+          <rect x="0" y="292" width="440" height="26" rx="6"/><rect x="0" y="372" width="440" height="26" rx="6"/>
+        </g>
+        <rect class="er-bar" data-v="45" x="0" y="70" width="0" height="26" rx="6" style="fill:var(--risk)"/>
+        <rect class="er-bar" data-v="84" x="0" y="150" width="0" height="26" rx="6" style="fill:var(--state)"/>
+        <rect class="er-bar" data-v="6" x="0" y="292" width="0" height="26" rx="6" style="fill:var(--risk)"/>
+        <rect class="er-bar" data-v="88" x="0" y="372" width="0" height="26" rx="6" style="fill:var(--state)"/>
+        <text class="er-val vl" x="0" y="90" style="fill:var(--risk)">0%</text>
+        <text class="er-val vl" x="0" y="170" style="fill:var(--state)">0%</text>
+        <text class="er-val vl" x="0" y="312" style="fill:var(--risk)">0%</text>
+        <text class="er-val vl" x="0" y="392" style="fill:var(--state)">0%</text>
+      </svg>
+      <div class="cites" data-step="4"><a class="cite paper" href="https://arxiv.org/abs/2609.35381" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2609.35381 · MCP error messages written for developers</a></div>
+    </div>
+  </div>
+  <aside class="notes">An error message is a prompt: the model reads it and tries to do what it says. arXiv 2609.35381 (2026-09-28) audited 3,001 errors from 150 popular MCP servers; 949 of them prescribe a next step, and 62 of 67 credential steps ask for a terminal command, a config change or a web page, which a tool-only agent cannot do. Step 1 shows that style on our own server: "Run claims-cli login". With a terminal step, mean recovery from an expired credential was 45%. Step 2: add a login tool and name it the way the model sees it: with tool_name_prefix="claims" that is claims_login, and login must also go into tool_filter. Naming a login tool lifted recovery to 84%. Step 3: for rate limits, "Wait before retrying." gave 6% recovery, and naming the call to repeat gave 88%. The study used five OpenAI models on BFCL-style tasks, so treat the numbers as direction, not as a guarantee for Gemini. Think of a note on a locked door: "Ask reception for a key" helps a person, but a robot needs "press button 2". A likely question: "Why not just retry in code?" Do both: back off in code for 429s, and still tell the model which call to repeat.</aside>
+</section>
+<script>
+(() => {
+  const W = 440;
+  const SHOW = [1, 2, 3, 3]; // step at which each bar grows
+  let tl = null, E = null;
+  const grab = (s) => ({ bars: [...s.querySelectorAll(".er-bar")], vals: [...s.querySelectorAll(".er-val")] });
+  function setBar(e, i, v) {
+    e.bars[i].setAttribute("width", (W * v) / 100);
+    e.vals[i].setAttribute("x", Math.min((W * v) / 100 + 10, W - 50));
+    e.vals[i].setAttribute("y", +e.bars[i].getAttribute("y") + 20);
+    e.vals[i].textContent = Math.round(v) + "%";
+    const inside = (W * v) / 100 + 60 > W;
+    e.vals[i].style.fill = inside ? "#fff" : "";
+    if (inside) e.vals[i].setAttribute("x", (W * v) / 100 - 56);
+  }
+  function render(slide, n, animate) {
+    if (!E) E = grab(slide);
+    const e = E;
+    if (tl) tl.kill();
+    gsap.killTweensOf([...e.bars, ...e.vals]);
+    e.bars.forEach((b, i) => {
+      const on = n >= SHOW[i];
+      gsap.set([b, e.vals[i]], { autoAlpha: on ? 1 : 0 });
+      setBar(e, i, on ? +b.dataset.v : 0);
+    });
+    if (!animate) return;
+    tl = gsap.timeline();
+    e.bars.forEach((b, i) => {
+      if (SHOW[i] !== n) return;
+      const o = { v: 0 };
+      setBar(e, i, 0);
+      tl.to(o, { v: +b.dataset.v, duration: 0.9, ease: "power2.out", onUpdate: () => setBar(e, i, o.v) }, 0.3 + (i % 2) * 0.4);
+    });
+  }
+  Deck.register("adk-c06-errors-rewrite", {
+    enter(slide, n) { render(slide, n || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { if (tl) tl.kill(); tl = null; },
+  });
+})();
+</script>

@@ -1,0 +1,224 @@
+<section class="slide" id="adk-interview-c02-qa-resume-retry" data-tone="human" data-title="Q&amp;A: retry and resume">
+  <style>
+    #adk-interview-c02-qa-resume-retry .qa-col { display: flex; flex-direction: column; gap: 22px; }
+    #adk-interview-c02-qa-resume-retry .qa { gap: 10px; margin-left: -22px; padding-left: 18px; border-left: 4px solid transparent; }
+    #adk-interview-c02-qa-resume-retry .qa.cur { border-left-color: var(--human); }
+    #adk-interview-c02-qa-resume-retry .qa.past { opacity: .5; border-left-color: transparent; }
+    #adk-interview-c02-qa-resume-retry .qa .q { font-size: 23px; }
+    #adk-interview-c02-qa-resume-retry .qa .a { font-size: 19px; line-height: 1.45; padding: 12px 18px; }
+    #adk-interview-c02-qa-resume-retry code, #adk-interview-c02-qa-resume-retry svg text { font-variant-ligatures: none !important; }
+    #adk-interview-c02-qa-resume-retry .qa code { font-size: .86em; padding: 1px 6px; }
+    #adk-interview-c02-qa-resume-retry .viz { display: grid; align-items: start; }
+    #adk-interview-c02-qa-resume-retry .vp { grid-area: 1 / 1; display: flex; flex-direction: column; gap: 12px; padding: 16px 18px;
+      border-radius: 16px; border: 1px solid var(--line); border-top: 3px solid var(--human); background: var(--surface); }
+    #adk-interview-c02-qa-resume-retry .vp h4 { font-size: 20px; margin: 0; }
+    #adk-interview-c02-qa-resume-retry .vp pre.code, #adk-interview-c02-qa-resume-retry .vp pre.code code { font-size: 15px; line-height: 1.5; font-variant-ligatures: none; }
+    #adk-interview-c02-qa-resume-retry .vp pre.code { padding: 10px 14px 12px; }
+    #adk-interview-c02-qa-resume-retry .vp .code-head { padding: 7px 12px; font-size: 14px; }
+    #adk-interview-c02-qa-resume-retry .slotB { display: grid; }
+    #adk-interview-c02-qa-resume-retry .slotB > * { grid-area: 1 / 1; align-self: start; }
+    #adk-interview-c02-qa-resume-retry .before { border-left: 5px solid var(--risk); border-radius: 0 12px 12px 0; padding: 12px 16px; background: var(--risk-soft); display: grid; gap: 6px; }
+    #adk-interview-c02-qa-resume-retry .before .k { font: 700 15px/1 var(--f-mono); color: var(--risk); text-transform: uppercase; letter-spacing: .05em; }
+    #adk-interview-c02-qa-resume-retry .before code { font-size: 18px; color: var(--ink); }
+    #adk-interview-c02-qa-resume-retry .before span { font-size: 18px; color: var(--ink-2); }
+    #adk-interview-c02-qa-resume-retry .tri { display: grid; gap: 14px; }
+    #adk-interview-c02-qa-resume-retry .tri > div { border: 1.5px solid var(--line-2); border-left: 5px solid var(--c); border-radius: 12px; padding: 14px 16px; display: grid; gap: 6px; background: color-mix(in oklab, var(--c) 5%, var(--surface)); }
+    #adk-interview-c02-qa-resume-retry .tri .h { font: 700 15px/1.2 var(--f-mono); text-transform: uppercase; letter-spacing: .05em; color: var(--c); }
+    #adk-interview-c02-qa-resume-retry .tri .t { font: 700 20px/1.25 var(--f-mono); color: var(--ink); }
+    #adk-interview-c02-qa-resume-retry .tri .e { font-size: 18px; line-height: 1.3; color: var(--ink-2); }
+    #adk-interview-c02-qa-resume-retry .cites { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+    #adk-interview-c02-qa-resume-retry .cite { font-size: 14px; padding: 6px 10px 6px 8px; }
+  </style>
+  <div class="kicker">Interview · retry and resume · Q&amp;A set 1 of 3</div>
+  <h2 class="title">Retries and resume replay work, so design every write for twice</h2>
+  <div class="grid fill" style="grid-template-columns: 1fr 620px; gap: 36px">
+    <div class="qa-col">
+      <div class="qa" data-on="1:cur 2:past">
+        <div class="q"><span>After a crash, the resumed payouts workflow paid the payee twice. Why, and what is the fix?</span></div>
+        <div class="a" data-step="1" data-fx="up">Resume is <b>at-least-once</b>: pay crashed before its event was saved, so it ran again. Send the gateway an idempotency key from a stable business id, <code>payout-&lt;order&gt;</code>, never <code>uuid4()</code>.</div>
+      </div>
+      <div class="qa" data-on="2:cur 4:past">
+        <div class="q"><span>Your <code>RetryConfig</code> never fires. What are the two usual causes?</span></div>
+        <div class="a" data-step="2" data-fx="up">A broad <code>except Exception</code> hides the failure. Or a timeout raises <b><code>NodeTimeoutError</code></b>, which is not in <code>exceptions</code>: add it by name. The attempt counter resets on resume, so the key still matters.</div>
+      </div>
+      <div class="qa" data-on="4:cur">
+        <div class="q"><span>Which retry tool fits which failure: <code>RetryConfig</code>, a routed back-edge or <code>ReflectAndRetryToolPlugin</code>?</span></div>
+        <div class="a" data-step="4" data-fx="up"><b>Classify the failure first.</b> A transient error, a wrong answer and a fixable tool error each have their own tool.</div>
+      </div>
+    </div>
+
+    <div class="stack" style="gap:0">
+      <div class="viz">
+        <div class="vp" data-until="2">
+          <h4>Crash after the gateway call, before pay's event is saved</h4>
+          <svg id="adk-c02-rr-svg" viewBox="0 0 584 280" width="584" height="280" aria-label="Without a key the gateway pays twice; with key payout-A-2040 the second call is a duplicate"></svg>
+          <div class="code-wrap" data-step="1">
+            <div class="code-head">payouts/app.py · pay</div>
+            <pre class="code" data-lang="python"><code>from google.adk import Context
+gateway = ...  # stub: your payment client
+
+async def pay(ctx: Context, order_id: str, amount: float):
+    key = f"payout-{order_id}"  # stable business id
+    gateway.pay(order_id, amount, idempotency_key=key)</code></pre>
+          </div>
+        </div>
+
+        <div class="vp" data-step="2" data-until="4">
+          <div class="code-wrap">
+            <div class="code-head">payouts/app.py · pay with retry</div>
+            <pre class="code" data-lang="python" data-focus="2:7-8, 3:5-6"><code>from google.adk import Context
+from google.adk.workflow import RetryConfig, node
+gateway = ...  # stub: your payment client
+@node(retry_config=RetryConfig(
+        max_attempts=4, initial_delay=0.5,
+        backoff_factor=2.0, jitter=0.0,
+        exceptions=[ConnectionError, "NodeTimeoutError"]),
+      timeout=2.0)
+async def pay(ctx: Context, order_id: str, amount: float):
+    key = f"payout-{order_id}"  # same key as Q1
+    gateway.pay(order_id, amount, idempotency_key=key)</code></pre>
+          </div>
+          <div class="slotB">
+            <div class="before" data-until="3">
+              <span class="k">before: NodeTimeoutError → no retry</span>
+              <code>exceptions=[ConnectionError], timeout=2.0</code>
+              <span>A timeout is not a ConnectionError, so it is not retried.</span>
+            </div>
+            <svg id="adk-c02-rt-svg" data-step="3" viewBox="0 0 584 150" width="584" height="150" aria-label="Retry timeline for this config: try 1 and 2 fail with gateway 503, waits of 0.5 s and 1.0 s, try 3 succeeds, try 4 is the cap"></svg>
+          </div>
+        </div>
+
+        <div class="vp" data-step="4">
+          <h4>Pick the tool by the failure class</h4>
+          <div class="tri" data-fx="stagger">
+            <div style="--c: var(--tool)"><span class="h">transient · 503, timeout</span><span class="t">RetryConfig on the flaky node</span><span class="e">Not on the parent Workflow: #7524 re-runs a finished sibling.</span></div>
+            <div style="--c: var(--human)"><span class="h">semantic · valid but wrong</span><span class="t">Routed back-edge + round limit</span><span class="e">A route back to an earlier node. Count rounds in state.</span></div>
+            <div style="--c: var(--model)"><span class="h">model-fixable tool error</span><span class="t">ReflectAndRetryToolPlugin</span><span class="e">Shows the tool error to the model, which fixes the call.</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="cites">
+        <a class="cite doc" href="https://adk.dev/runtime/resume/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;ADK resume</a>
+        <a class="cite repo" href="https://github.com/google/adk-python/issues/7524" target="_blank" rel="noopener"><b>Repo</b>&nbsp;adk-python #7524</a>
+        <a class="cite doc" href="https://adk.dev/2.0/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;ADK 2.0 migration</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Ask each question and let the candidate answer before you reveal the model answer. Prerequisites: the chapter 1 slides on routes and loops introduced the routed back-edge; RetryConfig and the plugin are defined on the last card here. Question 1: the panel first shows the bug, two payouts after a crash between the gateway call and the saved event of pay. ADK's own docstring says the "tool call to resume needs to be idempotent". With a key from a stable business id such as payout-&lt;order&gt;, the gateway sees the second call as a duplicate, so the count drops to one. order_id and amount reach pay from state by parameter name (parameter_binding="state" is the default). The lab prints a key from ctx.invocation_id; that works only while resume keeps the same invocation, so lead with the business id. Question 2, first click: the focus is on exceptions. It matches the class name of the exception or any parent class name (Python's method resolution order), as strings or classes, so "NodeTimeoutError" needs no import (the class lives in the private module google.adk.workflow._errors). A broad except Exception hides the failure from the engine, and catching BaseException also traps NodeInterruptedError and breaks human pauses. Second click: the focus moves to the delays and the timeline draws. This config uses jitter=0.0, so the waits are exactly 0.5 s and 1.0 s, and try 4 is the cap because max_attempts counts the first try. The defaults are 5 attempts, 1.0 s, 60 s max, x2, jitter 1.0. The attempt counter is not persisted: a crash after try 3 and a resume give the node a full new budget, so the idempotency key still protects you. Question 3: classify the failure, then pick the tool. Wrong: Workflow(..., retry_config=RetryConfig(...)) on the parent; right: @node(retry_config=...) on the flaky node, because issue #7524 (open) shows a finished sibling re-running on a real database backend. ReflectAndRetryToolPlugin comes from google.adk.plugins and goes in App(plugins=[ReflectAndRetryToolPlugin(max_retries=2)]); for soft errors in a dict, override extract_error_from_result. Analogy: a courier who may ring twice must carry a parcel number, so the second ring does not deliver a second parcel. Next slide: the human pause itself, in the refund_approval flow.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "adk-interview-c02-qa-resume-retry";
+  let P = null, tw = [];
+
+  const el = (parent, tag, attrs, style, text) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (style) Object.assign(e.style, style);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  };
+  const mono = (sz, w, fill) => ({ font: `${w} ${sz}px var(--f-mono)`, fill });
+
+  function build(slide) {
+    // ---------- scene A: crash after the gateway call ----------
+    const svg = slide.querySelector("#adk-c02-rr-svg");
+    svg.innerHTML = "";
+    const keys = [];
+    [6, 118].forEach((y, i) => {
+      const g = el(svg, "g", {});
+      el(g, "text", { x: 0, y: y + 33 }, mono(18, 600, "var(--muted)"), `process ${i + 1}`);
+      el(g, "rect", { x: 120, y, width: 220, height: 52, rx: 10 }, { fill: "var(--tool-soft)", stroke: "var(--tool)", strokeWidth: 2 });
+      el(g, "text", { x: 230, y: y + 33, "text-anchor": "middle" }, mono(19, 700, "var(--ink)"), "pay A-2040");
+      el(g, "line", { x1: 344, y1: y + 26, x2: 410, y2: y + 26 }, { stroke: "var(--tool)", strokeWidth: 2.5 });
+      keys.push(el(g, "text", { x: 230, y: y + 76, "text-anchor": "middle" }, mono(18, 700, "var(--state)"), "key payout-A-2040"));
+    });
+    const crash = el(svg, "g", {});
+    el(crash, "path", { d: "M 122 94 l 12 12 M 134 94 l -12 12" }, { stroke: "var(--risk)", strokeWidth: 3.5, strokeLinecap: "round" });
+    el(crash, "text", { x: 144, y: 106 }, mono(18, 700, "var(--risk)"), "crash: event not saved");
+    el(svg, "rect", { x: 414, y: 0, width: 170, height: 186, rx: 12 }, { fill: "var(--surface)", stroke: "var(--line-2)", strokeWidth: 2 });
+    el(svg, "text", { x: 499, y: 32, "text-anchor": "middle" }, mono(19, 700, "var(--ink)"), "gateway");
+    el(svg, "text", { x: 499, y: 70, "text-anchor": "middle" }, mono(18, 600, "var(--ink-2)"), "payout 1 ✓");
+    const g2 = el(svg, "text", { x: 499, y: 150, "text-anchor": "middle" }, mono(18, 700, "var(--risk)"), "");
+    const g2b = el(svg, "text", { x: 499, y: 174, "text-anchor": "middle" }, mono(18, 700, "var(--state)"), "");
+    const cntBox = el(svg, "rect", { x: 0, y: 214, width: 584, height: 58, rx: 12 }, { strokeWidth: 1.5 });
+    const cnt = el(svg, "text", { x: 292, y: 251, "text-anchor": "middle" }, mono(22, 700, "var(--risk)"), "");
+
+    // ---------- scene B: retry timeline (this config) ----------
+    const svgB = slide.querySelector("#adk-c02-rt-svg");
+    svgB.innerHTML = "";
+    el(svgB, "text", { x: 0, y: 20 }, mono(18, 700, "var(--human)"), "this config: 0.5 s, ×2");
+    el(svgB, "line", { x1: 0, y1: 98, x2: 584, y2: 98 }, { stroke: "var(--line-2)", strokeWidth: 2 });
+    // 160 px per second; attempts are 52 px wide
+    const AT = [{ x: 0, k: "x" }, { x: 132, k: "x" }, { x: 344, k: "ok" }, { x: 512, k: "cap" }];
+    const att = AT.map((a, i) => {
+      const g = el(svgB, "g", {});
+      const col = a.k === "ok" ? "var(--state)" : a.k === "x" ? "var(--risk)" : "var(--muted)";
+      el(g, "rect", { x: a.x, y: 46, width: 52, height: 52, rx: 8 }, { fill: a.k === "cap" ? "var(--surface-2)" : `var(--${a.k === "ok" ? "state" : "risk"}-soft)`, stroke: col, strokeWidth: 2, strokeDasharray: a.k === "cap" ? "6 5" : "none" });
+      el(g, "text", { x: a.x + 26, y: 80, "text-anchor": "middle" }, mono(20, 700, col), a.k === "ok" ? "✓" : a.k === "x" ? "✕" : "4");
+      el(g, "text", { x: a.x + 26, y: 122, "text-anchor": "middle" }, mono(18, 600, "var(--muted)"), a.k === "cap" ? "cap" : `try ${i + 1}`);
+      return g;
+    });
+    const waits = [[52, 132, "0.5 s"], [184, 344, "1.0 s"]].map(([x1, x2, l]) => {
+      const g = el(svgB, "g", {});
+      const ln = el(g, "line", { x1, y1: 72, x2, y2: 72 }, { stroke: "var(--human)", strokeWidth: 3, strokeDasharray: "6 5" });
+      el(g, "text", { x: (x1 + x2) / 2, y: 62, "text-anchor": "middle" }, mono(18, 700, "var(--human)"), l);
+      return { g, ln, len: x2 - x1 };
+    });
+    const err = el(svgB, "text", { x: 0, y: 146 }, mono(18, 600, "var(--risk)"), "gateway 503 on tries 1-2");
+
+    P = { keys, crash, g2, g2b, cntBox, cnt, att, waits, err };
+  }
+
+  function kill() { tw.forEach((t) => t.kill()); tw = []; }
+
+  function render(slide, n, animate) {
+    const p = P;
+    kill();
+    // left column: hidden answers take no space, so the questions stack tightly
+    slide.querySelectorAll(".qa .a").forEach((a) => { a.style.display = +a.dataset.step <= n ? "" : "none"; });
+    // scene A
+    const fixed = n >= 1;
+    p.keys.forEach((k) => (k.style.opacity = fixed ? 1 : 0));
+    p.g2.textContent = fixed ? "same key:" : "payout 2 ✓";
+    p.g2b.textContent = fixed ? "duplicate" : "";
+    p.g2.style.fill = fixed ? "var(--state)" : "var(--risk)";
+    p.cnt.textContent = fixed ? "payouts sent: 1" : "payouts sent: 2";
+    p.cnt.style.fill = fixed ? "var(--state)" : "var(--risk)";
+    p.cntBox.style.fill = fixed ? "var(--state-soft)" : "var(--risk-soft)";
+    p.cntBox.style.stroke = fixed ? "var(--state)" : "var(--risk)";
+    if (animate && n === 1) {
+      tw.push(gsap.fromTo(p.keys, { opacity: 0 }, { opacity: 1, duration: 0.4, stagger: 0.2, delay: 0.3 }));
+      tw.push(gsap.fromTo(p.cnt, { scale: 1.25, transformOrigin: "50% 50%" }, { scale: 1, duration: 0.5, delay: 0.7, ease: "back.out(2)" }));
+    }
+    // scene B: attempts in time order, after the focus band lands on the delays
+    const seq = animate && n === 3;
+    const t0 = 0.7;
+    p.att.forEach((a, i) => {
+      if (seq) tw.push(gsap.fromTo(a, { opacity: 0, y: 10 }, { opacity: i === 3 ? 0.8 : 1, y: 0, duration: 0.35, delay: t0 + i * 0.9 }));
+      else gsap.set(a, { opacity: i === 3 ? 0.8 : 1, y: 0 });
+    });
+    p.waits.forEach((w, i) => {
+      gsap.set(w.g, { opacity: 1 });
+      if (seq) {
+        tw.push(gsap.fromTo(w.ln, { strokeDasharray: `${w.len} ${w.len}`, strokeDashoffset: w.len }, { strokeDashoffset: 0, duration: 0.5 + i * 0.3, delay: t0 + 0.4 + i * 0.9, ease: "none", onComplete: () => { w.ln.style.strokeDasharray = "6 5"; } }));
+      } else {
+        w.ln.style.strokeDasharray = "6 5"; w.ln.style.strokeDashoffset = 0;
+      }
+    });
+    if (seq) tw.push(gsap.fromTo(p.err, { opacity: 0 }, { opacity: 1, duration: 0.4, delay: t0 + 2.2 }));
+    else gsap.set(p.err, { opacity: 1 });
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { build(slide); render(slide, step || 0, false); },
+    step(slide, n, animate) {
+      if (!P || !slide.querySelector("#adk-c02-rr-svg").firstChild) build(slide);
+      render(slide, n, animate);
+    },
+    leave() { kill(); },
+  });
+})();
+</script>

@@ -1,0 +1,209 @@
+<section class="slide" id="custom-c08-lab7-time-split" data-tone="risk" data-title="Lab 7: time split with a gap">
+  <style>
+    #custom-c08-lab7-time-split { gap: 20px; }
+    #custom-c08-lab7-time-split .ts-grid { display: grid; grid-template-columns: 760px 1fr; gap: 26px; min-height: 0; }
+    #custom-c08-lab7-time-split .ts-left, #custom-c08-lab7-time-split .ts-right { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    #custom-c08-lab7-time-split .lab-head { font-size: 14px; gap: 10px; }
+    #custom-c08-lab7-time-split .lab-head .run { font-size: 14.5px; padding: 7px 11px; }
+    #custom-c08-lab7-time-split .code-head { padding: 7px 14px; font-size: 13.5px; }
+    #custom-c08-lab7-time-split .ts-code pre.code { font-size: 11.5px; line-height: 1.45; padding: 10px 14px 12px; }
+    #custom-c08-lab7-time-split .ts-out pre.code { font-size: 11.5px; line-height: 1.45; padding: 8px 14px 10px; }
+    #custom-c08-lab7-time-split .gotcha { font-size: 14px; }
+    #custom-c08-lab7-time-split .gotcha code { font-size: .86em; white-space: normal; overflow-wrap: anywhere; }
+    #custom-c08-lab7-time-split .steps-rail { gap: 8px; }
+    #custom-c08-lab7-time-split .steps-rail > * { font-size: 15px; line-height: 1.34; grid-template-columns: 30px 1fr; gap: 10px; }
+    #custom-c08-lab7-time-split .steps-rail > *::before { width: 26px; height: 26px; font-size: 14px; }
+    #custom-c08-lab7-time-split .steps-rail code { font-size: .84em; }
+    #custom-c08-lab7-time-split .cites { display: flex; gap: 10px; flex-wrap: wrap; margin-top: auto; }
+    #custom-c08-lab7-time-split pre.code, #custom-c08-lab7-time-split pre.code *, #custom-c08-lab7-time-split code, #custom-c08-lab7-time-split svg text { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #c08ts-svg text { font-family: var(--f-mono); }
+  </style>
+  <div class="kicker"><span class="pill">Lab 7</span> Acme refund-fraud model · step 3 of 5</div>
+  <h2 class="title">Sort by time, leave a label-delay gap, assert the future never trains</h2>
+  <div class="ts-grid fill">
+    <div class="ts-left">
+      <div class="lab-head"><span class="run">LOKY_MAX_CPU_COUNT=4 python lab7_leakage_splits.py</span><span class="small">scikit-learn==1.9.1 · same file, lines 31-39</span></div>
+      <div class="code-wrap ts-code">
+        <div class="code-head">fraud_data/lab7_leakage_splits.py · lines 2, 5, 31-39</div>
+        <pre class="code" data-lang="python" data-focus="1:6-8, 2:9-10, 3:11-13, 4:14"><code>import numpy as np
+from sklearn.model_selection import GroupKFold, KFold, TimeSeriesSplit, cross_val_score
+
+# lines 7-29: df, X, y and KFold vs GroupKFold   (step 2)
+
+# Time-ordered evaluation: sort by event time FIRST, then leave a 7-day gap (label delay).
+order = np.argsort(df["event_day"].to_numpy(), kind="stable")
+Xs, ys, days = X.iloc[order], y[order], df["event_day"].to_numpy()[order]
+rows_per_day = len(df) // 365
+tscv = TimeSeriesSplit(n_splits=4, gap=7 * rows_per_day)
+for k, (tr, te) in enumerate(tscv.split(Xs)):
+    print(f"fold {k}: train days {days[tr].min():>3}-{days[tr].max():>3} | "
+          f"test days {days[te].min():>3}-{days[te].max():>3} | n_train={len(tr)}")
+assert all(days[tr].max() &lt; days[te].min() for tr, te in tscv.split(Xs)), "future leaked into train"</code></pre>
+      </div>
+      <div class="code-wrap out ts-out" data-step="3">
+        <div class="code-head">output · captured run</div>
+        <pre class="code" data-lang="none"><code>fold 0: train days   0- 64 | test days  71-145 | n_train=1088
+fold 1: train days   0-138 | test days 145-220 | n_train=2288
+fold 2: train days   0-213 | test days 220-290 | n_train=3488
+fold 3: train days   0-284 | test days 290-364 | <span class="ok">n_train=4688</span></code></pre>
+      </div>
+      <div class="gotcha" data-step="5">
+        <b>Symptom</b><span><code>ValueError: Too many splits=5 for number of samples=50 with test_size=8 and gap=40.</code></span>
+        <b class="why">Cause</b><span>The gap is in rows. A large gap leaves too few rows for the folds.</span>
+        <b class="fix">Fix</b><span>Lower <code>n_splits</code> or <code>gap</code>, or set <code>test_size</code>.</span>
+      </div>
+    </div>
+    <div class="ts-right">
+      <svg id="c08ts-svg" viewBox="0 0 680 372" width="606" height="332" role="img" aria-label="A 365-day axis. Step 1: a strip of rows in file order sorts itself by event_day. Step 2: fold 0 appears: a blue train bar for days 0 to 64, a grey 7-day gap, and an amber test bar for days 71 to 145, n_train 1088. Step 3: folds 1, 2 and 3 grow in turn and the n_train counter goes 2288, 3488, 4688. Step 4: a red arrow from the fold 3 test days tries to reach the train bar across the gap and an assert stamp says blocked. Step 5: the fold 3 test bar gets a violet outline: later days and customers not in train."></svg>
+      <div class="steps-rail">
+        <div data-step="1"><span><code>TimeSeriesSplit</code> never reads a timestamp. It splits by row order, so sort by <code>event_day</code> first.</span></div>
+        <div data-step="2"><span><code>gap</code> counts samples, not days. Chargebacks take about 7 days: 7 × 16 rows/day = 112 rows.</span></div>
+        <div data-step="3"><span>Each fold trains on all earlier days. Fit every encoder inside a <code>Pipeline</code>, so each fold re-fits it.</span></div>
+        <div data-step="4"><span>The assert is an executable leakage test. Put it in the training repo's unit tests.</span></div>
+        <div data-step="5"><span>New customers in the future: combine the time cut-off with group exclusion on <code>customer_id</code>.</span></div>
+      </div>
+      <div class="cites">
+        <a class="cite doc" href="https://scikit-learn.org/stable/modules/cross_validation.html" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Time Series Split</a>
+        <a class="cite repo" href="https://github.com/scikit-learn/scikit-learn/blob/main/doc/common_pitfalls.rst" target="_blank" rel="noopener"><b>Repo</b>&nbsp;common_pitfalls.rst</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">This is step 3 of Lab 7: the same 6,000 refund events, now evaluated the way the model meets them in production, in time order. Step 1: TimeSeriesSplit only uses row order, so we sort by event_day with a stable sort first. Step 2: chargebacks take about 7 days to arrive, so the last week before a test window has no labels yet; the gap parameter counts rows, so we convert 7 days into 112 rows ourselves. Step 3: each fold trains on all earlier days, from 1,088 to 4,688 rows, and every preprocessor such as a target encoder must sit inside a Pipeline so it is re-fit per fold. Step 4: the assert is a one-line leakage test that fails the build if any training day is later than a test day; put it in CI. Step 5: when the model must also work on new customers, combine the time cut-off with group exclusion. Analogy: you grade a weather forecast only on days after the forecast was made, never on days it already saw. Likely question: why not a date-based splitter? You can write one; the important part is that the gap is in the same unit as the label delay. Hand-off: now the ROC-AUC is honest, but the hold rule needs probabilities, so step 4 checks whether the scores are calibrated.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c08-lab7-time-split";
+  const AX = 70, AW = 590, CELLS = 73, CW = AW / CELLS;
+  const dx = (d) => AX + d * AW / 365;
+  const FY = (k) => 112 + k * 48, BH = 28;
+  const FOLDS = [[64, 71, 145, 1088], [138, 145, 220, 2288], [213, 220, 290, 3488], [284, 290, 364, 4688]];
+  const perm = (i) => (i * 29) % CELLS;   // deterministic "file order"
+  let S = null;
+
+  function mk(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  }
+
+  function build(slide) {
+    const svg = slide.querySelector("#c08ts-svg");
+    if (svg._S) return svg._S;
+    svg.innerHTML = "";
+    const s = { prev: -1, cells: [], folds: [] };
+    const defs = mk("defs", {}, svg);
+    const mr = mk("marker", { id: "c08ts-ah", viewBox: "0 0 10 10", refX: 8, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto-start-reverse" }, defs);
+    mk("path", { d: "M0 0 L10 5 L0 10 z", fill: "var(--risk)" }, mr);
+    // strip of rows
+    s.stripL = mk("text", { x: 8, y: 22, "font-size": 12.5, "font-weight": 700, fill: "var(--ink)" }, svg, "6,000 rows · file order");
+    s.counter = mk("text", { x: 672, y: 22, "text-anchor": "end", "font-size": 13, "font-weight": 700, fill: "var(--agent)", opacity: 0 }, svg, "n_train = 0");
+    for (let i = 0; i < CELLS; i++)
+      s.cells.push(mk("rect", { x: AX + perm(i) * CW, y: 34, width: CW - 1, height: 26, rx: 1.5, fill: "var(--state)", opacity: 0.15 + 0.85 * i / (CELLS - 1) }, svg));
+    mk("text", { x: 8, y: 52, "font-size": 11, fill: "var(--muted)" }, svg, "rows");
+    // axis
+    mk("line", { x1: AX, y1: 92, x2: AX + AW, y2: 92, stroke: "var(--line-2)", "stroke-width": 1.5 }, svg);
+    [0, 90, 180, 270, 364].forEach((d) => {
+      mk("line", { x1: dx(d), y1: 88, x2: dx(d), y2: 96, stroke: "var(--line-2)", "stroke-width": 1.5 }, svg);
+      mk("text", { x: dx(d), y: 84, "text-anchor": "middle", "font-size": 10.5, fill: "var(--muted)" }, svg, "day " + d);
+    });
+    // folds
+    FOLDS.forEach(([trMax, teMin, teMax, n], k) => {
+      const g = mk("g", { opacity: 0 }, svg);
+      const y = FY(k);
+      mk("text", { x: 8, y: y + 18, "font-size": 11.5, "font-weight": 700, fill: "var(--ink-2)" }, g, "fold " + k);
+      const tr = mk("rect", { x: dx(0), y, width: dx(trMax + 1) - dx(0), height: BH, rx: 4, fill: "var(--agent)" }, g);
+      const gp = mk("rect", { x: dx(trMax + 1), y, width: dx(teMin) - dx(trMax + 1), height: BH, fill: "var(--muted)", opacity: 0.45 }, g);
+      const te = mk("rect", { x: dx(teMin), y, width: dx(teMax + 1) - dx(teMin), height: BH, rx: 4, fill: "var(--tool)" }, g);
+      const tt = mk("text", { x: dx(0) + 8, y: y + 18, "font-size": 11.5, "font-weight": 700, fill: "#fff" }, g, n + " rows");
+      s.folds.push({ g, tr, gp, te, tt, w: dx(trMax + 1) - dx(0), n });
+    });
+    s.gapL = mk("text", { x: dx(146) + 10, y: FY(0) + 18, "font-size": 11.5, "font-weight": 700, fill: "var(--muted)", opacity: 0 }, svg, "grey = gap: 7 days = 112 rows");
+    // step 4: future -> train arrow + stamp
+    const yb = FY(3) + BH + 2;
+    s.arrow = mk("path", { d: `M${dx(330)} ${yb} Q ${dx(290)} ${yb + 76} ${dx(250)} ${yb + 2}`, fill: "none", stroke: "var(--risk)", "stroke-width": 2.5, "stroke-dasharray": "6 4", "marker-end": "url(#c08ts-ah)", opacity: 0 }, svg);
+    s.arrowL = mk("text", { x: dx(250) - 14, y: yb + 30, "text-anchor": "end", "font-size": 11.5, "font-weight": 700, fill: "var(--risk)", opacity: 0 }, svg, "future -> train?");
+    s.stamp = mk("g", { opacity: 0 }, svg);
+    mk("rect", { x: dx(287) - 70, y: yb + 18, width: 140, height: 26, rx: 5, fill: "var(--bg)", stroke: "var(--risk)", "stroke-width": 2.2 }, s.stamp);
+    mk("text", { x: dx(287), y: yb + 36, "text-anchor": "middle", "font-size": 12.5, "font-weight": 800, fill: "var(--risk)" }, s.stamp, "assert: BLOCKED");
+    // step 5: group exclusion
+    s.grp = mk("g", { opacity: 0 }, svg);
+    mk("rect", { x: dx(290) - 3, y: FY(3) - 3, width: dx(365) - dx(290) + 6, height: BH + 6, rx: 6, fill: "none", stroke: "var(--human)", "stroke-width": 2.5 }, s.grp);
+    mk("text", { x: 8, y: 362, "font-size": 12.5, "font-weight": 700, fill: "var(--human)" }, s.grp, "fold 3 test = days 290-364 AND customer_id not in train");
+    svg._S = s;
+    return s;
+  }
+
+  function showFold(f, on, animate, delay) {
+    if (!on) { gsap.set(f.g, { opacity: 0 }); return; }
+    if (!animate) { gsap.set(f.g, { opacity: 1 }); gsap.set(f.tr, { attr: { width: f.w } }); gsap.set([f.gp, f.te, f.tt], { opacity: 1 }); return null; }
+    const tl = gsap.timeline({ delay });
+    tl.set(f.g, { opacity: 1 }).set(f.tr, { attr: { width: 0 } }).set([f.gp, f.te, f.tt], { opacity: 0 })
+      .to(f.tr, { attr: { width: f.w }, duration: .6, ease: "power2.out" })
+      .to(f.tt, { opacity: 1, duration: .2 }, "-=.2")
+      .to(f.gp, { opacity: 0.45, duration: .25 })
+      .to(f.te, { opacity: 1, duration: .3 });
+    return tl;
+  }
+
+  function render(s, n, animate) {
+    const els = [...s.cells, s.counter, s.gapL, s.arrow, s.arrowL, s.stamp, s.grp, ...s.folds.flatMap((f) => [f.g, f.tr, f.gp, f.te, f.tt])];
+    (s.tls || []).forEach((t) => t && t.kill()); s.tls = [];
+    gsap.killTweensOf(els);
+    const op = (el, v, d) => (animate ? gsap.to(el, { opacity: v, duration: .4, delay: d || 0 }) : gsap.set(el, { opacity: v }));
+    // step 1: sort the strip
+    s.stripL.textContent = n >= 1 ? "6,000 rows · sorted by event_day" : "6,000 rows · file order";
+    s.cells.forEach((c, i) => {
+      const x = AX + (n >= 1 ? i : perm(i)) * CW;
+      if (animate) gsap.to(c, { attr: { x }, duration: .9, delay: (i % 12) * 0.02, ease: "power3.inOut" });
+      else gsap.set(c, { attr: { x } });
+    });
+    // folds: step 2 shows fold 0, step 3 folds 1-3
+    const vis = n >= 3 ? 4 : n >= 2 ? 1 : 0;
+    const was = s.prev >= 3 ? 4 : s.prev >= 2 ? 1 : 0;
+    s.folds.forEach((f, k) => {
+      const grow = animate && k >= was && k < vis;
+      const tl = showFold(f, k < vis, grow, grow ? (k - was) * 1.1 + .1 : 0);
+      if (tl) s.tls.push(tl);
+    });
+    op(s.counter, vis ? 1 : 0);
+    if (vis) {
+      if (animate && vis > was) {
+        for (let k = was; k < vis; k++) s.tls.push(gsap.delayedCall((k - was) * 1.1 + .5, () => { s.counter.textContent = "n_train = " + FOLDS[k][3]; }));
+      } else s.counter.textContent = "n_train = " + FOLDS[vis - 1][3];
+    }
+    op(s.gapL, n === 2 ? 1 : 0, n === 2 ? 1.0 : 0);
+    // step 4: the assert blocks future -> train
+    if (n >= 4 && animate && s.prev < 4) {
+      const len = s.arrow.getTotalLength();
+      const tl = gsap.timeline();
+      tl.set(s.arrow, { opacity: 1, strokeDasharray: len, strokeDashoffset: len })
+        .to(s.arrowL, { opacity: 1, duration: .3 })
+        .to(s.arrow, { strokeDashoffset: 0, duration: .9, ease: "power2.inOut" })
+        .set(s.arrow, { strokeDasharray: "6 4", strokeDashoffset: 0 })
+        .fromTo(s.stamp, { opacity: 0, scale: 1.6, svgOrigin: `${dx(287)} ${FY(3) + BH + 33}` }, { opacity: 1, scale: 1, duration: .35, ease: "back.out(2)" })
+        .to(s.arrow, { opacity: 0.75, duration: .4 });
+      s.tls.push(tl);
+    } else {
+      gsap.set(s.arrow, { opacity: n >= 4 ? 0.75 : 0, strokeDasharray: "6 4", strokeDashoffset: 0 });
+      gsap.set(s.arrowL, { opacity: n >= 4 ? 1 : 0 });
+      gsap.set(s.stamp, { opacity: n >= 4 ? 1 : 0, scale: 1 });
+    }
+    // step 5: group exclusion on the test window
+    op(s.grp, n >= 5 ? 1 : 0);
+    s.prev = n;
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { S = build(slide); S.prev = step; render(S, step, false); },
+    step(slide, n, animate) { S = build(slide); render(S, n, animate); },
+    leave(slide) {
+      const svg = slide.querySelector("#c08ts-svg");
+      if (svg && svg._S) { (svg._S.tls || []).forEach((t) => t && t.kill()); svg._S.tls = []; }
+      if (svg) gsap.killTweensOf(svg.querySelectorAll("*"));
+    }
+  });
+})();
+</script>

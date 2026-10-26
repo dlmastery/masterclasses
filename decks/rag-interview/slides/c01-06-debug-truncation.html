@@ -1,0 +1,216 @@
+<section class="slide" id="rag-interview-c01-debug-truncation" data-tone="tool" data-title="Debug: the truncated appeal rule">
+  <style>
+    #rag-interview-c01-debug-truncation .dbt-prompt { font-size: 18px; line-height: 1.35; color: var(--ink-2); margin: 0; }
+    #rag-interview-c01-debug-truncation .dbt-main { display: grid; grid-template-columns: 790px 1fr; gap: 26px; }
+    #rag-interview-c01-debug-truncation .dbt-slot { display: grid; }
+    #rag-interview-c01-debug-truncation .dbt-slot > * { grid-area: 1 / 1; align-self: start; min-width: 0; }
+    #rag-interview-c01-debug-truncation .dbt-left { gap: 12px; min-width: 0; }
+    #rag-interview-c01-debug-truncation .dbt-left pre.code { font-size: 16.5px; line-height: 1.42; padding: 10px 16px 12px; }
+    #rag-interview-c01-debug-truncation .code-wrap .code-head { padding: 7px 14px; font-size: 14px; }
+    #rag-interview-c01-debug-truncation .code-wrap .band { background: color-mix(in oklab, #ffc44d 22%, transparent); border-left: 6px solid #ffc44d; }
+    #rag-interview-c01-debug-truncation .gotcha { font-size: 16px; line-height: 1.35; padding: 10px 16px; grid-template-columns: 96px 1fr; gap: 5px 12px; }
+    #rag-interview-c01-debug-truncation .gotcha > b { font-size: 13.5px; }
+    #rag-interview-c01-debug-truncation .dbt-right { gap: 12px; min-width: 0; }
+    #rag-interview-c01-debug-truncation .lab-head { flex-direction: column; align-items: flex-start; gap: 6px; }
+    #rag-interview-c01-debug-truncation .lab-head .run { font-size: 13.5px; padding: 7px 10px; }
+    #rag-interview-c01-debug-truncation .code-wrap.out pre.code { font-size: 14px; line-height: 1.5; padding: 10px 14px 12px; }
+    #rag-interview-c01-debug-truncation .dbt-cites { display: flex; gap: 8px; flex-wrap: wrap; }
+    #rag-interview-c01-debug-truncation #dbt-svg text { font-family: var(--f-mono); }
+  </style>
+  <div class="kicker"><span class="pill">Debug this</span> ingestion</div>
+  <h2 class="title">The appeal deadline is in the index but never retrieved</h2>
+  <p class="dbt-prompt">Users ask for the appeal deadline. The rule is in chunk 12, but retrieval never returns it. Find the bug.</p>
+  <div class="dbt-main fill">
+    <div class="dbt-left stack">
+      <div class="dbt-slot">
+        <div class="code-wrap bad" data-until="4">
+          <div class="code-head">ingest_claims.py · no error, no warning</div>
+          <pre class="code" data-lang="python" data-focus="2:6, 3:9"><code>from sentence_transformers import SentenceTransformer
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+text = open("adjuster_manual.md", encoding="utf-8").read()
+splitter = RecursiveCharacterTextSplitter(
+    chunk_size=2000, chunk_overlap=200)
+chunks = splitter.split_text(text)
+print(len(chunks), "chunks")
+vecs = model.encode(chunks, normalize_embeddings=True)
+q = model.encode("deadline to appeal a denied claim",
+                 normalize_embeddings=True)
+top = (vecs @ q).argsort()[::-1][:5]
+print("top-5 chunks:", top.tolist())   # chunk 12 never listed</code></pre>
+        </div>
+        <div class="code-wrap good" data-step="4">
+          <div class="code-head">ingest_claims.py · chunks sized in model tokens</div>
+          <pre class="code" data-lang="python" data-focus="4:4-7, 5:9-13"><code>from sentence_transformers import SentenceTransformer
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+tok, limit = model.tokenizer, model.max_seq_length   # 256 here
+splitter = RecursiveCharacterTextSplitter.from_huggingface_tokenizer(
+    tok, chunk_size=240, chunk_overlap=0)  # 256 - 2 special - margin
+chunks = splitter.split_text(open("adjuster_manual.md").read())
+n_tok = lambda c: len(tok(c)["input_ids"])   # incl. [CLS], [SEP]
+cut = [i for i, c in enumerate(chunks) if n_tok(c) &gt; limit]
+pct = 100 * len(cut) / len(chunks)
+print(len(chunks), f"chunks truncated: {pct:.1f}%")
+assert not cut, f"{len(cut)} chunks will be truncated"
+vecs = model.encode(chunks, normalize_embeddings=True)</code></pre>
+        </div>
+      </div>
+      <div class="gotcha">
+        <b>Symptom</b><span>Text in the tail of long chunks is unsearchable. No warning.</span>
+        <b class="why" data-step="3">Cause</b><span data-step="3"><code>chunk_size=2000</code> counts characters. <code>encode</code> silently keeps only the first <code>max_seq_length</code> tokens: 256 for <code>all-MiniLM-L6-v2</code>.</span>
+        <b class="fix" data-step="4">Fix</b><span data-step="4">Split with the model's own tokenizer. Keep each chunk under the limit.</span>
+        <b class="fix" data-step="5">Guard</b><span data-step="5">Assert 0 truncated chunks. Log "truncated %" on every ingest run.</span>
+      </div>
+    </div>
+    <div class="dbt-right stack">
+      <div class="lab-head">
+        <span class="run">pip install sentence-transformers==6.2.0 langchain-text-splitters==1.1.3</span>
+        <span class="run">python ingest_claims.py</span>
+      </div>
+      <div class="dbt-slot" data-step="1">
+        <div class="code-wrap out" data-until="4">
+          <div class="code-head">output · illustrative</div>
+          <pre class="code" data-lang="none"><code>41 chunks
+top-5 chunks: [3, 27, 8, 30, 14]
+<span class="dim"># the appeal rule sits at character 1,600 of chunk 12</span></code></pre>
+        </div>
+        <div class="code-wrap out" data-step="4">
+          <div class="code-head">output · illustrative</div>
+          <pre class="code" data-lang="none"><code><span class="ok">92 chunks truncated: 0.0%</span>
+top-5 chunks: [27, 3, 26, 61, 8]
+<span class="dim"># new splits, new ids: chunk 27 holds the rule</span></code></pre>
+        </div>
+      </div>
+      <svg id="dbt-svg" viewBox="0 0 560 290" width="560" height="290" aria-label="Chunk 12 is cut at 256 tokens, then re-split into token-sized chunks; tokens per chunk before and after"></svg>
+      <div class="dbt-cites push">
+        <a class="cite repo" href="https://github.com/huggingface/sentence-transformers/issues/4060" target="_blank" rel="noopener"><b>Issue</b>&nbsp;sentence-transformers #4060</a>
+        <a class="cite doc" href="https://docs.langchain.com/oss/python/integrations/splitters" target="_blank" rel="noopener"><b>Docs</b>&nbsp;LangChain text splitters</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Show the code and the output, then give the room thirty seconds to find the bug. The splitter counts characters, but the embedder counts tokens: all-MiniLM-L6-v2 keeps only 256 tokens, and a 2,000-character chunk is much longer than that, so the appeal rule at character 1,600 is never embedded. This is documented behaviour, not a library bug: Sentence Transformers always passes a max length with truncation on, so transformers prints no warning; issue 4060 is still open. The fix sizes chunks with the embedder's own tokenizer: 240 leaves room for the two special tokens plus a small margin, and the assert checks it. Overlap is optional; it is counted inside chunk_size, so you can add it back. Read model.max_seq_length for every embedder you use, because it differs per model. The chunk numbers change after the fix because the splits changed. Analogy: a scanner that reads only the first page of every letter you feed it. Likely follow-up, "Can I just raise max_seq_length?": no, a model gives poor embeddings for inputs longer than the ones it was trained on; pick an embedder with a longer window and still chunk in its own tokens. Hand-off: chapter 2 picks the embedder and the vector index that store these chunks.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "rag-interview-c01-debug-truncation";
+  // geometry (viewBox 560 x 290)
+  const BX = 20, BW = 520, BY = 36, BH = 40;          // chunk 12 bar
+  const CUT = 0.55, APPEAL = 0.8, MARK = 52;           // 256-token cut and appeal rule (fractions of 2,000 chars)
+  const PIECES = [[0, 0.36], [0.36, 0.7], [0.7, 1]];   // fixed split of the same text
+  const GAP = 8;
+  const AX = 34, AW = 406, BASE = 272, SC = 0.29, LIM = 256;   // tokens-per-chunk chart, same scale before and after
+  const OLD = [452, 470, 431, 465, 448, 476, 440, 210];
+  const NEW = [228, 236, 214, 240, 231, 219, 238, 225, 233, 240, 222, 236, 229, 217, 239, 118];
+  const OLD_PCT = Math.round(100 * OLD.filter((v) => v > LIM).length / OLD.length); // 88
+  let svg = null, E = {}, cnt = { v: 0 }, all = [];
+  const el = (tag, attrs, parent, text) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text != null) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  };
+  const pieceGeo = (i, split) => {
+    const [a, b] = PIECES[i];
+    if (!split) return { x: BX + a * BW, width: (b - a) * BW };
+    const w = BW - GAP * (PIECES.length - 1);
+    return { x: BX + a * w + i * GAP, width: (b - a) * w };
+  };
+  const markX = (split) => {
+    if (!split) return BX + APPEAL * BW - MARK / 2;
+    const w = BW - GAP * (PIECES.length - 1);
+    return BX + APPEAL * w + 2 * GAP - MARK / 2;
+  };
+
+  function build(s) {
+    svg = s; svg.innerHTML = ""; E = {};
+    const cutX = BX + CUT * BW;
+    E.head = el("text", { x: BX, y: 24, "font-size": 15, "font-weight": 700, style: "fill:var(--ink)" }, svg, "chunk 12 · 2,000 characters");
+    E.appealLbl = el("text", { x: markX(false) + MARK / 2, y: 24, "text-anchor": "middle", "font-size": 14, "font-weight": 700, style: "fill:var(--tool)" }, svg, "appeal within 60 days");
+    E.outline = el("rect", { x: BX, y: BY, width: BW, height: BH, rx: 8, style: "fill:var(--state-soft);stroke:var(--state);stroke-width:2" }, svg);
+    E.pieces = PIECES.map((_, i) => el("rect", { ...pieceGeo(i, false), y: BY, height: BH, rx: 8, style: "fill:var(--state-soft);stroke:var(--state);stroke-width:2", opacity: 0 }, svg));
+    E.mark = el("rect", { x: markX(false), y: BY + 6, width: MARK, height: BH - 12, rx: 5, style: "fill:var(--tool)" }, svg);
+    E.tail = el("rect", { x: cutX, y: BY - 2, width: BX + BW - cutX + 2, height: BH + 4, style: "fill:var(--muted)", opacity: 0 }, svg);
+    E.cut = el("line", { x1: cutX, y1: BY - 8, x2: cutX, y2: BY + BH + 8, style: "stroke:var(--risk);stroke-width:3;stroke-dasharray:6 4", opacity: 0 }, svg);
+    E.scissors = el("text", { x: cutX, y: BY - 12, "text-anchor": "middle", "font-size": 18, style: "fill:var(--risk)", opacity: 0 }, svg, "✂");
+    E.charLbl = el("text", { x: markX(false) + MARK / 2, y: 98, "text-anchor": "middle", "font-size": 14, style: "fill:var(--muted)" }, svg, "char 1,600");
+    E.embLbl = el("text", { x: BX + CUT * BW / 2, y: 98, "text-anchor": "middle", "font-size": 14, "font-weight": 700, style: "fill:var(--state)", opacity: 0 }, svg, "embedded");
+    E.cutLbl = el("text", { x: cutX, y: 98, "text-anchor": "middle", "font-size": 14, "font-weight": 700, style: "fill:var(--risk)", opacity: 0 }, svg, "256 tokens");
+    E.neverLbl = el("text", { x: (cutX + BX + BW) / 2 + 26, y: 98, "text-anchor": "middle", "font-size": 14, "font-weight": 700, style: "fill:var(--risk)", opacity: 0 }, svg, "never embedded");
+    E.pieceLbls = PIECES.map((_, i) => { const g = pieceGeo(i, true); return el("text", { x: g.x + g.width / 2, y: 98, "text-anchor": "middle", "font-size": 14, "font-weight": 700, style: "fill:var(--state)", opacity: 0 }, svg, ["new 25", "new 26", "new 27"][i] + " ≤240"); });
+
+    // tokens-per-chunk chart: caption right above the plot, limit label on the dashed line
+    E.chart = el("g", { opacity: 0 }, svg);
+    el("text", { x: AX, y: 124, "font-size": 14, "font-weight": 600, style: "fill:var(--ink-2)" }, E.chart, "tokens per chunk (run above)");
+    el("line", { x1: AX, y1: 130, x2: AX, y2: BASE, style: "stroke:var(--line-2);stroke-width:2" }, E.chart);
+    el("line", { x1: AX, y1: BASE, x2: AX + AW, y2: BASE, style: "stroke:var(--line-2);stroke-width:2" }, E.chart);
+    const limY = BASE - LIM * SC;
+    el("line", { x1: AX, y1: limY, x2: AX + AW + 6, y2: limY, style: "stroke:var(--risk);stroke-width:2;stroke-dasharray:6 4" }, E.chart);
+    el("text", { x: AX + AW + 10, y: limY + 5, "font-size": 14, "font-weight": 700, style: "fill:var(--risk)" }, E.chart, "256 limit");
+    el("text", { x: AX + AW + 10, y: limY + 34, "font-size": 13, style: "fill:var(--muted)" }, E.chart, "truncated");
+    E.counter = el("text", { x: AX + AW + 10, y: limY + 62, "font-size": 24, "font-weight": 700, style: "fill:var(--risk)" }, E.chart, "");
+    E.oldG = el("g", {}, E.chart); E.newG = el("g", { opacity: 0 }, E.chart);
+    E.oldBars = OLD.map((v, i) => {
+      const slot = AW / OLD.length, x = AX + i * slot + (slot - 32) / 2;
+      const under = Math.min(v, LIM), over = Math.max(0, v - LIM);
+      const g = el("g", {}, E.oldG);
+      el("rect", { x, y: BASE - under * SC, width: 32, height: under * SC, style: "fill:var(--state)", opacity: 0.75 }, g);
+      if (over) el("rect", { x, y: BASE - v * SC, width: 32, height: over * SC, style: "fill:var(--risk)" }, g);
+      return g;
+    });
+    E.newBars = NEW.map((v, i) => {
+      const slot = AW / NEW.length, x = AX + i * slot + (slot - 16) / 2;
+      return el("rect", { x, y: BASE - v * SC, width: 16, height: v * SC, style: "fill:var(--state)" }, E.newG);
+    });
+    all = [E.outline, E.mark, E.tail, E.cut, E.scissors, E.charLbl, E.embLbl, E.cutLbl, E.neverLbl, E.appealLbl, E.chart, E.oldG, E.newG, cnt,
+      ...E.pieces, ...E.pieceLbls, ...E.oldBars, ...E.newBars];
+  }
+
+  const showCount = (v, fixed) => {
+    E.counter.textContent = `${Math.round(v)}%`;
+    E.counter.style.fill = fixed ? "var(--state)" : "var(--risk)";
+  };
+
+  function render(n, animate) {
+    gsap.killTweensOf(all);
+    const d = animate ? 0.6 : 0;
+    const to = (t, v, extra) => (d ? gsap.to(t, { ...v, duration: d, ease: "power2.out", ...extra }) : gsap.set(t, v));
+    const split = n >= 4, cutOn = n === 3;
+    E.head.textContent = split ? "old chunk 12 → 3 token-sized chunks" : "chunk 12 · 2,000 characters";
+    to(E.outline, { opacity: split ? 0 : 1 });
+    E.pieces.forEach((p, i) => { const g = pieceGeo(i, split); to(p, { opacity: split ? 1 : 0, attr: { x: g.x, width: g.width } }); });
+    to(E.mark, { attr: { x: markX(split) } });
+    to(E.appealLbl, { attr: { x: markX(split) + MARK / 2 } });
+    to(E.tail, { opacity: cutOn ? 0.62 : 0 });
+    to([E.cut, E.scissors, E.embLbl, E.cutLbl, E.neverLbl], { opacity: cutOn ? 1 : 0 });
+    to(E.charLbl, { opacity: n < 3 ? 1 : 0 });
+    E.pieceLbls.forEach((l) => to(l, { opacity: split ? 1 : 0 }));
+    to(E.chart, { opacity: n >= 2 ? 1 : 0 });
+    to(E.oldG, { opacity: split ? 0 : 1 });
+    to(E.newG, { opacity: split ? 1 : 0 });
+    if (n < 2) { cnt.v = OLD_PCT; showCount(OLD_PCT, false); return; }
+    if (!split) {
+      cnt.v = OLD_PCT; showCount(OLD_PCT, false);
+      if (animate && n === 2) gsap.fromTo(E.oldBars, { scaleY: 0, transformOrigin: "50% 100%" }, { scaleY: 1, duration: 0.5, stagger: 0.06, ease: "power2.out" });
+      else gsap.set(E.oldBars, { scaleY: 1 });
+      return;
+    }
+    if (animate && n === 4) {
+      cnt.v = OLD_PCT; showCount(OLD_PCT, false);
+      gsap.fromTo(E.newBars, { scaleY: 0, transformOrigin: "50% 100%" }, { scaleY: 1, duration: 0.4, stagger: 0.03, ease: "power2.out" });
+      gsap.to(cnt, { v: 0, duration: 1.1, delay: 0.3, ease: "power2.inOut", onUpdate: () => showCount(cnt.v, false), onComplete: () => showCount(0, true) });
+    } else {
+      gsap.set(E.newBars, { scaleY: 1 });
+      cnt.v = 0; showCount(0, true);
+    }
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { build(slide.querySelector("#dbt-svg")); render(step || 0, false); },
+    step(slide, n, animate) { if (!svg || !svg.isConnected || !E.counter) build(slide.querySelector("#dbt-svg")); render(n, animate); },
+    leave() { gsap.killTweensOf(all); }
+  });
+})();
+</script>

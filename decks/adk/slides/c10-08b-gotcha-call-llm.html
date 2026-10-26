@@ -1,0 +1,102 @@
+<section class="slide tight" id="adk-c10-gotcha-call-llm" data-tone="risk" data-title="Gotcha: call_llm span removed">
+  <style>
+    #adk-c10-gotcha-call-llm .gc { display: grid; grid-template-columns: 700px minmax(0, 1fr); gap: 32px; align-items: start; }
+    #adk-c10-gotcha-call-llm .gotcha { font-size: 20px; grid-template-columns: 110px 1fr; padding: 18px 22px; }
+    #adk-c10-gotcha-call-llm .gotcha code { font-size: 16px; }
+    #adk-c10-gotcha-call-llm pre.code { font-size: 18px; line-height: 1.6; padding: 14px 18px 16px; }
+    #adk-c10-gotcha-call-llm svg { display: block; overflow: visible; }
+    #adk-c10-gotcha-call-llm svg text { font-family: var(--f-mono); }
+    #adk-c10-gotcha-call-llm .gt-pt { font-size: 17px; font-weight: 700; fill: var(--ink); }
+    #adk-c10-gotcha-call-llm .gt-pv { font-size: 20px; font-weight: 700; }
+    #adk-c10-gotcha-call-llm .gt-frame { fill: none; stroke: var(--line-2); stroke-width: 1.5; }
+    #adk-c10-gotcha-call-llm .gt-base { stroke: var(--line-2); stroke-width: 1.5; }
+    #adk-c10-gotcha-call-llm .gt-up { stroke: var(--risk); stroke-width: 2.2; stroke-dasharray: 7 5; }
+    #adk-c10-gotcha-call-llm .gt-ul { font-size: 15px; font-weight: 700; fill: var(--risk); }
+    #adk-c10-gotcha-call-llm .gt-al { font-size: 15px; font-weight: 700; fill: var(--risk); }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> Telemetry · 2 of 3 · CHANGELOG 2.13.0</div>
+  <h2 class="title">2.13.0 removed the call_llm span, so old panels read zero</h2>
+  <svg id="gc-svg" viewBox="0 0 1392 270" width="1392" height="270" aria-label="Two dashboard panels. After the 2.13.0 upgrade the call_llm panel drops to zero with no error, while a rebuilt generate_content panel fills.">
+    <text class="gt-pt" x="0" y="20">call_llm spans / min · old panel</text>
+    <text class="gt-pv" id="gc-va" x="676" y="22" text-anchor="end">0</text>
+    <rect class="gt-frame" x="0" y="34" width="676" height="226" rx="10"/>
+    <line class="gt-base" x1="12" y1="240" x2="664" y2="240"/>
+    <g id="gc-ba"></g>
+    <text class="gt-al" id="gc-al" x="352" y="62">alert: spans &gt; 0, call_llm = 0</text>
+    <line class="gt-up" x1="335" y1="34" x2="335" y2="260"/>
+    <text class="gt-pt" x="716" y="20">generate_content spans / min · rebuilt</text>
+    <text class="gt-pv" id="gc-vb" x="1392" y="22" text-anchor="end">0</text>
+    <rect class="gt-frame" x="716" y="34" width="676" height="226" rx="10"/>
+    <line class="gt-base" x1="728" y1="240" x2="1380" y2="240"/>
+    <g id="gc-bb"></g>
+    <line class="gt-up" x1="1051" y1="34" x2="1051" y2="260"/>
+    <text class="gt-ul" x="1043" y="62" text-anchor="end">upgrade to 2.13.0</text>
+  </svg>
+  <div class="gc fill">
+    <div class="gotcha" data-step="2">
+      <b>Symptom</b><span>Panels keyed on <code>call_llm</code> read 0 after the upgrade. No error.</span>
+      <b class="why">Cause</b><span>2.13.0 defaults to GenAI semconv 1.44. The Cloud Trace docs still list <code>call_llm</code>.</span>
+      <b class="fix">Fix</b><span>Rebuild panels on <code>generate_content</code>, or opt out for now.</span>
+    </div>
+    <div class="code-wrap" data-step="3">
+      <div class="code-head">opt out · only while old panels need the v1 names</div>
+      <pre class="code" data-lang="bash"><code>export ADK_TELEMETRY_SCHEMA_VERSION_OPT_IN=\
+otel_semconv_1_36</code></pre>
+    </div>
+  </div>
+  <aside class="notes">The second telemetry default is a silent schema change. Press once: watch the two panels across the upgrade; the call_llm panel drains to zero and nothing raises an error, while a panel rebuilt on generate_content fills from the same traffic. Press again: the CHANGELOG for 2.13.0 says the default schema is now the OpenTelemetry GenAI semantic conventions 1.44, and that schema has no call_llm span; the Cloud Trace integration docs still list call_llm, so the docs mislead you here. Press again: the right fix is to rebuild the panels on generate_content; the temporary fix is ADK_TELEMETRY_SCHEMA_VERSION_OPT_IN=otel_semconv_1_36, which restores the v1 names. Analogy: the city renamed the street; the traffic is still there, but your map no longer finds it. Likely question: "How do I notice a silent zero next time?" Alert when spans are ingested but the panel metric is zero, and run one synthetic query per deploy. Bar heights are illustrative.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c10-gotcha-call-llm", NS = "http://www.w3.org/2000/svg";
+  const H = [116, 132, 104, 140, 122, 128, 110, 136, 120, 144, 114, 126];   // fixed shape, index-based
+  const UP = 6;
+  let tl = null;
+  const q = (s, sel) => s.querySelector(sel);
+  function bars(s) {
+    const ga = q(s, "#gc-ba"), gb = q(s, "#gc-bb");
+    if (ga.childNodes.length) return;
+    for (let i = 0; i < H.length; i++) {
+      [[ga, 16], [gb, 732]].forEach(([g, x0]) => {
+        const r = document.createElementNS(NS, "rect");
+        r.setAttribute("x", x0 + i * 54); r.setAttribute("width", 38);
+        r.setAttribute("y", 240); r.setAttribute("height", 0); r.setAttribute("rx", 4);
+        g.appendChild(r);
+      });
+    }
+  }
+  function setBar(r, h, tone) { r.setAttribute("y", 240 - h); r.setAttribute("height", h); r.style.fill = `var(--${tone})`; }
+  function render(s, t) {
+    bars(s);
+    const ra = q(s, "#gc-ba").children, rb = q(s, "#gc-bb").children;
+    let va = 0, vb = 0;
+    for (let i = 0; i < H.length; i++) {
+      const f = Math.max(0, Math.min(1, t - i)), before = i < UP;
+      setBar(ra[i], before ? H[i] * f : 4 * f, before ? "model" : "risk");
+      setBar(rb[i], before ? 0 : H[i] * f, "state");
+      if (f > 0) { va = before ? H[i] : 0; vb = before ? 0 : H[i]; }
+    }
+    const a = q(s, "#gc-va"), b = q(s, "#gc-vb");
+    a.textContent = String(va); a.style.fill = t > UP ? "var(--risk)" : "var(--ink)";
+    b.textContent = String(vb); b.style.fill = vb > 0 ? "var(--state)" : "var(--ink)";
+    q(s, "#gc-al").setAttribute("opacity", t >= UP + 1 ? "1" : "0");
+  }
+  function stop() { if (tl) tl.kill(); tl = null; }
+  function build(s, n, animate) {
+    stop();
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const P = { t: n >= 1 ? H.length : 0 };
+    if (animate && n === 1 && !reduce) {
+      P.t = 0;
+      tl = gsap.timeline({ delay: 0.4 });
+      tl.to(P, { t: H.length, duration: 3.6, ease: "none", onUpdate: () => render(s, P.t) });
+    }
+    render(s, P.t);
+  }
+  Deck.register(ID, {
+    enter(slide, n) { build(slide, n || 0, false); },
+    step(slide, n, animate) { build(slide, n, animate); },
+    leave() { stop(); },
+  });
+})();
+</script>

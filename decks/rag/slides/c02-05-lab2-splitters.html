@@ -1,0 +1,235 @@
+<section class="slide" id="rag-c02-lab2-splitters" data-tone="state" data-title="Lab 2: LangChain splitters">
+  <style>
+    #rag-c02-lab2-splitters .sp-wrap { gap: 12px; }
+    #rag-c02-lab2-splitters .lab-head { font-size: 15px; gap: 12px; }
+    #rag-c02-lab2-splitters .lab-head .run { font-size: 14px; }
+    #rag-c02-lab2-splitters .lab-head .cite { font-size: 14px; padding: 6px 10px 6px 8px; margin-left: auto; }
+    #rag-c02-lab2-splitters .sp-main { display: grid; grid-template-columns: 690px 1fr; gap: 26px; min-height: 0; }
+    #rag-c02-lab2-splitters .sp-left, #rag-c02-lab2-splitters .sp-right { gap: 12px; min-width: 0; }
+    #rag-c02-lab2-splitters .code-wrap .code-head { padding: 8px 14px; font-size: 13.5px; }
+    #rag-c02-lab2-splitters .sp-left pre.code { font-size: 12.5px; line-height: 1.42; padding: 10px 16px 12px; }
+    #rag-c02-lab2-splitters .code-wrap.out pre.code { font-size: 10.8px; line-height: 1.45; padding: 8px 14px 10px; }
+    #rag-c02-lab2-splitters .sp-viz { border: 1px solid var(--line-2); border-radius: 14px; background: var(--surface); padding: 6px 4px 2px; }
+    #rag-c02-lab2-splitters .sp-viz svg { display: block; }
+    #rag-c02-lab2-splitters .steps-rail { grid-template-columns: 1fr 1fr; gap: 8px 16px; }
+    #rag-c02-lab2-splitters .steps-rail > * { font-size: 14.5px; line-height: 1.35; grid-template-columns: 28px 1fr; gap: 8px; }
+    #rag-c02-lab2-splitters .steps-rail > *::before { width: 26px; height: 26px; font-size: 13px; }
+    #rag-c02-lab2-splitters .steps-rail code { font-size: 12.5px; }
+    #rag-c02-lab2-splitters .steps-rail .warn { color: var(--risk); font-weight: 600; }
+    #rag-c02-lab2-splitters svg text { font-family: var(--f-mono); }
+    #rag-c02-lab2-splitters .md-h { fill: var(--agent); font-weight: 700; }
+    #rag-c02-lab2-splitters .md-t { fill: var(--ink-2); }
+    #rag-c02-lab2-splitters .rb { fill: transparent; stroke: transparent; stroke-width: 1.5; transition: fill .45s, stroke .45s; }
+    #rag-c02-lab2-splitters .rb.neu { fill: color-mix(in oklab, var(--ink) 5%, transparent); stroke: color-mix(in oklab, var(--ink) 25%, transparent); }
+    #rag-c02-lab2-splitters .rb.bad { fill: var(--risk-soft); stroke: var(--risk); }
+    #rag-c02-lab2-splitters .rb.ok { fill: var(--state-soft); stroke: var(--state); }
+    #rag-c02-lab2-splitters .cut line { stroke-width: 2.5; stroke-dasharray: 7 4; transition: stroke .45s; }
+    #rag-c02-lab2-splitters .cut text { font-size: 15px; transition: fill .45s; }
+    #rag-c02-lab2-splitters .cut.red line { stroke: var(--risk); } #rag-c02-lab2-splitters .cut.red text { fill: var(--risk); }
+    #rag-c02-lab2-splitters .cut.grn line { stroke: var(--state); } #rag-c02-lab2-splitters .cut.grn text { fill: var(--state); }
+    #rag-c02-lab2-splitters .tg-ch { fill: var(--muted); font-size: 11px; }
+    #rag-c02-lab2-splitters .tg-bad rect { fill: var(--risk); } #rag-c02-lab2-splitters .tg-bad text { fill: #fff; font-size: 10.5px; font-weight: 700; }
+    #rag-c02-lab2-splitters .tg-path { fill: var(--state); font-size: 11px; font-weight: 700; }
+    #rag-c02-lab2-splitters .tk-track { fill: var(--line); }
+    #rag-c02-lab2-splitters .tk-fill { fill: var(--state); }
+    #rag-c02-lab2-splitters .tk-lab { fill: var(--ink-2); font-size: 10.5px; }
+    #rag-c02-lab2-splitters .cap-l { fill: var(--muted); font-size: 11.5px; font-weight: 600; }
+    #rag-c02-lab2-splitters .cap-r { font-size: 11.5px; font-weight: 700; fill: var(--ink-2); }
+    #rag-c02-lab2-splitters .cap-r.red { fill: var(--risk); } #rag-c02-lab2-splitters .cap-r.grn { fill: var(--state); }
+  </style>
+  <div class="kicker"><span class="pill">Lab 2</span> Northwind Mutual intake · step 4 of 4</div>
+  <h2 class="title">Naive 200-character windows orphan 3 of 4 refund-policy chunks</h2>
+  <div class="stack fill sp-wrap">
+    <div class="lab-head">
+      <span class="run">pip install "langchain-text-splitters==1.1.3" "transformers==5.20.2"</span>
+      <span class="run">python lab3_splitters_refund.py</span>
+      <a class="cite doc" href="https://docs.langchain.com/oss/python/integrations/splitters" target="_blank" rel="noopener"><b>Docs</b>&nbsp;LangChain text splitters</a>
+    </div>
+    <div class="sp-main fill">
+      <div class="sp-left stack">
+        <div class="code-wrap">
+          <div class="code-head">lab3_splitters_refund.py · langchain-text-splitters 1.1.3</div>
+          <pre class="code" data-lang="python" data-focus="1:10-12, 2:14-17, 3:18-20, 4:22-27"><code># lab3_splitters_refund.py
+from langchain_text_splitters import (
+    MarkdownHeaderTextSplitter, RecursiveCharacterTextSplitter)
+from transformers import AutoTokenizer
+
+REFUND_MD = open("data/refund_policy.md", encoding="utf-8").read()  # 3 sections, 5 rules
+tok = AutoTokenizer.from_pretrained("Qwen/Qwen3-Embedding-0.6B")
+ntok = lambda s: len(tok.tokenize(s))
+
+# A) naive: fixed character windows over the whole file
+naive = RecursiveCharacterTextSplitter(
+    chunk_size=200, chunk_overlap=0).split_text(REFUND_MD)
+
+# B) structure first: split on headers, keep header text, then size by TOKENS
+headers = [("#", "h1"), ("##", "h2"), ("###", "h3")]
+sections = MarkdownHeaderTextSplitter(
+    headers_to_split_on=headers, strip_headers=False).split_text(REFUND_MD)
+sizer = RecursiveCharacterTextSplitter.from_huggingface_tokenizer(
+    tok, chunk_size=64, chunk_overlap=8, add_start_index=True)
+structured = sizer.split_documents(sections)
+
+orphans = sum(1 for c in naive if not c.lstrip().startswith("#"))
+print(f"naive: {len(naive)} chunks, {orphans} start without a heading")
+print(f"structured: {len(structured)} chunks")
+for d in structured:
+    path = " > ".join(d.metadata[k] for k in ("h1", "h2", "h3") if k in d.metadata)
+    print(f"  S | {ntok(d.page_content):>3} tok | "
+          f"start={d.metadata['start_index']:>3} | {path}")</code></pre>
+        </div>
+      </div>
+      <div class="sp-right stack">
+        <div class="sp-viz">
+          <svg id="rag-sp-svg" viewBox="0 0 664 256" width="664" height="256" aria-label="The refund policy Markdown file, cut first by character windows and then at headings"></svg>
+        </div>
+        <div class="steps-rail">
+          <div data-step="1"><span><code>chunk_size</code> counts <b>characters</b> (<code>len</code>). Base defaults: 4000 / 200.</span></div>
+          <div data-step="2"><span>Header split adds h1/h2/h3 metadata. <code>strip_headers=False</code> keeps headings in the embedded text.</span></div>
+          <div data-step="3"><span><code>chunk_size=64</code> now counts embedder tokens. <span class="warn">Gotcha:</span> <code>start_index</code> is per section, not per file.</span></div>
+          <div data-step="4"><span>Start at 256–512 embedder tokens. Then tune on your eval set.</span></div>
+        </div>
+        <div class="code-wrap out" data-step="4">
+          <div class="code-head">output · illustrative</div>
+          <pre class="code" data-lang="none"><code><span class="err">naive: 4 chunks, 3 start without a heading</span>
+<span class="ok">structured: 4 chunks</span>
+  S |  45 tok | start=  0 | Northwind Mutual Refund and Cancellation Policy &gt; 1. Free-look period
+  S |  22 tok | start=  0 | <span class="dim">...</span> &gt; 2. Cancellation after 30 days &gt; 2.1 Annual policies
+  S |  31 tok | start=  0 | <span class="dim">...</span> &gt; 2. Cancellation after 30 days &gt; 2.2 Monthly policies
+  S |  30 tok | start=  0 | <span class="dim">...</span> &gt; 3. Claims-related exceptions</code></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">This is the last step of Lab 2: the refund and cancellation policy is Markdown, so we compare a naive character splitter with a structure-first splitter. The naive splitter cuts every 200 characters, and three of its four chunks start in the middle of a section, so the free-look rule "No claim must have been filed" lands in a chunk about annual policies. Think of a bread slicer that cuts at fixed widths and ignores where one sandwich ends and the next begins. The structured version first splits at the headings, keeps the heading text, and then sizes each section in Qwen3 tokens, so every chunk carries its own heading path as metadata for filters and citations. A likely question is why start_index is 0 everywhere: after split_documents the offset is relative to the section, so store the section anchor too if the UI must highlight characters in the original file. This ends Lab 2; the next slide shows three ingestion bugs that pass every run and still poison the chunks.</aside>
+</section>
+<script>
+(() => {
+  const ID = "rag-c02-lab2-splitters";
+  const NS = "http://www.w3.org/2000/svg";
+  const TOP = 30, R = 20, X0 = 26, BW = 452, GX = 492;
+  const ROWS = [
+    ["h", "# Northwind Mutual Refund and Cancellation Policy"],
+    ["h", "## 1. Free-look period"],
+    ["t", "You may cancel any new policy within 30 days of the start…"],
+    ["t", "No claim must have been filed during the free-look period."],
+    ["h", "## 2. Cancellation after 30 days"],
+    ["h", "### 2.1 Annual policies"],
+    ["t", "Refunds are pro-rata minus a 25 USD administration fee."],
+    ["h", "### 2.2 Monthly policies"],
+    ["t", "Cancellation takes effect at the end of the current bill…"],
+    ["h", "## 3. Claims-related exceptions"],
+    ["t", "If a claim was paid in the current policy year, the prem…"]
+  ];
+  // naive 200-char windows (chars after strip) vs header sections (+ illustrative Qwen3 token counts)
+  const NAIVE = [[0, 2, 171, false], [3, 7, 196, true], [8, 9, 129, true], [10, 10, 92, true]];
+  const STRUCT = [[0, 3, 45, "› 1. Free-look period"], [4, 6, 22, "› 2 › 2.1 Annual"], [7, 8, 31, "› 2 › 2.2 Monthly"], [9, 10, 30, "› 3. Claims-related"]];
+  const CAPS = [
+    ["11 lines · 3 sections", ""],
+    ["naive · 200-char windows: 3 of 4 start mid-section", "red"],
+    ["MarkdownHeaderTextSplitter · cuts at headings", "grn"],
+    ["token sizer · every chunk ≤ 64 Qwen3 tokens", "grn"],
+    ["orphans: naive 3 of 4 → structured 0 of 4", "grn"]
+  ];
+  let E = null;
+  const mk = (tag, attrs, parent, text) => {
+    const el = document.createElementNS(NS, tag);
+    for (const k in attrs) el.setAttribute(k, attrs[k]);
+    if (text !== undefined) el.textContent = text;
+    parent.appendChild(el);
+    return el;
+  };
+  function build(slide) {
+    const svg = slide.querySelector("#rag-sp-svg");
+    svg.innerHTML = "";
+    const e = { bands: [], cuts: [], naiveTags: [], pathTags: [], bars: [] };
+    mk("text", { x: 8, y: 15, class: "cap-l" }, svg, "data/refund_policy.md");
+    e.cap = mk("text", { x: 656, y: 15, "text-anchor": "end", class: "cap-r" }, svg, "");
+    for (let i = 0; i < 4; i++) e.bands.push(mk("rect", { x: X0, y: TOP, width: BW, height: R, rx: 7, class: "rb" }, svg));
+    ROWS.forEach(([k, s], i) => mk("text", { x: 38, y: TOP + i * R + 14, "font-size": 12, class: k === "h" ? "md-h" : "md-t" }, svg, s));
+    for (let i = 0; i < 3; i++) {
+      const g = mk("g", { class: "cut red" }, svg);
+      mk("line", { x1: 16, y1: 0, x2: X0 + BW + 4, y2: 0 }, g);
+      mk("text", { x: 0, y: 5 }, g, "✂");
+      e.cuts.push(g);
+    }
+    NAIVE.forEach(([a, b, ch, orphan]) => {
+      const g = mk("g", {}, svg);
+      mk("text", { x: GX, y: TOP + a * R + 14, class: "tg-ch" }, g, ch + " chars");
+      if (orphan) {
+        const p = mk("g", { class: "tg-bad" }, g);
+        mk("rect", { x: GX + 76, y: TOP + a * R + 3, width: 84, height: 15, rx: 7 }, p);
+        mk("text", { x: GX + 118, y: TOP + a * R + 14, "text-anchor": "middle" }, p, "no heading");
+        g._pill = p;
+      }
+      e.naiveTags.push(g);
+    });
+    STRUCT.forEach(([a, b, tk, path]) => {
+      e.pathTags.push(mk("text", { x: GX, y: TOP + a * R + 14, class: "tg-path" }, svg, path));
+      const g = mk("g", {}, svg);
+      const y = TOP + (a + 1) * R + 5;
+      mk("rect", { x: GX, y, width: 84, height: 9, rx: 4.5, class: "tk-track" }, g);
+      const f = mk("rect", { x: GX, y, width: 0, height: 9, rx: 4.5, class: "tk-fill" }, g);
+      mk("text", { x: GX + 90, y: y + 9, class: "tk-lab" }, g, tk + " / 64 tok");
+      f._w = (tk / 64) * 84;
+      g._fill = f;
+      e.bars.push(g);
+    });
+    E = e;
+  }
+  const geo = ([a, b]) => ({ y: TOP + a * R + 1, height: (b - a + 1) * R - 2 });
+  function render(slide, n, animate) {
+    if (!E || !slide.querySelector("#rag-sp-svg").firstChild) build(slide);
+    const d = animate ? 0.7 : 0;
+    const all = [E.cap, ...E.bands, ...E.cuts, ...E.naiveTags, ...E.pathTags, ...E.bars, ...E.bars.map((b) => b._fill), ...E.naiveTags.map((t) => t._pill).filter(Boolean)];
+    gsap.killTweensOf(all);
+    const s = n >= 2;
+    const set = s ? STRUCT : NAIVE;
+    // caption: one per step
+    const c = CAPS[Math.min(n, 4)];
+    E.cap.textContent = c[0];
+    E.cap.setAttribute("class", "cap-r " + c[1]);
+    // bands
+    E.bands.forEach((r, i) => {
+      r.setAttribute("class", "rb " + (n < 1 ? "" : s ? "ok" : NAIVE[i][3] ? "bad" : "neu"));
+      const g = geo(set[i]);
+      if (animate && n === 2) gsap.to(r, { attr: g, duration: 0.8, ease: "power2.inOut" });
+      else gsap.set(r, { attr: g });
+      if (animate && n === 1) gsap.fromTo(r, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.4, delay: 0.25 + i * 0.32 });
+      else gsap.set(r, { autoAlpha: n >= 1 ? 1 : 0 });
+    });
+    // cuts: the saw drops at every 200 characters, then moves to the headings
+    E.cuts.forEach((g, i) => {
+      const yy = TOP + (set[i][1] + 1) * R;
+      g.setAttribute("class", "cut " + (s ? "grn" : "red"));
+      if (animate && n === 1) gsap.fromTo(g, { y: TOP, autoAlpha: 0 }, { y: yy, autoAlpha: 1, duration: 0.55, delay: 0.2 + i * 0.32, ease: "power3.in" });
+      else if (animate && n === 2) gsap.to(g, { y: yy, autoAlpha: 1, duration: 0.8, ease: "power2.inOut" });
+      else gsap.set(g, { y: yy, autoAlpha: n >= 1 ? 1 : 0 });
+    });
+    // naive tags: char count + red "no heading" (step 1 only)
+    E.naiveTags.forEach((g, i) => {
+      gsap.to(g, { autoAlpha: n === 1 ? 1 : 0, duration: animate ? 0.35 : 0, delay: animate && n === 1 ? 0.45 + i * 0.32 : 0 });
+      if (g._pill) {
+        gsap.set(g._pill, { scale: 1, transformOrigin: "50% 50%" });
+        if (animate && n === 1) gsap.fromTo(g._pill, { scale: 1 }, { scale: 1.18, duration: 0.18, repeat: 3, yoyo: true, delay: 1.6, transformOrigin: "50% 50%" });
+      }
+    });
+    // heading-path metadata (step 2+), token bars (step 3+)
+    E.pathTags.forEach((t, i) => gsap.to(t, { autoAlpha: n >= 2 ? 1 : 0, duration: animate ? 0.4 : 0, delay: animate && n === 2 ? 0.6 + i * 0.12 : 0 }));
+    E.bars.forEach((g, i) => {
+      gsap.set(g, { autoAlpha: n >= 3 ? 1 : 0 });
+      const w = n >= 3 ? g._fill._w : 0;
+      if (animate && n === 3) gsap.fromTo(g._fill, { attr: { width: 0 } }, { attr: { width: w }, duration: 0.7, delay: 0.15 + i * 0.15, ease: "power2.out" });
+      else gsap.set(g._fill, { attr: { width: w } });
+    });
+  }
+  Deck.register(ID, {
+    enter(slide, step) { build(slide); render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() {
+      if (!E) return;
+      gsap.killTweensOf([E.cap, ...E.bands, ...E.cuts, ...E.naiveTags, ...E.pathTags, ...E.bars, ...E.bars.map((b) => b._fill), ...E.naiveTags.map((t) => t._pill).filter(Boolean)]);
+    }
+  });
+})();
+</script>

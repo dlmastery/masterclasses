@@ -1,0 +1,104 @@
+<section class="slide chapter" id="custom-interview-c03-chapter" data-tone="tool" data-title="Ch 3: RL, preferences, rewards">
+  <style>
+    #custom-interview-c03-chapter .ch-num { top: auto; bottom: 56px; right: 96px; font-size: 216px; opacity: .5; }
+    #custom-interview-c03-chapter .ch3-svg { position: absolute; right: 104px; top: 40px; display: block; overflow: visible; }
+    #custom-interview-c03-chapter .ch3-svg text { font-family: var(--f-mono); }
+    #custom-interview-c03-chapter .prompt-box { fill: var(--tool-soft); stroke: var(--tool); stroke-width: 2.5; }
+    #custom-interview-c03-chapter .prompt-t { fill: var(--ink); font: 700 17px var(--f-mono); }
+    #custom-interview-c03-chapter .prompt-s { fill: var(--muted); font: 500 15px var(--f-mono); }
+    #custom-interview-c03-chapter .fan { fill: none; stroke: var(--tool); stroke-width: 2; opacity: .5; }
+    #custom-interview-c03-chapter .chip { fill: var(--surface-2); stroke: var(--line-2); stroke-width: 1.5; transition: fill .5s, stroke .5s; }
+    #custom-interview-c03-chapter .chip.pos { fill: var(--state-soft); stroke: var(--state); }
+    #custom-interview-c03-chapter .chip.neg { fill: var(--risk-soft); stroke: var(--risk); }
+    #custom-interview-c03-chapter .chip-t { fill: var(--ink-2); font: 600 16px var(--f-mono); }
+    #custom-interview-c03-chapter .abar.pos { fill: var(--state); }
+    #custom-interview-c03-chapter .abar.neg { fill: var(--risk); }
+    #custom-interview-c03-chapter .val { font: 700 18px var(--f-mono); }
+    #custom-interview-c03-chapter .val.pos { fill: var(--state); } #custom-interview-c03-chapter .val.neg { fill: var(--risk); }
+    #custom-interview-c03-chapter .mean { stroke: var(--ink-2); stroke-width: 2.5; stroke-dasharray: 8 7; }
+    #custom-interview-c03-chapter .mean-t { fill: var(--ink-2); font: 600 16px var(--f-mono); }
+    #custom-interview-c03-chapter .cap { fill: var(--ink-2); font: 600 17px var(--f-mono); }
+    #custom-interview-c03-chapter .ch3-def { font-size: 22px; color: var(--muted); max-width: 1100px; }
+    #custom-interview-c03-chapter .ch3-def b { color: var(--ink-2); }
+  </style>
+  <div class="ch-num" data-fx="blur">03</div>
+  <svg class="ch3-svg interactive" id="c03-ch-svg" viewBox="0 0 760 330" width="760" height="330" aria-label="One claims-payout prompt gets 8 sampled answers; each gets a reward; advantages are drawn above and below the group mean"></svg>
+  <h2 class="display">RL, preference tuning<br>and rewards</h2>
+  <p class="lede" data-fx="up">RL optimizes exactly what the reward pays for, including the bugs.</p>
+  <p class="ch3-def" data-fx="up"><b>GRPO</b> learns from a scored group of answers to one prompt. <b>DPO</b> learns from chosen / rejected reply pairs.</p>
+  <aside class="notes">This chapter follows one scenario: GRPO on insurance-claim payouts ("payout" means this claims-payout task) with a boxed-answer verifier (lab2_grpo_claims.py), a correctness-gated brevity reward (lab4_rewards.py), DPO for on-brand support replies (lab6_dpo_support.py), and an RL loop on live traffic. The animation is the whole of GRPO in one picture: one claims-payout prompt gets G = 8 sampled answers, the verifier gives each a reward of 1 or 0, and here 3 of 8 are correct, so the group mean is 0.375 and the std is 0.484. The advantage is (r minus the mean) divided by the std: +1.29 for the three correct answers, which are pushed up, and -0.77 for the five wrong ones, which are pushed down. No critic model is needed, because the group itself is the baseline. Analogy: a teacher who grades on the curve of one exam room, not against an answer key of expected scores. Likely question: "What if all 8 answers get the same reward?" Then every advantage is zero and the prompt teaches nothing, which is the first question on the next slide.</aside>
+</section>
+<script>
+(() => {
+  const ID = "custom-interview-c03-chapter";
+  const NS = "http://www.w3.org/2000/svg";
+  const R = [1, 0, 0, 1, 0, 1, 0, 0];          // binary verifier rewards
+  const MEAN = R.reduce((a, b) => a + b, 0) / R.length;                              // 0.375
+  const STD = Math.sqrt(R.reduce((a, b) => a + (b - MEAN) ** 2, 0) / R.length);       // 0.484
+  const ADV = R.map((r) => (r - MEAN) / STD);                                          // +1.29 / -0.77
+  const ZERO = 150, K = 70, CX = (i) => 258 + i * 66;
+  let tl = null;
+
+  function el(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    Object.entries(attrs).forEach(([k, v]) => e.setAttribute(k, v));
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  }
+  const fmt = (v) => (v > 0 ? "+" : "−") + Math.abs(v).toFixed(2);
+
+  function build(svg) {
+    svg.innerHTML = "";
+    const p = { fans: [], chips: [], bars: [], vals: [] };
+    R.forEach((r, i) => {
+      const cx = CX(i);
+      p.fans.push(el("path", { class: "fan", d: `M170 270 C196 270 196 316 222 316 H${cx - 12} Q${cx} 316 ${cx} 302` }, svg));
+    });
+    p.prompt = el("g", {}, svg);
+    el("rect", { class: "prompt-box", x: 0, y: 236, width: 170, height: 66, rx: 14 }, p.prompt);
+    el("text", { class: "prompt-t", x: 85, y: 264, "text-anchor": "middle" }, p.prompt, "payout prompt");
+    el("text", { class: "prompt-s", x: 85, y: 288, "text-anchor": "middle" }, p.prompt, "G = 8 answers");
+    p.mean = el("line", { class: "mean", x1: 222, y1: ZERO, x2: 222, y2: ZERO }, svg);
+    p.meanT = el("text", { class: "mean-t", x: 210, y: ZERO + 5, "text-anchor": "end" }, svg, "mean 0.375");
+    R.forEach((r, i) => {
+      const cx = CX(i), a = ADV[i], h = Math.abs(a) * K, pos = a > 0;
+      const g = el("g", {}, svg);
+      p.chips.push(g);
+      el("rect", { class: "chip", x: cx - 28, y: 270, width: 56, height: 32, rx: 8 }, g);
+      el("text", { class: "chip-t", x: cx, y: 292, "text-anchor": "middle" }, g, "r=" + r);
+      const bar = el("rect", { class: "abar " + (pos ? "pos" : "neg"), x: cx - 22, y: ZERO, width: 44, height: 0, rx: 5 }, svg);
+      bar.dataset.y = pos ? ZERO - h : ZERO; bar.dataset.h = h;
+      p.bars.push(bar);
+      p.vals.push(el("text", { class: "val " + (pos ? "pos" : "neg"), x: cx, y: pos ? ZERO - h - 10 : ZERO + h + 24, "text-anchor": "middle" }, svg, fmt(a)));
+    });
+    p.cap = el("text", { class: "cap", x: 222, y: 22 }, svg, "advantage = (r − 0.375) / 0.484");
+    return p;
+  }
+
+  Deck.register(ID, {
+    enter(slide) {
+      const svg = slide.querySelector("#c03-ch-svg");
+      if (tl) tl.kill();
+      const p = build(svg);
+      p.fans.forEach((f) => { const L = f.getTotalLength(); f.style.strokeDasharray = L; f.style.strokeDashoffset = L; });
+      gsap.set([p.prompt, ...p.chips], { autoAlpha: 0, scale: 0.6, transformOrigin: "50% 50%" });
+      gsap.set([...p.vals, p.meanT, p.cap], { autoAlpha: 0 });
+      tl = gsap.timeline({ delay: 0.5 });
+      tl.to(p.prompt, { autoAlpha: 1, scale: 1, duration: 0.5, ease: "back.out(2)" })
+        .to(p.fans, { strokeDashoffset: 0, duration: 0.9, ease: "power2.inOut", stagger: 0.07 }, "+=0.1")
+        .to(p.chips, { autoAlpha: 1, scale: 1, duration: 0.4, ease: "back.out(2)", stagger: 0.07 }, "-=0.6")
+        .to(p.mean, { attr: { x2: 760 }, duration: 0.9, ease: "power2.inOut" }, "+=0.3")
+        .to(p.meanT, { autoAlpha: 1, duration: 0.4 }, "-=0.4")
+        .call(() => p.chips.forEach((c, i) => c.querySelector(".chip").classList.add(R[i] > MEAN ? "pos" : "neg")), null, "+=0.2");
+      p.bars.forEach((b, i) => {
+        tl.to(b, { attr: { y: +b.dataset.y, height: +b.dataset.h }, duration: 0.6, ease: "power3.out" }, i === 0 ? "+=0.1" : "<0.08");
+      });
+      tl.to(p.vals, { autoAlpha: 1, duration: 0.4, stagger: 0.05 }, "-=0.2")
+        .to(p.cap, { autoAlpha: 1, duration: 0.5 }, "+=0.2");
+    },
+    step() {},
+    leave() { if (tl) tl.kill(); tl = null; }
+  });
+})();
+</script>

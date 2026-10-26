@@ -1,0 +1,77 @@
+<section class="slide" id="custom-interview-c01-rag-evalset" data-tone="agent" data-title="Interview: build and protect the RAG eval set">
+  <style>
+    #custom-interview-c01-rag-evalset .qa .a { font-size: 20px; }
+    #custom-interview-c01-rag-evalset pre.code, #custom-interview-c01-rag-evalset pre.code *, #custom-interview-c01-rag-evalset .code-head { font-variant-ligatures: none; }
+    #custom-interview-c01-rag-evalset pre.code.sm { font-size: 15.5px; line-height: 1.4; }
+    #custom-interview-c01-rag-evalset pre.code.xs { font-size: 15px; line-height: 1.4; }
+    #custom-interview-c01-rag-evalset .stack { min-width: 0; }
+    #custom-interview-c01-rag-evalset .lab-head { font-size: 15px; }
+    #custom-interview-c01-rag-evalset .diagram .node .nt { font-size: 17px; }
+    #custom-interview-c01-rag-evalset .diagram .node .ns { font-size: 14px; }
+    #custom-interview-c01-rag-evalset .cite.paper { flex-direction: row; gap: 10px; border-radius: 10px; padding: 6px 12px; }
+    #custom-interview-c01-rag-evalset .cites { flex-wrap: wrap; gap: 8px; }
+    #custom-interview-c01-rag-evalset .paper { padding: 12px 16px; gap: 4px; }
+  </style>
+  <div class="kicker">Interview · RAG evaluation · 2 of 2</div>
+  <h2 class="title">Build the RAG eval set fast, then protect it and the index</h2>
+  <div class="grid fill" style="grid-template-columns: 560px minmax(0, 1fr); gap: 32px">
+    <div class="stack" style="gap:16px">
+      <div class="qa">
+        <div class="q">How do you build a claims RAG eval set fast?</div>
+        <div class="a" data-step="1">Generate it with ragas. Drop items a model answers without retrieval. Humans check 5-10%.</div>
+      </div>
+      <div class="qa">
+        <div class="q">Your index now holds pages your bot wrote. Risk?</div>
+        <div class="a" data-step="4">RAG collapse. Tag the author of each chunk at ingest. Filter model-written chunks.</div>
+      </div>
+      <div class="paper" data-step="4">
+        <div class="pid">arXiv:2608.22118 <span>Aug 2026</span></div>
+        <div class="find">Answers collapse in <b>79.6%</b> of 1,528 simulations when retrieved docs are self-authored.</div>
+      </div>
+      <div class="code-wrap good" data-step="4">
+        <div class="code-head">provenance filter · plain Python</div>
+        <pre class="code xs" data-lang="python"><code>chunks = [{"text": "Flood is excluded.", "author": None},
+          {"text": "Flood is covered.", "author": "bot-v3"}]
+keep = [c for c in chunks if not c["author"]]   # 1 chunk</code></pre>
+      </div>
+      <div class="cites" data-step="4"><a class="cite paper" href="https://arxiv.org/abs/2608.22118" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2608.22118 RAG Collapse</a></div>
+    </div>
+
+    <div class="stack" style="gap:12px">
+      <div class="diagram" style="width:800px;height:90px" data-step="1"
+           data-wires="ev-docs>ev-gen@1; ev-gen>ev-gate@1 [40 rows]; ev-gate>ev-set@1 [kept]{state}">
+        <div class="node n-state" id="ev-docs" style="left:0;top:8px;width:140px"><span class="nt">Claims docs</span><span class="ns">corpus</span></div>
+        <div class="node n-model" id="ev-gen" style="left:210px;top:8px;width:190px"><span class="nt">TestsetGenerator</span><span class="ns">ragas 0.4.3</span></div>
+        <div class="node n-tool" id="ev-gate" style="left:480px;top:8px;width:140px"><span class="nt">Leak gate</span><span class="ns">closed book</span></div>
+        <div class="node n-state" id="ev-set" style="left:680px;top:8px;width:120px"><span class="nt">Eval set</span><span class="ns">JSONL</span></div>
+      </div>
+      <div class="code-wrap" data-step="2">
+        <div class="code-head">leak_gate.py · pip install ragas==0.4.3 openai==3.37.0 · output illustrative</div>
+        <pre class="code sm" data-lang="python" data-focus="2:12, 3:13-17"><code>import json, os
+from openai import OpenAI
+client = OpenAI()                         # reads OPENAI_API_KEY
+JUDGE = os.environ["JUDGE_MODEL"]
+def ask(prompt: str) -&gt; str:
+    r = client.chat.completions.create(model=JUDGE, temperature=0,
+        messages=[{"role": "user", "content": prompt}])
+    return r.choices[0].message.content
+rows = [json.loads(l) for l in open("claims_testset.jsonl")]  # ragas
+kept = []
+for r in rows:
+    closed_book = ask(r["user_input"])    # no retrieval
+    same = ask(f"Reference: {r['reference']}\n"
+               f"Candidate: {closed_book}\nSame facts? YES or NO.")
+    if not same.strip().upper().startswith("YES"):
+        kept.append(r)
+print(f"generated={len(rows)} kept={len(kept)}")  # generated=40 kept=34</code></pre>
+      </div>
+      <div class="cites push">
+        <a class="cite doc" data-step="1" href="https://docs.ragas.io/en/stable/getstarted/rag_testset_generation/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;ragas: Testset Generation for RAG</a>
+        <a class="cite paper" data-step="1" href="https://arxiv.org/abs/2609.12171" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2609.12171 WinSyn</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    Ask Q1 and wait. The model answer has two parts: generate, then verify. Click 1: ragas TestsetGenerator turns the claims documents into question, reference answer and reference context rows. A synthetic set is only a draft. WinSyn (arXiv 2609.12171) builds grounded synthetic enterprise email QA, and frontier agents still stay below 80% on it, so synthetic does not mean easy. Click 2: walk the loop. Ask the judge model the question with no retrieval. Click 3: if the closed-book answer already states the same specific facts as the reference, the item tests the model's memory, not your retrieval, so drop it. Dropping 6 of 40 is normal. Then a human checks a 5 to 10% sample, you freeze the file by hash, and you report per product line. The full generator setup is ragas Lab 2 in the main deck. Click 4, Q2: when the index holds pages the assistant wrote, arXiv 2608.22118 found that answers collapse onto that self-authored content in 79.6% of 1,528 simulations, and one such page can be enough. Tag the author at ingest and filter or down-rank model-written chunks at retrieval, as in the three-line filter. Analogy: an exam you can pass from memory does not test the open book. Likely follow-up: "Filter or down-rank?" Filter for policy answers that must cite a clause; down-rank where model-written FAQs are reviewed and useful.
+  </aside>
+</section>

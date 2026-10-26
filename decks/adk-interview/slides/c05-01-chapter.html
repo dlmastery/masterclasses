@@ -1,0 +1,89 @@
+<section class="slide chapter" id="adk-interview-c05-chapter" data-tone="risk" data-title="Ch 5: Evals and production">
+  <style>
+    #adk-interview-c05-chapter { padding-bottom: 72px; }
+    #adk-interview-c05-chapter .ch-num { font-size: 210px; top: auto; bottom: 92px; right: 104px; }
+    #adk-interview-c05-chapter .ch-pipe { margin-bottom: 14px; isolation: isolate; }
+    #adk-interview-c05-chapter .ch-pipe .node .ns { font-size: 15px; }
+    #adk-interview-c05-chapter .tok { position: absolute; left: 0; top: 0; width: 20px; height: 20px; margin: -10px 0 0 -10px; border-radius: 50%; background: var(--state); box-shadow: 0 0 14px var(--state); z-index: -1; opacity: 0; pointer-events: none; }
+    #adk-interview-c05-chapter .tok.bad { background: var(--risk); box-shadow: 0 0 14px var(--risk); }
+    #adk-interview-c05-chapter .node.pass { box-shadow: 0 0 0 5px color-mix(in oklab, var(--state) 30%, transparent), 0 0 36px -6px var(--state); }
+    #adk-interview-c05-chapter .node.fail { --nc: var(--risk); border-color: var(--risk); background: linear-gradient(180deg, var(--risk-soft), transparent 140%), var(--surface-2); box-shadow: 0 0 0 6px color-mix(in oklab, var(--risk) 30%, transparent), 0 0 40px -4px var(--risk); }
+    #adk-interview-c05-chapter .stamp { position: absolute; left: 560px; top: 34px; z-index: 5; font: 800 22px/1 var(--f-mono); color: var(--risk); border: 3px solid var(--risk); border-radius: 8px; padding: 6px 10px; background: var(--bg); transform: rotate(-8deg); pointer-events: none; }
+    #adk-interview-c05-chapter .status { position: absolute; left: 0; top: 136px; width: 280px; display: grid; gap: 4px; font: 600 18px/1.3 var(--f-mono); color: var(--muted); }
+    #adk-interview-c05-chapter .status b { color: var(--ink); }
+    #adk-interview-c05-chapter .status .bad { color: var(--risk); }
+    #adk-interview-c05-chapter .status .good { color: var(--state); }
+    #adk-interview-c05-chapter .lede { font-size: 24px; max-width: 1100px; }
+    #adk-interview-c05-chapter .tags .tag { font-size: 16px; padding: 9px 13px 9px 11px; }
+  </style>
+  <div class="ch-num" data-fx="blur">05</div>
+  <div class="diagram ch-pipe" style="width:1150px;height:270px"
+       data-wires="commit>gate:rl{human} [PR]; gate>canary@1:rl{state} [exit 0]; canary>prod@2:rl{tool} [SLIs ok]; prod>traces@3:br{state}; traces>gate@3:lb:dash:flow{state} [new eval case]">
+    <div class="node n-human" id="commit" style="left:0;top:20px;width:232px"><span class="nt">commit</span><span class="ns">prompt · tool · model</span></div>
+    <div class="node n-state" id="gate" style="left:306px;top:20px;width:232px" data-fx="pop"><span class="nt">eval gate</span><span class="ns">adk eval</span></div>
+    <div class="node n-tool" id="canary" style="left:612px;top:20px;width:232px" data-step="1" data-fx="pop"><span class="nt">canary</span><span class="ns">new image · old kept</span></div>
+    <div class="node n-agent" id="prod" style="left:918px;top:20px;width:232px" data-step="2" data-fx="pop"><span class="nt">prod</span><span class="ns">refund_agent</span></div>
+    <div class="node n-state" id="traces" style="left:612px;top:178px;width:232px" data-step="3" data-fx="pop"><span class="nt">traces</span><span class="ns">OpenTelemetry</span></div>
+    <div class="stamp" id="c05-stamp" data-until="1">exit 1</div>
+    <!-- one status per step, in the same place -->
+    <div class="status" data-until="1"><span>build <b>#3</b> · regression</span><span class="bad">exit 1 · blocked at gate</span></div>
+    <div class="status" data-step="1" data-until="2"><span>build <b>#4</b> · fix</span><span class="good">exit 0 · on canary</span></div>
+    <div class="status" data-step="2" data-until="3"><span>build <b>#4</b> · SLIs ok</span><span class="good">shipped to prod</span></div>
+    <div class="status" data-step="3"><span>build <b>#4</b> · in prod</span><span class="good">bad trace → eval case</span></div>
+    <div class="tok" id="c05-tok"></div>
+  </div>
+  <h2 class="display">Evals, observability and production</h2>
+  <p class="lede" data-fx="up">Expect questions on pass^k (all k runs of a case must pass), judge trust, silent telemetry breaks and safe upgrades.</p>
+  <div class="tags" data-fx="stagger">
+    <span class="tag t-state">adk eval</span>
+    <span class="tag t-state">AgentEvaluator</span>
+    <span class="tag t-human">user simulation</span>
+    <span class="tag t-tool">OpenTelemetry</span>
+    <span class="tag t-agent">adk deploy</span>
+  </div>
+  <aside class="notes">
+    This chapter drills one claim: an agent is production-ready only when a gate can fail it. Step 0 shows build 3, a regression: the eval gate turns red and adk eval exits 1. Since 2.13.0 adk eval exits 1 on any failed case; before 2.13.0 the exit code did not reflect failures (CHANGELOG 2.13.0), so old CI pipelines passed silently. Steps 1 and 2 show build 4, the fix: exit 0, then the canary, then production when the agent SLIs stay normal. Step 3 closes the loop: a failing production trace comes back as a new eval case. Analogy: a smoke detector that never beeps is not a safe house, it is a broken detector. Likely student question: "Is one eval run enough?" No, the next slide shows why you run each case several times and report pass^k.
+  </aside>
+</section>
+<script>
+(() => {
+  let tl = null;
+  const kill = (slide) => {
+    if (tl) { tl.kill(); tl = null; }
+    if (!slide) return;
+    const tok = slide.querySelector("#c05-tok");
+    if (tok) { gsap.killTweensOf(tok); gsap.set(tok, { opacity: 0 }); }
+    slide.querySelectorAll(".ch-pipe .node").forEach((n) => n.classList.remove("pass", "fail"));
+  };
+  // edge points of a left-to-right wire: right edge of a, left edge of b (the token stays on the wire)
+  const seg = (a, b) => [
+    { x: a.offsetLeft + a.offsetWidth + 12, y: a.offsetTop + a.offsetHeight / 2 },
+    { x: b.offsetLeft - 12, y: b.offsetTop + b.offsetHeight / 2 }
+  ];
+  const build = (slide, n) => {
+    kill(slide);
+    const q = (id) => slide.querySelector("#" + id);
+    const tok = q("c05-tok"), gate = q("gate");
+    // the build of this step: step 0 = regression stopped at the gate, steps 1+ = the fix
+    const pass = n >= 1;
+    const path = !pass ? ["commit", "gate"] : n === 1 ? ["commit", "gate", "canary"] : ["commit", "gate", "canary", "prod"];
+    gate.classList.add(pass ? "pass" : "fail");
+    if (n >= 2) q("canary").classList.add("pass");
+    if (n >= 3) q("prod").classList.add("pass");
+    tok.classList.toggle("bad", !pass);
+    tl = gsap.timeline({ repeat: -1, delay: 0.4, repeatDelay: 0.6 });
+    for (let i = 0; i + 1 < path.length; i++) {
+      const [p0, p1] = seg(q(path[i]), q(path[i + 1]));
+      tl.set(tok, { x: p0.x, y: p0.y, opacity: 0 })
+        .to(tok, { opacity: 1, duration: 0.15 })
+        .to(tok, { x: p1.x, y: p1.y, duration: 0.8, ease: "power1.inOut" }, "<")
+        .to(tok, { opacity: 0, duration: 0.2 });
+    }
+  };
+  Deck.register("adk-interview-c05-chapter", {
+    enter(slide, step) { build(slide, step); },
+    step(slide, n) { build(slide, n); },
+    leave(slide) { kill(slide); }
+  });
+})();
+</script>

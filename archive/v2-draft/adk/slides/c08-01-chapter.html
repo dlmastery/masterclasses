@@ -1,0 +1,198 @@
+<section class="slide chapter" id="adk-c08-chapter" data-tone="state" data-title="Ch 8: Context, memory and Live">
+  <style>
+    #adk-c08-chapter { gap: 16px; padding-bottom: 76px; }
+    #adk-c08-chapter .ch-num { font-size: 280px; right: 60px; top: 36px; }
+    #adk-c08-chapter svg { overflow: visible; flex: none; }
+    #adk-c08-chapter svg text { font-family: var(--f-mono); }
+    #adk-c08-chapter .display { font-size: 92px; max-width: 1392px; }
+    #adk-c08-chapter .lede { max-width: 1250px; }
+    #adk-c08-chapter .c08c-ag { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+    #adk-c08-chapter .c08c-ag > div { display: flex; flex-direction: column; gap: 6px; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); }
+    #adk-c08-chapter .c08c-ag b { font: 700 17px/1.2 var(--f-mono); }
+    #adk-c08-chapter .c08c-ag span { font-size: 16px; line-height: 1.3; color: var(--ink-2); }
+    #adk-c08-chapter .c08c-ag .tag { align-self: flex-start; font-size: 13px; }
+    #adk-c08-chapter .c08c-ver { font: 500 15px/1.3 var(--f-mono); color: var(--muted); }
+  </style>
+  <div class="ch-num" data-fx="blur">08</div>
+  <svg id="c08c-svg" viewBox="0 0 1300 250" width="1300" height="250" aria-label="An animation that repeats. A context window bar for one request. A green static prefix with the handbook locks with a cache icon. A Memory Bank cylinder sends two fact chips, Family 4-line and SMS only, along an arrow into the slot after the prefix. A run_live pill sends voice turns along an arrow into the window, and user and agent turns fill the bar. When they reach the dashed token_threshold line, the four oldest turns squeeze into one summary block. An audio waveform and a transcript come out of the right end of the bar."></svg>
+  <h2 class="display">Context, memory and Live</h2>
+  <p class="lede" data-fx="up">One Bluefin Telecom support agent, four features. Each feature is a lab you can run.</p>
+  <div class="c08c-ag" data-fx="stagger">
+    <div><b class="c-state">1 · Cache</b><span>Send the handbook once, reuse it on later turns.</span><span class="tag t-state">local · API key</span></div>
+    <div><b class="c-state">2 · Compaction</b><span>Summarise old turns before <code>token_threshold</code>.</span><span class="tag t-state">local · API key</span></div>
+    <div><b class="c-state">3 · Memory Bank</b><span>Remember the customer across sessions.</span><span class="tag t-tool">cloud · GCP project + billing</span></div>
+    <div><b class="c-model">4 · run_live</b><span>Answer a billing call by voice.</span><span class="tag t-tool">cloud · GCP project + billing</span></div>
+  </div>
+  <div class="c08c-ver" data-fx="up">pip install google-adk==2.13.0 · gemini-3.5-flash · gemini-live-2.5-flash-native-audio</div>
+  <aside class="notes">This chapter builds one support agent for Bluefin Telecom and keeps it cheap, fast and personal. The four cards are the four labs: the cache and compaction labs run on your laptop with an AI Studio API key, and Memory Bank and the Live voice lab need a Google Cloud project with billing on. The animation shows one request: the handbook prefix is cached from turn 2, Memory Bank feeds two facts about Priya into the slot after the prefix, voice turns from run_live fill the window, and when the turns reach token_threshold the oldest ones become one summary. Think of the context window as a desk: the handbook is a binder that stays open in the same place, the chat is a pile of notes that you summarise when it gets too high, and memory is the customer file you pull from the cabinet. A likely question: "Why not just use a bigger context window?" Because every turn re-sends the whole window, so turn count and the uncached part drive the cost, as the TurnCost card in the cache lab shows.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "adk-c08-chapter";
+  let tl = null, wave = null, P = null;
+
+  const el = (parent, tag, attrs, style, text) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (style) Object.assign(e.style, style);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  };
+  const mono = (w, s) => ({ font: `${w} ${s}px var(--f-mono)` });
+
+  // geometry: context window bar, prefix, memory slot, turn blocks
+  const BX = 170, BY = 90, BW = 930, BH = 70;
+  const PX = BX + 10, PW = 240;               // static prefix
+  const SX = BX + 260, SW = 130;              // memory slot
+  const X0 = BX + 400, BLW = 56, GAP = 8;     // turn blocks
+  const TH = X0 + 7 * (BLW + GAP) + 6;        // token_threshold: just past the 7th block
+  const bx = (i) => X0 + i * (BLW + GAP);
+  const SUMW = 120;
+
+  function block(parent, x, tone, label) {
+    const g = el(parent, "g", {}, { opacity: 0 });
+    el(g, "rect", { x: 0, y: BY + 12, width: BLW, height: BH - 24, rx: 8 }, { fill: `var(--${tone}-soft)`, stroke: `var(--${tone})`, strokeWidth: 2 });
+    el(g, "text", { x: BLW / 2, y: BY + BH / 2 + 5, "text-anchor": "middle" }, { ...mono(700, 12), fill: `var(--${tone})` }, label);
+    g._x = x;
+    return g;
+  }
+  function chip(parent, x, y, w, text) {
+    const g = el(parent, "g", {}, { opacity: 0 });
+    el(g, "rect", { x: -w / 2, y: -11, width: w, height: 22, rx: 11 }, { fill: "var(--state)" });
+    el(g, "text", { x: 0, y: 4, "text-anchor": "middle" }, { ...mono(700, 12), fill: "#fff" }, text);
+    g._tx = x; g._ty = y;
+    return g;
+  }
+  function head(parent, id, color) {
+    const defs = el(parent, "defs", {});
+    const m = el(defs, "marker", { id, viewBox: "0 0 10 10", refX: 8, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto-start-reverse" });
+    el(m, "path", { d: "M0,0 L10,5 L0,10 z" }, { fill: color });
+  }
+
+  function build(svg) {
+    svg.innerHTML = "";
+    head(svg, "c08c-as", "var(--state)");
+    head(svg, "c08c-am", "var(--model)");
+    const root = el(svg, "g", {});
+
+    // Memory Bank cylinder, with an arrow into the memory slot
+    const cyl = el(root, "g", {});
+    el(cyl, "path", { d: "M0 62 L0 142 A60 15 0 0 0 120 142 L120 62" }, { fill: "var(--state-soft)", stroke: "var(--state)", strokeWidth: 2.5 });
+    el(cyl, "ellipse", { cx: 60, cy: 62, rx: 60, ry: 15 }, { fill: "var(--state-soft)", stroke: "var(--state)", strokeWidth: 2.5 });
+    el(cyl, "text", { x: 60, y: 108, "text-anchor": "middle" }, { ...mono(700, 14), fill: "var(--ink)" }, "Memory Bank");
+    el(cyl, "text", { x: 60, y: 128, "text-anchor": "middle" }, { ...mono(500, 12), fill: "var(--muted)" }, "cust-42");
+    const memArrow = el(root, "path", { d: `M112 52 C 220 6, ${SX + SW / 2 - 30} 10, ${SX + SW / 2} ${BY - 6}`, "marker-end": "url(#c08c-as)" }, { fill: "none", stroke: "var(--state)", strokeWidth: 2.2, strokeDasharray: "6 5" });
+    el(root, "text", { x: 236, y: 4 }, { ...mono(700, 13), fill: "var(--state)" }, "preload_memory");
+
+    // context window frame
+    el(root, "rect", { x: BX, y: BY, width: BW, height: BH, rx: 14 }, { fill: "none", stroke: "var(--line-2)", strokeWidth: 2 });
+    el(root, "text", { x: BX + BW, y: BY + BH + 24, "text-anchor": "end" }, { ...mono(600, 13), fill: "var(--muted)" }, "context window · one request");
+
+    // static prefix + lock
+    const prefix = el(root, "g", {}, { opacity: 0 });
+    el(prefix, "rect", { x: PX, y: BY + 10, width: PW, height: BH - 20, rx: 10 }, { fill: "var(--state)", stroke: "var(--state)", strokeWidth: 2 });
+    el(prefix, "text", { x: PX + PW / 2, y: BY + 32, "text-anchor": "middle" }, { ...mono(700, 14), fill: "#fff" }, "static prefix");
+    el(prefix, "text", { x: PX + PW / 2, y: BY + 51, "text-anchor": "middle" }, { ...mono(500, 12), fill: "#fff" }, "handbook · 4,096+ tok");
+    const lock = el(root, "g", { transform: `translate(${PX + PW - 14} ${BY - 2})` }, { opacity: 0 });
+    el(lock, "circle", { cx: 0, cy: 0, r: 18 }, { fill: "var(--bg)", stroke: "var(--state)", strokeWidth: 2.5 });
+    el(lock, "path", { d: "M-6 -2 L-6 -7 A6 6 0 0 1 6 -7 L6 -2" }, { fill: "none", stroke: "var(--state)", strokeWidth: 2.5 });
+    el(lock, "rect", { x: -9, y: -2, width: 18, height: 12, rx: 3 }, { fill: "var(--state)" });
+    const lockLbl = el(root, "text", { x: PX, y: BY + BH + 24 }, { ...mono(700, 13), fill: "var(--state)", opacity: 0 }, "cached from turn 2");
+
+    // memory slot
+    el(root, "rect", { x: SX, y: BY + 8, width: SW, height: BH - 16, rx: 10 }, { fill: "none", stroke: "var(--state)", strokeWidth: 1.5, strokeDasharray: "5 5" });
+    const f1 = chip(root, SX + SW / 2, BY + 23, 118, "Family 4-line");
+    const f2 = chip(root, SX + SW / 2, BY + 48, 118, "SMS only");
+
+    // compaction threshold: clipped to the bar height
+    const th = el(root, "path", { d: `M${TH} ${BY - 4} L${TH} ${BY + BH + 4}` }, { stroke: "var(--risk)", strokeWidth: 2.2, strokeDasharray: "6 5", fill: "none" });
+    el(root, "text", { x: TH, y: BY - 12, "text-anchor": "middle" }, { ...mono(700, 13), fill: "var(--risk)" }, "token_threshold");
+
+    // turn blocks + summary
+    const blocks = [];
+    for (let i = 0; i < 8; i++) blocks.push(block(root, bx(i), i % 2 ? "agent" : "human", i % 2 ? "agent" : "user"));
+    const summary = el(root, "g", {}, { opacity: 0 });
+    el(summary, "rect", { x: X0, y: BY + 10, width: SUMW, height: BH - 20, rx: 10 }, { fill: "var(--state-soft)", stroke: "var(--state)", strokeWidth: 2.5 });
+    el(summary, "text", { x: X0 + SUMW / 2, y: BY + BH / 2 + 5, "text-anchor": "middle" }, { ...mono(700, 13), fill: "var(--state)" }, "summary");
+
+    // run_live pill, with an arrow into the window
+    const live = el(root, "g", {});
+    el(live, "rect", { x: BX, y: 196, width: 200, height: 38, rx: 19 }, { fill: "var(--model-soft)", stroke: "var(--model)", strokeWidth: 2 });
+    el(live, "text", { x: BX + 100, y: 220, "text-anchor": "middle" }, { ...mono(700, 14), fill: "var(--ink)" }, "run_live · voice");
+    el(live, "path", { d: `M${BX + 204} 215 H ${X0 + 30} V ${BY + BH + 6}`, "marker-end": "url(#c08c-am)" }, { fill: "none", stroke: "var(--model)", strokeWidth: 2.2 });
+    el(live, "text", { x: BX + 230, y: 208 }, { ...mono(700, 13), fill: "var(--model)" }, "voice turns");
+
+    // audio out of the right end of the window
+    const WX = BX + BW + 6, WY = BY + BH / 2;
+    el(live, "path", { d: `M${BX + BW} ${WY} H ${WX + 12}`, "marker-end": "url(#c08c-am)" }, { fill: "none", stroke: "var(--model)", strokeWidth: 2.2 });
+    const bars = [];
+    for (let i = 0; i < 22; i++) bars.push(el(live, "rect", { x: WX + 22 + i * 7.5, y: WY - 12, width: 4.5, height: 24, rx: 2 }, { fill: "var(--model)" }));
+    const trans = el(live, "text", { x: BX + BW + 190, y: 220, "text-anchor": "end" }, { ...mono(500, 14), fill: "var(--ink-2)" }, "");
+    P = { root, memArrow, prefix, lock, lockLbl, f1, f2, th, blocks, summary, bars, trans, WY };
+  }
+
+  const TEXT = "transcript: “I will review your Family 4-line bill.”";
+
+  function play() {
+    const p = P;
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    tl = gsap.timeline({ repeat: reduce ? 0 : -1, repeatDelay: 0.3 });
+    tl.set(p.root, { opacity: 1 }, 0)
+      .set([p.prefix, p.lock, p.lockLbl, p.summary], { opacity: 0 }, 0)
+      .set(p.lock, { scale: 0.4, transformOrigin: "50% 50%" }, 0)
+      .set(p.th, { stroke: "var(--risk)" }, 0)
+      .set(p.trans, { textContent: "" }, 0);
+    [p.f1, p.f2].forEach((c) => tl.set(c, { opacity: 0, x: 60, y: 60 }, 0));
+    p.blocks.forEach((b) => tl.set(b, { opacity: 0, x: b._x + 30, scaleX: 1, transformOrigin: "0% 50%" }, 0));
+
+    // 1. the static prefix appears and locks; the first turns are already there
+    tl.to(p.prefix, { opacity: 1, duration: 0.3 }, 0.05)
+      .to(p.lock, { opacity: 1, scale: 1, duration: 0.35, ease: "back.out(2)" }, 0.4)
+      .to(p.lockLbl, { opacity: 1, duration: 0.3 }, 0.55);
+    for (let i = 0; i < 3; i++) tl.to(p.blocks[i], { opacity: 1, x: p.blocks[i]._x, duration: 0.25 }, 0.1 + i * 0.12);
+    // 2. memory feeds two facts along the arrow into the slot
+    [p.f1, p.f2].forEach((c, i) => {
+      tl.set(c, { opacity: 1 }, 0.9 + i * 0.3)
+        .to(c, { x: c._tx, y: c._ty, duration: 0.8, ease: "power3.inOut" }, 0.9 + i * 0.3);
+    });
+    // 3. voice turns keep arriving until the bar reaches the threshold
+    for (let i = 3; i < 7; i++) tl.to(p.blocks[i], { opacity: 1, x: p.blocks[i]._x, duration: 0.3, ease: "power2.out" }, 2.0 + (i - 3) * 0.45);
+    // 4. the threshold fires: the four oldest turns squeeze into one summary
+    const C = 4.2;
+    tl.to(p.th, { stroke: "var(--state)", duration: 0.15, yoyo: true, repeat: 3 }, C);
+    for (let i = 0; i < 4; i++) tl.to(p.blocks[i], { x: X0, scaleX: 0.3, opacity: 0, duration: 0.6, ease: "power2.in" }, C + 0.3);
+    tl.to(p.summary, { opacity: 1, duration: 0.3 }, C + 0.7);
+    for (let i = 4; i < 7; i++) tl.to(p.blocks[i], { x: X0 + SUMW + 8 + (i - 4) * (BLW + GAP), duration: 0.5, ease: "power2.inOut" }, C + 0.8);
+    tl.to(p.blocks[7], { opacity: 1, x: X0 + SUMW + 8 + 3 * (BLW + GAP), duration: 0.3 }, C + 1.5);
+    // 5. the answer leaves as audio plus a transcript
+    const o = { n: 0 };
+    tl.to(o, { n: TEXT.length, duration: 2.0, ease: "none", onUpdate: () => { p.trans.textContent = TEXT.slice(0, Math.round(o.n)); } }, 2.4);
+    tl.to(p.root, { opacity: 0, duration: 0.4 }, 9.2);
+    if (reduce) tl.progress(0.9);
+
+    if (!reduce) {
+      wave = gsap.timeline({ repeat: -1, yoyo: true });
+      p.bars.forEach((b, i) => { const h = 24 * (0.25 + ((i * 7) % 10) / 10); wave.to(b, { attr: { height: h, y: p.WY - h / 2 }, duration: 0.45, ease: "sine.inOut" }, (i % 6) * 0.07); });
+    }
+  }
+
+  function stop() {
+    if (tl) tl.kill();
+    if (wave) wave.kill();
+    tl = null; wave = null;
+    if (P) gsap.killTweensOf([P.root, P.prefix, P.lock, P.lockLbl, P.f1, P.f2, P.th, P.summary, P.trans, ...P.blocks, ...P.bars]);
+  }
+
+  Deck.register(ID, {
+    enter(slide) {
+      stop();
+      build(slide.querySelector("#c08c-svg"));
+      play();
+    },
+    step() {},
+    leave() { stop(); },
+  });
+})();
+</script>

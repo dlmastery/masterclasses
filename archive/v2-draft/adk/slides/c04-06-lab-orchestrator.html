@@ -1,0 +1,230 @@
+<section class="slide tight" id="adk-c04-lab-orchestrator" data-tone="agent" data-title="Lab 4.4: orchestrator + workers">
+  <style>
+    #adk-c04-lab-orchestrator .oc-main { display: grid; grid-template-columns: 704px 1fr; gap: 24px; align-items: start; }
+    #adk-c04-lab-orchestrator .lab-head { font-size: 13px; gap: 10px; flex-wrap: nowrap; }
+    #adk-c04-lab-orchestrator .lab-head .run { font-size: 12.5px; padding: 7px 10px; white-space: nowrap; }
+    #adk-c04-lab-orchestrator .lab-head > span:not(.run) { white-space: nowrap; }
+    #adk-c04-lab-orchestrator .lab-head .cite { font-size: 12.5px; padding: 5px 9px 5px 7px; white-space: nowrap; }
+    #adk-c04-lab-orchestrator .oc-code .code-head { padding: 7px 14px; font-size: 13px; }
+    #adk-c04-lab-orchestrator .oc-code pre.code { font-size: 11.5px; line-height: 1.38; padding: 9px 14px 11px; }
+    #adk-c04-lab-orchestrator .oc-right { gap: 12px; min-width: 0; }
+    #adk-c04-lab-orchestrator .oc-stage .node { padding: 8px 14px; min-width: 0; }
+    #adk-c04-lab-orchestrator .oc-stage .node .nt { font-size: 17px; }
+    #adk-c04-lab-orchestrator .oc-stage .node .ns { font-size: 12px; }
+    #adk-c04-lab-orchestrator .oc-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; z-index: 0; }
+    #adk-c04-lab-orchestrator .oc-svg path.ln { fill: none; stroke: var(--line-2); stroke-width: 2.2; stroke-linecap: round; }
+    #adk-c04-lab-orchestrator .oc-svg path.ln.dash { stroke-dasharray: 7 8; }
+    #adk-c04-lab-orchestrator .oc-in { position: absolute; left: 0; top: 0; width: 220px; z-index: 2; padding: 6px 10px; border-radius: 10px;
+      border: 1px dashed var(--line-2); background: var(--surface); font: 500 12px/1.4 var(--f-mono); color: var(--ink-2); }
+    #adk-c04-lab-orchestrator .oc-in b { color: var(--agent); }
+    #adk-c04-lab-orchestrator .oc-chip { position: absolute; z-index: 2; width: 180px; padding: 6px 10px; border-radius: 10px; font: 700 13px/1.3 var(--f-mono);
+      border: 1.5px solid var(--line-2); background: var(--surface); color: var(--ink-2); }
+    #adk-c04-lab-orchestrator .oc-chip.ok { border-color: var(--state); color: var(--state); }
+    #adk-c04-lab-orchestrator .oc-chip.flag { border-color: var(--risk); color: var(--risk); }
+    #adk-c04-lab-orchestrator .oc-rail { gap: 5px; }
+    #adk-c04-lab-orchestrator .oc-rail > * { font-size: 15px; line-height: 1.35; grid-template-columns: 30px 1fr; gap: 10px; }
+    #adk-c04-lab-orchestrator .oc-rail > *::before { width: 26px; height: 26px; font-size: 13.5px; }
+    #adk-c04-lab-orchestrator .oc-rail code { font-size: 13px; }
+    #adk-c04-lab-orchestrator .out .code-head { padding: 6px 14px; font-size: 12.5px; }
+    #adk-c04-lab-orchestrator .out pre.code { font-size: 11px; line-height: 1.45; padding: 7px 14px 9px; white-space: pre-wrap; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 4</span> Northwind back office · step 4 of 4</div>
+  <h2 class="title">An orchestrator starts one auditor per expense line at run time</h2>
+  <div class="lab-head">
+    <span class="run">adk run expense_audit "Team dinner 4 people $260; Hotel Berlin 1 night $240; Wine for client $90"</span>
+    <span>google-adk 2.13.0</span>
+    <a class="cite doc" href="https://adk.dev/graphs/dynamic/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;adk.dev/graphs/dynamic</a>
+    <a class="cite codelab" href="https://codelabs.developers.google.com/adk2/instructions" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;ADK 2 Orchestration · L4b</a>
+  </div>
+  <div class="oc-main fill">
+    <div class="code-wrap oc-code">
+      <div class="code-head">expense_audit/agent.py · .env with GOOGLE_API_KEY, as in step 3</div>
+      <pre class="code" data-lang="python" data-focus="1:6-13, 2:18-21, 3:22-24, 4:25-33"><code>import asyncio
+from typing import Literal
+from google.adk import Agent, Context, Event, Workflow
+from google.adk.workflow import node
+from pydantic import BaseModel
+class LineVerdict(BaseModel):
+  line: str
+  status: Literal["ok", "flag"]
+  reason: str
+auditor = Agent(name="auditor", model="gemini-3.5-flash",
+    instruction=("You audit one expense line from the user message against policy: "
+                 "meals &lt;= $75/person, no alcohol, hotels &lt;= $250/night. Return a verdict."),
+    output_schema=LineVerdict)
+@node(parameter_binding="node_input")
+def policy_math(line: str, limit: float) -&gt; bool:  # deterministic second opinion
+  amount = float(line.rsplit("$", 1)[1])
+  return amount &lt;= limit
+@node(rerun_on_resume=True)  # REQUIRED for any ctx.run_node caller
+async def orchestrate(ctx: Context, node_input: str):
+  lines = [l.strip() for l in node_input.split(";") if l.strip()]
+  yield Event(message=f"Auditing {len(lines)} lines in parallel.")
+  raw = await asyncio.gather(*[
+      ctx.run_node(auditor, node_input=l, use_sub_branch=True) for l in lines])
+  verdicts = [LineVerdict.model_validate(v) for v in raw]
+  for v in verdicts:
+    if v.status == "flag" and "hotel" in v.line.lower():
+      ok = await ctx.run_node(policy_math, node_input={"line": v.line, "limit": 250.0})
+      if ok:
+        v.status, v.reason = "ok", "Within hotel cap per deterministic check."
+  flagged = [v for v in verdicts if v.status == "flag"]
+  yield Event(state={"flagged": [v.model_dump() for v in flagged]})
+  yield Event(output=[v.model_dump() for v in verdicts],
+    message="\n".join(f"{v.status.upper():4} {v.line} — {v.reason}" for v in verdicts))
+root_agent = Workflow(name="expense_audit", edges=[("START", orchestrate)])</code></pre>
+    </div>
+    <div class="stack oc-right">
+      <div class="diagram oc-stage" style="width:664px;height:318px">
+        <div class="oc-in"><span class="v"></span></div>
+        <div class="node n-agent" id="oc-orch" style="left:0;top:116px;width:210px"><span class="nt">orchestrate</span><span class="ns">rerun_on_resume=True</span></div>
+        <div class="node n-tool" id="oc-pm" style="left:0;top:250px;width:210px"><span class="nt">policy_math</span><span class="ns">@node · no LLM</span></div>
+        <div class="oc-lanes"></div>
+      </div>
+      <div class="steps-rail oc-rail">
+        <div data-step="1"><span>One <code>auditor</code>, many runs. Each run reads its line from the user message.</span></div>
+        <div data-step="2"><span>Required for <code>ctx.run_node</code>. On resume it re-runs from the top, so keep it thin.</span></div>
+        <div data-step="3"><span><code>use_sub_branch=True</code> isolates parallel runs. Await via <code>gather</code>, never <code>create_task</code>.</span></div>
+        <div data-step="4"><span>Code re-checks the hotel cap. Dict keys bind to <code>line</code> and <code>limit</code>.</span></div>
+      </div>
+      <div class="code-wrap out" data-step="2">
+        <div class="code-head">output · illustrative</div>
+        <pre class="code" data-lang="none"><code>[expense_audit]: Auditing 3 lines in parallel.
+<span data-step="4"><span class="ok">[expense_audit]: OK   Team dinner 4 people $260 — $65/person, under the $75 cap.</span>
+<span class="ok">OK   Hotel Berlin 1 night $240 — Within hotel cap per deterministic check.</span>
+<span class="err">FLAG Wine for client $90 — Alcohol is not reimbursable.</span></span></code></pre>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">This is the orchestrator-workers pattern on an adjuster's travel expenses: the number of lines is known only at run time, so the graph cannot be static. The orchestrator splits the input, then starts one auditor run per line with ctx.run_node inside asyncio.gather, and use_sub_branch keeps the three runs from seeing each other's events. Think of a claims manager who hands each receipt to a different clerk and collects the slips. The hotel line shows a deterministic second opinion: policy_math checks 240 against the 250 cap in code, so an LLM mistake on a number cannot block a valid claim. A likely question is why rerun_on_resume is required: after an interruption the parent runs again from the top, and finished children are replayed from history, so put side effects in children and keep the parent thin. The codelab level L4b goes further with recursive spawning, bounded by a MAX_DEPTH check in code. Last build of the back office: subagents that research competitor premiums.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c04-lab-orchestrator";
+  const NS = "http://www.w3.org/2000/svg";
+  const INPUT = "Team dinner 4 people $260; Hotel Berlin 1 night $240; Wine for client $90";
+  const LINES = INPUT.split(";").map((s) => s.trim()).filter(Boolean);   // 3 lines -> 3 workers
+  const SHORT = (l) => l.replace(/ \d+ (people|night)/, "");
+  // verdicts per line: auditor result (step 3), and after the deterministic check (step 4)
+  const V3 = [["ok", "OK · $65/person"], ["flag", "FLAG"], ["flag", "FLAG · alcohol"]];
+  const V4 = [["ok", "OK · $65/person"], ["ok", "OK · 240 ≤ 250"], ["flag", "FLAG · alcohol"]];
+  const HOTEL = LINES.findIndex((l) => /hotel/i.test(l));
+  const LANE_H = 82, LANE_GAP = 112, ORX = 210, ORY = 145;
+  let tl = null, tokens = [];
+  function build(slide) {
+    const st = slide.querySelector(".oc-stage");
+    if (!st || st._built) return st;
+    st._built = true;
+    const lanes = st.querySelector(".oc-lanes");
+    const svg = document.createElementNS(NS, "svg");
+    svg.setAttribute("class", "oc-svg");
+    svg.innerHTML = '<defs><marker id="oc-ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--line-2)"/></marker></defs>';
+    st.prepend(svg);
+    LINES.forEach((l, i) => {
+      const top = i * LANE_GAP;
+      const g = document.createElement("div");
+      g.className = "group g-agent oc-lane";
+      g.style.cssText = `left:262px;top:${top + 10}px;width:400px;height:${LANE_H}px`;
+      g.innerHTML = `<span class="gl">sub-branch ${i + 1}</span>`;
+      lanes.appendChild(g);
+      const w = document.createElement("div");
+      w.className = "node n-agent oc-w";
+      w.id = "oc-w" + i;
+      w.style.cssText = `left:280px;top:${top + 23}px;width:172px`;
+      w.innerHTML = `<span class="nt">auditor</span><span class="ns">${SHORT(l)}</span>`;
+      lanes.appendChild(w);
+      const c = document.createElement("div");
+      c.className = "oc-chip";
+      c.style.cssText = `left:470px;top:${top + 37}px`;
+      lanes.appendChild(c);
+      const y = top + 51;
+      const p = document.createElementNS(NS, "path");
+      p.setAttribute("class", "ln oc-spawn");
+      p.setAttribute("d", `M${ORX},${ORY} C${ORX + 40},${ORY} ${280 - 40},${y} 280,${y}`);
+      p.setAttribute("marker-end", "url(#oc-ar)");
+      svg.appendChild(p);
+    });
+    const pm = document.createElementNS(NS, "path");
+    pm.setAttribute("class", "ln dash oc-pmline");
+    pm.setAttribute("d", "M105,174 L105,248");
+    pm.setAttribute("marker-end", "url(#oc-ar)");
+    svg.appendChild(pm);
+    return st;
+  }
+  function stop() {
+    if (tl) { tl.kill(); tl = null; }
+    tokens.forEach((t) => { gsap.killTweensOf(t); t.remove(); });
+    tokens = [];
+  }
+  function render(slide, n, animate) {
+    stop();
+    const st = build(slide);
+    if (!st) return;
+    const k = Math.max(0, Math.min(4, n));
+    const svg = st.querySelector("svg.oc-svg");
+    const inV = st.querySelector(".oc-in .v");
+    inV.innerHTML = k >= 2
+      ? `<b>lines = ${LINES.length}</b><br>` + LINES.map((l, i) => `${i + 1}. ${SHORT(l)}`).join("<br>")
+      : `node_input:<br>"${INPUT}"`;
+    st.querySelector("#oc-orch").classList.toggle("lit", k === 2);
+    const pmNode = st.querySelector("#oc-pm"), pmLine = st.querySelector(".oc-pmline");
+    gsap.set(pmNode, { autoAlpha: k >= 4 ? 1 : 0 });
+    gsap.set(pmLine, { autoAlpha: k >= 4 ? 1 : 0 });
+    pmNode.classList.toggle("lit", k >= 4);
+    const lanes = [...st.querySelectorAll(".oc-lane")], ws = [...st.querySelectorAll(".oc-w")], chips = [...st.querySelectorAll(".oc-chip")], spawns = [...st.querySelectorAll(".oc-spawn")];
+    LINES.forEach((l, i) => {
+      // step 1: one auditor definition (ghost); step 3+: one run per line in its own sub-branch
+      const showW = k >= 3 || (k >= 1 && i === 1);
+      gsap.set(ws[i], { autoAlpha: showW ? 1 : 0, scale: 1 });
+      gsap.set(chips[i], { scale: 1 });
+      ws[i].classList.toggle("ghost", k < 3);
+      ws[i].querySelector(".ns").textContent = k < 3 ? "1 definition" : SHORT(l);
+      gsap.set([lanes[i], spawns[i]], { autoAlpha: k >= 3 ? 1 : 0 });
+      const v = k >= 4 ? V4[i] : V3[i];
+      chips[i].className = "oc-chip " + v[0];
+      chips[i].textContent = v[1];
+      gsap.set(chips[i], { autoAlpha: k >= 3 ? 1 : 0 });
+      ws[i].classList.toggle("lit", k === 4 && i === HOTEL);
+    });
+    if (!animate || (k !== 3 && k !== 4)) return;
+    const mk = (tone) => {
+      const c = document.createElementNS(NS, "circle");
+      c.setAttribute("r", 8); c.setAttribute("fill", `var(--${tone})`); c.setAttribute("opacity", 0);
+      c.style.filter = `drop-shadow(0 0 6px var(--${tone}))`;
+      svg.appendChild(c); tokens.push(c); return c;
+    };
+    const ride = (c, p, dur, rev) => {
+      const L = p.getTotalLength(), o = { t: 0 };
+      return gsap.to(o, { t: 1, duration: dur, ease: "power1.inOut", onStart: () => c.setAttribute("opacity", 1),
+        onUpdate: () => { const pt = p.getPointAtLength((rev ? 1 - o.t : o.t) * L); c.setAttribute("cx", pt.x); c.setAttribute("cy", pt.y); },
+        onComplete: () => c.setAttribute("opacity", 0) });
+    };
+    tl = gsap.timeline();
+    if (k === 3) {
+      // all workers spawn at the same time (asyncio.gather), each verdict lands when its token arrives
+      gsap.set(chips, { autoAlpha: 0 });
+      gsap.set(ws, { scale: 0.6, autoAlpha: 0, transformOrigin: "left center" });
+      spawns.forEach((p, i) => {
+        tl.add(ride(mk("agent"), p, 0.8), 0);
+        tl.to(ws[i], { scale: 1, autoAlpha: 1, duration: 0.35, ease: "back.out(2)" }, 0.7);
+        tl.to(chips[i], { autoAlpha: 1, duration: 0.3 }, 1.3 + i * 0.15);
+      });
+    } else {
+      // hotel line: FLAG first, then policy_math checks 240 <= 250 and flips it to OK
+      const hc = chips[HOTEL];
+      hc.className = "oc-chip " + V3[HOTEL][0]; hc.textContent = V3[HOTEL][1];
+      gsap.set([pmNode, pmLine], { autoAlpha: 0 });
+      tl.to([pmNode, pmLine], { autoAlpha: 1, duration: 0.4 }, 0);
+      tl.add(ride(mk("tool"), pmLine, 0.6), 0.4);
+      tl.add(ride(mk("tool"), pmLine, 0.6, true), 1.2);
+      tl.call(() => { hc.className = "oc-chip " + V4[HOTEL][0]; hc.textContent = V4[HOTEL][1]; }, null, 1.9);
+      tl.fromTo(hc, { scale: 1.15 }, { scale: 1, duration: 0.4, ease: "back.out(2)" }, 1.9);
+    }
+  }
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { stop(); }
+  });
+})();
+</script>

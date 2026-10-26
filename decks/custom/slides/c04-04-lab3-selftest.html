@@ -1,0 +1,259 @@
+<section class="slide" id="custom-c04-lab3-selftest" data-tone="tool" data-title="Lab 3: the self-test caught a hack">
+  <style>
+    #custom-c04-lab3-selftest { gap: 22px; }
+    #custom-c04-lab3-selftest .s-grid { display: grid; grid-template-columns: 680px 1fr; gap: 28px; min-height: 0; }
+    #custom-c04-lab3-selftest .s-left, #custom-c04-lab3-selftest .s-right { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    #custom-c04-lab3-selftest pre.code { font-size: 11.5px; line-height: 1.38; padding: 10px 16px 12px; }
+    #custom-c04-lab3-selftest .code-head { padding: 8px 14px; font-size: 13.5px; }
+    #custom-c04-lab3-selftest .lab-head { font-size: 15px; gap: 12px; }
+    #custom-c04-lab3-selftest .lab-head .run { font-size: 15px; padding: 7px 11px; }
+    #custom-c04-lab3-selftest .s-panes { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 12px; }
+    #custom-c04-lab3-selftest .s-hacks { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; font-size: 15px; color: var(--ink-2); }
+    #custom-c04-lab3-selftest .s-cites { display: flex; gap: 10px; flex-wrap: nowrap; align-items: center; }
+    #custom-c04-lab3-selftest .s-cites .cite { flex-direction: row; gap: 8px; padding: 6px 12px 6px 8px; border-radius: 10px; font-size: 14px; background: var(--surface); }
+    #custom-c04-lab3-selftest .s-hacks .tag { font-size: 13.5px; }
+    #custom-c04-lab3-selftest code { font-size: .88em; }
+    #custom-c04-lab3-selftest pre.code, #custom-c04-lab3-selftest pre.code *, #custom-c04-lab3-selftest code, #custom-c04-lab3-selftest svg text { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 3</span> Acme refund-decision agent · step 2 of 4</div>
+  <h2 class="title">The unit test caught a hack: schema-less answers scored 0.5</h2>
+  <div class="s-grid fill">
+    <div class="s-left">
+      <div class="lab-head"><span class="run">python refund_rewards.py</span><span class="small">CPU · seconds · no packages</span></div>
+      <div class="code-wrap">
+        <div class="code-head">refunds_rl/refund_rewards.py · self-test with a known hack</div>
+        <pre class="code" data-lang="python" data-focus="1:2-3, 2:4, 3:5, 4:6-12"><code>if __name__ == "__main__":
+    good = ('&lt;think&gt;Item unopened, 12 days.&lt;/think&gt;&lt;answer&gt;{"decision": "approve", '
+            '"refund_amount": 49.99, "reason": "within 30 days"}&lt;/answer&gt;')
+    wrong_amt = '&lt;answer&gt;{"decision": "approve", "refund_amount": 40, "reason": "x"}&lt;/answer&gt;'
+    hack = '&lt;answer&gt;{"decision": "approve"}&lt;/answer&gt; approve deny escalate'
+    broken = "Sure! I approved it."
+    comps = [[{"role": "assistant", "content": t}]
+             for t in (good, wrong_amt, hack, broken)]
+    print("format  :", format_reward(comps))
+    print("decision:", decision_reward(comps, gold_decision=["approve"] * 4,
+                                       gold_amount=[49.99] * 4))
+    print("no-label:", decision_reward(comps[:1], gold_decision=[None], gold_amount=[None]))</code></pre>
+      </div>
+      <div class="s-panes">
+        <div class="code-wrap out" data-step="4">
+          <div class="code-head">output · ran on CPU</div>
+          <pre class="code" data-lang="none"><code><span class="ok">format  : [0.2, 0.2, 0.0, 0.0]</span>
+<span class="ok">decision: [1.0, 0.5, 0.0, 0.0]</span>
+<span class="ok">no-label: [None]</span></code></pre>
+        </div>
+        <div class="code-wrap bad" data-step="5">
+          <div class="code-head">first draft · no gate</div>
+          <pre class="code" data-lang="none"><code>if obj is None or obj.get("decision") != gd:
+<span class="err">decision: [1.0, 0.5, 0.5, 0.0]</span>
+# the hack earned 0.5 with no answer</code></pre>
+        </div>
+      </div>
+      <div class="code-wrap" data-step="6">
+        <div class="code-head">TRL 1.16.0 built-ins · same test style · ran from the v1.16.0 source</div>
+        <pre class="code" data-lang="python"><code>from trl.rewards import think_format_reward, get_soft_overlong_punishment
+think_format_reward([[{"content": "&lt;think&gt;\nok\n&lt;/think&gt;\nanswer"}],
+                     [{"content": "answer &lt;think&gt;x&lt;/think&gt;"}]])
+# -&gt; [1.0, 0.0]   the completion must START with &lt;think&gt;
+p = get_soft_overlong_punishment(max_completion_len=512, soft_punish_cache=128)
+p([[0]*300, [0]*448, [0]*480, [0]*512, [0]*600])
+# -&gt; [0.0, -0.5, -0.75, -1.0, -1.0]   linear ramp 384 -&gt; 512 (DAPO Eq. 13)</code></pre>
+      </div>
+      <div class="s-cites" data-step="6">
+        <a class="cite paper" href="https://arxiv.org/abs/2610.17824" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.17824 · verifier noise</a>
+        <a class="cite repo" href="https://github.com/huggingface/trl/blob/v1.16.0/trl/rewards/other_rewards.py" target="_blank" rel="noopener"><b>Repo</b>&nbsp;trl v1.16.0 rewards</a>
+      </div>
+    </div>
+    <div class="s-right">
+      <svg id="c04s-svg" viewBox="0 0 684 520" width="684" height="520" aria-label="Four completion cards, good, wrong_amt, hack and broken, enter an amber reward() machine one per step and get format and decision score tags: 0.2 and 1.0, 0.2 and 0.5, 0.0 and 0.0, 0.0 and 0.0. Then the gate switches off to the first draft and the hack's decision tag turns red at 0.5. Last, a chart draws the soft overlong penalty: 0 up to 384 tokens, then a linear ramp to -1 at 512, with five test points on it."></svg>
+      <div class="s-hacks" data-step="6">
+        <span><code>tests/test_rewards.py</code>: at least 1 known hack per reward</span>
+        <span class="tag t-risk">right key, no answer</span>
+        <span class="tag t-risk">keyword stuffing</span>
+        <span class="tag t-risk">empty JSON</span>
+        <span class="tag t-risk">answer in the wrong tag</span>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Now we run the file. It needs no GPU and no packages, and it finishes in seconds. Steps 1 to 4: four hand-written completions go through both rewards; the good answer gets 0.2 and 1.0, the wrong amount gets 0.2 and 0.5, and the hack and the broken answer get 0.0 and 0.0, which is the exact output on the CPU. Step 5 is why this test exists: our first draft had no REQUIRED gate, and the hack that only says approve and then lists every decision earned 0.5, and inside a GRPO group a free 0.5 beats a 0.0, so the policy would learn it. Step 6: test TRL's own built-ins the same way; think_format_reward wants the completion to start with a think tag, and the soft overlong penalty is a linear ramp from 384 to 512 tokens. Analogy: a known hack in the test suite is like a fire drill, you prove the alarm rings before the real fire. Likely question: "How many hack cases are enough?" Start with at least one per reward, for example right key with no answer, keyword stuffing, empty JSON and the answer in the wrong tag, and add each new hack you find in training logs. Next, step 3 runs these same four completions through an OpenAI grader.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c04-lab3-selftest";
+  // exact scores from the CPU run (lab-rl Lab 1): format_reward, decision_reward; draft = the first draft without the REQUIRED gate
+  const CARDS = [
+    { name: "good", tone: "state", text: '{"decision":"approve","refund_amount":49.99,…}', fmt: "0.2", dec: "1.0" },
+    { name: "wrong_amt", tone: "tool", text: '{"decision":"approve","refund_amount":40,…}', fmt: "0.2", dec: "0.5" },
+    { name: "hack", tone: "risk", text: '{"decision":"approve"} approve deny escalate', fmt: "0.0", dec: "0.0", draft: "0.5" },
+    { name: "broken", tone: "muted", text: "Sure! I approved it.", fmt: "0.0", dec: "0.0" },
+  ];
+  const CAPS = [
+    "4 hand-written completions · gold: approve, $49.99",
+    "good: valid schema, right decision, right amount",
+    "wrong_amt: right decision, wrong amount: 0.5",
+    "hack: no refund_amount, no reason: 0.0",
+    "broken: no answer block: 0.0 and 0.0",
+    "first draft, no gate: the hack scores 0.5 · caught in CI",
+    "first draft, no gate: the hack scores 0.5 · caught in CI",
+  ];
+  const CW = 310, CH = 56, RY = (i) => 12 + i * 72;
+  const M = { x: 342, y: 4, w: 118, h: 290 };
+  const FX = 494, FW = 88, DX = 590, DW = 94;
+  // soft overlong penalty chart: tokens 256..640 -> x 50..670 ; reward 0..-1 -> y 392..490
+  const tx = (t) => 50 + (t - 256) * (620 / 384), ry = (r) => 392 - r * 98;
+  const PTS = [[300, 0, "0.0"], [448, -0.5, "-0.5"], [480, -0.75, "-0.75"], [512, -1, "-1.0"], [600, -1, "-1.0"]];
+  let S = null, tl = null;
+
+  const el = (parent, tag, attrs, style, text) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (style) Object.assign(e.style, style);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  };
+  const mono = (w, s) => `${w} ${s}px var(--f-mono)`;
+  const tone = (t) => (t === "muted" ? "var(--muted)" : `var(--${t})`);
+
+  function pill(parent, x, y, w, label) {
+    const g = el(parent, "g", {});
+    const r = el(g, "rect", { x, y, width: w, height: 30, rx: 15 }, { fill: "var(--surface-2)", stroke: "var(--line-2)", strokeWidth: 2 });
+    el(g, "text", { x: x + 12, y: y + 20 }, { font: mono(600, 12), fill: "var(--muted)" }, label);
+    const v = el(g, "text", { x: x + w - 12, y: y + 20, "text-anchor": "end" }, { font: mono(700, 14), fill: "var(--ink)" }, "");
+    return { g, r, v };
+  }
+  function paint(p, val, red) {
+    p.v.textContent = val;
+    const pos = parseFloat(val) > 0;
+    p.r.style.fill = red ? "var(--risk-soft)" : pos ? "var(--state-soft)" : "var(--surface-2)";
+    p.r.style.stroke = red ? "var(--risk)" : pos ? "var(--state)" : "var(--line-2)";
+    p.v.style.fill = red ? "var(--risk)" : pos ? "var(--state)" : "var(--ink)";
+  }
+
+  function build(svg) {
+    svg.innerHTML = "";
+    // reward machine
+    const mbox = el(svg, "rect", { x: M.x, y: M.y, width: M.w, height: M.h, rx: 16 }, { fill: "var(--tool-soft)", stroke: "var(--tool)", strokeWidth: 2.5 });
+    const glow = el(svg, "rect", { x: M.x, y: M.y, width: M.w, height: M.h, rx: 16 }, { fill: "var(--tool)", opacity: 0 });
+    el(svg, "text", { x: M.x + M.w / 2, y: 116, "text-anchor": "middle" }, { font: mono(700, 18), fill: "var(--ink)" }, "reward()");
+    el(svg, "text", { x: M.x + M.w / 2, y: 140, "text-anchor": "middle" }, { font: mono(500, 12), fill: "var(--muted)" }, "format");
+    el(svg, "text", { x: M.x + M.w / 2, y: 157, "text-anchor": "middle" }, { font: mono(500, 12), fill: "var(--muted)" }, "+ decision");
+    const gateR = el(svg, "rect", { x: M.x + 10, y: 236, width: M.w - 20, height: 30, rx: 15 }, { fill: "var(--state-soft)", stroke: "var(--state)", strokeWidth: 2 });
+    const gateT = el(svg, "text", { x: M.x + M.w / 2, y: 256, "text-anchor": "middle" }, { font: mono(700, 12), fill: "var(--state)" }, "gate: on");
+    const rows = CARDS.map((c, i) => {
+      const y = RY(i);
+      const g = el(svg, "g", {});
+      const box = el(g, "rect", { x: 0, y, width: CW, height: CH, rx: 11 }, { fill: "var(--surface-2)", stroke: "var(--line-2)", strokeWidth: 2 });
+      el(g, "text", { x: 12, y: y + 21 }, { font: mono(700, 13), fill: tone(c.tone) }, c.name);
+      el(g, "text", { x: 12, y: y + 43 }, { font: mono(500, 10.5), fill: "var(--ink-2)" }, c.text);
+      const lin = el(svg, "line", { x1: CW + 4, y1: y + CH / 2, x2: M.x - 4, y2: y + CH / 2 }, { stroke: "var(--line-2)", strokeWidth: 2, strokeDasharray: "4 5" });
+      const lout = el(svg, "line", { x1: M.x + M.w + 4, y1: y + CH / 2, x2: FX - 4, y2: y + CH / 2 }, { stroke: "var(--line-2)", strokeWidth: 2, strokeDasharray: "4 5" });
+      const dot = el(svg, "circle", { cx: CW + 4, cy: y + CH / 2, r: 6 }, { fill: "var(--tool)", opacity: 0 });
+      const f = pill(svg, FX, y + 13, FW, "fmt");
+      const d = pill(svg, DX, y + 13, DW, "dec");
+      return { g, box, lin, lout, dot, f, d, y };
+    });
+    const cap = el(svg, "text", { x: 0, y: 324 }, { font: mono(700, 14), fill: "var(--ink-2)" }, "");
+    // soft overlong penalty chart
+    const chart = el(svg, "g", {});
+    el(chart, "text", { x: 0, y: 360 }, { font: mono(700, 13), fill: "var(--ink-2)" }, "get_soft_overlong_punishment(512, 128) · reward vs completion tokens");
+    el(chart, "line", { x1: 50, y1: ry(0), x2: 670, y2: ry(0) }, { stroke: "var(--line-2)", strokeWidth: 1.5, strokeDasharray: "4 5" });
+    el(chart, "line", { x1: 50, y1: ry(-1), x2: 670, y2: ry(-1) }, { stroke: "var(--line-2)", strokeWidth: 1.5, strokeDasharray: "4 5" });
+    el(chart, "text", { x: 40, y: ry(0) + 4, "text-anchor": "end" }, { font: mono(600, 12), fill: "var(--muted)" }, "0");
+    el(chart, "text", { x: 40, y: ry(-1) + 4, "text-anchor": "end" }, { font: mono(600, 12), fill: "var(--muted)" }, "-1");
+    [[384, "384"], [512, "512 = max"]].forEach(([t, l]) => {
+      el(chart, "line", { x1: tx(t), y1: ry(0) - 6, x2: tx(t), y2: ry(-1) + 8 }, { stroke: "var(--line)", strokeWidth: 1.2 });
+      el(chart, "text", { x: tx(t), y: 512, "text-anchor": "middle" }, { font: mono(600, 12), fill: "var(--muted)" }, l);
+    });
+    const ramp = el(chart, "path", { d: `M50 ${ry(0)} L${tx(384)} ${ry(0)} L${tx(512)} ${ry(-1)} L670 ${ry(-1)}` }, { fill: "none", stroke: "var(--risk)", strokeWidth: 3, strokeLinejoin: "round" });
+    const len = ramp.getTotalLength ? ramp.getTotalLength() : 760;
+    ramp.style.strokeDasharray = len;
+    const pts = PTS.map(([t, r, l], i) => {
+      const g = el(chart, "g", {});
+      el(g, "circle", { cx: tx(t), cy: ry(r), r: 6.5 }, { fill: "var(--surface)", stroke: "var(--tool)", strokeWidth: 3 });
+      el(g, "text", { x: tx(t) + (i === 1 || i === 2 ? 12 : i === 3 ? 10 : 0), y: ry(r) + (i === 1 || i === 2 ? -6 : i === 3 ? -10 : -13), "text-anchor": i >= 1 && i <= 3 ? "start" : "middle" }, { font: mono(700, 12), fill: "var(--ink)" }, `${t}: ${l}`);
+      return g;
+    });
+    S = { svg, mbox, glow, gateR, gateT, rows, cap, chart, ramp, len, pts };
+  }
+
+  function kill() {
+    if (tl) { tl.kill(); tl = null; }
+    if (S) gsap.killTweensOf([S.glow, S.chart, S.ramp, ...S.pts, ...S.rows.flatMap((r) => [r.g, r.dot, r.f.g, r.d.g])]);
+  }
+
+  function render(n, animate) {
+    if (!S) return;
+    kill();
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const anim = animate && !reduce;
+    const draft = n >= 5;
+    S.cap.textContent = CAPS[Math.min(n, 6)];
+    S.cap.style.fill = draft ? "var(--risk)" : "var(--ink-2)";
+    S.gateT.textContent = draft ? "gate: off" : "gate: on";
+    S.gateT.style.fill = draft ? "var(--risk)" : "var(--state)";
+    S.gateR.style.fill = draft ? "var(--risk-soft)" : "var(--state-soft)";
+    S.gateR.style.stroke = draft ? "var(--risk)" : "var(--state)";
+    gsap.set(S.glow, { opacity: 0 });
+    tl = gsap.timeline();
+    S.rows.forEach((r, i) => {
+      const c = CARDS[i];
+      const done = i < n, active = i === n - 1 && n <= 4;
+      gsap.set(r.dot, { opacity: 0, attr: { cx: CW + 4 } });
+      r.box.style.stroke = active ? tone(c.tone) : "var(--line-2)";
+      r.box.style.strokeWidth = active ? 3 : 2;
+      paint(r.f, c.fmt, false);
+      const red = draft && c.draft;
+      paint(r.d, red ? c.draft : c.dec, red);
+      r.lin.style.stroke = r.lout.style.stroke = done ? "var(--tool)" : "var(--line-2)";
+      if (active && anim) {
+        // the card hops into the machine, a token travels through it, and the score tags pop
+        gsap.set([r.f.g, r.d.g], { opacity: 0 });
+        gsap.set(r.g, { opacity: 1, x: 0 });
+        tl.to(r.g, { x: 16, duration: 0.25, yoyo: true, repeat: 1, ease: "power2.out" }, 0)
+          .set(r.dot, { opacity: 1, attr: { cx: CW + 4 } }, 0.3)
+          .to(r.dot, { attr: { cx: M.x + M.w / 2 }, duration: 0.45, ease: "power1.in" }, 0.3)
+          .fromTo(S.glow, { opacity: 0.4 }, { opacity: 0, duration: 0.5 }, 0.75)
+          .to(r.dot, { attr: { cx: FX - 6 }, duration: 0.4, ease: "power1.out" }, 0.8)
+          .set(r.dot, { opacity: 0 }, 1.2)
+          .fromTo([r.f.g, r.d.g], { opacity: 0, scale: 0.6, transformOrigin: "50% 50%" }, { opacity: 1, scale: 1, duration: 0.35, stagger: 0.1, ease: "back.out(2.4)" }, 1.2);
+      } else {
+        gsap.set(r.g, { opacity: done ? 1 : 0.35, x: 0 });
+        gsap.set([r.f.g, r.d.g], { opacity: done ? 1 : 0, scale: 1 });
+      }
+      if (i < n && !active) gsap.set(r.g, { opacity: 1 });
+      if (c.draft && n === 5 && anim) {
+        tl.fromTo(r.d.g, { scale: 1, transformOrigin: "50% 50%" }, { scale: 1.25, duration: 0.25, yoyo: true, repeat: 3, ease: "sine.inOut" }, 0.1)
+          .fromTo(S.glow, { opacity: 0.35 }, { opacity: 0, duration: 0.6 }, 0);
+      }
+    });
+    // step 6: the penalty chart draws and the 5 test points drop onto the ramp
+    const showChart = n >= 6;
+    if (showChart && anim && n === 6) {
+      gsap.set(S.chart, { opacity: 1 });
+      gsap.set(S.ramp, { strokeDashoffset: S.len });
+      gsap.set(S.pts, { opacity: 0, y: -36 });
+      tl.to(S.ramp, { strokeDashoffset: 0, duration: 1.1, ease: "power2.inOut" }, 0.1)
+        .to(S.pts, { opacity: 1, y: 0, duration: 0.45, stagger: 0.15, ease: "bounce.out" }, 0.9);
+    } else {
+      gsap.set(S.chart, { opacity: showChart ? 1 : 0 });
+      gsap.set(S.ramp, { strokeDashoffset: showChart ? 0 : S.len });
+      gsap.set(S.pts, { opacity: showChart ? 1 : 0, y: 0 });
+    }
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) {
+      kill();
+      build(slide.querySelector("#c04s-svg"));
+      render(step || 0, false);
+    },
+    step(slide, n, animate) {
+      if (!S || !slide.contains(S.svg)) build(slide.querySelector("#c04s-svg"));
+      render(n, animate);
+    },
+    leave() { kill(); },
+  });
+})();
+</script>

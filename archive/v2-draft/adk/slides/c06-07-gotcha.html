@@ -1,0 +1,173 @@
+<section class="slide tight" id="adk-c06-gotcha" data-tone="tool" data-title="Gotcha: three MCP failures">
+  <style>
+    #adk-c06-gotcha .mg-body { display: grid; grid-template-columns: 650px 1fr; gap: 26px; align-items: start; }
+    #adk-c06-gotcha .mg-left, #adk-c06-gotcha .mg-right { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+    #adk-c06-gotcha .gotcha { grid-template-columns: 84px 1fr; gap: 3px 12px; padding: 8px 14px; font-size: 14.5px; line-height: 1.36; }
+    #adk-c06-gotcha .gotcha > b { font-size: 12px; line-height: 1.75; }
+    #adk-c06-gotcha .gotcha .mg-n { grid-column: 1 / -1; font: 700 12.5px/1 var(--f-mono); color: var(--risk); letter-spacing: .05em; text-transform: uppercase; margin-bottom: 3px; }
+    #adk-c06-gotcha .mg-err { font: 500 12px/1.42 var(--f-mono); color: var(--risk); }
+    #adk-c06-gotcha .code-head { padding: 7px 14px; font-size: 13px; }
+    #adk-c06-gotcha pre.code { font-size: 12px; line-height: 1.42; padding: 8px 14px 10px; }
+    #adk-c06-gotcha .code-wrap.out pre.code { font-size: 12px; line-height: 1.45; padding: 7px 14px 9px; }
+    #adk-c06-gotcha .mg-foot .panel { padding: 9px 14px; font-size: 14.5px; line-height: 1.38; gap: 4px; }
+    #adk-c06-gotcha .mg-cites { display: flex; gap: 8px; flex-wrap: wrap; }
+    #adk-c06-gotcha .mg-cites .cite { font-size: 12.5px; padding: 4px 9px; }
+    #adk-c06-gotcha .mg-fig { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); padding: 6px 10px; }
+    #adk-c06-gotcha .mg-fig svg { display: block; width: 100%; height: auto; overflow: visible; }
+    #adk-c06-gotcha svg text { font-family: var(--f-mono); }
+    #adk-c06-gotcha .mg-agent { fill: var(--agent-soft); stroke: var(--agent); stroke-width: 2; }
+    #adk-c06-gotcha .mg-tool { fill: var(--tool-soft); stroke: var(--tool); stroke-width: 2; }
+    #adk-c06-gotcha .mg-chip { fill: var(--surface-2); stroke: var(--tool); stroke-width: 1.5; }
+    #adk-c06-gotcha .mg-nm { fill: var(--ink); font-size: 14px; font-weight: 700; }
+    #adk-c06-gotcha .mg-sub { fill: var(--muted); font-size: 11.5px; }
+    #adk-c06-gotcha .mg-chipt { fill: var(--ink); font-size: 11px; font-weight: 600; }
+    #adk-c06-gotcha .mg-wire { stroke: var(--tool); stroke-width: 3; fill: none; }
+    #adk-c06-gotcha .mg-bubble { fill: var(--surface-2); stroke: var(--line-2); stroke-width: 1.5; }
+    #adk-c06-gotcha .mg-say { fill: var(--ink-2); font-size: 12px; }
+    #adk-c06-gotcha .mg-log { fill: var(--surface-2); stroke: var(--line-2); stroke-width: 1.5; }
+    #adk-c06-gotcha .mg-logt { fill: var(--muted); font-size: 11px; }
+    #adk-c06-gotcha .mg-badge rect { fill: var(--risk); }
+    #adk-c06-gotcha .mg-badge text { fill: #fff; font-size: 12px; font-weight: 700; }
+    #adk-c06-gotcha .mg-dot { fill: var(--state); }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> MCP</div>
+  <h2 class="title sm">MCP fails three ways: missing extra, renamed SDK, silent toolset loss</h2>
+  <div class="mg-body fill">
+    <div class="mg-left">
+      <div class="gotcha" data-step="1">
+        <span class="mg-n">1 · the import fails</span>
+        <b>Symptom</b><span class="mg-err">ImportError: cannot import name 'McpToolset' from 'google.adk.tools.mcp_tool'</span>
+        <b class="why">Cause</b><span><code>mcp</code> is not installed. <code>tools/mcp_tool/__init__.py</code> catches the real <code>ImportError</code> and logs it only at debug level.</span>
+        <b class="fix">Fix</b><span><code>pip install "google-adk[mcp]==2.13.0"</code></span>
+      </div>
+      <div class="gotcha" data-step="2">
+        <span class="mg-n">2 · v1 server code on mcp 2.3.0</span>
+        <b>Symptom</b><span><span class="mg-err">ModuleNotFoundError: No module named 'mcp.server.fastmcp'. This is mcp 2.x, where FastMCP was renamed to MCPServer (from mcp.server.mcpserver import MCPServer)...</span><br><span class="mg-err">TypeError: MCPServer.__init__() got an unexpected keyword argument 'port'</span></span>
+        <b class="why">Cause</b><span>The SDK renamed <code>FastMCP</code>. In 2.x, <code>host</code> and <code>port</code> go to <code>run()</code>, not the constructor.</span>
+        <b class="fix">Fix</b><span><code>MCPServer("x")</code> + <code>run(transport=..., host=..., port=...)</code>, or pin <code>mcp&lt;2</code>.</span>
+      </div>
+      <div class="gotcha" data-step="3">
+        <span class="mg-n">3 · the toolset is lost, with no exception</span>
+        <b>Symptom</b><span>The agent says "I can't access claims". The log shows <span class="mg-err">Agent claims_desk will run without the tools from toolset McpToolset (prefix 'claims'), which failed to load: ...</span></span>
+        <b class="why">Cause</b><span>Server crash, a <code>print()</code> on stdout, a URL without <code>/mcp</code>, or a startup slower than <code>timeout</code>.</span>
+        <b class="fix">Fix</b><span>Alert on that log line. Run a startup smoke test.</span>
+      </div>
+      <div class="mg-foot" data-step="5">
+        <div class="panel k-risk"><span><b>Before 2.10 / 2.11:</b> after a server restart or scale-to-zero, ADK kept the dead session and returned <span class="mg-err">{'error': 'MCP tool execution failed: Session terminated'}</span> as a normal result. Alert on the error string, not only on exceptions.</span></div>
+      </div>
+    </div>
+    <div class="mg-right">
+      <div class="mg-fig">
+        <svg id="mg-svg" viewBox="0 0 700 190" aria-label="The MCP server exits, the toolset greys out, the agent still answers without tools, then a log match raises an alert">
+          <line id="mg-w1" class="mg-wire" x1="182" y1="50" x2="268" y2="50"/>
+          <line id="mg-w2" class="mg-wire" x1="462" y1="50" x2="540" y2="50"/>
+          <g id="mg-agent">
+            <rect class="mg-agent" x="10" y="18" width="172" height="64" rx="12"/>
+            <text class="mg-nm" x="96" y="44" text-anchor="middle">claims_desk</text>
+            <circle class="mg-dot" id="mg-dot" cx="30" cy="63" r="5"/>
+            <text class="mg-sub" x="104" y="67" text-anchor="middle">LlmAgent · running</text>
+          </g>
+          <g id="mg-tset">
+            <rect class="mg-tool" x="268" y="2" width="194" height="98" rx="12"/>
+            <text class="mg-nm" x="365" y="24" text-anchor="middle">McpToolset</text>
+            <text class="mg-sub" x="365" y="41" text-anchor="middle">prefix 'claims'</text>
+            <rect class="mg-chip" x="278" y="56" width="80" height="32" rx="7"/>
+            <text class="mg-chipt" x="318" y="76" text-anchor="middle">get_claim</text>
+            <rect class="mg-chip" x="364" y="56" width="88" height="32" rx="7"/>
+            <text class="mg-chipt" x="408" y="76" text-anchor="middle">approve_claim</text>
+          </g>
+          <g id="mg-srv">
+            <rect class="mg-tool" x="540" y="18" width="150" height="64" rx="12"/>
+            <text class="mg-nm" x="615" y="44" text-anchor="middle">claims_server</text>
+            <text class="mg-sub" id="mg-srvs" x="615" y="66" text-anchor="middle">stdio · up</text>
+          </g>
+          <g id="mg-bub" opacity="0">
+            <rect class="mg-bubble" x="10" y="96" width="246" height="30" rx="10"/>
+            <text class="mg-say" x="22" y="116">"I can't access claims."</text>
+          </g>
+          <g id="mg-badge" class="mg-badge" opacity="0">
+            <rect x="520" y="96" width="170" height="30" rx="8"/>
+            <text x="605" y="116" text-anchor="middle">ALERT · log match</text>
+          </g>
+          <rect class="mg-log" id="mg-logbox" x="10" y="134" width="680" height="52" rx="9"/>
+          <text class="mg-logt" id="mg-l1" x="22" y="155">log: (quiet)</text>
+          <text class="mg-logt" id="mg-l2" x="22" y="175"></text>
+        </svg>
+      </div>
+      <div class="code-wrap good" data-step="4">
+        <div class="code-head">smoke_test.py · google-adk 2.13.0 · mcp 2.3.0</div>
+        <pre class="code" data-lang="python" data-focus="4:5-8, 5:9-12"><code>import asyncio
+from claims_agent.agent import claims_tools
+EXPECTED = {"get_claim", "approve_claim", "login"}
+async def main() -> None:
+    try:
+        tools = await claims_tools.get_tools()
+    except Exception as exc:  # crash, stdout print, bad /mcp path, timeout
+        raise SystemExit(f"FAIL toolset did not load: {exc!r}")
+    names = {t.name.removeprefix("claims_") for t in tools}
+    if names != EXPECTED:
+        raise SystemExit(f"FAIL expected {EXPECTED}, got {names}")
+    print("OK", sorted(names))
+asyncio.run(main())</code></pre>
+      </div>
+      <div class="code-wrap out" data-step="5">
+        <div class="code-head">output · illustrative</div>
+        <pre class="code" data-lang="bash"><code><span class="dim">$ python smoke_test.py   # 1st run: a print() on stdout, 2nd run: fixed</span>
+<span class="err">FAIL toolset did not load: ConnectionError('Failed to create MCP session: ...')</span>
+<span class="ok">OK ['approve_claim', 'get_claim', 'login']</span></code></pre>
+      </div>
+      <div class="mg-cites" data-step="5">
+        <a class="cite doc" href="https://adk.dev/tools-custom/mcp-tools/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;ADK MCP tools</a>
+        <a class="cite doc" href="https://py.sdk.modelcontextprotocol.io/v2/migration/#fastmcp-renamed-to-mcpserver" target="_blank" rel="noopener"><b>Docs</b>&nbsp;MCP SDK v2 migration</a>
+        <a class="cite repo" href="https://github.com/google/adk-python/issues/7060" target="_blank" rel="noopener"><b>Repo</b>&nbsp;#7060</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">These three MCP failures cost the most debugging time on the Northwind claims desk. The first two are loud: a missing mcp extra gives an opaque ImportError because ADK hides the real one at debug level, and v1 server code on mcp 2.3.0 fails because FastMCP is now MCPServer and host and port moved to run(). The third is silent: when the toolset cannot load, ADK logs one line and the agent keeps answering without its tools, so nothing turns red until you alert on that line. Run the smoke test before traffic, and in older versions also alert on the Session terminated error string, because it came back as a normal tool result. Think of it as a phone line that goes dead while the operator keeps talking politely to the caller. A likely question: "Why does ADK not just raise?" One broken toolset should not take down an agent that has other working tools, so the choice is deliberate, and you own the alert. Next, three recent papers on MCP security and tool selection.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c06-gotcha";
+  const L1 = "log: Agent claims_desk will run without the tools from toolset McpToolset";
+  const L2 = "     (prefix 'claims'), which failed to load: ...";
+  let tw = null;
+  const clamp = (x) => Math.max(0, Math.min(1, x));
+  const q = (s, sel) => s.querySelector(sel);
+  // p in [0,1]: server exits, toolset greys, agent answers without tools, log line types, alert fires.
+  function render(s, p) {
+    const a = clamp(p / 0.2), b = clamp((p - 0.2) / 0.2), c = clamp((p - 0.4) / 0.2), d = clamp((p - 0.6) / 0.28);
+    q(s, "#mg-srv").setAttribute("opacity", String(1 - 0.65 * a));
+    q(s, "#mg-srvs").textContent = a >= 1 ? "exited" : "stdio · up";
+    q(s, "#mg-w2").setAttribute("opacity", String(1 - 0.75 * a));
+    q(s, "#mg-tset").setAttribute("opacity", String(1 - 0.7 * b));
+    q(s, "#mg-w1").setAttribute("opacity", String(1 - 0.75 * b));
+    q(s, "#mg-w1").style.strokeDasharray = b > 0.5 ? "6 6" : "none";
+    q(s, "#mg-w2").style.strokeDasharray = a > 0.5 ? "6 6" : "none";
+    q(s, "#mg-bub").setAttribute("opacity", String(c));
+    const total = L1.length + L2.length, k = Math.round(total * d);
+    q(s, "#mg-l1").textContent = d > 0 ? L1.slice(0, Math.min(k, L1.length)) : "log: (quiet)";
+    q(s, "#mg-l2").textContent = k > L1.length ? L2.slice(0, k - L1.length) : "";
+    const alert = p >= 0.92;
+    q(s, "#mg-badge").setAttribute("opacity", alert ? "1" : "0");
+    q(s, "#mg-logbox").style.stroke = alert ? "var(--risk)" : "";
+    q(s, "#mg-logbox").style.strokeWidth = alert ? "2.5" : "";
+    q(s, "#mg-l1").style.fill = alert ? "var(--risk)" : "";
+    q(s, "#mg-l2").style.fill = alert ? "var(--risk)" : "";
+  }
+  function stop() { if (tw) tw.kill(); tw = null; }
+  function build(s, n, animate) {
+    stop();
+    const st = { p: n >= 3 ? 1 : 0 };
+    if (animate && n === 3) st.p = 0;
+    render(s, st.p);
+    if (animate && n === 3) {
+      tw = gsap.to(st, { p: 1, duration: 4.4, ease: "none", delay: 0.4, onUpdate: () => render(s, st.p) });
+    }
+  }
+  Deck.register(ID, {
+    enter(slide, n) { if (!tw) build(slide, n || 0, false); },
+    step(slide, n, animate) { build(slide, n, animate); },
+    leave() { stop(); }
+  });
+})();
+</script>

@@ -1,0 +1,210 @@
+<section class="slide tight" id="rag-c04-lab4-cross-encoder" data-tone="agent" data-title="Lab 4: cross-encoder rerank">
+  <style>
+    #rag-c04-lab4-cross-encoder .ce-grid { display: grid; grid-template-columns: 740px 1fr; gap: 24px; align-items: start; }
+    #rag-c04-lab4-cross-encoder .ce-left, #rag-c04-lab4-cross-encoder .ce-right { gap: 12px; min-width: 0; }
+    #rag-c04-lab4-cross-encoder .lab-head { gap: 12px; flex-wrap: nowrap; }
+    #rag-c04-lab4-cross-encoder .lab-head .run { font-size: 14.5px; white-space: nowrap; }
+    #rag-c04-lab4-cross-encoder .lab-head .tiny { font-size: 14px; white-space: nowrap; }
+    #rag-c04-lab4-cross-encoder .ce-cites { margin-left: auto; display: flex; gap: 8px; flex: none; }
+    #rag-c04-lab4-cross-encoder .ce-cites .cite { white-space: nowrap; font-size: 13.5px; padding: 5px 10px 5px 8px; }
+    #rag-c04-lab4-cross-encoder .code-wrap .code-head { padding: 8px 14px; font-size: 14px; }
+    #rag-c04-lab4-cross-encoder pre.code.ce-c { font-size: 13.4px; line-height: 1.45; padding: 10px 14px 12px; }
+    #rag-c04-lab4-cross-encoder pre.code.ce-o { font-size: 12.4px; line-height: 1.42; padding: 8px 14px 10px; }
+    #rag-c04-lab4-cross-encoder .ce-deltas { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    #rag-c04-lab4-cross-encoder .ce-deltas .delta { font-size: 15px; padding: 6px 10px; }
+    #rag-c04-lab4-cross-encoder .ce-deltas .delta.flat { color: var(--muted); background: var(--surface); border: 1px solid var(--line-2); }
+    #rag-c04-lab4-cross-encoder .ce-board { position: relative; width: 628px; height: 330px; flex: none; }
+    #rag-c04-lab4-cross-encoder .ce-q { position: absolute; left: 0; top: 0; font: 600 13px/1 var(--f-mono); color: var(--human); background: var(--human-soft); padding: 6px 10px; border-radius: 999px; }
+    #rag-c04-lab4-cross-encoder .ce-mrr { position: absolute; right: 0; top: 0; font: 700 13px/1 var(--f-mono); color: var(--agent); background: var(--agent-soft); padding: 6px 10px; border-radius: 8px; }
+    #rag-c04-lab4-cross-encoder .ce-col { position: absolute; top: 32px; font: 700 11px/1 var(--f-mono); letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+    #rag-c04-lab4-cross-encoder .ce-card { position: absolute; left: 0; top: 0; width: 306px; height: 25px; border-radius: 7px; display: grid;
+      grid-template-columns: 26px 34px 1fr 50px; align-items: center; gap: 4px; padding: 0 8px; box-sizing: border-box;
+      background: var(--surface); border: 1px solid var(--line-2); font: 500 12px/1 var(--f-mono); color: var(--ink-2); transition: border-color .3s, background .3s; }
+    #rag-c04-lab4-cross-encoder .ce-card .r { color: var(--muted); font-size: 11px; }
+    #rag-c04-lab4-cross-encoder .ce-card b { color: var(--ink); font-weight: 700; }
+    #rag-c04-lab4-cross-encoder .ce-card .t { font: 400 11.5px/1 var(--f-body); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ink-2); }
+    #rag-c04-lab4-cross-encoder .ce-card .s { text-align: right; font-weight: 700; color: var(--agent); }
+    #rag-c04-lab4-cross-encoder .ce-card.gold { border-color: var(--state); background: var(--state-soft); }
+    #rag-c04-lab4-cross-encoder .ce-card.gold b { color: var(--state); }
+    #rag-c04-lab4-cross-encoder .ce-card.cut { border-color: color-mix(in oklab, var(--risk) 60%, transparent); background: var(--risk-soft); }
+    #rag-c04-lab4-cross-encoder .ce-card.cut .s { color: var(--risk); }
+    #rag-c04-lab4-cross-encoder .ce-scan { position: absolute; left: -4px; width: 314px; height: 31px; border-radius: 8px; opacity: 0;
+      background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--agent) 28%, transparent), transparent); box-shadow: 0 0 0 2px var(--agent); }
+    #rag-c04-lab4-cross-encoder .ce-box { position: absolute; left: 322px; top: 286px; width: 306px; height: 42px; border-radius: 9px; display: flex; align-items: center; gap: 8px;
+      padding: 0 12px; box-sizing: border-box; font: 600 12.5px/1.25 var(--f-mono); color: var(--agent); background: var(--agent-soft); border: 1.5px solid var(--agent); }
+    #rag-c04-lab4-cross-encoder .ce-box.bad { color: var(--risk); background: var(--risk-soft); border-color: var(--risk); }
+    #rag-c04-lab4-cross-encoder .ce-rail { position: relative; height: 48px; }
+    #rag-c04-lab4-cross-encoder .ce-rail > p { position: absolute; left: 0; right: 0; top: 0; margin: 0; font-size: 16px; line-height: 1.36; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 4</span> Northwind support · step 3 of 4</div>
+  <h2 class="title">Rerank the hybrid top 20 with a cross-encoder and keep 10</h2>
+  <div class="lab-head">
+    <span class="run">python lab5_cross_encoder.py</span>
+    <span class="tiny">sentence-transformers==6.2.0 · model download ~90 MB</span>
+    <span class="ce-cites">
+      <a class="cite doc" href="https://huggingface.co/cross-encoder/ms-marco-MiniLM-L6-v2" target="_blank" rel="noopener"><b>Model card</b>&nbsp;ms-marco-MiniLM-L6-v2</a>
+      <a class="cite doc" href="https://www.anthropic.com/news/contextual-retrieval" target="_blank" rel="noopener"><b>Anthropic</b>&nbsp;Contextual Retrieval</a>
+    </span>
+  </div>
+  <div class="ce-grid fill">
+    <div class="stack ce-left">
+      <div class="code-wrap">
+        <div class="code-head">northwind_rag/lab5_cross_encoder.py · adapted from SBERT "Retrieve &amp; Re-rank"</div>
+        <pre class="code ce-c" data-lang="python" data-focus="1:8, 2:10-12, 3:13, 4:17-19"><code># lab5_cross_encoder.py -- hybrid top-20 -> cross-encoder -> top-10
+import time
+from sentence_transformers import CrossEncoder
+from kb import TEXT
+from evalkit import evaluate
+from lab3_hybrid import hybrid_search
+
+reranker = CrossEncoder("cross-encoder/ms-marco-MiniLM-L6-v2", max_length=512)
+
+def rerank_search(query: str, candidates: int = 20, keep: int = 10) -> list[str]:
+    cand_ids = hybrid_search(query)[:candidates]
+    hits = reranker.rank(query, [TEXT[i] for i in cand_ids], top_k=keep, batch_size=32)
+    return [cand_ids[h["corpus_id"]] for h in hits]   # corpus_id = position in cand_ids
+
+if __name__ == "__main__":
+    q = "zipper broke on my pack after 3 years"
+    docs = [TEXT[i] for i in hybrid_search(q)[:5]]
+    for h in reranker.rank(q, docs, return_documents=True):
+        print(f'{h["score"]:7.2f}  {h["text"][:60]}')
+    evaluate("hybrid", hybrid_search)
+    t0 = time.perf_counter()
+    evaluate("hybrid + MiniLM-L6 CE", rerank_search)
+    ms = (time.perf_counter() - t0) / 15 * 1000
+    print(f"rerank latency per query: {ms:.0f} ms (CPU)")</code></pre>
+      </div>
+      <div class="ce-deltas" data-step="5">
+        <span class="delta up">R@1 0.667 → 0.800</span>
+        <span class="delta up">MRR@10 0.770 → 0.860</span>
+        <span class="delta flat">recall@20 unchanged: same 18 candidates</span>
+      </div>
+    </div>
+    <div class="stack ce-right">
+      <div class="ce-board" id="ce-board" aria-label="18 hybrid candidates for q14 are scored by the cross-encoder and re-sorted; the gold chunk c09 climbs to rank 1">
+        <span class="ce-q">q14 · "zipper broke on my pack after 3 years"</span>
+        <span class="ce-mrr" id="ce-mrr">MRR@10 0.770</span>
+        <span class="ce-col" style="left:0">ranks 1-10 · top_k=10 kept</span>
+        <span class="ce-col" style="left:322px">ranks 11-18 · dropped</span>
+        <div class="ce-scan" id="ce-scan"></div>
+        <div class="ce-box" id="ce-box">pairs read jointly · max 512 tokens</div>
+      </div>
+      <div class="steps-rail ce-rail">
+        <p data-step="1" data-until="2"><span>One forward pass per (query, chunk) pair. Pairs over 512 tokens are cut: rerank child chunks.</span></p>
+        <p data-step="2" data-until="3"><span><code>rank()</code> scores all pairs and returns sorted dicts. <code>corpus_id</code> is the position in your list.</span></p>
+        <p data-step="3" data-until="4"><span>Map positions back with <code>cand_ids[...]</code>. Gold chunk c09 climbs from rank 3 to rank 1.</span></p>
+        <p data-step="4" data-until="5"><span><code>score</code> is a raw logit (Identity activation). Never threshold at 0.5.</span></p>
+        <p data-step="5"><span>Reranking only reorders. Anthropic's Contextual Retrieval setup retrieved 150 and kept 20.</span></p>
+      </div>
+      <div class="code-wrap out" data-step="4">
+        <div class="code-head">output · illustrative · KB has 18 chunks, so top 20 = 18</div>
+        <pre class="code ce-o" data-lang="output"><code><span class="dim">$ python lab5_cross_encoder.py</span>
+<span class="ok">   6.91  Backpacks are covered for 5 years, including zips and buckles</span>
+  -2.48  Damage from misuse, UV degradation and normal wear is excluded
+  -6.10  All tents carry a 2-year limited warranty against manufactur
+  -9.73  Claims are filed at northwind.example/warranty; an agent res
+ -10.42  Final-sale items, gift cards and personalised (monogrammed)
+<span data-step="5">hybrid                 R@1=0.667  R@3=0.867  R@5=0.933  MRR@10=0.770</span>
+<span data-step="5">hybrid + MiniLM-L6 CE  <span class="ok">R@1=0.800</span>  R@3=0.933  R@5=0.933  <span class="ok">MRR@10=0.860</span></span>
+<span data-step="5" class="dim">rerank latency per query: &lt;measured&gt; ms (CPU)   # run it on your hardware</span></code></pre>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    Step 3 of Lab 4 adds the second stage: the hybrid list goes into a cross-encoder that reads the query and each chunk together and writes one score per pair. Walk the bands: max_length=512 truncates long pairs, rank() returns sorted dicts whose corpus_id is a position, cand_ids maps it back to business ids, and the score is a raw logit for this model, so a 0.5 threshold would keep only one chunk. On the board, the scan writes a logit on each of the 18 candidates (the knowledge base only has 18 chunks), then the cards re-sort and the gold chunk c09 for q14 climbs from rank 3 to rank 1; the logits for the five printed pairs match the output pane, the others are illustrative. Analogy: hybrid search is a fast first interview that builds a shortlist; the cross-encoder is the slow second interview that reads each candidate in full against the job. Likely question: "Why not rerank the whole corpus?" Cost grows linearly with candidates, and reranking cannot add a chunk that first-stage retrieval missed, so retrieve wide and rerank narrow, as Anthropic did with 150 retrieved and 20 kept; measure the latency on your own CPU, because the research has no measured figure. Hand-off: step 4 sends the same 20 candidates to hosted rerankers, Cohere Rerank v5 and Voyage rerank-3, and uses Cohere's relevant spans to shrink the context.
+  </aside>
+</section>
+<script>
+(() => {
+  // Hybrid order for q14 (illustrative). The five printed logits (c09, c08, c06, c10, c03) match the output pane; the rest are illustrative.
+  const C = [
+    ["c06", "All tents carry a 2-year limited warranty", -6.10], ["c08", "Damage from misuse, UV degradation and normal wear", -2.48],
+    ["c09", "Backpacks are covered for 5 years, including zips", 6.91], ["c10", "Claims are filed at northwind.example/warranty", -9.73],
+    ["c03", "Final-sale items, gift cards and personalised", -10.42], ["c07", "The window starts on the purchase date", -4.85],
+    ["c05", "If the parcel arrives damaged, report it", -8.92], ["c01", "Northwind Outfitters accepts returns of unworn items", -10.06],
+    ["c02", "Refunds are issued to the original payment method", -10.88], ["c04", "Members of the Trailhead loyalty programme", -10.71],
+    ["c11", "Error E-4012 means the card issuer declined", -11.02], ["c12", "Error E-4019 indicates a 3-D Secure timeout", -10.95],
+    ["c13", "Error P-220 appears when a gift card balance", -10.97], ["c14", "Never ask customers to read out the full card number", -10.80],
+    ["c15", "Standard shipping takes 3-5 business days", -10.99], ["c16", "Express shipping (1-2 business days) costs $14.95", -11.05],
+    ["c17", "We do not ship to PO boxes for orders with stoves", -10.93], ["c18", "International orders may incur import duties", -10.90]
+  ];
+  const GOLD = "c09", TOP = 48, RH = 29, COLX = 322;
+  const SORTED = C.map((c, i) => i).sort((a, b) => C[b][2] - C[a][2] || a - b);
+  const RANK_AFTER = []; SORTED.forEach((ci, pos) => (RANK_AFTER[ci] = pos));
+  const at = (pos) => ({ x: pos < 10 ? 0 : COLX, y: TOP + (pos % 10) * RH });
+  let E = null, tweens = [], prev = -1;
+  function build(slide) {
+    const board = slide.querySelector("#ce-board");
+    board.querySelectorAll(".ce-card").forEach((e) => e.remove());
+    const cards = C.map(([id, txt], i) => {
+      const e = document.createElement("div");
+      e.className = "ce-card" + (id === GOLD ? " gold" : "");
+      e.innerHTML = `<span class="r"></span><b>${id}</b><span class="t">${txt}</span><span class="s"></span>`;
+      board.insertBefore(e, board.querySelector("#ce-scan"));
+      return e;
+    });
+    return { cards, scan: slide.querySelector("#ce-scan"), box: slide.querySelector("#ce-box"), mrr: slide.querySelector("#ce-mrr"), cols: slide.querySelectorAll(".ce-col") };
+  }
+  const kill = () => { tweens.forEach((t) => t.kill()); tweens = []; if (E) gsap.killTweensOf([...E.cards, E.scan, E.box, E.mrr]); };
+  function render(n, animate) {
+    kill();
+    const fwd = animate && n === prev + 1;
+    const sorted = n >= 3;
+    E.cards.forEach((e, i) => {
+      const pos = sorted ? RANK_AFTER[i] : i;
+      const p = at(pos);
+      e.querySelector(".r").textContent = "#" + (pos + 1);
+      const sc = e.querySelector(".s");
+      const showScore = n >= 2;
+      sc.textContent = C[i][2].toFixed(2);
+      e.classList.toggle("cut", n === 4 && C[i][2] <= 0.5);
+      const dropped = sorted && pos >= 10;
+      if (n === 3 && fwd) {
+        gsap.set(sc, { opacity: 1 });
+        tweens.push(gsap.to(e, { x: p.x, y: p.y, opacity: dropped ? 0.42 : 1, duration: 1.0, delay: 0.1 + (C[i][0] === GOLD ? 0 : 0.15), ease: "power3.inOut" }));
+        if (C[i][0] === GOLD) tweens.push(gsap.fromTo(e, { scale: 1 }, { scale: 1.06, duration: 0.3, delay: 1.1, yoyo: true, repeat: 1 }));
+      } else if (n === 2 && fwd) {
+        gsap.set(e, { x: p.x, y: p.y, opacity: 1 });
+        gsap.set(sc, { opacity: 0 });
+        tweens.push(gsap.to(sc, { opacity: 1, duration: 0.2, delay: 0.25 + i * 0.09 }));
+      } else {
+        gsap.set(e, { x: p.x, y: p.y, opacity: dropped ? 0.42 : 1, scale: 1 });
+        gsap.set(sc, { opacity: showScore ? 1 : 0 });
+      }
+    });
+    // scan bar: sweeps every pair once at step 2
+    if (n === 2 && fwd) {
+      const tl = gsap.timeline();
+      tl.set(E.scan, { opacity: 1, x: 0, y: TOP - 3 });
+      C.forEach((c, i) => { const p = at(i); tl.to(E.scan, { x: p.x - 0, y: p.y - 3, duration: 0.09, ease: "none" }, 0.25 + i * 0.09 - 0.09); });
+      tl.to(E.scan, { opacity: 0, duration: 0.3 });
+      tweens.push(tl);
+    } else gsap.set(E.scan, { opacity: 0 });
+    E.cols[1].textContent = sorted ? "ranks 11-18 · dropped" : "ranks 11-18 · hybrid order";
+    // status box
+    const boxText = n >= 5 ? "18 in → 10 kept · recall@20 same" : n === 4 ? "score > 0.5 keeps 1 of 18: logits, not probabilities" : "pairs read jointly · max 512 tokens";
+    E.box.textContent = boxText;
+    E.box.classList.toggle("bad", n === 4);
+    gsap.set(E.box, { opacity: n >= 1 ? 1 : 0 });
+    if (fwd && (n === 1 || n === 4 || n === 5)) tweens.push(gsap.fromTo(E.box, { y: 8, opacity: 0 }, { y: 0, opacity: 1, duration: 0.4, ease: "power2.out" }));
+    // MRR counter
+    if (n === 5 && fwd) {
+      const o = { v: 0.770 };
+      E.mrr.textContent = "MRR@10 0.770";
+      tweens.push(gsap.to(o, { v: 0.860, duration: 1.2, delay: 0.3, ease: "power2.out", onUpdate: () => (E.mrr.textContent = "MRR@10 " + o.v.toFixed(3)) }));
+    } else E.mrr.textContent = "MRR@10 " + (n >= 5 ? "0.860" : "0.770");
+    prev = n;
+  }
+  Deck.register("rag-c04-lab4-cross-encoder", {
+    enter(slide, step) {
+      if (!E) E = build(slide);
+      prev = -1;
+      render(step, false);
+      if (step === 0) tweens.push(gsap.from(E.cards, { opacity: 0, x: -10, duration: 0.35, stagger: 0.03, ease: "power2.out" }));
+    },
+    step(slide, n, animate) { if (!E) E = build(slide); render(n, animate); },
+    leave() { kill(); prev = -1; }
+  });
+})();
+</script>

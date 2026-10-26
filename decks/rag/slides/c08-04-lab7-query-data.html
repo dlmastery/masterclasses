@@ -1,0 +1,109 @@
+<section class="slide tight" id="rag-c08-lab7-query-data" data-tone="state" data-title="Lab 7: aquery_data for your agent">
+  <style>
+    #rag-c08-lab7-query-data .qd-grid { display: grid; grid-template-columns: 704px 1fr; gap: 28px; align-items: start; }
+    #rag-c08-lab7-query-data .qd-left, #rag-c08-lab7-query-data .qd-right { gap: 10px; min-width: 0; }
+    #rag-c08-lab7-query-data .code-wrap .code-head { padding: 7px 14px; font-size: 13.5px; }
+    #rag-c08-lab7-query-data pre.code.qd-c { font-size: 12.6px; line-height: 1.46; padding: 12px 16px 14px; }
+    #rag-c08-lab7-query-data pre.code.qd-o { font-size: 11px; line-height: 1.5; padding: 8px 14px 10px; }
+    #rag-c08-lab7-query-data .lab-head { gap: 10px; flex-wrap: nowrap; }
+    #rag-c08-lab7-query-data .lab-head .run { font-size: 14px; flex: none; }
+    #rag-c08-lab7-query-data .cite { white-space: nowrap; font-size: 13px; padding: 5px 10px 5px 8px; }
+    #rag-c08-lab7-query-data .diagram .node { padding: 8px 12px; min-width: 0; gap: 2px; }
+    #rag-c08-lab7-query-data .diagram .node .nt { font: 700 16px/1.2 var(--f-mono); }
+    #rag-c08-lab7-query-data .diagram .node .ns { font-size: 12px; }
+    #rag-c08-lab7-query-data .diagram .group .gl { font-size: 12px; }
+    #rag-c08-lab7-query-data .qd-gen { border-style: dashed; }
+    #rag-c08-lab7-query-data .qd-gen .nt { text-decoration: line-through; text-decoration-color: var(--risk); text-decoration-thickness: 3px; color: var(--muted); }
+    #rag-c08-lab7-query-data .qd-gen .ns { color: var(--risk); font-weight: 700; }
+    #rag-c08-lab7-query-data .qd-rail { position: relative; height: 50px; }
+    #rag-c08-lab7-query-data .qd-rail > p { position: absolute; left: 0; right: 0; top: 0; margin: 0; font-size: 16px; line-height: 1.36; }
+    #rag-c08-lab7-query-data .qd-rail code { font-size: .86em; }
+    #rag-c08-lab7-query-data .qd-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    #rag-c08-lab7-query-data .paper { padding: 10px 14px; gap: 5px; }
+    #rag-c08-lab7-query-data .paper .pid { font-size: 12.5px; }
+    #rag-c08-lab7-query-data .paper .find { font-size: 13.5px; line-height: 1.35; }
+    #rag-c08-lab7-query-data .paper .so { font-size: 13.5px; }
+    #rag-c08-lab7-query-data .qd-var { padding: 10px 14px; display: flex; flex-direction: column; gap: 5px; }
+    #rag-c08-lab7-query-data .qd-var h4 { margin: 0; font: 700 12.5px/1 var(--f-mono); letter-spacing: .05em; text-transform: uppercase; color: var(--tool); }
+    #rag-c08-lab7-query-data .qd-var span { font-size: 13.5px; line-height: 1.35; color: var(--ink-2); }
+    #rag-c08-lab7-query-data .qd-var code { font-size: .9em; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 7</span> Harbor Mutual investigations · step 3 of 4</div>
+  <h2 class="title">Pull entities and references without generation for your own agent</h2>
+  <div class="qd-grid fill">
+    <div class="stack qd-left">
+      <div class="code-wrap">
+        <div class="code-head">harbor_kg/lab7_lightrag_claims.py · part 3 · lightrag-hku 1.5.7</div>
+        <pre class="code qd-c" data-lang="python" data-focus="1:3-3, 2:6-6, 3:7-7, 4:15-19"><code># part 1 (step 1) stays; this main() replaces the main() of part 2 (step 2)
+async def evidence_for(rag: LightRAG, q: str) -> dict:
+    data = await rag.aquery_data(q, param=QueryParam(mode="mix"))
+    d = data["data"]
+    return {
+        "entities": [e["entity_name"] for e in d["entities"]][:8],
+        "references": {r["reference_id"]: r["file_path"] for r in d["references"]},
+    }
+
+async def main():
+    rag = LightRAG(working_dir=WORKING_DIR, llm_model_func=llm_model_func,
+                   llm_model_name=MODEL, embedding_func=embedding_func)
+    await rag.initialize_storages()               # reuses ./claims_kg from step 2, no ainsert
+    try:
+        q = "Which Elm St hail claims must the SIU review together, and who handled them?"
+        ev = await evidence_for(rag, q)
+        print("entities:", ev["entities"])
+        for ref_id, path in ev["references"].items():
+            print("ref", ref_id, "->", path)
+    finally:
+        await rag.finalize_storages()
+
+asyncio.run(main())</code></pre>
+      </div>
+      <div class="code-wrap out">
+        <div class="code-head">output · illustrative</div>
+        <pre class="code qd-o" data-lang="output"><code><span data-step="2" data-fx="fade">entities: [<span class="ok">'Maria Lopez'</span>, <span class="ok">'Elm St'</span>, <span class="ok">'Claim 2026-041'</span>, <span class="ok">'Claim 2026-057'</span>,
+           <span class="ok">'Special Investigations Unit'</span>, ...]</span>
+<span data-step="3" data-fx="fade">ref 1 -> <span class="ok">policy/hail-guidelines.txt</span>
+ref 2 -> <span class="ok">claims/storm-2026-041.txt</span>
+<span class="dim">...</span></span></code></pre>
+      </div>
+    </div>
+    <div class="stack qd-right">
+      <div class="lab-head">
+        <span class="run">python lab7_lightrag_claims.py</span>
+        <a class="cite repo" href="https://github.com/HKUDS/LightRAG/tree/v1.5.7" target="_blank" rel="noopener"><b>Repo</b>&nbsp;HKUDS/LightRAG @ v1.5.7</a>
+      </div>
+      <div class="diagram" style="width:660px;height:352px;margin-top:8px"
+           data-wires="qd-lr>qd-aq@1:rl:flow{state} [mix]; qd-aq>qd-gen@1:rl:dash{risk} [skipped]; qd-aq>qd-ent@1:bt; qd-aq>qd-chk@1:bt; qd-aq>qd-ref@1:bt; qd-ent>qd-ag@2:bt:flow{agent} [entity names]; qd-ag>qd-ans@3:rl:flow{agent} [reasons]; qd-ref>qd-ans@3:bt:flow{state} [file_path]">
+        <div class="group g-state" style="left:0;top:0;width:190px;height:92px"><span class="gl">./claims_kg</span></div>
+        <div class="node n-state" id="qd-lr" style="left:20px;top:26px;width:150px"><span class="nt">LightRAG</span><span class="ns">graph + vectors</span></div>
+        <div class="node n-tool" id="qd-aq" style="left:270px;top:18px;width:170px" data-step="1" data-fx="pop"><span class="nt">aquery_data</span><span class="ns">QueryParam(mode)</span></div>
+        <div class="node n-model qd-gen" id="qd-gen" style="left:520px;top:18px;width:140px" data-step="1" data-fx="pop"><span class="nt">LLM answer</span><span class="ns">not called</span></div>
+        <div class="node n-state" id="qd-ent" style="left:0;top:160px;width:170px" data-step="1" data-fx="pop" data-on="2:hot 3:dim"><span class="nt">entities</span><span class="ns">entity_name</span></div>
+        <div class="node n-state" id="qd-chk" style="left:250px;top:160px;width:160px" data-step="1" data-fx="pop" data-on="2:dim"><span class="nt">chunks</span><span class="ns">source text</span></div>
+        <div class="node n-state" id="qd-ref" style="left:490px;top:160px;width:170px" data-step="1" data-fx="pop" data-on="2:dim 3:hot"><span class="nt">references</span><span class="ns">reference_id</span></div>
+        <div class="node n-agent" id="qd-ag" style="left:30px;top:294px;width:210px" data-step="2" data-fx="pop"><span class="nt">your agent</span><span class="ns">Ch 7 register / ADK</span></div>
+        <div class="node n-human" id="qd-ans" style="left:330px;top:294px;width:330px" data-step="3" data-fx="pop"><span class="nt">answer + citations</span><span class="ns">[1] policy/hail-guidelines.txt</span></div>
+      </div>
+      <div class="steps-rail qd-rail">
+        <p data-step="1" data-until="2"><span><code>aquery_data</code> returns entities, relationships, chunks and references. It makes no LLM answer.</span></p>
+        <p data-step="2" data-until="3"><span>Keep the top 8 entity names. Your agent reasons on them, not on a ready-made answer.</span></p>
+        <p data-step="3" data-until="4"><span>Map <code>reference_id</code> to <code>file_path</code>. The final answer cites the source files.</span></p>
+        <p data-step="4"><span>Call <code>evidence_for()</code> from the Chapter 7 register or an ADK node. Graph RAG is an ingestion-cost decision: measure it.</span></p>
+      </div>
+      <div class="qd-cards" data-step="4">
+        <div class="paper">
+          <div class="pid"><a href="https://arxiv.org/abs/2609.18099" target="_blank" rel="noopener" style="color:inherit">arXiv 2609.18099</a> <span>Sep 2026</span></div>
+          <div class="find">EffiRAG: the graph locates passages, the reader uses source text. It beat LightRAG-hybrid on <b>93/120</b> questions at <b>57%</b> lower cost.</div>
+          <div class="so">Answer from chunks, not entity summaries</div>
+        </div>
+        <div class="panel tight k-tool qd-var">
+          <h4>Variation · rerank</h4>
+          <span>Pass <code>rerank_model_func=</code> to <code>LightRAG</code>. <code>QueryParam.enable_rerank</code> defaults to True via <code>RERANK_BY_DEFAULT</code>.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    This is step 3 of the Harbor Mutual lab: we stop asking LightRAG for a finished answer and take its evidence instead. First, aquery_data runs the same mix retrieval but calls no LLM, so it returns entities, relationships, chunks and references as data. Second, evidence_for keeps the top 8 entity names, which your own agent, for example the Chapter 7 requirement register or an ADK workflow node, uses for its reasoning step. Third, the reference map turns reference ids into file paths, so the final answer cites policy/hail-guidelines.txt and the two claim files. Analogy: you ask the records clerk for the folders and the index cards, not for the clerk's opinion. Likely question: "Why not just use aquery?" Because your agent then controls the prompt, the verifier and the citations, and EffiRAG (arXiv 2609.18099) shows that answering from the source text beat LightRAG-hybrid on 93 of 120 questions at 57% lower cost. Next: step 4 adds the claim photos, in a separate gemini-embedding-2 index.
+  </aside>
+</section>

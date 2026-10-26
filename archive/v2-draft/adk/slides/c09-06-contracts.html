@@ -1,0 +1,234 @@
+<section class="slide tight" id="adk-c09-contracts" data-tone="model" data-title="Build: outcome-contract plugin">
+  <style>
+    #adk-c09-contracts .oc-body { display: grid; grid-template-columns: 676px minmax(0, 1fr); gap: 22px; align-items: start; }
+    #adk-c09-contracts .oc-col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    #adk-c09-contracts .code-head { padding: 7px 14px; font-size: 13.5px; }
+    #adk-c09-contracts pre.code { font-size: 13px; line-height: 1.38; padding: 8px 14px 9px; }
+    #adk-c09-contracts #oc-svg { display: block; width: 100%; height: auto; overflow: visible; }
+    #adk-c09-contracts #oc-svg text { font-family: var(--f-mono); }
+    #adk-c09-contracts .oc-row { display: flex; gap: 10px; align-items: center; flex-wrap: nowrap; }
+    #adk-c09-contracts .oc-row .delta { font-size: 14.5px; white-space: nowrap; }
+    #adk-c09-contracts .oc-row .small { font-size: 14px; color: var(--ink-2); }
+    #adk-c09-contracts .oc-row .small code { font-size: 13px; }
+    #adk-c09-contracts .oc-cites { display: flex; gap: 8px; flex-wrap: nowrap; }
+    #adk-c09-contracts .oc-cites .cite { font-size: 13px; padding: 4px 9px; white-space: nowrap; }
+    #adk-c09-contracts .oc-cites a.cite.paper { display: inline-flex; flex-direction: row; align-items: center; gap: 6px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); }
+  </style>
+  <div class="kicker">Build · Lab 9 add-on · google-adk 2.13.0</div>
+  <h2 class="title">An outcome-contract plugin turns quiet wrong values into loud errors</h2>
+  <div class="oc-body fill">
+    <div class="oc-col">
+      <div class="code-wrap bad">
+        <div class="code-head">trace · ORD-102 · lookup_order returns a plausible wrong value</div>
+        <pre class="code" data-lang="python"><code>lookup_order(order_id="ORD-102")
+# -&gt; {"status": "success", "order_id": "ORD-102", "amount": -79.0}
+issue_refund(order_id="ORD-102", amount=-79.0, reason="damaged")
+# a negative refund charges the customer; refund_policy_score still passes</code></pre>
+      </div>
+      <div class="code-wrap good" data-step="2">
+        <div class="code-head">labs/refund_agent/agent.py · add under root_agent</div>
+        <pre class="code" data-lang="python" data-focus="2:8-15, 3:5, 4:17-18"><code>from google.adk.apps import App
+from google.adk.plugins import BasePlugin
+
+class OutcomeContractPlugin(BasePlugin):
+    RECOVERY = {"lookup_order": ["escalate_to_human"]}
+    def __init__(self):
+        super().__init__(name="outcome_contracts")
+    async def after_tool_callback(self, *, tool, tool_args, tool_context, result):
+        if tool.name != "lookup_order" or result.get("status") != "success":
+            return None
+        amount = result.get("amount")
+        if isinstance(amount, (int, float)) and amount &gt; 0:
+            return None
+        return {"status": "error", "violated": "amount &gt; 0",
+                "recovery_tools": self.RECOVERY["lookup_order"], "raw_result": result}
+
+app = App(name="refund_agent", root_agent=root_agent,
+          plugins=[OutcomeContractPlugin()])</code></pre>
+      </div>
+      <div class="oc-row" data-step="2"><span class="small">Return <code>None</code>: keep the tool result. Return a dict: it <b>replaces</b> the result.</span></div>
+      <div class="oc-row" data-step="4"><span class="small"><code>adk eval</code> and <code>adk web</code> load <code>app</code> from <code>agent.py</code> before <code>root_agent</code>.</span></div>
+    </div>
+    <div class="oc-col">
+      <svg id="oc-svg" viewBox="0 0 738 262" aria-label="Two pipes feed the agent: an HTTP 503 error is flagged 91.3 percent of the time, a plausible wrong amount only 58.8 percent, against a 26.8 percent false-alarm rate. The contract plugin drops onto the quiet pipe and turns the wrong amount into status error with a receipt that names escalate_to_human; on ToolMaze this receipt raised success from 10.9 to 28.1 percent."></svg>
+      <div class="code-wrap good" data-step="5">
+        <div class="code-head">labs/test_contract.py · <b>pytest -q test_contract.py</b> → 1 passed (illustrative)</div>
+        <pre class="code" data-lang="python"><code>import asyncio
+from types import SimpleNamespace
+from refund_agent.agent import OutcomeContractPlugin
+
+def test_negative_amount_becomes_error():
+    bad = {"status": "success", "order_id": "ORD-102", "amount": -79.0}
+    out = asyncio.run(OutcomeContractPlugin().after_tool_callback(
+        tool=SimpleNamespace(name="lookup_order"), tool_args={},
+        tool_context=None, result=bad))
+    assert out["recovery_tools"] == ["escalate_to_human"]</code></pre>
+      </div>
+      <div class="oc-row" data-step="5">
+        <span class="delta up">−79.0 becomes status: error + a next step</span>
+        <div class="oc-cites">
+          <a class="cite paper" href="https://arxiv.org/abs/2610.10062" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.10062</a>
+          <a class="cite paper" href="https://arxiv.org/abs/2608.19303" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2608.19303</a>
+        </div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Agents watch the error channel, not the content: when a tool says HTTP 503 they notice 91 percent of the time, but when lookup_order returns a well-formed negative amount they notice only 59 percent, and with nothing wrong they raise a false alarm 27 percent of the time (arXiv 2610.10062). Here the harm is real: a refund of minus 79 dollars charges the customer, and our 500 dollar metric still passes it. A prompt line telling the model to check each result did not change detection in the paper, so we put the check in code: an after_tool_callback in a plugin, where returning None keeps the result and returning a dict replaces it. The Outcome Monitors paper (arXiv 2608.19303) shows the receipt must name a recovery tool, here escalate_to_human: on the ToolMaze tool-use benchmark success went from 10.9 to 28.1 percent, and removing the tool list removed the gain. We define app in agent.py because adk eval and adk web look for app before root_agent there. Analogy: a smoke detector wired into the pipe, instead of a note asking the agent to sniff the air. A likely question is "how do I test it without a broken API?": call the callback directly from pytest with the bad dict, as test_contract.py does.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c09-contracts";
+  const NS = "http://www.w3.org/2000/svg";
+  const YL = 56, YQ = 168;                    // loud and quiet pipe centres
+  const AX = 420, AY = 76, AW = 124, AH = 72; // agent box
+  const BASE = 206, K = 1.5;                  // bar baseline y, px per percent
+  const BARS = [{ x: 566, v: 91.3, tone: "risk", lab: "loud" }, { x: 612, v: 58.8, tone: "muted", lab: "quiet" }];
+  let tw = [], loops = [], R = null;
+
+  function mk(tag, attrs, parent) {
+    const e = document.createElementNS(NS, tag);
+    for (const [a, v] of Object.entries(attrs)) e.setAttribute(a, v);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function txt(p, x, y, s, a) { const t = mk("text", Object.assign({ x, y, "font-size": 13, fill: "var(--ink)" }, a || {}), p); t.textContent = s; return t; }
+  function box(p, x, y, w, h, tone, label, sub) {
+    const g = mk("g", {}, p);
+    mk("rect", { x, y, width: w, height: h, rx: 10, fill: `var(--${tone}-soft)`, stroke: `var(--${tone})`, "stroke-width": 1.8 }, g);
+    txt(g, x + w / 2, y + (sub ? h / 2 - 3 : h / 2 + 5), label, { "font-size": 14, "font-weight": 700, "text-anchor": "middle" });
+    if (sub) txt(g, x + w / 2, y + h / 2 + 15, sub, { "font-size": 12.5, "text-anchor": "middle", fill: "var(--ink-2)" });
+    return g;
+  }
+
+  function build(svg) {
+    svg.innerHTML = "";
+    R = {};
+    const defs = mk("defs", {}, svg);
+    [["oc-ar", "var(--risk)"], ["oc-ag", "var(--line-2)"]].forEach(([id, c]) => {
+      const m = mk("marker", { id, viewBox: "0 0 10 10", refX: 8, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto" }, defs);
+      mk("path", { d: "M0,0 L10,5 L0,10 z", fill: c }, m);
+    });
+    box(svg, 0, YL - 24, 140, 48, "tool", "payments API", "times out");
+    box(svg, 0, YQ - 24, 140, 48, "tool", "lookup_order", "well formed");
+    // loud pipe enters the agent's top edge; quiet pipe enters its left edge
+    R.pL = mk("path", { d: `M140,${YL} H${AX + 40} Q${AX + 66},${YL} ${AX + 66},${AY - 6}`, fill: "none", stroke: "var(--risk)", "stroke-width": 4, "marker-end": "url(#oc-ar)" }, svg);
+    R.pQa = mk("path", { d: `M140,${YQ} H240`, fill: "none", stroke: "var(--line-2)", "stroke-width": 4 }, svg);
+    R.pQb = mk("path", { d: `M240,${YQ} H350 C374,${YQ} 374,${AY + AH / 2} ${AX - 6},${AY + AH / 2}`, fill: "none", stroke: "var(--line-2)", "stroke-width": 4, "marker-end": "url(#oc-ag)" }, svg);
+    txt(svg, 160, YL - 12, "HTTP 503", { "font-size": 13.5, "font-weight": 700, fill: "var(--risk)" });
+    txt(svg, 150, YQ - 12, "amount −79.0", { "font-size": 13.5, "font-weight": 700, fill: "var(--ink-2)" });
+    box(svg, AX, AY, AW, AH, "agent", "refund_agent", "notices it?");
+    R.tokL = mk("circle", { r: 6, fill: "var(--risk)", cx: 0, cy: 0, opacity: 0 }, svg);
+    R.tokQ = mk("circle", { r: 6, fill: "var(--line-2)", cx: 0, cy: 0, opacity: 0 }, svg);
+    // bar chart: % of trials where the agent flags the fault (hidden until step 1)
+    R.chart = mk("g", {}, svg);
+    txt(R.chart, 640, 14, "agent flags it", { "font-size": 12.5, "font-weight": 700, "text-anchor": "middle", fill: "var(--ink-2)" });
+    txt(R.chart, 640, 30, "arXiv 2610.10062", { "font-size": 12, "text-anchor": "middle", fill: "var(--muted)" });
+    mk("line", { x1: 556, y1: BASE, x2: 738, y2: BASE, stroke: "var(--line-2)", "stroke-width": 1.4 }, R.chart);
+    R.bars = BARS.map((b) => {
+      const r = mk("rect", { x: b.x, y: BASE, width: 38, height: 0, rx: 4, fill: `var(--${b.tone})` }, R.chart);
+      const v = txt(R.chart, b.x + 19, BASE - 6, "", { "font-size": 13, "font-weight": 800, "text-anchor": "middle", fill: b.tone === "risk" ? "var(--risk)" : "var(--ink-2)" });
+      txt(R.chart, b.x + 19, BASE + 18, b.lab, { "font-size": 12.5, "font-weight": 700, "text-anchor": "middle", fill: "var(--ink-2)" });
+      return { r, v, b };
+    });
+    const by = BASE - 26.8 * K;
+    R.base = mk("g", {}, R.chart);
+    mk("line", { x1: 556, y1: by, x2: 656, y2: by, stroke: "var(--model)", "stroke-width": 2, "stroke-dasharray": "6 4" }, R.base);
+    txt(R.base, 662, by - 2, "26.8%", { "font-size": 13, "font-weight": 800, fill: "var(--model)" });
+    txt(R.base, 662, by + 14, "false alarms", { "font-size": 12, "font-weight": 700, fill: "var(--model)" });
+    // the contract plugin drops onto the quiet pipe
+    R.plug = mk("g", {}, svg);
+    mk("rect", { x: 240, y: YQ - 24, width: 104, height: 48, rx: 10, fill: "var(--surface)", stroke: "var(--model)", "stroke-width": 2.4 }, R.plug);
+    txt(R.plug, 292, YQ - 3, "contract", { "font-size": 13.5, "font-weight": 800, "text-anchor": "middle", fill: "var(--model)" });
+    txt(R.plug, 292, YQ + 14, "amount > 0", { "font-size": 12.5, "font-weight": 700, "text-anchor": "middle", fill: "var(--ink-2)" });
+    R.lErr = mk("g", {}, svg);
+    mk("rect", { x: 322, y: 120, width: 100, height: 22, rx: 6, fill: "var(--surface)", stroke: "var(--risk)", "stroke-width": 1.4 }, R.lErr);
+    txt(R.lErr, 372, 136, "status: error", { "font-size": 12.5, "font-weight": 700, "text-anchor": "middle", fill: "var(--risk)" });
+    // receipt card with the recovery tool
+    R.rec = mk("g", {}, svg);
+    mk("rect", { x: 160, y: 206, width: 380, height: 52, rx: 8, fill: "var(--risk-soft)", stroke: "var(--risk)", "stroke-width": 1.6, "stroke-dasharray": "4 3" }, R.rec);
+    txt(R.rec, 172, 226, "violated: amount > 0", { "font-size": 13, "font-weight": 700, fill: "var(--risk)" });
+    R.try = txt(R.rec, 172, 248, "try: escalate_to_human", { "font-size": 13, "font-weight": 800, fill: "var(--state)" });
+    R.tm = txt(R.rec, 530, 226, "", { "font-size": 12.5, "font-weight": 700, "text-anchor": "end", fill: "var(--ink-2)" });
+    R.tm2 = txt(R.rec, 530, 248, "", { "font-size": 12, "text-anchor": "end", fill: "var(--muted)" });
+  }
+
+  function clear() { tw.forEach((t) => t.kill()); tw = []; loops.forEach((l) => l.kill()); loops = []; }
+  function show(el, on, animate, delay, from) {
+    gsap.killTweensOf(el);
+    if (!on) { gsap.set(el, { opacity: 0 }); return; }
+    if (animate) tw.push(gsap.fromTo(el, Object.assign({ opacity: 0, y: 0 }, from || {}), { opacity: 1, y: 0, duration: 0.45, delay: delay || 0, ease: "power2.out" }));
+    else gsap.set(el, { opacity: 1, y: 0 });
+  }
+  function setBar(o, on, animate, delay) {
+    const h = on ? o.b.v * K : 0;
+    const st = { h: on && animate ? 0 : h };
+    const paint = () => {
+      o.r.setAttribute("y", BASE - st.h); o.r.setAttribute("height", st.h);
+      o.v.setAttribute("y", BASE - st.h - 6);
+      o.v.textContent = st.h > 0 ? (st.h / K).toFixed(1) + "%" : "";
+    };
+    paint();
+    if (on && animate) tw.push(gsap.to(st, { h, duration: 1.0, delay: delay || 0, ease: "power2.out", onUpdate: paint }));
+  }
+  function run(tok, paths, dur, offset) {
+    const lens = paths.map((p) => p.getTotalLength());
+    const total = lens.reduce((s, l) => s + l, 0);
+    const st = { t: 0 };
+    const p0 = paths[0].getPointAtLength(0);
+    tok.setAttribute("cx", p0.x); tok.setAttribute("cy", p0.y);
+    gsap.set(tok, { opacity: 1 });
+    loops.push(gsap.to(st, { t: 1, duration: dur, delay: offset, repeat: -1, ease: "none", onUpdate: () => {
+      let d = st.t * total, i = 0;
+      while (i < lens.length - 1 && d > lens[i]) { d -= lens[i]; i++; }
+      const pt = paths[i].getPointAtLength(Math.min(d, lens[i]));
+      tok.setAttribute("cx", pt.x); tok.setAttribute("cy", pt.y);
+      tok.setAttribute("fill", tok === R.tokQ && R._fixed && pt.x > 344 ? "var(--risk)" : tok === R.tokQ ? "var(--line-2)" : "var(--risk)");
+    } }));
+  }
+
+  function render(slide, n, animate) {
+    const svg = slide.querySelector("#oc-svg");
+    if (!svg) return;
+    if (!svg.childElementCount) build(svg);
+    clear();
+    const a = (k) => animate && n === k;
+    // step 1: the chart appears with the measured detection rates
+    show(R.chart, n >= 1, a(1), 0);
+    setBar(R.bars[0], n >= 1, a(1), 0.2);
+    setBar(R.bars[1], n >= 1, a(1), 0.45);
+    show(R.base, n >= 1, a(1), 1.3);
+    // step 2: the contract plugin drops onto the quiet pipe; the rest of the pipe turns red
+    const fixed = n >= 2;
+    R._fixed = fixed;
+    if (a(2)) {
+      gsap.set(R.plug, { opacity: 0, y: -90 });
+      tw.push(gsap.to(R.plug, { opacity: 1, y: 0, duration: 0.6, ease: "bounce.out" }));
+    } else show(R.plug, fixed, false);
+    gsap.killTweensOf(R.pQb);
+    R.pQb.setAttribute("stroke", fixed ? "var(--risk)" : "var(--line-2)");
+    R.pQb.setAttribute("marker-end", fixed ? "url(#oc-ar)" : "url(#oc-ag)");
+    show(R.lErr, fixed, a(2), 0.7);
+    // step 3: the receipt names a recovery tool (ToolMaze 10.9% -> 28.1%)
+    show(R.rec, n >= 3, a(3), 0.1, { y: 10 });
+    gsap.killTweensOf(R.try);
+    gsap.set(R.try, { opacity: 1 });
+    if (n >= 3) {
+      R.tm2.textContent = "arXiv 2608.19303";
+      if (a(3)) {
+        const st = { v: 10.9 };
+        R.tm.textContent = "ToolMaze 10.9%";
+        tw.push(gsap.to(st, { v: 28.1, duration: 1.1, delay: 0.5, ease: "power1.out", onUpdate: () => { R.tm.textContent = `ToolMaze ${st.v.toFixed(1)}%`; }, onComplete: () => { R.tm.textContent = "ToolMaze 10.9% → 28.1%"; } }));
+      } else R.tm.textContent = "ToolMaze 10.9% → 28.1%";
+    } else { R.tm.textContent = ""; R.tm2.textContent = ""; }
+    // tokens keep flowing on both pipes
+    run(R.tokL, [R.pL], 2.4, 0);
+    run(R.tokQ, [R.pQa, R.pQb], 2.4, 1.2);
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { clear(); if (slide) gsap.killTweensOf(slide.querySelectorAll("#oc-svg *")); },
+  });
+})();
+</script>

@@ -1,0 +1,196 @@
+<section class="slide tight" id="adk-c03-lab-dataflow" data-tone="agent" data-title="Lab 3.2: data paths">
+  <style>
+    #adk-c03-lab-dataflow .lab-head { gap: 12px; flex-wrap: nowrap; }
+    #adk-c03-lab-dataflow .lab-head .run { font-size: 15px; white-space: nowrap; }
+    #adk-c03-lab-dataflow .lab-head .cite { font-size: 13.5px; }
+    #adk-c03-lab-dataflow .lab-head .cite:first-of-type { margin-left: auto; }
+    #adk-c03-lab-dataflow .df-top { display: flex; gap: 24px; align-items: stretch; flex: none; }
+    #adk-c03-lab-dataflow .df-token { position: absolute; left: 0; top: 12px; z-index: 3; white-space: nowrap; pointer-events: none;
+      font: 700 15px/1 var(--f-mono); padding: 8px 12px; border-radius: 999px; color: #fff; background: var(--agent);
+      box-shadow: 0 8px 22px -8px var(--agent); }
+    #adk-c03-lab-dataflow .df-token.done { background: var(--state); box-shadow: 0 8px 22px -8px var(--state); }
+    #adk-c03-lab-dataflow .df-token::after { content: ""; position: absolute; left: 50%; bottom: -6px; margin-left: -6px; border: 6px solid transparent; border-bottom: 0; border-top-color: inherit; }
+    #adk-c03-lab-dataflow .df-graph .node { padding: 12px 16px; }
+    #adk-c03-lab-dataflow .df-graph .node .nt { font-size: 19px; }
+    #adk-c03-lab-dataflow .df-graph .node .ns { font-size: 14px; }
+    #adk-c03-lab-dataflow .node .cnt { display: inline-block; font-weight: 700; color: var(--muted); }
+    #adk-c03-lab-dataflow .node .cnt.on { color: var(--agent); }
+    #adk-c03-lab-dataflow .df-state { flex: 1; min-width: 0; min-height: 170px; border: 1.5px solid var(--state); border-radius: 14px; padding: 10px 14px 12px;
+      background: linear-gradient(180deg, var(--state-soft), transparent 160%), var(--surface-2); display: flex; flex-direction: column; gap: 4px;
+      font: 500 14px/1.45 var(--f-mono); color: var(--ink-2); }
+    #adk-c03-lab-dataflow .df-sh { display: flex; justify-content: space-between; font: 700 14px/1.4 var(--f-mono); color: var(--state); text-transform: uppercase; letter-spacing: .05em; }
+    #adk-c03-lab-dataflow .df-sh span { color: var(--muted); font-weight: 600; }
+    #adk-c03-lab-dataflow .df-kv { border-radius: 8px; padding: 2px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #adk-c03-lab-dataflow .df-kv b { color: var(--state); }
+    #adk-c03-lab-dataflow .df-kv i { font-style: normal; color: var(--ink); }
+    #adk-c03-lab-dataflow .df-kv i.f { color: var(--risk); font-weight: 700; }
+    #adk-c03-lab-dataflow .df-empty { color: var(--muted); }
+    #adk-c03-lab-dataflow .df-bottom { display: grid; grid-template-columns: 652px 318px 1fr; gap: 20px; align-items: start; }
+    #adk-c03-lab-dataflow .df-bottom .code-wrap .code-head { padding: 7px 14px; font-size: 13.5px; }
+    #adk-c03-lab-dataflow .df-code pre.code { font-size: 13px; line-height: 1.42; padding: 10px 14px 12px; }
+    #adk-c03-lab-dataflow .df-rail { gap: 8px; }
+    #adk-c03-lab-dataflow .df-rail > * { font-size: 15.5px; line-height: 1.36; grid-template-columns: 30px 1fr; gap: 10px; }
+    #adk-c03-lab-dataflow .df-rail > *::before { width: 26px; height: 26px; font-size: 13.5px; }
+    #adk-c03-lab-dataflow .df-rail code { font-size: 13.5px; }
+    #adk-c03-lab-dataflow .df-swap { display: grid; min-width: 0; }
+    #adk-c03-lab-dataflow .df-swap > * { grid-area: 1 / 1; }
+    #adk-c03-lab-dataflow .out pre.code { font-size: 13.5px; line-height: 1.5; padding: 10px 14px 12px; white-space: pre-wrap; }
+    #adk-c03-lab-dataflow .out pre.code code { white-space: pre-wrap; }
+    #adk-c03-lab-dataflow .out .cmd { color: #7ee2b8; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 3</span> Acme support desk · step 2 of 4</div>
+  <h2 class="title">Data moves by node_input, by state and by state-bound parameters</h2>
+  <div class="lab-head">
+    <span class="run" id="df-run">adk run refund_flow "refund A-1001 arrived broken"</span>
+    <a class="cite doc" href="https://adk.dev/graphs/data-handling/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;adk.dev/graphs/data-handling</a>
+    <a class="cite repo" href="https://github.com/google/adk-python/tree/v2.13.0/contributing/samples/workflows/state" target="_blank" rel="noopener"><b>Repo</b>&nbsp;samples/workflows/state</a>
+  </div>
+  <div class="df-top">
+    <div class="diagram df-graph" style="width:1088px;height:150px" data-wires="df-start>df-parse; df-parse>df-check; df-check>df-write; df-write>df-audit">
+      <div class="node n-human pill" id="df-start" style="left:0;top:74px;width:100px"><span class="nt">START</span></div>
+      <div class="node n-tool" id="df-parse" style="left:176px;top:62px;width:186px"><span class="nt">parse_request</span><span class="ns">FunctionNode <b class="cnt">@–</b></span></div>
+      <div class="node n-tool" id="df-check" style="left:438px;top:62px;width:180px"><span class="nt">check_policy</span><span class="ns">FunctionNode <b class="cnt">@–</b></span></div>
+      <div class="node n-model" id="df-write" style="left:694px;top:62px;width:150px"><span class="nt">write_reply</span><span class="ns">Agent <b class="cnt">@–</b></span></div>
+      <div class="node n-tool" id="df-audit" style="left:920px;top:62px;width:168px"><span class="nt">audit_log</span><span class="ns">FunctionNode <b class="cnt">@–</b></span></div>
+      <div class="df-token"><span class="tx">user text</span></div>
+    </div>
+    <div class="df-state">
+      <div class="df-sh">ctx.state <span>session</span></div>
+      <div class="df-empty">{ }  no keys yet</div>
+      <div class="df-kv" data-k="refund_case"><b>refund_case</b><br>
+        &nbsp;order_id <i class="v-id">"A-1001"</i><br>
+        &nbsp;amount <i class="v-am">89.0</i><br>
+        &nbsp;days_since_delivery <i class="v-d">12</i><br>
+        &nbsp;eligible <i class="v-e">true</i></div>
+      <div class="df-kv" data-k="reply_text"><b>reply_text</b> <i class="v-r">"Thanks for reaching…"</i></div>
+    </div>
+  </div>
+  <div class="df-bottom fill">
+    <div class="code-wrap df-code">
+      <div class="code-head">refund_flow/agent.py · from step 1</div>
+      <pre class="code" data-lang="python" data-focus="1:1-2, 2:4-5, 3:17, 4:18-19"><code>def check_policy(ctx: Context, node_input: str) -&gt; RefundCase:
+  order = ORDERS[node_input]
+  eligible = order["days_since_delivery"] &lt;= 30          # 30-day policy
+  ctx.state["refund_case"] = {"order_id": node_input, **order,
+                              "eligible": eligible}
+  return RefundCase(order_id=node_input, amount=order["amount"],
+                    days_since_delivery=order["days_since_delivery"],
+                    eligible=eligible)
+write_reply = Agent(
+    name="write_reply",
+    model="gemini-3.5-flash",
+    instruction=("You are a refunds agent. Case: {refund_case}. "
+        "If eligible is true, confirm the refund amount. Otherwise explain "
+        "the 30-day policy politely and offer store credit. Max 3 sentences."),
+    output_key="reply_text",
+)
+def audit_log(reply_text: str):  # bound from ctx.state["reply_text"]
+  yield Event(message=f"[audit] reply length={len(reply_text)} chars. "
+                      "WORKFLOW COMPLETED.")</code></pre>
+    </div>
+    <div class="steps-rail df-rail">
+      <div data-step="1"><span><b>node_input</b>: parse_request returns <code>"A-1001"</code>. The edge gives it to check_policy.</span></div>
+      <div data-step="2"><span><b>ctx.state</b>: the prompt reads <code>{refund_case}</code> from state, not the <code>RefundCase</code> on the edge.</span></div>
+      <div data-step="3"><span><b>State-bound parameter</b>: <code>reply_text</code> gets the <code>output_key</code> value by name.</span></div>
+      <div data-step="4"><span><code>adk run</code> prints messages only, so no text for check_policy. Function nodes sign as <code>refund_flow</code>: filter on <code>node_info.path</code>.</span></div>
+      <div data-step="5"><span><code>--jsonl</code> lists every event, check_policy too. <code>@1</code> is the first run of a node.</span></div>
+    </div>
+    <div class="df-swap">
+      <div class="code-wrap out" data-step="4" data-until="5">
+        <div class="code-head">output · illustrative</div>
+        <pre class="code" data-lang="none"><code><span class="cmd">$ adk run refund_flow "refund A-1001 arrived broken"</span>
+[write_reply]: Thanks for reaching out about order A-1001. Your refund of $89.00 has been approved and will reach your card in 3–5 business days.
+<span class="ok">[refund_flow]: [audit] reply length=142 chars. WORKFLOW COMPLETED.</span></code></pre>
+      </div>
+      <div class="code-wrap out" data-step="5">
+        <div class="code-head">output · --jsonl · illustrative, trimmed</div>
+        <pre class="code" data-lang="none"><code><span class="cmd">$ adk run refund_flow "refund A-1002 wobbly legs" --jsonl</span>
+{… "node_path": "refund_flow@1/check_policy@1" …}
+{… "node_path": "refund_flow@1/write_reply@1" …}
+<span class="ok">A-1002: 41 days &gt; 30, eligible=false: the reply offers store credit.</span></code></pre>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">This slide runs the chain from the last slide and follows the data. Press through the three paths: the return value of parse_request rides the edge as node_input; check_policy writes refund_case into state, and the write_reply prompt reads it from there (the RefundCase that also rides the edge is not what the prompt template uses); and audit_log gets reply_text from state only because its parameter has the same name as the output_key. Think of a kitchen: the plate moves along the pass, and the order ticket hangs on the rail where every cook can read it. Step 4 is the plain run: adk run prints only message events, so check_policy shows no text, and the audit line is signed refund_flow, not audit_log, because function nodes sign as the Workflow; filter on node_info.path when you search traces. Step 5 runs A-1002 with --jsonl: every event appears, check_policy included, and @1 means the first run of that node. A likely question is why A-1002 gets store credit: it was delivered 41 days ago, the policy is 30 days, so eligible is false and the instruction says to offer store credit. Next: a second package, ticket_triage, adds routing.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c03-lab-dataflow";
+  const IDS = ["df-start", "df-parse", "df-check", "df-write", "df-audit"];
+  const TARGET = [0, 2, 3, 4, 4, 4];            // node the token rests on at step n
+  const CMD = { a: 'adk run refund_flow "refund A-1001 arrived broken"', b: 'adk run refund_flow "refund A-1002 wobbly legs" --jsonl' };
+  const RUN = {
+    a: { id: '"A-1001"', am: "89.0", d: "12", e: "true", r: '"Thanks for reaching…"' },
+    b: { id: '"A-1002"', am: "1450.0", d: "41", e: "false", r: '"…offer store credit"' }
+  };
+  let tl = null, touched = [];
+  function label(idx, n) {
+    if (idx <= 1) return n >= 5 ? '"refund A-1002 …"' : "user text";
+    if (idx === 2) return n >= 5 ? '"A-1002"' : '"A-1001"';
+    if (idx === 3) return "RefundCase (edge)";
+    return n >= 4 ? "✓ COMPLETED" : "reply_text";
+  }
+  function render(slide, n, animate) {
+    const dg = slide.querySelector(".df-graph");
+    if (!dg) return;
+    if (tl) { tl.kill(); tl = null; }
+    const run = n >= 5 ? "b" : "a";
+    const pill = slide.querySelector("#df-run");
+    if (pill) pill.textContent = CMD[run];
+    const nodes = IDS.map((id) => dg.querySelector("#" + id));
+    const tok = dg.querySelector(".df-token"), tx = tok.querySelector(".tx");
+    const cnts = nodes.map((nd) => nd.querySelector(".cnt"));
+    const W = dg.offsetWidth;
+    const xOf = (i) => { const nd = nodes[i]; const w = tok.offsetWidth; return Math.max(0, Math.min(W - w, nd.offsetLeft + nd.offsetWidth / 2 - w / 2)); };
+    const setCnt = (i, on) => { const c = cnts[i]; if (!c) return; c.textContent = on ? "@1" : "@–"; c.classList.toggle("on", on); };
+    const setTok = (i, step) => { tx.textContent = label(i, step); tok.classList.toggle("done", i === 4 && step >= 4); };
+    const lit = (i) => nodes.forEach((nd, k) => nd.classList.toggle("lit", n >= 1 && k === i));
+    touched = [tok, ...cnts];
+    const T = TARGET[Math.max(0, Math.min(5, n))];
+    const R = RUN[run];
+    const st = slide.querySelector(".df-state");
+    const rc = st.querySelector('[data-k="refund_case"]'), rt = st.querySelector('[data-k="reply_text"]'), em = st.querySelector(".df-empty");
+    rc.querySelector(".v-id").textContent = R.id; rc.querySelector(".v-am").textContent = R.am;
+    rc.querySelector(".v-d").textContent = R.d;
+    const ve = rc.querySelector(".v-e"); ve.textContent = R.e; ve.classList.toggle("f", R.e === "false");
+    rt.querySelector(".v-r").textContent = R.r;
+    const showRc = n >= 2, showRt = n >= 3;
+    touched.push(rc, rt, em, ve);
+    gsap.killTweensOf([rc, rt, em, ve]);
+    em.style.display = showRc ? "none" : "";
+    rc.style.display = showRc ? "" : "none"; rt.style.display = showRt ? "" : "none";
+    gsap.set(rc, { autoAlpha: showRc ? 1 : 0, x: 0, backgroundColor: "rgba(0,0,0,0)" });
+    gsap.set(rt, { autoAlpha: showRt ? 1 : 0, x: 0, backgroundColor: "rgba(0,0,0,0)" });
+    gsap.set(ve, { scale: 1 });
+    const flash = (el, delay) => gsap.fromTo(el, { autoAlpha: 0, x: 24, backgroundColor: "rgba(79,214,168,0.35)" }, { autoAlpha: 1, x: 0, backgroundColor: "rgba(79,214,168,0)", duration: 0.9, delay, ease: "power3.out" });
+    if (!animate) {
+      nodes.forEach((_, i) => setCnt(i, n >= 1 && i >= 1 && i <= T));
+      setTok(T, n);
+      gsap.set(tok, { x: xOf(T) });
+      lit(T);
+      return;
+    }
+    const from = n === 5 ? 0 : (n >= 1 ? TARGET[n - 1] : 0);
+    if (n === 5) nodes.forEach((_, i) => setCnt(i, false));
+    else nodes.forEach((_, i) => setCnt(i, i >= 1 && i <= from && n >= 1));
+    setTok(from, n === 5 ? 5 : n - 1);
+    gsap.set(tok, { x: xOf(from) });
+    lit(from);
+    tl = gsap.timeline();
+    for (let i = from + 1; i <= T; i++) {
+      tl.call(() => setTok(i, n));
+      tl.to(tok, { x: () => xOf(i), duration: 0.55, ease: "power2.inOut" });
+      tl.call(() => { setCnt(i, true); lit(i); gsap.fromTo(cnts[i], { scale: 1.6 }, { scale: 1, duration: 0.35, ease: "back.out(2)" }); });
+    }
+    tl.call(() => { setTok(T, n); gsap.set(tok, { x: xOf(T) }); lit(T); });
+    if (n === 2) flash(rc, 0.5);
+    if (n === 3) flash(rt, 0.6);
+    if (n === 5) { flash(rc, 0.9); gsap.fromTo(ve, { scale: 1 }, { scale: 1.25, duration: 0.2, repeat: 3, yoyo: true, delay: 1.2 }); }
+  }
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { if (tl) { tl.kill(); tl = null; } touched.forEach((e) => e && gsap.killTweensOf(e)); }
+  });
+})();
+</script>

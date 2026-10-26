@@ -1,0 +1,203 @@
+<section class="slide tight" id="adk-c05-node-confirm" data-tone="human" data-title="Build: node-level require_confirmation">
+  <style>
+    #adk-c05-node-confirm pre.code, #adk-c05-node-confirm code { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #adk-c05-node-confirm .nc-body { display: grid; grid-template-columns: 540px 1fr; gap: 24px; align-items: start; }
+    #adk-c05-node-confirm .nc-col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    #adk-c05-node-confirm .code-head { padding: 6px 14px; font-size: 13px; }
+    #adk-c05-node-confirm .nc-before { position: relative; }
+    #adk-c05-node-confirm .bad pre.code { font-size: 10.5px; line-height: 1.4; padding: 8px 14px 10px; opacity: .5; }
+    #adk-c05-node-confirm .nc-big { position: absolute; right: 18px; top: 44%; font: 800 46px/1 var(--f-mono); color: var(--risk);
+      background: color-mix(in oklab, var(--bg) 88%, transparent); padding: 8px 14px; border-radius: 12px; border: 2px solid var(--risk); }
+    #adk-c05-node-confirm .good pre.code { font-size: 14px; line-height: 1.42; padding: 9px 14px 11px; }
+    #adk-c05-node-confirm .nc-rail { gap: 8px; }
+    #adk-c05-node-confirm .nc-rail > * { font-size: 15px; line-height: 1.35; grid-template-columns: 28px 1fr; gap: 9px; }
+    #adk-c05-node-confirm .nc-rail > *::before { width: 25px; height: 25px; font-size: 13px; border-radius: 7px; }
+    #adk-c05-node-confirm .nc-rail code { font-size: 12.5px; }
+    #adk-c05-node-confirm .nc-top { display: flex; gap: 12px; align-items: center; }
+    #adk-c05-node-confirm .nc-top .small { color: var(--muted); font-size: 14px; }
+    #adk-c05-node-confirm .nc-top .cite { font-size: 12.5px; padding: 3px 8px; margin-left: auto; }
+    #adk-c05-node-confirm #nc-svg { display: block; }
+    #adk-c05-node-confirm .nc-col > .code-wrap { width: 100%; }
+    #adk-c05-node-confirm #nc-svg text { font-family: var(--f-mono); }
+    #adk-c05-node-confirm .callout { font-size: 15px; line-height: 1.4; padding: 9px 14px; }
+  </style>
+  <div class="kicker">Build</div>
+  <h2 class="title">Swap the hand-written gate for node-level require_confirmation</h2>
+  <div class="nc-body fill">
+    <div class="nc-col">
+      <div class="code-wrap bad nc-before">
+        <div class="code-head">manager_gate · Lab 5 step 1</div>
+        <pre class="code" data-lang="python"><code>@node(rerun_on_resume=True)
+def manager_gate(ctx: Context, amount: float, draft: str):
+  if amount &lt;= AUTO_APPROVE_LIMIT:
+    yield Event(route="approved", state={"final_amount": amount})
+    return
+  iid = f"refund_approval_{ctx.invocation_id}_{ctx.run_id}"
+  answer = ctx.resume_inputs.get(iid)
+  if answer is None:
+    yield RequestInput(interrupt_id=iid, response_schema=ManagerDecision,
+                       payload={"amount": amount, "draft": draft},
+                       message=f"Refund ${amount:.2f} needs approval.")
+    return
+  d = ManagerDecision.model_validate(answer)
+  if not d.approved:
+    yield Event(route="rejected")
+  elif d.note:
+    yield Event(state={"note": d.note}, route="revise")
+  else:
+    yield Event(state={"final_amount": d.amount or amount}, route="approved")</code></pre>
+        <div class="nc-big" aria-hidden="true">19 lines</div>
+      </div>
+      <div class="steps-rail nc-rail">
+        <div data-step="2"><span>The pause is a <code>RequestInput</code> with id <code>wf_tool_confirmation:&lt;node_path&gt;</code>.</span></div>
+        <div data-step="3"><span>The predicate gets <code>amount</code> by name from state.</span></div>
+        <div data-step="4"><span>Reply <code>adk run refund_approval '{"confirmed": true}' --session_id case-2040</code>.</span></div>
+        <div data-step="5"><span>A <code>str</code> reply raises <code>WorkflowDataError</code>. A rejection skips the body: output <code>{"error": "This tool call is rejected."}</code>.</span></div>
+      </div>
+      <div class="callout tip" data-step="1"><span><b>Trade-off:</b> yes/no only. No draft, no revise loop, no partial amount. Keep the <code>RequestInput</code> gate for those.</span></div>
+    </div>
+    <div class="nc-col">
+      <div class="nc-top" data-step="1">
+        <span class="delta up">19 lines → 1 decorator, for yes/no gates</span>
+        <span class="small">2.12+ · tested on 2.13.0</span>
+        <a class="cite doc" href="https://adk.dev/graphs/human-input/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Human input</a>
+      </div>
+      <div class="code-wrap good" data-step="1">
+        <div class="code-head">refund_approval/agent.py</div>
+        <pre class="code" data-lang="python" data-focus="2:8, 3:4-6, 4:9-11, 5:8"><code>from google.adk import Event, Workflow
+from google.adk.workflow import node
+AUTO_APPROVE_LIMIT = 500.0
+def intake(node_input: str):                       # "A-2040 820"
+  order_id, amount = node_input.split()[:2]
+  yield Event(state={"order_id": order_id, "amount": float(amount)})
+
+@node(require_confirmation=lambda amount: amount &gt; AUTO_APPROVE_LIMIT)
+def issue_refund(order_id: str, amount: float):    # args = state keys
+  key = f"refund-{order_id}"                       # idempotency key
+  yield Event(message=f"REFUNDED ${amount:.2f} on {order_id} (key {key})")
+
+root_agent = Workflow(name="refund_approval",
+                      edges=[("START", intake, issue_refund)])</code></pre>
+      </div>
+      <svg id="nc-svg" viewBox="0 0 728 224" width="728" height="224" aria-label="The manager_gate node collapses into a confirmation badge on issue_refund. A JSON reply fires the node once. In a second lane, a string reply bounces off with WorkflowDataError.">
+        <defs>
+          <marker id="nc-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker>
+        </defs>
+        <text x="0" y="16" font-size="13" fill="var(--muted)">case-2040 · input "A-2040 820"</text>
+        <rect x="0" y="38" width="140" height="56" rx="10" fill="var(--tool-soft)" stroke="var(--tool)" stroke-width="2"/>
+        <text x="70" y="63" font-size="15" font-weight="700" text-anchor="middle" fill="var(--ink)">intake</text>
+        <text x="70" y="82" font-size="12" text-anchor="middle" fill="var(--state)">state amount=820.0</text>
+        <!-- before: a separate gate node -->
+        <line class="nc-wa" x1="142" y1="66" x2="276" y2="66" stroke="var(--muted)" stroke-width="2" marker-end="url(#nc-arr)"/>
+        <g class="nc-gate">
+          <rect x="280" y="38" width="170" height="56" rx="10" fill="var(--human-soft)" stroke="var(--human)" stroke-width="2"/>
+          <text x="365" y="63" font-size="15" font-weight="700" text-anchor="middle" fill="var(--ink)">manager_gate</text>
+          <text x="365" y="82" font-size="12" text-anchor="middle" fill="var(--human)">3 routes · 19 lines</text>
+        </g>
+        <line class="nc-wb" x1="452" y1="66" x2="554" y2="66" stroke="var(--muted)" stroke-width="2" marker-end="url(#nc-arr)"/>
+        <!-- after: one wire, a badge on the node -->
+        <line class="nc-wd" x1="142" y1="66" x2="554" y2="66" stroke="var(--muted)" stroke-width="2" marker-end="url(#nc-arr)"/>
+        <rect class="nc-node" x="558" y="38" width="170" height="56" rx="10" fill="var(--tool-soft)" stroke="var(--tool)" stroke-width="2"/>
+        <text x="643" y="63" font-size="15" font-weight="700" text-anchor="middle" fill="var(--ink)">issue_refund</text>
+        <text class="nc-ns" x="643" y="82" font-size="12" text-anchor="middle" fill="var(--tool)">function node</text>
+        <g class="nc-badge">
+          <circle cx="722" cy="40" r="14" fill="var(--human)"/>
+          <rect x="716" y="33" width="4" height="14" rx="1" fill="#fff"/><rect x="724" y="33" width="4" height="14" rx="1" fill="#fff"/>
+        </g>
+        <text class="nc-iid" x="728" y="114" font-size="12.5" text-anchor="end" fill="var(--human)">id wf_tool_confirmation:&lt;node_path&gt;</text>
+        <g class="nc-pred">
+          <rect x="166" y="51" width="368" height="30" rx="15" fill="var(--bg)" stroke="var(--human)" stroke-width="2"/>
+          <text x="350" y="72" font-size="16" font-weight="700" text-anchor="middle" fill="var(--human)">820.0 &gt; AUTO_APPROVE_LIMIT → pause</text>
+        </g>
+        <!-- success reply (lane 1) -->
+        <g class="nc-json">
+          <rect x="180" y="100" width="190" height="28" rx="14" fill="var(--state)"/>
+          <text x="275" y="119" font-size="13" font-weight="700" text-anchor="middle" fill="#fff">{"confirmed": true}</text>
+        </g>
+        <text class="nc-ok" x="728" y="136" font-size="14" font-weight="700" text-anchor="end" fill="var(--state)">REFUNDED $820.00 on A-2040</text>
+        <!-- wrong reply (lane 2) -->
+        <g class="nc-lane2">
+          <line x1="0" y1="150" x2="728" y2="150" stroke="var(--line)" stroke-width="1.2" stroke-dasharray="4 4"/>
+          <text x="0" y="183" font-size="13" font-weight="700" fill="var(--risk)">wrong reply · case-2041</text>
+          <rect x="558" y="160" width="170" height="36" rx="10" fill="var(--human-soft)" stroke="var(--human)" stroke-width="2" stroke-dasharray="5 4"/>
+          <text x="643" y="183" font-size="13" font-weight="700" text-anchor="middle" fill="var(--ink)">issue_refund ⏸</text>
+        </g>
+        <g class="nc-str">
+          <rect x="230" y="164" width="170" height="28" rx="14" fill="var(--risk)"/>
+          <text x="315" y="183" font-size="13" font-weight="700" text-anchor="middle" fill="#fff">"yes"  (a str)</text>
+        </g>
+        <text class="nc-err" x="0" y="218" font-size="11.4" font-weight="600" fill="var(--risk)">WorkflowDataError: A tool confirmation response must be a ToolConfirmation payload, but got str.</text>
+      </svg>
+    </div>
+  </div>
+  <aside class="notes">We now replace the hand-written manager_gate from step 1 of the lab with one decorator on issue_refund. Be fair about the swap: the decorator is a yes/no gate, so the draft, the revise loop and the partial amount go away, which is why the line count drops. The predicate lambda amount: amount > AUTO_APPROVE_LIMIT uses the same 500-dollar constant as the old gate; amount is bound by name from the state key that intake wrote. When it returns True, the node pauses with a RequestInput whose interrupt id is wf_tool_confirmation plus the node path and whose schema is ToolConfirmation. The reply must be the dict {"confirmed": true}: from adk run you type the JSON object as the query, because the CLI JSON-parses the text, while a plain "yes" stays a string and raises WorkflowDataError, which the second lane shows for another case. A rejection does not run the body; the node output is {"error": "This tool call is rejected."}. It is like a door with a built-in badge reader instead of a guard who stands in front of it. A likely question: "Why keep the old gate at all?" Because ToolConfirmation is yes or no: when the manager approves 700 instead of 820 or adds a note, you still need the RequestInput gate with ManagerDecision. Next: the three HITL bugs that hit this gate in practice.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c05-node-confirm";
+  let tl = null, loop = null;
+  function clear() { if (tl) { tl.kill(); tl = null; } if (loop) { loop.kill(); loop = null; } }
+  const Q = (s, sel) => Array.from(s.querySelectorAll("#nc-svg " + sel));
+
+  function render(slide, n, animate) {
+    clear();
+    const gate = Q(slide, ".nc-gate"), wa = Q(slide, ".nc-wa, .nc-wb"), wd = Q(slide, ".nc-wd");
+    const badge = Q(slide, ".nc-badge"), iid = Q(slide, ".nc-iid"), pred = Q(slide, ".nc-pred");
+    const json = Q(slide, ".nc-json"), str = Q(slide, ".nc-str"), ok = Q(slide, ".nc-ok"), err = Q(slide, ".nc-err"), lane2 = Q(slide, ".nc-lane2");
+    const node = slide.querySelector("#nc-svg .nc-node"), ns = slide.querySelector("#nc-svg .nc-ns");
+    gsap.killTweensOf(Q(slide, "*"));
+
+    // final state for step n (the success lane never reverts)
+    const vis = (els, on) => gsap.set(els, { opacity: on ? 1 : 0, x: 0, y: 0, scale: 1, rotation: 0 });
+    vis(gate, n < 1); vis(wa, n < 1); vis(wd, n >= 1); vis(badge, n >= 1 && n < 4);
+    vis(iid, n >= 2); vis(pred, n >= 3);
+    vis(json, false); vis(ok, n >= 4);
+    vis(lane2, n >= 5); vis(str, n >= 5); vis(err, n >= 5);
+    const fired = n >= 4;
+    gsap.set(node, { attr: { fill: fired ? "var(--state-soft)" : "var(--tool-soft)", stroke: fired ? "var(--state)" : "var(--tool)" } });
+    ns.textContent = fired ? "ran once" : (n >= 2 ? "paused" : "function node");
+    gsap.set(ns, { attr: { fill: fired ? "var(--state)" : (n >= 2 ? "var(--human)" : "var(--tool)") } });
+    if (n === 2 || n === 3) loop = gsap.to(badge, { scale: 1.15, transformOrigin: "50% 50%", duration: 0.55, repeat: -1, yoyo: true, ease: "sine.inOut" });
+
+    if (!animate) return;
+    tl = gsap.timeline();
+    if (n === 1) {
+      // the gate node shrinks and flies onto issue_refund as a badge
+      gsap.set(gate, { opacity: 1 }); gsap.set(wa, { opacity: 1 }); gsap.set([...wd, ...badge], { opacity: 0 });
+      tl.to(gate, { scale: 0.12, x: 357, y: -26, transformOrigin: "50% 50%", duration: 0.8, ease: "power2.in" })
+        .to(gate, { opacity: 0, duration: 0.15 })
+        .to(wa, { opacity: 0, duration: 0.3 }, "<")
+        .to(wd, { opacity: 1, duration: 0.3 }, "<")
+        .fromTo(badge, { opacity: 0, scale: 0.2, transformOrigin: "50% 50%" }, { opacity: 1, scale: 1, duration: 0.4, ease: "back.out(3)" });
+    } else if (n === 2) {
+      tl.fromTo(iid, { opacity: 0, y: -6 }, { opacity: 1, y: 0, duration: 0.4 });
+    } else if (n === 3) {
+      tl.fromTo(pred, { opacity: 0, scale: 0.85, transformOrigin: "50% 50%" }, { opacity: 1, scale: 1, duration: 0.45, ease: "back.out(2)" });
+    } else if (n === 4) {
+      gsap.set(node, { attr: { fill: "var(--tool-soft)", stroke: "var(--tool)" } });
+      ns.textContent = "paused"; gsap.set(ns, { attr: { fill: "var(--human)" } }); gsap.set(ok, { opacity: 0 }); gsap.set(badge, { opacity: 1 });
+      tl.fromTo(json, { opacity: 0, x: -180 }, { opacity: 1, x: 0, duration: 0.45 })
+        .to(json, { x: 370, y: -46, scale: 0.5, duration: 0.6, ease: "power2.in" })
+        .to(json, { opacity: 0, duration: 0.15 })
+        .to(badge, { opacity: 0, duration: 0.2 }, "<")
+        .add(() => { ns.textContent = "ran once"; gsap.set(ns, { attr: { fill: "var(--state)" } }); })
+        .to(node, { attr: { fill: "var(--state-soft)", stroke: "var(--state)" }, duration: 0.3 }, "<")
+        .fromTo(ok, { opacity: 0, y: 6 }, { opacity: 1, y: 0, duration: 0.35 });
+    } else if (n === 5) {
+      gsap.set([...err, ...lane2, ...str], { opacity: 0 });
+      tl.to(lane2, { opacity: 1, duration: 0.3 })
+        .fromTo(str, { opacity: 0, x: -200 }, { opacity: 1, x: 0, duration: 0.45 })
+        .to(str, { x: 150, duration: 0.4, ease: "power2.in" })
+        .to(str, { x: -40, rotation: -6, duration: 0.45, ease: "power2.out" })
+        .to(str, { x: 0, rotation: 0, duration: 0.25 })
+        .fromTo(err, { opacity: 0 }, { opacity: 1, duration: 0.4 }, "-=0.5");
+    }
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { clear(); if (slide) gsap.killTweensOf(slide.querySelectorAll("#nc-svg *")); },
+  });
+})();
+</script>

@@ -1,0 +1,73 @@
+<section class="slide tight" id="adk-c10-gotcha-silent-zero" data-tone="risk" data-title="Gotcha: silent zeros in tracing">
+  <style>
+    #adk-c10-gotcha-silent-zero table.t { font-size: 19px; line-height: 1.4; width: 100%; }
+    #adk-c10-gotcha-silent-zero table.t th { padding: 10px 16px; }
+    #adk-c10-gotcha-silent-zero table.t td { padding: 14px 16px; vertical-align: top; }
+    #adk-c10-gotcha-silent-zero table.t td:first-child { font-weight: 700; color: var(--risk); width: 230px; }
+    #adk-c10-gotcha-silent-zero table.t code { font-size: 16px; }
+    #adk-c10-gotcha-silent-zero svg { display: block; overflow: visible; }
+    #adk-c10-gotcha-silent-zero svg text { font-family: var(--f-mono); }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> Telemetry · 3 of 3</div>
+  <h2 class="title">Tracing fails quietly: alert when spans arrive but metrics stay zero</h2>
+  <table class="t">
+    <thead><tr><th>Symptom</th><th>Cause</th><th>Fix</th></tr></thead>
+    <tbody>
+      <tr data-step="1"><td>No ADK spans</td><td>Phoenix or Langfuse set a global <code>TracerProvider</code> first. ADK's set is "a no-op and results in a warning".</td><td>Register one provider. Add the extra processors to it.</td></tr>
+      <tr data-step="2"><td>MCP calls untraced</td><td>MCP SDK 2.x. The instrumentor is built for httpx 1.x.</td><td>Expect no MCP spans on SDK 2.x.</td></tr>
+      <tr data-step="3"><td>Panels read 0</td><td>2.2.0 sent <code>cloud.resource.id</code>, not <code>cloud.resource_id</code>. Fixed in 2.4.0.</td><td>Alert on spans &gt; 0 with metric = 0.</td></tr>
+    </tbody>
+  </table>
+  <svg id="sz-svg" viewBox="0 0 1392 190" width="1392" height="190" data-step="3" aria-label="Two counters for the last 10 minutes. Spans ingested counts up to 1240. The dashboard metric stays at 0. An alert badge lights: spans above 0 and metric equal 0. The numbers are illustrative."></svg>
+  <div class="cites">
+    <a class="cite doc" href="https://adk.dev/integrations/cloud-trace/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;ADK Cloud Trace</a>
+    <a class="cite repo" href="https://github.com/google/adk-python/issues/6247" target="_blank" rel="noopener"><b>Repo</b>&nbsp;adk-python #6247</a>
+  </div>
+  <aside class="notes">The last telemetry gotchas share one pattern: nothing errors, the numbers just stop. Press once: if Phoenix or Langfuse installs a global TracerProvider before ADK, ADK's own set call is "a no-op and results in a warning", so ADK spans never appear; register one provider and add the extra span processors to it. Press again: with MCP SDK 2.x, MCP calls go untraced, because the instrumentor is built for httpx 1.x; know this gap before you debug an MCP tool from traces. Press again: 2.2.0 sent cloud.resource.id instead of cloud.resource_id, so dashboards keyed on the right name read zero until 2.4.0 fixed it. The defence for all three is the alert at the bottom: spans are ingested, but the metric is zero. Analogy: a smoke detector with a dead battery is silent too; test it on purpose. Likely question: "How do I test the alert?" Send one synthetic query per deploy and check that both counters move. The counter values are illustrative.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c10-gotcha-silent-zero", NS = "http://www.w3.org/2000/svg";
+  let R = null, tw = [];
+  const mk = (tag, a, p, t) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); if (t !== undefined) e.textContent = t; p.appendChild(e); return e; };
+  function build(svg) {
+    svg.innerHTML = "";
+    R = { svg };
+    const card = (x, w, label, tone) => {
+      mk("rect", { x, y: 10, width: w, height: 170, rx: 14, fill: "var(--surface)", stroke: "var(--line-2)", "stroke-width": 2 }, svg);
+      mk("text", { x: x + 24, y: 48, "font-size": 17, "font-weight": 700, fill: "var(--muted)" }, svg, label);
+      return mk("text", { x: x + 24, y: 136, "font-size": 64, "font-weight": 700, fill: `var(--${tone})` }, svg, "0");
+    };
+    R.a = card(0, 440, "spans ingested · 10 min", "state");
+    R.b = card(476, 440, "dashboard metric · 10 min", "ink");
+    R.alert = mk("g", {}, svg);
+    mk("rect", { x: 952, y: 10, width: 440, height: 170, rx: 14, fill: "var(--risk-soft)", stroke: "var(--risk)", "stroke-width": 2.4 }, R.alert);
+    mk("text", { x: 976, y: 60, "font-size": 22, "font-weight": 700, fill: "var(--risk)" }, R.alert, "ALERT");
+    mk("text", { x: 976, y: 104, "font-size": 18, "font-weight": 700, fill: "var(--ink)" }, R.alert, "spans > 0 and metric = 0");
+    mk("text", { x: 976, y: 140, "font-size": 16, fill: "var(--ink-2)" }, R.alert, "values illustrative");
+  }
+  function clear() { tw.forEach((t) => t.kill()); tw = []; }
+  function render(slide, n, animate) {
+    const svg = slide.querySelector("#sz-svg");
+    if (!R || R.svg !== svg || !svg.childElementCount) build(svg);
+    clear();
+    const on = n >= 3, anim = animate && n === 3 && !matchMedia("(prefers-reduced-motion: reduce)").matches;
+    R.b.textContent = "0";
+    if (anim) {
+      const o = { v: 0 };
+      R.a.textContent = "0"; gsap.set(R.alert, { opacity: 0 });
+      tw.push(gsap.to(o, { v: 1240, duration: 1.6, delay: 0.4, ease: "power1.out", onUpdate: () => { R.a.textContent = Math.round(o.v).toLocaleString("en-US"); } }));
+      tw.push(gsap.to(R.alert, { opacity: 1, duration: 0.3, delay: 2.1 }));
+      tw.push(gsap.fromTo(R.alert, { scale: 1 }, { scale: 1.04, transformOrigin: "50% 50%", duration: 0.18, yoyo: true, repeat: 3, delay: 2.4 }));
+    } else {
+      R.a.textContent = on ? "1,240" : "0";
+      gsap.set(R.alert, { opacity: on ? 1 : 0, scale: 1 });
+    }
+  }
+  Deck.register(ID, {
+    enter(slide, n) { render(slide, n || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { clear(); },
+  });
+})();
+</script>

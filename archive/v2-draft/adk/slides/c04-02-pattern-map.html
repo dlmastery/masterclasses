@@ -1,0 +1,392 @@
+<section class="slide" id="adk-c04-pattern-map" data-tone="agent" data-title="Seven patterns, seven ADK features">
+  <style>
+    #adk-c04-pattern-map .c04pm-sub { font-size: 21px; margin: 0; color: var(--ink-2); }
+    #adk-c04-pattern-map .c04pm-wrap { position: relative; width: 1392px; height: 604px; flex: none; }
+    #adk-c04-pattern-map .c04pm-wrap svg { position: absolute; left: 0; top: 0; overflow: visible; }
+    #adk-c04-pattern-map .c04pm-leg { position: absolute; left: 1059px; top: 312px; width: 333px; height: 292px; box-sizing: border-box;
+      padding: 16px 18px; border: 1px dashed var(--line-2); border-radius: 16px; display: flex; flex-direction: column; gap: 12px; }
+    #adk-c04-pattern-map .c04pm-leg .legend { gap: 8px 14px; }
+    #adk-c04-pattern-map .c04pm-leg .legend span { font-size: 15px; }
+    #adk-c04-pattern-map .c04pm-leg .cite { font-size: 13px; padding: 6px 10px 6px 8px; gap: 8px; }
+    #adk-c04-pattern-map .c04pm-leg h4 { margin: 0; font: 600 14px/1 var(--f-mono); color: var(--muted); letter-spacing: .04em; text-transform: uppercase; }
+    #adk-c04-pattern-map .c04pm-cost { display: grid; gap: 6px; }
+    #adk-c04-pattern-map .c04pm-cost .bar { height: 12px; }
+    #adk-c04-pattern-map .c04pm-cost .lab { display: flex; justify-content: space-between; font: 600 14px/1.2 var(--f-mono); color: var(--ink-2); }
+    #adk-c04-pattern-map .c04pm-mk { position: absolute; width: 0; height: 0; overflow: hidden; }
+  </style>
+  <h2 class="title">Seven agentic patterns and the ADK feature that builds each</h2>
+  <p class="c04pm-sub" data-fx="up"><b>Pick the cheapest shape that passes your eval.</b> Cost grows from cell 1 to cell 7.</p>
+  <div class="c04pm-wrap">
+    <svg id="c04pm-svg" viewBox="0 0 1392 604" width="1392" height="604" aria-label="A grid of seven pattern cells, ordered by cost. Each step animates one cell and fills a cost meter: a router sends a ticket down one lit branch; a fan-out sends three checks to a join bar that counts 1/3, 2/3, 3/3; a write and review loop retries once and exits to done, with escalate as the second exit; an orchestrator spawns three workers and collects three verdicts; two subagents fill their own context bubbles while the root context meter stays low; a graph pauses until a manager approves; a deep agent loads a skill card, calls a subagent and fills a state cylinder"></svg>
+    <div class="c04pm-leg">
+      <h4>Colour = role</h4>
+      <div class="legend"><span class="l-agent">agent</span><span class="l-tool">code</span><span class="l-model">LLM call</span><span class="l-human">human</span><span class="l-state">state</span></div>
+      <div class="c04pm-cost">
+        <div class="lab"><span>cost: calls · latency · context</span><span id="c04pm-costn">0/7</span></div>
+        <div class="bar"><i id="c04pm-costbar" style="--v:0%"></i></div>
+      </div>
+      <a class="cite codelab" href="https://codelabs.developers.google.com/adk2/instructions" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;ADK 2 Orchestration: Graph, Collaborative &amp; Dynamic Workflows</a>
+      <a class="cite doc" href="https://shopify.engineering/building-production-ready-agentic-systems" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Shopify Engineering, Building production-ready agentic systems</a>
+    </div>
+    <span class="c04pm-mk" data-step="1"></span><span class="c04pm-mk" data-step="2"></span><span class="c04pm-mk" data-step="3"></span>
+    <span class="c04pm-mk" data-step="4"></span><span class="c04pm-mk" data-step="5"></span><span class="c04pm-mk" data-step="6"></span>
+    <span class="c04pm-mk" data-step="7"></span>
+  </div>
+  <aside class="notes">This slide is the map for the whole chapter: seven patterns, ordered by cost, and the ADK 2.0 feature that builds each of them. Each click animates one cell and fills the cost meter: the router from Chapter 3, then the four shapes we build today (fan-out with a JoinNode, a loop with a routed back-edge and a round counter, an orchestrator with ctx.run_node, and AgentTool subagents), then RequestInput from Chapter 5 and the deep agent from Chapters 7 and 8. Read the grid like a menu with prices: every cell to the right adds model calls, latency or context, so you pick the cheapest one that passes your eval. The "use when" line under each cell is the decision rule. Shopify's advice from building Sidekick is "Avoid multi-agent architectures early." Classic ReAct, a reason-then-act loop inside one prompt, is only history here: ADK 2.0 puts that loop into a graph that code controls. A likely question: "Is a deep agent always better?" No: the papers later in this chapter show that every handoff can drop a fact. Lab 4 now builds cells 2 to 5 on the Northwind back office, and starts with the fan-out.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "adk-c04-pattern-map";
+  const CW = 333, CH = 292, GX = 353, GY = 312;
+  let cells = null, tls = [], intro = null;
+
+  const el = (parent, tag, attrs, style, text) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (style) Object.assign(e.style, style);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  };
+  const mono = (w, s) => ({ font: `${w} ${s}px var(--f-mono)` });
+  const sans = (w, s) => ({ font: `${w} ${s}px var(--f-body)` });
+
+  function box(p, x, y, w, h, tone, label) {
+    const g = el(p, "g", {});
+    const r = el(g, "rect", { x, y, width: w, height: h, rx: 8 }, { fill: `var(--${tone}-soft)`, stroke: `var(--${tone})`, strokeWidth: 2 });
+    el(g, "text", { x: x + w / 2, y: y + h / 2 + 5, "text-anchor": "middle" }, { ...mono(600, 16), fill: "var(--ink)" }, label);
+    g._r = r; g._tone = tone;
+    return g;
+  }
+  const wire = (p, d, dash, tone) => el(p, "path", { d, fill: "none" },
+    { stroke: tone ? `var(--${tone})` : "var(--line-2)", strokeWidth: 2, strokeDasharray: dash ? "5 5" : "none" });
+  const ghost = (p, d) => el(p, "path", { d, fill: "none" }, { stroke: "none" });
+  const dot = (p, cx, cy, r, tone) => el(p, "circle", { cx, cy, r }, { fill: `var(--${tone})`, opacity: 0 });
+  const txt = (p, x, y, s, tone, size, anchor) => el(p, "text", { x, y, "text-anchor": anchor || "middle" },
+    { ...mono(700, size || 15), fill: tone ? `var(--${tone})` : "var(--muted)" }, s);
+
+  // move a dot along a path inside a timeline (rewinds cleanly)
+  function along(t, d, path, at, dur) {
+    const L = path.getTotalLength(), o = { p: 0 };
+    t.fromTo(o, { p: 0 }, { p: 1, duration: dur, ease: "none", immediateRender: false, onUpdate: () => {
+      const pt = path.getPointAtLength(o.p * L); d.setAttribute("cx", pt.x); d.setAttribute("cy", pt.y);
+    } }, at);
+    t.set(d, { opacity: 1 }, at).set(d, { opacity: 0 }, at + dur);
+  }
+  const flash = (t, g, at) => t.to(g._r || g, { fill: `var(--${g._tone})`, duration: 0.14, yoyo: true, repeat: 1 }, at);
+  // show exactly one of a set of captions from time `at`
+  const only = (t, list, k, at) => t.set(list, { opacity: 0 }, at).set(list[k], { opacity: 1 }, at);
+
+  /* ---------- the seven cells: each returns its shape and a timeline builder ---------- */
+
+  function router(s) {
+    const inp = box(s, 14, 96, 72, 28, "human", "ticket");
+    const w0 = wire(s, "M86 110 L110 110");
+    const D = el(s, "path", { d: "M132 88 L154 110 L132 132 L110 110 Z" }, { fill: "var(--tool-soft)", stroke: "var(--tool)", strokeWidth: 2 });
+    D._tone = "tool";
+    const ys = [64, 110, 156], names = ["billing", "outage", "default"], tones = ["agent", "agent", "agent"];
+    const wb = ys.map((y, i) => wire(s, `M154 110 C 186 110, 186 ${y}, 214 ${y}`, i === 2));
+    const br = ys.map((y, i) => box(s, 216, y - 14, 100, 28, tones[i], names[i]));
+    const tok = dot(s, 86, 110, 7, "agent");
+    const mk = (t) => {
+      t.set([...br, ...wb], { opacity: 1 }, 0);
+      br.forEach((b) => t.set(b._r, { fill: `var(--${b._tone}-soft)` }, 0));
+      t.set(tok, { opacity: 0 }, 0);
+      along(t, tok, w0, 0.2, 0.3);
+      flash(t, D, 0.5);
+      along(t, tok, wb[1], 0.6, 0.45);
+      t.to([br[0], br[2], wb[0], wb[2]], { opacity: 0.3, duration: 0.3 }, 0.8);
+      t.to(br[1]._r, { fill: "var(--agent)", duration: 0.25 }, 1.05);
+      t.set(tok, { opacity: 0 }, 1.6);
+    };
+    return { mk };
+  }
+
+  function fanout(s) {
+    const ys = [64, 110, 156];
+    const src = box(s, 14, 96, 66, 28, "human", "claim");
+    ys.forEach((y) => { wire(s, `M80 110 C 92 110, 92 ${y}, 104 ${y}`); wire(s, `M196 ${y} L222 ${y}`); });
+    const chk = ["policy", "fraud", "damage"].map((n, i) => box(s, 104, ys[i] - 14, 92, 28, "tool", n));
+    const bar = el(s, "rect", { x: 222, y: 50, width: 8, height: 120, rx: 3 }, { fill: "var(--agent)" });
+    const wOut = wire(s, "M230 110 L244 110");
+    const out = box(s, 244, 96, 80, 28, "agent", "decide");
+    const cnt = ["0/3", "1/3", "2/3", "3/3"].map((c) => txt(s, 226, 188, c, "agent", 14));
+    const lanes = ys.map((y) => ghost(s, `M80 110 C 92 110, 92 ${y}, 104 ${y} L222 ${y}`));
+    const toks = ys.map(() => dot(s, 80, 110, 6, "agent"));
+    const tok2 = dot(s, 230, 110, 6, "agent");
+    const mk = (t) => {
+      t.set([...toks, tok2], { opacity: 0 }, 0).set(out._r, { fill: "var(--agent-soft)" }, 0).set(bar, { opacity: 1 }, 0);
+      only(t, cnt, 0, 0);
+      // real ratio of the lab: 0.3 s, 0.5 s, 0.2 s, all start together
+      const dur = [0.6, 1.0, 0.4];
+      toks.forEach((d, i) => along(t, d, lanes[i], 0.2, dur[i]));
+      [0.6, 0.8, 1.2].forEach((at, k) => only(t, cnt, k + 1, at));
+      t.to(bar, { opacity: 0.4, duration: 0.1, yoyo: true, repeat: 1 }, 1.2);
+      along(t, tok2, wOut, 1.35, 0.25);
+      t.to(out._r, { fill: "var(--agent)", duration: 0.2 }, 1.6);
+      t.set(chk.map((c) => c._r), { fill: "var(--tool-soft)" }, 0);
+    };
+    return { mk };
+  }
+
+  function loop(s) {
+    const write = box(s, 14, 96, 96, 28, "model", "write");
+    wire(s, "M110 110 L136 110");
+    const review = box(s, 136, 96, 96, 28, "model", "review");
+    wire(s, "M232 110 L264 110");
+    const gate = el(s, "path", { d: "M282 92 L300 110 L282 128 L264 110 Z" }, { fill: "var(--tool-soft)", stroke: "var(--tool)", strokeWidth: 2 });
+    gate._tone = "tool";
+    wire(s, "M282 92 C 282 50, 62 50, 62 92", false, "model");
+    el(s, "path", { d: "M57 85 L62 95 L67 85", fill: "none" }, { stroke: "var(--model)", strokeWidth: 2 });
+    txt(s, 172, 54, "retry", "model", 15);
+    wire(s, "M282 128 L282 150");
+    const done = box(s, 250, 150, 72, 28, "state", "done");
+    wire(s, "M272 122 C 252 150, 240 164, 228 164", true);
+    box(s, 132, 150, 96, 28, "human", "escalate");
+    const rnd = ["round 1 / 3", "round 2 / 3"].map((c) => txt(s, 14, 204, c, "model", 15, "start"));
+    const fwd = ghost(s, "M62 110 L282 110");
+    const back = ghost(s, "M282 110 L282 92 C 282 50, 62 50, 62 96 L62 110");
+    const exit = ghost(s, "M282 110 L282 163");
+    const tok = dot(s, 62, 110, 7, "model");
+    const mk = (t) => {
+      t.set(tok, { opacity: 0 }, 0).set(done._r, { fill: "var(--state-soft)" }, 0).set(rnd, { opacity: 0 }, 0)
+        .set([write._r, review._r], { fill: "var(--model-soft)" }, 0);
+      for (let r = 0; r < 2; r++) {
+        const t0 = 0.2 + r * 1.15;
+        only(t, rnd, r, t0);
+        along(t, tok, fwd, t0, 0.5);
+        flash(t, review, t0 + 0.25);
+        flash(t, gate, t0 + 0.5);
+        if (r < 1) along(t, tok, back, t0 + 0.55, 0.55);
+        else { along(t, tok, exit, t0 + 0.55, 0.3); t.to(done._r, { fill: "var(--state)", duration: 0.2 }, t0 + 0.85); }
+      }
+      t.set(review._r, { fill: "var(--model-soft)" }, 2.6);
+    };
+    return { mk };
+  }
+
+  function orchestrator(s) {
+    const orch = box(s, 14, 96, 122, 28, "agent", "orchestrate");
+    const ys = [64, 110, 156];
+    const ws = ys.map((y) => wire(s, `M136 110 C 196 110, 196 ${y}, 247 ${y}`, false, "agent"));
+    const dots = ys.map((y, i) => {
+      const g = el(s, "g", {});
+      g._c = el(g, "circle", { cx: 262, cy: y, r: 14 }, { fill: "var(--agent-soft)", stroke: "var(--agent)", strokeWidth: 2 });
+      el(g, "text", { x: 262, y: y + 6, "text-anchor": "middle" }, { ...mono(700, 15), fill: "var(--ink)" }, String(i + 1));
+      return g;
+    });
+    const rets = ys.map((y) => ghost(s, `M247 ${y} C 196 ${y}, 196 110, 136 110`));
+    const toks = ys.map(() => dot(s, 247, 110, 6, "state"));
+    const n = txt(s, 14, 204, "N = len(lines)", "agent", 15, "start");
+    const res = txt(s, 75, 154, "3 verdicts", "state", 15);
+    const mk = (t) => {
+      t.set([...ws, ...dots, n, res, ...toks], { opacity: 0 }, 0).set(dots, { scale: 0, transformOrigin: "50% 50%" }, 0);
+      dots.forEach((g) => t.set(g._c, { fill: "var(--agent-soft)", stroke: "var(--agent)" }, 0));
+      t.set(orch._r, { fill: "var(--agent-soft)" }, 0);
+      flash(t, orch, 0.15);
+      t.to(n, { opacity: 1, duration: 0.2 }, 0.3);
+      dots.forEach((g, i) => {
+        const at = 0.35 + i * 0.18;
+        t.to(ws[i], { opacity: 1, duration: 0.2 }, at).to(g, { opacity: 1, scale: 1, duration: 0.3, ease: "back.out(2.5)" }, at + 0.1);
+      });
+      [1.2, 1.5, 1.05].forEach((at, i) => {
+        t.to(dots[i]._c, { fill: "var(--state-soft)", stroke: "var(--state)", duration: 0.2 }, at);
+        along(t, toks[i], rets[i], at + 0.1, 0.4);
+      });
+      flash(t, orch, 2.0);
+      t.to(res, { opacity: 1, duration: 0.25 }, 2.05);
+    };
+    return { mk };
+  }
+
+  function subagents(s) {
+    el(s, "rect", { x: 14, y: 46, width: 302, height: 132, rx: 12 }, { fill: "none", stroke: "var(--agent)", strokeWidth: 2, strokeDasharray: "6 5" });
+    txt(s, 26, 68, "root", "agent", 15, "start");
+    txt(s, 220, 68, "context", null, 14, "end");
+    el(s, "rect", { x: 226, y: 57, width: 80, height: 9, rx: 4.5 }, { fill: "var(--line)" });
+    const meter = el(s, "rect", { x: 226, y: 57, width: 0, height: 9, rx: 4.5 }, { fill: "var(--agent)" });
+    const sub = [[30, "price_search"], [172, "price_math"]].map(([x, name]) => {
+      el(s, "rect", { x, y: 78, width: 128, height: 88, rx: 10 }, { fill: "var(--agent-soft)", stroke: "var(--agent)", strokeWidth: 2 });
+      txt(s, x + 64, 98, name, null, 15);
+      const b = el(s, "circle", { cx: x + 64, cy: 134, r: 0 }, { fill: "var(--model-soft)", stroke: "var(--model)", strokeWidth: 2 });
+      const path = ghost(s, `M${x + 64} 134 C ${x + 64} 80, 236 90, 236 62`);
+      const d = dot(s, x + 64, 134, 5, "agent");
+      return { b, path, d };
+    });
+    const mk = (t) => {
+      t.set(meter, { attr: { width: 0 } }, 0);
+      sub.forEach((u, i) => {
+        const t0 = 0.2 + i * 1.4;
+        t.set(u.b, { attr: { r: 0 } }, 0);
+        t.to(u.b, { attr: { r: 24 }, duration: 0.6, ease: "power1.out" }, t0)
+          .to(u.b, { attr: { r: 5 }, duration: 0.3, ease: "power2.in" }, t0 + 0.7);
+        along(t, u.d, u.path, t0 + 1.0, 0.35);
+        t.to(meter, { attr: { width: 10 + i * 10 }, duration: 0.2 }, t0 + 1.35);
+      });
+    };
+    return { mk };
+  }
+
+  function hitl(s) {
+    const draft = box(s, 14, 82, 84, 28, "agent", "draft");
+    const w1 = wire(s, "M98 96 L143 96");
+    const w2 = wire(s, "M187 96 L230 96");
+    const pc = el(s, "circle", { cx: 165, cy: 96, r: 22 }, { fill: "var(--human-soft)", stroke: "var(--human)", strokeWidth: 2 });
+    const bars = [157, 168].map((x) => el(s, "rect", { x, y: 85, width: 6, height: 22, rx: 2 }, { fill: "var(--human)" }));
+    const play = el(s, "path", { d: "M159 84 L176 96 L159 108 Z" }, { fill: "var(--human)" });
+    const pay = box(s, 232, 82, 84, 28, "tool", "pay");
+    const human = el(s, "g", {});
+    el(human, "circle", { cx: 165, cy: 140, r: 8 }, { fill: "var(--human)" });
+    el(human, "path", { d: "M150 172 C 150 154, 180 154, 180 172 Z" }, { fill: "var(--human)" });
+    const ok = txt(s, 190, 164, "manager: yes", "human", 15, "start");
+    const tok = dot(s, 98, 96, 7, "agent");
+    const tok2 = dot(s, 187, 96, 7, "agent");
+    const mk = (t) => {
+      t.set([tok, tok2, play, ok], { opacity: 0 }, 0).set(bars, { opacity: 1 }, 0)
+        .set(human, { opacity: 0, y: 24 }, 0).set(pay._r, { fill: "var(--tool-soft)" }, 0).set(pc, { attr: { r: 22 } }, 0);
+      along(t, tok, w1, 0.2, 0.35);
+      t.set(tok, { opacity: 1 }, 0.55).set(tok, { opacity: 0 }, 1.6);
+      t.to(pc, { attr: { r: 26 }, duration: 0.25, yoyo: true, repeat: 3 }, 0.6);
+      t.to(human, { opacity: 1, y: 0, duration: 0.35, ease: "back.out(2)" }, 0.9);
+      t.to(ok, { opacity: 1, duration: 0.2 }, 1.3);
+      t.to(bars, { opacity: 0, duration: 0.15 }, 1.55).to(play, { opacity: 1, duration: 0.15 }, 1.6);
+      along(t, tok2, w2, 1.7, 0.35);
+      t.to(pay._r, { fill: "var(--tool)", duration: 0.2 }, 2.05);
+      t.set(draft._r, { fill: "var(--agent-soft)" }, 0);
+    };
+    return { mk };
+  }
+
+  function deep(s) {
+    const cards = [0, 1, 2].map((i) => {
+      const g = el(s, "g", {});
+      el(g, "rect", { x: 16 + i * 6, y: 70 + i * 6, width: 52, height: 64, rx: 6 }, { fill: "var(--surface)" });
+      el(g, "rect", { x: 16 + i * 6, y: 70 + i * 6, width: 52, height: 64, rx: 6 }, { fill: "var(--tool-soft)", stroke: "var(--tool)", strokeWidth: 2 });
+      return g;
+    });
+    const cardTxt = txt(s, 54, 114, "skill", "tool", 14);
+    txt(s, 14, 204, "load_skill", "tool", 15, "start");
+    const w1 = wire(s, "M80 110 L104 110");
+    const agent = box(s, 104, 96, 92, 28, "agent", "agent");
+    const wS = wire(s, "M196 104 C 212 104, 210 66, 224 66");
+    const subB = box(s, 224, 52, 92, 28, "agent", "subagent");
+    wire(s, "M196 116 C 214 116, 216 138, 236 138");
+    const clipId = "c04pm-cyl";
+    const cp = el(el(s, "defs", {}), "clipPath", { id: clipId });
+    el(cp, "rect", { x: 236, y: 118, width: 70, height: 50 });
+    const level = el(s, "rect", { x: 236, y: 168, width: 70, height: 0 }, { fill: "var(--state)", opacity: 0.45 });
+    level.setAttribute("clip-path", `url(#${clipId})`);
+    el(s, "path", { d: "M236 118 L236 160 A35 8 0 0 0 306 160 L306 118" }, { fill: "none", stroke: "var(--state)", strokeWidth: 2 });
+    el(s, "ellipse", { cx: 271, cy: 118, rx: 35, ry: 8 }, { fill: "var(--state-soft)", stroke: "var(--state)", strokeWidth: 2 });
+    txt(s, 271, 194, "state", "state", 15);
+    const go = ghost(s, "M196 104 C 212 104, 210 66, 224 66");
+    const ret = ghost(s, "M224 66 C 210 66, 212 104, 196 104");
+    const tok = dot(s, 196, 104, 6, "agent");
+    const tok2 = dot(s, 224, 66, 6, "state");
+    const mk = (t) => {
+      t.set(cards[2], { x: 0 }, 0).set(cardTxt, { x: 0 }, 0).set([tok, tok2], { opacity: 0 }, 0)
+        .set(level, { attr: { y: 168, height: 0 } }, 0).set(agent._r, { fill: "var(--agent-soft)" }, 0);
+      // load_skill: the top card slides into the agent and back
+      t.to([cards[2], cardTxt], { x: 26, duration: 0.35, ease: "power2.out" }, 0.2)
+        .to([cards[2], cardTxt], { x: 0, duration: 0.3, ease: "power2.in" }, 0.75);
+      flash(t, agent, 0.5);
+      // a subagent call goes out and comes back
+      along(t, tok, go, 1.1, 0.35);
+      flash(t, subB, 1.45);
+      along(t, tok2, ret, 1.75, 0.35);
+      // state fills, round by round
+      t.to(level, { attr: { y: 148, height: 20 }, duration: 0.3 }, 0.6)
+        .to(level, { attr: { y: 132, height: 36 }, duration: 0.3 }, 2.15);
+      t.set([w1, wS], { opacity: 1 }, 0);
+    };
+    return { mk };
+  }
+
+  const SPEC = [
+    { name: "1  Router", ch: "Ch 3", tone: "tool", prim: "route + DEFAULT_ROUTE", when: "use when: one input, one of N handlers", fn: router },
+    { name: "2  Parallel fan-out", ch: "Ch 4", tone: "agent", prim: "tuple + JoinNode", when: "use when: the checks are independent", fn: fanout },
+    { name: "3  Evaluator-optimizer", ch: "Ch 4", tone: "model", prim: "routed back-edge", when: "use when: a grader can score output", fn: loop },
+    { name: "4  Orchestrator-workers", ch: "Ch 4", tone: "agent", prim: "ctx.run_node", when: "use when: N is known only at run time", fn: orchestrator },
+    { name: "5  Subagents", ch: "Ch 4", tone: "agent", prim: "AgentTool", when: "use when: a task needs its own context", fn: subagents },
+    { name: "6  Human-in-the-loop", ch: "Ch 5", tone: "human", prim: "RequestInput", when: "use when: a person must approve", fn: hitl },
+    { name: "7  Deep agent", ch: "Ch 7-8", tone: "state", prim: "skills + subagents", when: "use when: open-ended, long tasks", fn: deep },
+  ];
+
+  function build(svg) {
+    svg.innerHTML = "";
+    cells = SPEC.map((c, i) => {
+      const x0 = (i % 4) * GX, y0 = Math.floor(i / 4) * GY;
+      const g = el(svg, "g", { transform: `translate(${x0} ${y0})` });
+      const frame = el(g, "rect", { x: 0, y: 0, width: CW, height: CH, rx: 16 }, { fill: "var(--surface)", stroke: "var(--line-2)", strokeWidth: 1.5 });
+      const name = el(g, "text", { x: 18, y: 32 }, { ...sans(700, 19), fill: "var(--ink)" }, c.name);
+      el(g, "text", { x: CW - 16, y: 31, "text-anchor": "end" }, { ...mono(600, 14), fill: "var(--muted)" }, c.ch);
+      const shape = el(g, "g", {});
+      const built = c.fn(shape);
+      const lab = el(g, "g", {});
+      el(lab, "text", { x: 18, y: 244 }, { ...mono(700, 18), fill: `var(--${c.tone})` }, c.prim);
+      el(lab, "text", { x: 18, y: 274 }, { ...sans(500, 16), fill: "var(--ink-2)" }, c.when);
+      return { ...c, g, frame, name, shape, lab, mk: built.mk };
+    });
+  }
+
+  function killAll() {
+    tls.forEach((t) => t.kill());
+    tls = [];
+  }
+
+  function render(n, animate) {
+    if (!cells) return;
+    killAll();
+    const cb = document.getElementById("c04pm-costbar"), cn = document.getElementById("c04pm-costn");
+    if (cb) { gsap.killTweensOf(cb); gsap.to(cb, { width: (100 * Math.min(n, 7) / 7) + "%", duration: animate ? 0.5 : 0, ease: "power2.out" }); }
+    if (cn) cn.textContent = Math.min(n, 7) + "/7";
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    cells.forEach((c, i) => {
+      const k = i + 1;
+      gsap.killTweensOf([c.shape, c.lab, c.frame, c.name]);
+      if (k <= n) {
+        gsap.set([c.shape, c.lab, c.name], { opacity: 1 });
+        gsap.set(c.frame, { stroke: `var(--${c.tone})`, strokeWidth: k === n ? 3.5 : 1.5, strokeOpacity: k === n ? 1 : 0.6 });
+        const t = gsap.timeline({ paused: true });
+        c.mk(t);
+        if (k === n && !reduce) {
+          t.repeat(-1).repeatDelay(0.9).play(0);
+          if (animate) {
+            tls.push(gsap.fromTo(c.shape, { opacity: 0 }, { opacity: 1, duration: 0.3 }));
+            tls.push(gsap.fromTo(c.lab, { opacity: 0, y: 8 }, { opacity: 1, y: 0, duration: 0.35, ease: "power2.out" }));
+          }
+        } else {
+          t.progress(1);
+        }
+        tls.push(t);
+      } else {
+        gsap.set([c.shape, c.lab], { opacity: 0 });
+        gsap.set(c.name, { opacity: 0.45 });
+        gsap.set(c.frame, { stroke: "var(--line-2)", strokeWidth: 1.5, strokeOpacity: 1 });
+      }
+    });
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) {
+      killAll();
+      build(slide.querySelector("#c04pm-svg"));
+      render(step || 0, true);
+      if (intro) intro.kill();
+      intro = step ? null : gsap.from(cells.map((c) => c.g), { opacity: 0, y: 14, duration: 0.4, stagger: 0.06, ease: "power2.out" });
+    },
+    step(slide, n, animate) {
+      if (!cells || !slide.querySelector("#c04pm-svg").firstChild) return;
+      render(n, animate);
+    },
+    leave() {
+      killAll();
+      if (intro) intro.kill();
+      intro = null;
+      if (cells) cells.forEach((c) => gsap.killTweensOf([c.g, c.shape, c.lab, c.frame, c.name]));
+      cells = null;
+    },
+  });
+})();
+</script>

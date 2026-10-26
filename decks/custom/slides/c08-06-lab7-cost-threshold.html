@@ -1,0 +1,263 @@
+<section class="slide" id="custom-c08-lab7-cost-threshold" data-tone="risk" data-title="Lab 7: threshold from a cost matrix">
+  <style>
+    #custom-c08-lab7-cost-threshold { gap: 18px; }
+    #custom-c08-lab7-cost-threshold .ct-top { display: flex; flex-wrap: nowrap; gap: 14px; align-items: center; }
+    #custom-c08-lab7-cost-threshold .ct-top > * { flex: none; }
+    #custom-c08-lab7-cost-threshold .ct-top .cites { margin-left: auto; display: flex; gap: 10px; flex-wrap: nowrap; }
+    #custom-c08-lab7-cost-threshold .ct-top .cite { font-size: 13px; padding: 5px 10px 5px 8px; gap: 8px; white-space: nowrap; }
+    #custom-c08-lab7-cost-threshold .ct-top .cite.paper { display: inline-flex; flex-direction: row; border-radius: 10px; background: color-mix(in oklab, var(--surface) 60%, transparent); }
+    #custom-c08-lab7-cost-threshold .ct-top .cite::before { width: 18px; height: 18px; }
+    #custom-c08-lab7-cost-threshold .lab-head { font-size: 13.5px; gap: 10px; flex-wrap: nowrap; white-space: nowrap; }
+    #custom-c08-lab7-cost-threshold .lab-head .run { font-size: 14.5px; padding: 7px 11px; }
+    #custom-c08-lab7-cost-threshold .ct-grid { display: grid; grid-template-columns: 712px 1fr; gap: 22px; min-height: 0; }
+    #custom-c08-lab7-cost-threshold .ct-left, #custom-c08-lab7-cost-threshold .ct-right { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+    #custom-c08-lab7-cost-threshold .code-head { padding: 6px 14px; font-size: 13px; }
+    #custom-c08-lab7-cost-threshold .ct-code pre.code { font-size: 11px; line-height: 1.4; padding: 9px 12px 10px; }
+    #custom-c08-lab7-cost-threshold .ct-out pre.code { font-size: 11px; line-height: 1.38; padding: 7px 12px 9px; }
+    #custom-c08-lab7-cost-threshold .steps-rail { grid-template-columns: 1fr 1fr; gap: 8px 14px; }
+    #custom-c08-lab7-cost-threshold .steps-rail > * { font-size: 13.5px; line-height: 1.33; grid-template-columns: 28px 1fr; gap: 8px; }
+    #custom-c08-lab7-cost-threshold .steps-rail > *::before { width: 24px; height: 24px; font-size: 13px; }
+    #custom-c08-lab7-cost-threshold .steps-rail code { font-size: .86em; }
+    #custom-c08-lab7-cost-threshold .ship { font-size: 13.5px; line-height: 1.33; color: var(--ink-2); padding-left: 36px; }
+    #custom-c08-lab7-cost-threshold .ship code { font-size: .86em; }
+    #custom-c08-lab7-cost-threshold .gotcha { font-size: 13.5px; line-height: 1.35; padding: 10px 14px; grid-template-columns: 84px 1fr; gap: 4px 10px; }
+    #custom-c08-lab7-cost-threshold .gotcha > b { font-size: 12px; }
+    #custom-c08-lab7-cost-threshold .gotcha code { font-size: .86em; white-space: normal; overflow-wrap: anywhere; }
+    #custom-c08-lab7-cost-threshold pre.code, #custom-c08-lab7-cost-threshold pre.code *, #custom-c08-lab7-cost-threshold code, #custom-c08-lab7-cost-threshold svg text { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #c08ct-svg text { font-family: var(--f-mono); }
+  </style>
+  <div class="kicker"><span class="pill">Lab 7</span> Acme refund-fraud model · step 5 of 5</div>
+  <h2 class="title">A cost-tuned threshold saves 31%; the eval threshold costs 66% more</h2>
+  <div class="ct-top">
+    <div class="lab-head"><span class="run">python lab7_cost_threshold.py</span><span class="small">scikit-learn==1.9.1 · numpy==2.5.4 · output: 1.8.0 run</span></div>
+    <div class="cites">
+      <a class="cite doc" href="https://scikit-learn.org/stable/auto_examples/model_selection/plot_cost_sensitive_learning.html" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Post-tuning the decision threshold for cost-sensitive learning</a>
+      <a class="cite paper" href="https://arxiv.org/abs/2610.31657" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.31657</a>
+    </div>
+  </div>
+  <div class="ct-grid fill">
+    <div class="ct-left">
+      <div class="code-wrap ct-code">
+        <div class="code-head">fraud_data/lab7_cost_threshold.py</div>
+        <pre class="code" data-lang="python" data-focus="1:7-12, 2:17-24, 3:26-32, 4:33-36"><code>import numpy as np
+from sklearn.datasets import make_classification
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import confusion_matrix, confusion_matrix_at_thresholds, make_scorer
+from sklearn.model_selection import TunedThresholdClassifierCV, train_test_split
+
+C_FP, C_FN = 15.0, 120.0      # $ manual review of a good refund vs $ paid to a fraudster
+PI_PROD = 0.02                 # fraud prevalence in production (eval set is enriched)
+
+def neg_cost(y, y_pred):       # scorer: higher is better, so return minus dollars per case
+    tn, fp, fn, tp = confusion_matrix(y, y_pred, labels=[0, 1]).ravel()
+    return -(fp * C_FP + fn * C_FN) / len(y)
+
+X, y = make_classification(n_samples=12_000, n_features=15, n_informative=5,
+                           weights=[0.9, 0.1], class_sep=0.8, random_state=1)
+X_tr, X_te, y_tr, y_te = train_test_split(X, y, test_size=0.3, stratify=y, random_state=1)
+clf = LogisticRegression(max_iter=1000)
+tuned = TunedThresholdClassifierCV(clf, scoring=make_scorer(neg_cost), cv=5,
+                                   thresholds=200, store_cv_results=True).fit(X_tr, y_tr)
+default = clf.fit(X_tr, y_tr)
+print(f"Bayes rule t* = C_FP/(C_FP+C_FN) = {C_FP / (C_FP + C_FN):.3f}")
+print(f"CV-tuned threshold on eval prevalence {y_tr.mean():.2f}: {tuned.best_threshold_:.3f}")
+print(f"test $/case  default@0.5={-neg_cost(y_te, default.predict(X_te)):.2f}  "
+      f"tuned={-neg_cost(y_te, tuned.predict(X_te)):.2f}")
+
+# Re-weight to PRODUCTION prevalence: EC(t) = pi*FNR*C_FN + (1-pi)*FPR*C_FP
+p_te = default.predict_proba(X_te)[:, 1]
+tns, fps, fns, tps, thr = confusion_matrix_at_thresholds(y_te, p_te)
+fpr, fnr = fps / (fps[-1]), fns / (tps[-1])
+ec_eval = y_te.mean() * fnr * C_FN + (1 - y_te.mean()) * fpr * C_FP
+ec_prod = PI_PROD * fnr * C_FN + (1 - PI_PROD) * fpr * C_FP
+i_eval, i_prod = np.argmin(ec_eval), np.argmin(ec_prod)
+print(f"best t @ eval prevalence={thr[i_eval]:.3f} (EC ${ec_eval[i_eval]:.2f})  "
+      f"@ prod prevalence={thr[i_prod]:.3f} (EC ${ec_prod[i_prod]:.2f})")
+print(f"using the eval-set threshold in prod costs ${ec_prod[i_eval]:.2f}/case "
+      f"vs ${ec_prod[i_prod]:.2f} -> {100 * (ec_prod[i_eval] / ec_prod[i_prod] - 1):.0f}% more")</code></pre>
+      </div>
+    </div>
+    <div class="ct-right">
+      <svg id="c08ct-svg" viewBox="0 0 668 268" width="624" height="250" role="img" aria-label="Expected cost per case against the threshold from 0 to 1. Step 1: two cost curves draw: blue for the eval set with 10% fraud, amber for production with 2% fraud. Step 2: a marker drops at the 0.5 default, 10.72 dollars, and slides along the blue curve to the tuned threshold 0.141, 7.38 dollars, 31% less. Step 3: the amber curve's minimum at 0.340, 1.86 dollars, lights up; a red line from the eval optimum 0.152 hits the amber curve at 3.10 dollars, and a bracket shows plus 66%. Step 4: a violet line marks the Bayes threshold 0.111."></svg>
+      <div class="code-wrap out ct-out" data-step="1">
+        <div class="code-head">output · real run (scikit-learn 1.8.0)</div>
+        <pre class="code" data-lang="none"><code>Bayes rule t* = C_FP/(C_FP+C_FN) = 0.111
+CV-tuned threshold on eval prevalence 0.10: 0.141
+test $/case  default@0.5=<span class="err">10.72</span>  tuned=<span class="ok">7.38</span>
+best t @ eval prevalence=0.152 (EC $7.07)  @ prod prevalence=<span class="ok">0.340</span> (EC $1.86)
+using the eval-set threshold in prod costs <span class="err">$3.10/case</span> vs $1.86 -> <span class="err">66% more</span></code></pre>
+      </div>
+      <div class="steps-rail">
+        <div data-step="1"><span>The tuner maximizes, so return minus dollars. Default scoring is <code>balanced_accuracy</code>.</span></div>
+        <div data-step="2"><span>0.5 to tuned 0.141: $10.72 to $7.38 per case, 31% less.</span></div>
+        <div data-step="3"><span>FPR and FNR do not depend on prevalence. Re-weight them with the 2% prior.</span></div>
+        <div data-step="4"><span>Bayes t* = 0.111 is valid only for calibrated scores (step 4).</span></div>
+      </div>
+      <div class="ship" data-step="4">Ship it: <code>FixedThresholdClassifier(clf, threshold=0.34, response_method="predict_proba")</code></div>
+      <div class="gotcha" data-step="5">
+        <b>Symptom</b><span><code>ValueError: When cv='prefit', refit cannot be True.</code></span>
+        <b class="fix">Fix</b><span><code>FrozenEstimator(clf)</code> with <code>cv="prefit", refit=False</code>, or use CV.</span>
+        <b class="why">Also</b><span><code>multiclass format is not supported</code>: binarize one-vs-rest first.</span>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">This is the last step of Lab 7: we turn the fraud score into a hold decision, where holding a good refund for manual review costs $15 and paying a fraudster costs $120. Step 1: TunedThresholdClassifierCV maximizes its score, so the scorer returns minus dollars per case; without it the default is balanced accuracy, which ignores our costs. Step 2: moving from 0.5 to the cross-validated threshold 0.141 cuts the test cost from $10.72 to $7.38 per case, 31% less. Step 3: the eval set has 10% fraud but production has 2%; FPR and FNR do not change with prevalence, so we re-weight them with the production prior, and the best production threshold moves to 0.340 at $1.86, while the eval-set threshold would cost $3.10, 66% more. Step 4: the Bayes rule 0.111 only holds for calibrated probabilities, which is why we calibrated first; ship the chosen threshold inside the model with FixedThresholdClassifier. Analogy: a smoke alarm tuned in a kitchen beeps too often in a bedroom. Likely question: who sets the $15 and $120? The business owner in finance or operations; version the cost matrix and re-derive the threshold when prevalence or costs change. The curve shapes are illustrative; the marked points and the end points come from the real output and the cost formula. Hand-off: Lab 7 is complete; the next slide shows three leaks that pass review even with these splits in place.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c08-lab7-cost-threshold";
+  // anchors: marked points are the real output; t=0 and t=1 follow from EC(t) (all held / none held)
+  const EVAL = [[0, 13.5], [0.141, 7.38], [0.152, 7.07], [0.5, 10.72], [1, 12.0]];
+  const PROD = [[0, 14.7], [0.152, 3.10], [0.340, 1.86], [1, 2.4]];
+  const X0 = 58, PW = 400, Y0 = 232, PH = 212, YMAX = 15;
+  const px = (t) => X0 + t * PW, py = (c) => Y0 - c / YMAX * PH;
+  const RX = 486;
+
+  function pchip(P) {
+    const xs = P.map((p) => p[0]), ys = P.map((p) => p[1]), n = P.length;
+    const h = [], d = [], m = new Array(n);
+    for (let i = 0; i < n - 1; i++) { h[i] = xs[i + 1] - xs[i]; d[i] = (ys[i + 1] - ys[i]) / h[i]; }
+    m[0] = d[0]; m[n - 1] = d[n - 2];
+    for (let i = 1; i < n - 1; i++) {
+      if (d[i - 1] * d[i] <= 0) m[i] = 0;
+      else { const w1 = 2 * h[i] + h[i - 1], w2 = h[i] + 2 * h[i - 1]; m[i] = (w1 + w2) / (w1 / d[i - 1] + w2 / d[i]); }
+    }
+    return (x) => {
+      let i = 0; while (i < n - 2 && x > xs[i + 1]) i++;
+      const t = (x - xs[i]) / h[i], t2 = t * t, t3 = t2 * t;
+      return (2 * t3 - 3 * t2 + 1) * ys[i] + (t3 - 2 * t2 + t) * h[i] * m[i] + (-2 * t3 + 3 * t2) * ys[i + 1] + (t3 - t2) * h[i] * m[i + 1];
+    };
+  }
+  const fE = pchip(EVAL), fP = pchip(PROD);
+  const pathOf = (f) => { let d = ""; for (let i = 0; i <= 200; i++) { const t = i / 200; d += (i ? " L" : "M") + px(t).toFixed(1) + " " + py(f(t)).toFixed(1); } return d; };
+
+  function mk(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  }
+
+  function build(slide) {
+    const svg = slide.querySelector("#c08ct-svg");
+    if (svg._S) return svg._S;
+    svg.innerHTML = "";
+    const s = { prev: -1, tls: [], mk: { t: 0.5 } };
+    // grid + axes
+    [0, 5, 10, 15].forEach((c) => {
+      mk("line", { x1: px(0), y1: py(c), x2: px(1), y2: py(c), stroke: "var(--line)", "stroke-width": 1 }, svg);
+      mk("text", { x: X0 - 8, y: py(c) + 4, "text-anchor": "end", "font-size": 10.5, fill: "var(--muted)" }, svg, "$" + c);
+    });
+    [0, 0.25, 0.5, 0.75, 1].forEach((t) => mk("text", { x: px(t), y: Y0 + 15, "text-anchor": "middle", "font-size": 10.5, fill: "var(--muted)" }, svg, t.toFixed(2)));
+    mk("line", { x1: px(0), y1: py(0), x2: px(1), y2: py(0), stroke: "var(--line-2)", "stroke-width": 1.5 }, svg);
+    mk("line", { x1: px(0), y1: py(0), x2: px(0), y2: py(YMAX), stroke: "var(--line-2)", "stroke-width": 1.5 }, svg);
+    mk("text", { x: X0 - 50, y: 10, "font-size": 11, "font-weight": 700, fill: "var(--ink-2)" }, svg, "expected $ per case");
+    mk("text", { x: px(1), y: Y0 + 30, "text-anchor": "end", "font-size": 11, "font-weight": 700, fill: "var(--ink-2)" }, svg, "hold threshold t →");
+    // curves
+    s.cE = mk("path", { d: pathOf(fE), fill: "none", stroke: "var(--agent)", "stroke-width": 3, opacity: 0 }, svg);
+    s.cP = mk("path", { d: pathOf(fP), fill: "none", stroke: "var(--tool)", "stroke-width": 3, opacity: 0 }, svg);
+    // legend
+    s.leg = mk("g", { opacity: 0 }, svg);
+    mk("line", { x1: RX, y1: 14, x2: RX + 22, y2: 14, stroke: "var(--agent)", "stroke-width": 3 }, s.leg);
+    mk("text", { x: RX + 30, y: 18, "font-size": 11.5, "font-weight": 700, fill: "var(--ink-2)" }, s.leg, "eval set, 10% fraud");
+    mk("line", { x1: RX, y1: 34, x2: RX + 22, y2: 34, stroke: "var(--tool)", "stroke-width": 3 }, s.leg);
+    mk("text", { x: RX + 30, y: 38, "font-size": 11.5, "font-weight": 700, fill: "var(--ink-2)" }, s.leg, "production, 2% fraud");
+    mk("text", { x: RX, y: 56, "font-size": 10, fill: "var(--muted)" }, s.leg, "curve shape: illustrative");
+    // step 2: default -> tuned marker
+    s.ghost = mk("g", { opacity: 0 }, svg);
+    mk("circle", { cx: px(0.5), cy: py(10.72), r: 6, fill: "none", stroke: "var(--risk)", "stroke-width": 2 }, s.ghost);
+    mk("text", { x: px(0.5) - 10, y: py(10.72) - 14, "text-anchor": "end", "font-size": 12, "font-weight": 800, fill: "var(--risk)" }, s.ghost, "0.5 → $10.72");
+    s.dot = mk("circle", { cx: px(0.5), cy: py(10.72), r: 7.5, fill: "var(--agent)", stroke: "var(--bg)", "stroke-width": 2, opacity: 0 }, svg);
+    s.tunedL = mk("text", { x: px(0.141) + 14, y: py(7.38) + 20, "font-size": 12, "font-weight": 800, fill: "var(--agent)", opacity: 0 }, svg, "0.141 → $7.38");
+    // read-out panel
+    s.r2 = mk("g", { opacity: 0 }, svg);
+    mk("text", { x: RX, y: 88, "font-size": 11.5, "font-weight": 700, fill: "var(--ink-2)" }, s.r2, "0.5 → tuned, test set");
+    s.save = mk("text", { x: RX, y: 112, "font-size": 20, "font-weight": 800, fill: "var(--state)" }, s.r2, "−31%");
+    mk("text", { x: RX + 70, y: 111, "font-size": 11.5, fill: "var(--muted)" }, s.r2, "$10.72 → $7.38");
+    // step 3: production optimum and the eval threshold in prod
+    s.g3 = mk("g", { opacity: 0 }, svg);
+    s.drop = mk("line", { x1: px(0.152), y1: py(7.07), x2: px(0.152), y2: py(3.10), stroke: "var(--risk)", "stroke-width": 2.2, "stroke-dasharray": "5 4" }, s.g3);
+    mk("circle", { cx: px(0.152), cy: py(3.10), r: 6.5, fill: "var(--risk)", stroke: "var(--bg)", "stroke-width": 2 }, s.g3);
+    mk("circle", { cx: px(0.34), cy: py(1.86), r: 13, fill: "var(--state)", opacity: 0.18 }, s.g3);
+    mk("circle", { cx: px(0.34), cy: py(1.86), r: 6.5, fill: "var(--state)", stroke: "var(--bg)", "stroke-width": 2 }, s.g3);
+    const BX = px(1) + 6;
+    mk("line", { x1: px(0.152) + 8, y1: py(3.10), x2: BX, y2: py(3.10), stroke: "var(--risk)", "stroke-width": 1.2, "stroke-dasharray": "2 3" }, s.g3);
+    mk("line", { x1: px(0.34) + 8, y1: py(1.86), x2: BX, y2: py(1.86), stroke: "var(--state)", "stroke-width": 1.2, "stroke-dasharray": "2 3" }, s.g3);
+    mk("path", { d: `M${BX} ${py(3.10)} h7 V${py(1.86)} h-7`, fill: "none", stroke: "var(--risk)", "stroke-width": 2.4 }, s.g3);
+    mk("text", { x: px(1) + 2, y: py(3.10) - 7, "text-anchor": "end", "font-size": 15, "font-weight": 800, fill: "var(--risk)" }, s.g3, "+66%");
+    mk("text", { x: px(0.152) + 12, y: py(3.10) - 7, "font-size": 11.5, "font-weight": 800, fill: "var(--risk)" }, s.g3, "0.152 in prod: $3.10");
+    mk("text", { x: px(0.34), y: py(1.86) + 21, "text-anchor": "middle", "font-size": 11.5, "font-weight": 800, fill: "var(--state)" }, s.g3, "0.340: $1.86");
+    s.r3 = mk("g", { opacity: 0 }, svg);
+    mk("text", { x: RX, y: 146, "font-size": 11.5, "font-weight": 700, fill: "var(--ink-2)" }, s.r3, "eval threshold in prod");
+    mk("text", { x: RX, y: 170, "font-size": 20, "font-weight": 800, fill: "var(--risk)" }, s.r3, "+66%");
+    mk("text", { x: RX + 70, y: 169, "font-size": 11.5, fill: "var(--muted)" }, s.r3, "$3.10 vs $1.86");
+    // step 4: Bayes rule
+    s.g4 = mk("g", { opacity: 0 }, svg);
+    mk("line", { x1: px(0.111), y1: py(0), x2: px(0.111), y2: py(14.2), stroke: "var(--human)", "stroke-width": 2, "stroke-dasharray": "3 3" }, s.g4);
+    mk("text", { x: px(0.111) + 6, y: py(14.2) + 4, "font-size": 11.5, "font-weight": 800, fill: "var(--human)" }, s.g4, "Bayes t* 0.111");
+    mk("text", { x: RX, y: 206, "font-size": 11.5, "font-weight": 700, fill: "var(--ink-2)" }, s.g4, "t* = 15 / (15 + 120)");
+    mk("text", { x: RX, y: 226, "font-size": 11.5, fill: "var(--human)", "font-weight": 700 }, s.g4, "needs calibrated p");
+    svg._S = s;
+    return s;
+  }
+
+  function moveDot(s) { s.dot.setAttribute("cx", px(s.mk.t)); s.dot.setAttribute("cy", py(fE(s.mk.t))); }
+
+  function render(s, n, animate) {
+    s.tls.forEach((t) => t && t.kill()); s.tls = [];
+    const els = [s.cE, s.cP, s.leg, s.ghost, s.dot, s.tunedL, s.r2, s.g3, s.drop, s.r3, s.g4, s.mk];
+    gsap.killTweensOf(els);
+    const op = (el, v, d) => (animate ? gsap.to(el, { opacity: v, duration: .4, delay: d || 0 }) : gsap.set(el, { opacity: v }));
+    // step 1: curves draw
+    if (n >= 1 && animate && s.prev < 1) {
+      [s.cE, s.cP].forEach((c, k) => {
+        const len = c.getTotalLength();
+        s.tls.push(gsap.fromTo(c, { opacity: 1, strokeDasharray: len, strokeDashoffset: len }, { strokeDashoffset: 0, duration: 1.4, delay: k * 0.35, ease: "power2.inOut" }));
+      });
+    } else gsap.set([s.cE, s.cP], { opacity: n >= 1 ? 1 : 0, strokeDasharray: "none", strokeDashoffset: 0 });
+    op(s.leg, n >= 1 ? 1 : 0);
+    // step 2: drop at 0.5, slide to 0.141
+    if (n >= 2 && animate && s.prev < 2) {
+      s.mk.t = 0.5; moveDot(s);
+      const tl = gsap.timeline();
+      tl.fromTo(s.dot, { opacity: 0, attr: { cy: py(15) } }, { opacity: 1, attr: { cy: py(10.72) }, duration: .6, ease: "bounce.out" })
+        .to(s.ghost, { opacity: 1, duration: .3 })
+        .to(s.mk, { t: 0.141, duration: 1.5, ease: "power2.inOut", onUpdate: () => moveDot(s) }, "+=.2")
+        .to(s.tunedL, { opacity: 1, duration: .3 })
+        .to(s.r2, { opacity: 1, duration: .4 }, "<");
+      s.tls.push(tl);
+    } else {
+      s.mk.t = 0.141; moveDot(s);
+      gsap.set(s.dot, { opacity: n >= 2 ? 1 : 0 });
+      gsap.set([s.ghost, s.tunedL, s.r2], { opacity: n >= 2 ? 1 : 0 });
+    }
+    // step 3: prod optimum + the cost of the eval threshold
+    if (n >= 3 && animate && s.prev < 3) {
+      const tl = gsap.timeline();
+      tl.set(s.g3, { opacity: 1 })
+        .fromTo(s.g3.children, { opacity: 0 }, { opacity: 1, duration: .35, stagger: .12 })
+        .to(s.r3, { opacity: 1, duration: .4 });
+      s.tls.push(tl);
+    } else {
+      gsap.set(s.g3, { opacity: n >= 3 ? 1 : 0 });
+      gsap.set(s.g3.children, { opacity: 1 });
+      gsap.set(s.r3, { opacity: n >= 3 ? 1 : 0 });
+    }
+    // step 4: Bayes rule
+    op(s.g4, n >= 4 ? 1 : 0);
+    s.prev = n;
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { const s = build(slide); s.prev = step; render(s, step, false); },
+    step(slide, n, animate) { render(build(slide), n, animate); },
+    leave(slide) {
+      const svg = slide.querySelector("#c08ct-svg");
+      if (svg && svg._S) { svg._S.tls.forEach((t) => t && t.kill()); svg._S.tls = []; gsap.killTweensOf(svg._S.mk); }
+      if (svg) gsap.killTweensOf(svg.querySelectorAll("*"));
+    }
+  });
+})();
+</script>

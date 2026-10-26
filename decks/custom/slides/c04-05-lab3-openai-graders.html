@@ -1,0 +1,218 @@
+<section class="slide" id="custom-c04-lab3-openai-graders" data-tone="tool" data-title="Lab 3 · OpenAI multi-grader">
+  <div class="kicker"><span class="pill">Lab 3</span> Acme refund-decision agent · step 3 of 4</div>
+  <h2 class="title">Same logic as an OpenAI multi-grader: test locally, validate, run</h2>
+  <div class="grid fill og-grid">
+    <div class="stack og-left">
+      <div class="lab-head"><span class="run">pip install "openai==3.37.0"</span><span class="run">export OPENAI_API_KEY=sk-...</span><span class="run">python openai_grader.py</span></div>
+      <div class="code-wrap">
+        <div class="code-head">refunds_rl/openai_grader.py · openai 3.37.0 · same 0 / 0.5 / 1 logic</div>
+        <pre class="code og-code" data-lang="python" data-focus="1:2-20, 2:21-25, 3:29-35, 4:36"><code>from openai import OpenAI
+GRADE_SRC = r'''
+import json, re
+def grade(sample, item) -> float:
+    m = re.search(r"\{.*\}", sample["output_text"], re.DOTALL)
+    if not m:
+        return 0.0
+    try:
+        out = json.loads(m.group(0))
+    except Exception:
+        return 0.0
+    if not {"decision", "refund_amount", "reason"} &lt;= out.keys(): return 0.0  # schema gate
+    if out.get("decision") != item["gold_decision"]:
+        return 0.0
+    try:
+        ok = abs(float(out.get("refund_amount", -1)) - float(item["gold_amount"])) &lt;= 0.01
+    except (TypeError, ValueError):
+        ok = False
+    return 1.0 if ok else 0.5
+'''
+policy = {"type": "python", "name": "policy", "source": GRADE_SRC}
+tag = {"type": "string_check", "name": "tag", "operation": "ilike",   # must cite the policy id
+       "input": "{{sample.output_text}}", "reference": "{{item.policy_id}}"}
+grader = {"type": "multi", "name": "refund_grader", "graders": {"policy": policy, "tag": tag},
+          "calculate_output": "0.8 * policy + 0.2 * tag"}
+item = {"gold_decision": "approve", "gold_amount": "49.99", "policy_id": "RP-30"}
+sample = ('&lt;answer&gt;{"decision": "approve", "refund_amount": 49.99, '
+          '"reason": "Unopened, day 12 of 30 (RP-30)"}&lt;/answer&gt;')
+ns = {}
+exec(GRADE_SRC, ns)                                  # 1) free local unit test first
+print("local policy score:", ns["grade"]({"output_text": sample}, item))
+client = OpenAI()                                    # 2) server-side checks
+print(client.fine_tuning.alpha.graders.validate(grader=grader))
+run = client.fine_tuning.alpha.graders.run(grader=grader, model_sample=sample, item=item)
+print("reward:", run.reward, "sub:", run.sub_rewards, "errors:", run.metadata.errors)
+# 3) LAUNCH_RFT=1 block omitted: jobs.create on o4-mini-2025-04-16</code></pre>
+      </div>
+    </div>
+
+    <div class="stack og-right">
+      <div class="callout pitfall og-status"><span><b>Status 2026-10-23:</b> “OpenAI is winding down the fine-tuning platform.” RFT ran only on o4-mini, shut down today. Graders are still reward functions. <a class="cite doc" href="https://developers.openai.com/api/docs/guides/reinforcement-fine-tuning" target="_blank" rel="noopener"><b>Docs</b>&nbsp;OpenAI reinforcement fine-tuning</a></span></div>
+      <svg id="og-tree" viewBox="0 0 668 252" width="636" height="240" aria-label="Grader tree: refund_grader (multi) with two leaves, policy (python) and tag (string_check), plus a greyed jobs.create box. Step 1 runs five local tests on the policy leaf. Step 2 completes the tree. Step 3 validates the tree and runs it: both leaves send 1.0 up and the formula 0.8 times 1.0 plus 0.2 times 1.0 gives 1.0. Step 4 a red ribbon reads shut down 2026-10-23 across jobs.create."></svg>
+      <div class="steps-rail og-rail">
+        <div data-step="1"><span>Sandbox: &lt; 256 kB, no network, 2 min, 2 GB RAM. <code>import requests</code> fails, so the score is 0.</span></div>
+        <div data-step="2"><span>Formula names must match the <code>graders</code> keys, or <code>formula_parse_error</code>. The SDK types <code>graders</code> as one grader: use the docs' dict.</span></div>
+        <div data-step="3"><span>Self-check: 0.8 × 1.0 + 0.2 × 1.0 = 1.0. A sample that passes both must print 1.0.</span></div>
+        <div data-step="4"><span>Job creation needs o4-mini. Run this grader logic on TRL or Vertex.</span></div>
+      </div>
+      <div class="code-wrap out og-out" data-step="1">
+        <div class="code-head">output · local lines ran · API lines illustrative</div>
+        <pre class="code" data-lang="none"><code>local policy score: <span class="ok">1.0</span>
+<span data-step="3"><span class="dim">GraderValidateResponse(grader=MultiGrader(...))</span>
+reward: <span class="ok">1.0</span> sub: {'policy': 1.0, 'tag': 1.0}
+errors: MetadataErrors(formula_parse_error=<span class="ok">False</span>, ...,
+        python_grader_runtime_error=<span class="ok">False</span>, ...)</span></code></pre>
+      </div>
+    </div>
+  </div>
+  <style>
+    #custom-c04-lab3-openai-graders .og-grid { grid-template-columns: 700px 1fr; gap: 24px; }
+    #custom-c04-lab3-openai-graders .og-left, #custom-c04-lab3-openai-graders .og-right { gap: 10px; min-width: 0; }
+    #custom-c04-lab3-openai-graders .lab-head { gap: 8px; }
+    #custom-c04-lab3-openai-graders .lab-head .run { font-size: 12px; padding: 7px 9px; }
+    #custom-c04-lab3-openai-graders .code-head { font-size: 13px; padding: 8px 14px; }
+    #custom-c04-lab3-openai-graders pre.og-code { font-size: 11.5px; line-height: 14.5px; padding: 9px 14px 10px; }
+    #custom-c04-lab3-openai-graders .og-out pre.code { font-size: 12px; line-height: 15px; padding: 8px 14px 10px; }
+    #custom-c04-lab3-openai-graders .og-status { font-size: 14.5px; line-height: 1.4; padding: 10px 14px; gap: 10px; }
+    #custom-c04-lab3-openai-graders .og-status .cite { font-size: 12.5px; padding: 3px 8px 3px 6px; gap: 6px; vertical-align: middle; }
+    #custom-c04-lab3-openai-graders .og-status .cite::before { width: 16px; height: 16px; -webkit-mask-size: 12px, auto; }
+    #custom-c04-lab3-openai-graders .og-rail { gap: 6px; }
+    #custom-c04-lab3-openai-graders .og-out { align-self: stretch; }
+    #custom-c04-lab3-openai-graders pre.code code, #custom-c04-lab3-openai-graders .lab-head .run { font-variant-ligatures: none; }
+    #custom-c04-lab3-openai-graders .og-rail > * { font-size: 14.5px; line-height: 1.38; grid-template-columns: 28px 1fr; gap: 10px; }
+    #custom-c04-lab3-openai-graders .og-rail > *::before { width: 24px; height: 24px; font-size: 13px; border-radius: 7px; }
+    #custom-c04-lab3-openai-graders .og-rail code { font-size: .84em; }
+  </style>
+  <aside class="notes">Step 3 of Lab 3 ports the refund reward from step 1 to an OpenAI python grader: grade(sample, item) keeps the same schema gate, so it returns 0 for unparseable output, a missing key or a wrong decision, 0.5 for the right decision with the wrong amount, and 1.0 when both match. A string_check grader adds 0.2 for citing the policy id, and the multi grader combines them with the formula 0.8 * policy + 0.2 * tag, where the formula names must match the graders keys. Always exec the source locally first: it is free, and the step 2 completions give 1.0 for good, 0.5 for wrong_amt, 0.0 for the hack, the broken answer and a deny. Without the gate line the hack scores 0.5 here too, so port the gate with the logic. Then validate and run it on the server; a sample that passes both sub-graders must print 1.0, which checks the formula. The LAUNCH_RFT block that calls jobs.create on o4-mini-2025-04-16 is omitted, because o4-mini shut down on 2026-10-23 and OpenAI is winding down fine-tuning; think of the grader as a recipe you can cook in any kitchen. Next, step 4 cooks the same recipe on Vertex Gemini RFT. A likely question: "Why not fetch the policy from our API inside the grader?" Because python graders have no network, so import requests fails and every sample scores 0.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c04-lab3-openai-graders";
+  const mono = "font-family:var(--f-mono)";
+  // local grade() tests with the schema gate, RAN on CPU: the step 2 completions plus a deny
+  const TESTS = [
+    { l: "good", s: "1.0", c: "state" }, { l: "wrong_amt", s: "0.5", c: "tool" },
+    { l: "hack", s: "0.0", c: "risk" }, { l: "broken", s: "0.0", c: "risk" },
+    { l: "deny", s: "0.0", c: "risk" },
+  ];
+  const ROOT = { x: 130, y: 8, w: 280, h: 62 }, POL = { x: 10, y: 150, w: 230, h: 54 }, TAG = { x: 330, y: 150, w: 250, h: 54 }, JOB = { x: 492, y: 14, w: 166, h: 50 };
+  let E = null, tl = null;
+
+  const mk = (tag, a, p) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); p.appendChild(e); return e; };
+  const tx = (s, a, p) => { const e = mk("text", Object.assign({ style: mono }, a), p); e.textContent = s; return e; };
+
+  function box(svg, b, name, sub) {
+    const g = mk("g", {}, svg);
+    const r = mk("rect", { x: b.x, y: b.y, width: b.w, height: b.h, rx: 12, "stroke-width": 2 }, g);
+    const t1 = tx(name, { x: b.x + b.w / 2, y: b.y + 24, "text-anchor": "middle", "font-size": 16, "font-weight": 700 }, g);
+    const t2 = tx(sub, { x: b.x + b.w / 2, y: b.y + 44, "text-anchor": "middle", "font-size": 13 }, g);
+    return { g, r, t1, t2 };
+  }
+  function badge(svg, cx, cy, tone) {
+    const g = mk("g", {}, svg);
+    mk("circle", { cx, cy, r: 17, fill: `var(--${tone})`, stroke: "var(--bg)", "stroke-width": 3 }, g);
+    tx("1.0", { x: cx, y: cy + 4.5, "text-anchor": "middle", "font-size": 12.5, "font-weight": 700, fill: "#fff" }, g);
+    return g;
+  }
+
+  function build(slide) {
+    const svg = slide.querySelector("#og-tree");
+    svg.innerHTML = "";
+    E = {};
+    E.ePol = mk("line", { x1: 210, y1: ROOT.y + ROOT.h, x2: POL.x + POL.w / 2, y2: POL.y, "stroke-width": 2.5 }, svg);
+    E.eTag = mk("line", { x1: 330, y1: ROOT.y + ROOT.h, x2: TAG.x + TAG.w / 2, y2: TAG.y, "stroke-width": 2.5 }, svg);
+    E.eJob = mk("line", { x1: ROOT.x + ROOT.w, y1: 39, x2: JOB.x - 6, y2: 39, stroke: "var(--muted)", "stroke-width": 2, "stroke-dasharray": "5 5", opacity: 0.5 }, svg);
+    mk("path", { d: `M${JOB.x - 14} 33 L${JOB.x - 4} 39 L${JOB.x - 14} 45`, fill: "none", stroke: "var(--muted)", "stroke-width": 2, opacity: 0.5 }, svg);
+    tx("formula vars = keys", { x: 270, y: 116, "text-anchor": "middle", "font-size": 12, fill: "var(--muted)" }, svg);
+    E.root = box(svg, ROOT, "refund_grader · multi", "0.8 * policy + 0.2 * tag");
+    E.pol = box(svg, POL, "policy", "python · grade()");
+    E.tag = box(svg, TAG, "tag", "string_check · ilike");
+    E.job = box(svg, JOB, "jobs.create", "o4-mini RFT");
+    E.job.g.setAttribute("opacity", 0.45);
+    E.job.r.setAttribute("fill", "var(--surface-2)"); E.job.r.setAttribute("stroke", "var(--muted)"); E.job.r.setAttribute("stroke-dasharray", "6 4");
+    E.job.t1.setAttribute("fill", "var(--muted)"); E.job.t2.setAttribute("fill", "var(--muted)");
+    // validate pill
+    E.val = mk("g", {}, svg);
+    mk("rect", { x: 6, y: 25, width: 112, height: 28, rx: 14, fill: "var(--state)" }, E.val);
+    tx("✓ validate", { x: 62, y: 44, "text-anchor": "middle", "font-size": 13.5, "font-weight": 700, fill: "#fff" }, E.val);
+    // score badges
+    E.bPol = badge(svg, POL.x + POL.w - 6, POL.y + 2, "state");
+    E.bTag = badge(svg, TAG.x + TAG.w - 6, TAG.y + 2, "state");
+    E.bRoot = badge(svg, ROOT.x + ROOT.w - 6, ROOT.y + 2, "state");
+    // tokens that travel up the wires in step 3
+    E.tok = [[POL.x + POL.w / 2, POL.y, 210, ROOT.y + ROOT.h], [TAG.x + TAG.w / 2, TAG.y, 330, ROOT.y + ROOT.h]].map(([x1, y1, x2, y2]) => {
+      const g = mk("g", { opacity: 0 }, svg);
+      mk("rect", { x: -20, y: -11, width: 40, height: 22, rx: 11, fill: "var(--tool)" }, g);
+      tx("1.0", { x: 0, y: 4.5, "text-anchor": "middle", "font-size": 12.5, "font-weight": 700, fill: "#fff" }, g);
+      return { g, x1, y1, x2, y2 };
+    });
+    // local test chips under the python leaf
+    E.chipLbl = mk("g", {}, svg);
+    tx("local grade()", { x: 14, y: 226, "font-size": 12, "font-weight": 700, fill: "var(--ink-2)" }, E.chipLbl);
+    tx("tests · ran on CPU", { x: 14, y: 241, "font-size": 11, fill: "var(--muted)" }, E.chipLbl);
+    E.chips = TESTS.map((t, i) => {
+      const g = mk("g", {}, svg);
+      const x = 230 + i * 87;
+      mk("rect", { x, y: 210, width: 81, height: 38, rx: 8, fill: `var(--${t.c}-soft)`, stroke: `var(--${t.c})`, "stroke-width": 1.5 }, g);
+      tx(t.l, { x: x + 40.5, y: 224, "text-anchor": "middle", "font-size": 10.5, fill: "var(--ink-2)" }, g);
+      tx(t.s, { x: x + 40.5, y: 241, "text-anchor": "middle", "font-size": 13, "font-weight": 700, fill: `var(--${t.c})` }, g);
+      return g;
+    });
+    // shutdown ribbon
+    E.rib = mk("g", { transform: `rotate(-14 ${JOB.x + JOB.w / 2} ${JOB.y + JOB.h / 2})` }, svg);
+    mk("rect", { x: JOB.x - 18, y: JOB.y + JOB.h / 2 - 12, width: JOB.w + 36, height: 24, fill: "var(--risk)" }, E.rib);
+    tx("shut down 2026-10-23", { x: JOB.x + JOB.w / 2, y: JOB.y + JOB.h / 2 + 4.5, "text-anchor": "middle", "font-size": 12.5, "font-weight": 700, fill: "#fff" }, E.rib);
+  }
+
+  function lit(b, on, tone) {
+    b.r.setAttribute("fill", on ? `var(--${tone}-soft)` : "var(--surface-2)");
+    b.r.setAttribute("stroke", on ? `var(--${tone})` : "var(--line-2)");
+    b.t1.setAttribute("fill", on ? "var(--ink)" : "var(--muted)");
+    b.t2.setAttribute("fill", on ? `var(--${tone})` : "var(--muted)");
+  }
+  const vis = (el, on) => { gsap.set(el, { opacity: on ? 1 : 0 }); };
+  const all = () => E ? [E.val, E.bPol, E.bTag, E.bRoot, E.rib, E.chipLbl, ...E.chips, ...E.tok.map((t) => t.g)] : [];
+
+  function render(slide, n, animate) {
+    if (!E) build(slide);
+    if (tl) { tl.kill(); tl = null; }
+    gsap.killTweensOf(all());
+    lit(E.pol, n >= 1, "tool");
+    lit(E.tag, n >= 2, "tool");
+    lit(E.root, n >= 2, "agent");
+    [E.ePol, E.eTag].forEach((e) => e.setAttribute("stroke", n >= 2 ? "var(--tool)" : "var(--line-2)"));
+    E.root.t2.textContent = n >= 3 ? "0.8 * 1.0 + 0.2 * 1.0 = 1.0" : "0.8 * policy + 0.2 * tag";
+    E.tok.forEach((t) => gsap.set(t.g, { opacity: 0, x: t.x2, y: t.y2 }));
+    vis(E.chipLbl, n >= 1);
+    E.chips.forEach((c) => gsap.set(c, { opacity: n >= 1 ? 1 : 0, y: 0 }));
+    vis(E.bPol, n >= 1); vis(E.val, n >= 3); vis(E.bTag, n >= 3); vis(E.bRoot, n >= 3); vis(E.rib, n >= 4);
+    gsap.set([E.bPol, E.bTag, E.bRoot, E.val, E.rib], { scale: 1, transformOrigin: "50% 50%" });
+    if (!animate) return;
+    tl = gsap.timeline();
+    if (n === 1) {
+      tl.fromTo(E.chips, { opacity: 0, y: -60 }, { opacity: 1, y: 0, duration: 0.45, stagger: 0.22, ease: "back.out(1.6)" })
+        .fromTo(E.bPol, { scale: 0 }, { scale: 1, duration: 0.4, ease: "back.out(2)" }, "-=0.1");
+    } else if (n === 3) {
+      E.root.t2.textContent = "0.8 * policy + 0.2 * tag";
+      gsap.set([E.bTag, E.bRoot], { opacity: 0 });
+      tl.fromTo(E.val, { scale: 0 }, { scale: 1, duration: 0.4, ease: "back.out(2)" })
+        .fromTo(E.bTag, { opacity: 0, scale: 0 }, { opacity: 1, scale: 1, duration: 0.35, ease: "back.out(2)" }, "+=0.15");
+      E.tok.forEach((t, i) => {
+        tl.fromTo(t.g, { opacity: 1, x: t.x1, y: t.y1 }, { x: t.x2, y: t.y2, duration: 0.8, ease: "power2.inOut" }, i ? "<0.1" : "+=0.1");
+      });
+      tl.to(E.tok.map((t) => t.g), { opacity: 0, duration: 0.2 })
+        .call(() => { E.root.t2.textContent = "0.8 * 1.0 + 0.2 * 1.0"; })
+        .call(() => { E.root.t2.textContent = "0.8 * 1.0 + 0.2 * 1.0 = 1.0"; }, null, "+=0.5")
+        .fromTo(E.bRoot, { opacity: 0, scale: 0 }, { opacity: 1, scale: 1, duration: 0.4, ease: "back.out(2)" });
+    } else if (n === 4) {
+      tl.fromTo(E.rib, { opacity: 0, scale: 0.3 }, { opacity: 1, scale: 1, duration: 0.5, ease: "back.out(1.8)" });
+    }
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { E = null; build(slide); render(slide, step, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { if (tl) { tl.kill(); tl = null; } gsap.killTweensOf(all()); }
+  });
+})();
+</script>

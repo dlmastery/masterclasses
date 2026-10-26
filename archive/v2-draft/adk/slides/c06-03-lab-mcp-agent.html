@@ -1,0 +1,242 @@
+<section class="slide tight" id="adk-c06-lab-mcp-agent" data-tone="tool" data-title="Lab 6.2: filter, prefix, confirm">
+  <style>
+    #adk-c06-lab-mcp-agent .lab-head { gap: 12px; flex-wrap: nowrap; }
+    #adk-c06-lab-mcp-agent .lab-head .run { font-size: 15px; white-space: nowrap; }
+    #adk-c06-lab-mcp-agent .lab-head .pins { font: 500 15px/1.3 var(--f-mono); color: var(--muted); white-space: nowrap; }
+    #adk-c06-lab-mcp-agent .lab-head .cite { font-size: 13.5px; padding: 4px 9px; margin-left: auto; white-space: nowrap; }
+    #adk-c06-lab-mcp-agent .ma-grid { display: grid; grid-template-columns: 700px 1fr; gap: 24px; align-items: start; }
+    #adk-c06-lab-mcp-agent .ma-grid .code-head { padding: 7px 14px; font-size: 14px; }
+    #adk-c06-lab-mcp-agent .ma-code pre.code { font-size: 15px; line-height: 1.45; padding: 9px 14px 11px; }
+    #adk-c06-lab-mcp-agent .ma-right { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    #adk-c06-lab-mcp-agent .ma-layers { font: 700 20px/1.2 var(--f-body); color: var(--ink); }
+    #adk-c06-lab-mcp-agent .ma-layers b { color: var(--state); }
+    #adk-c06-lab-mcp-agent .ma-rail { grid-template-columns: 1fr 1fr; gap: 8px 16px; }
+    #adk-c06-lab-mcp-agent .ma-rail > * { font-size: 15.5px; line-height: 1.32; grid-template-columns: 26px 1fr; gap: 8px; }
+    #adk-c06-lab-mcp-agent .ma-rail > *::before { width: 24px; height: 24px; font-size: 13px; border-radius: 7px; }
+    #adk-c06-lab-mcp-agent .ma-rail code { font-size: 14px; }
+    #adk-c06-lab-mcp-agent .ma-out pre.code { font-size: 14.5px; line-height: 1.42; padding: 7px 12px 9px; }
+    #adk-c06-lab-mcp-agent .ma-out .role { color: #9aa5c4; }
+    #adk-c06-lab-mcp-agent .ma-out .dim { color: #9aa5c4; }
+    /* pipeline: server -> tool_filter -> prefix ring -> model's tool list */
+    #adk-c06-lab-mcp-agent .pl { position: relative; width: 668px; height: 268px; }
+    #adk-c06-lab-mcp-agent .pl svg { position: absolute; inset: 0; overflow: visible; }
+    #adk-c06-lab-mcp-agent .pl-box { position: absolute; top: 0; height: 172px; border-radius: 14px; border: 2px solid; }
+    #adk-c06-lab-mcp-agent .pl-box .bl { position: absolute; left: 10px; top: 8px; font: 700 14px/1.2 var(--f-mono); }
+    #adk-c06-lab-mcp-agent .pl-srv { left: 0; width: 180px; border-color: var(--tool); background: var(--tool-soft); }
+    #adk-c06-lab-mcp-agent .pl-srv .bl { color: var(--tool); }
+    #adk-c06-lab-mcp-agent .pl-list { left: 488px; width: 180px; border-color: var(--model); background: var(--model-soft); }
+    #adk-c06-lab-mcp-agent .pl-list .bl { color: var(--model); }
+    #adk-c06-lab-mcp-agent .pl-card { position: absolute; left: 0; top: 0; height: 32px; border-radius: 8px; z-index: 3;
+      display: flex; align-items: center; padding: 0 9px; font: 600 14px/1 var(--f-mono); color: var(--ink);
+      background: var(--bg); border: 1.5px solid var(--tool); box-shadow: 0 2px 6px rgba(15,20,48,.08); white-space: nowrap; }
+    #adk-c06-lab-mcp-agent .pl-card b { color: var(--model); }
+    #adk-c06-lab-mcp-agent .pl-card.orig { opacity: .45; box-shadow: none; z-index: 2; }
+    #adk-c06-lab-mcp-agent .pl-card.danger { border-color: var(--risk); color: var(--risk); }
+    #adk-c06-lab-mcp-agent .pl-card.stopped { text-decoration: line-through; background: var(--risk-soft); }
+    #adk-c06-lab-mcp-agent .pl-gate { position: absolute; left: 214px; top: 22px; width: 14px; height: 130px; border-radius: 7px; background: var(--line-2); }
+    #adk-c06-lab-mcp-agent .pl-gate.on { background: var(--risk); }
+    #adk-c06-lab-mcp-agent .pl-ring { position: absolute; left: 410px; top: 54px; width: 64px; height: 64px; border-radius: 50%;
+      border: 3px dashed var(--line-2); display: grid; place-items: center; font: 700 14px/1 var(--f-mono); color: var(--muted); background: var(--bg); z-index: 1; }
+    #adk-c06-lab-mcp-agent .pl-ring.on { border-color: var(--model); color: var(--model); }
+    #adk-c06-lab-mcp-agent .pl-lbl { position: absolute; top: 180px; font: 600 14px/1 var(--f-mono); color: var(--muted); white-space: nowrap; }
+    #adk-c06-lab-mcp-agent .pl-lbl.on { color: var(--ink); }
+    #adk-c06-lab-mcp-agent .pl-chip { position: absolute; left: 0; top: 180px; width: 168px; text-align: center; font: 600 14px/1 var(--f-mono); color: var(--tool); opacity: 0; }
+    #adk-c06-lab-mcp-agent .pl-tok { position: absolute; left: 0; top: 0; padding: 6px 10px; border-radius: 999px; z-index: 4;
+      font: 700 14px/1 var(--f-mono); color: #fff; background: var(--model); opacity: 0; white-space: nowrap; }
+    #adk-c06-lab-mcp-agent .pl-rule { position: absolute; left: 196px; top: 206px; width: 266px; height: 56px; border-radius: 10px; border: 2px solid var(--tool);
+      display: grid; place-items: center; font: 600 14px/1.3 var(--f-mono); color: var(--ink); background: var(--bg); text-align: center; opacity: 0; }
+    #adk-c06-lab-mcp-agent .pl-rule.hit { border-color: var(--risk); background: var(--risk-soft); }
+    #adk-c06-lab-mcp-agent .pl-dlg { position: absolute; left: 480px; top: 188px; width: 188px; height: 80px; border-radius: 12px; border: 2px solid var(--human);
+      background: var(--human-soft); padding: 8px 10px; font: 600 14px/1.25 var(--f-mono); color: var(--ink); opacity: 0; }
+    #adk-c06-lab-mcp-agent .pl-dlg .bt { display: flex; gap: 8px; margin-top: 7px; }
+    #adk-c06-lab-mcp-agent .pl-dlg .bt span { padding: 4px 9px; border-radius: 7px; font-size: 13px; border: 1.5px solid var(--human); color: var(--human); }
+    #adk-c06-lab-mcp-agent .pl-dlg .bt span:first-child { background: var(--human); color: #fff; }
+    #adk-c06-lab-mcp-agent .pl-glow { box-shadow: 0 0 0 4px color-mix(in oklab, var(--state) 45%, transparent) !important; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 6</span> Northwind claims desk · step 2 of 4</div>
+  <h2 class="title">tool_filter, a prefix and a payout rule limit what the model can do</h2>
+  <div class="lab-head">
+    <span class="run">adk web .</span>
+    <span class="pins">from northwind/ · prompt: "Approve CLM-1001 for 1800"</span>
+    <a class="cite doc" href="https://adk.dev/tools-custom/confirmation/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Tool confirmation</a>
+  </div>
+  <div class="ma-grid fill">
+    <div class="code-wrap ma-code">
+      <div class="code-head">claims_agent/agent.py · google-adk 2.13.0</div>
+      <pre class="code" data-lang="python" data-focus="1:9-12, 2:13, 3:14, 4:6-7"><code>import pathlib, sys
+from google.adk.agents import LlmAgent
+from google.adk.tools.mcp_tool import McpToolset, StdioConnectionParams
+from mcp import StdioServerParameters
+SERVER = pathlib.Path(__file__).parent / "claims_server.py"
+def payout_needs_human(**kwargs) -&gt; bool:  # gets the call's args
+    return float(kwargs.get("approved_amount", 0)) &gt; 1000
+claims_tools = McpToolset(
+    connection_params=StdioConnectionParams(
+        server_params=StdioServerParameters(
+            command=sys.executable, args=[str(SERVER)]),  # same venv
+        timeout=10.0),                          # default 5.0 s
+    tool_filter=["get_claim", "approve_claim"],  # no purge_claim
+    tool_name_prefix="claims",                  # claims_get_claim
+    require_confirmation=payout_needs_human,
+)
+root_agent = LlmAgent(
+    name="claims_desk",
+    model="gemini-3.5-flash",
+    instruction=("You help claims adjusters. Look up a claim before "
+                 "approving it. Pay at most the claimed amount."),
+    tools=[claims_tools],
+)</code></pre>
+    </div>
+    <div class="ma-right">
+      <div class="ma-layers" data-step="5">Least privilege, 3 layers: <b>filter hides</b> · <b>confirm gates</b> · <b>server checks</b></div>
+      <div class="pl" id="ma-pl">
+        <svg viewBox="0 0 668 268" width="668" height="268" aria-hidden="true">
+          <path id="ma-wire" d="M180 86 L 488 86" style="fill:none;stroke:var(--line-2);stroke-width:3;stroke-dasharray:7 6" />
+          <path id="ma-wire2" d="M560 172 C 560 186, 560 186, 560 188" style="fill:none;stroke:var(--human);stroke-width:2.5;opacity:0" />
+        </svg>
+        <div class="pl-box pl-srv"><span class="bl">claims_server.py</span></div>
+        <div class="pl-box pl-list"><span class="bl">model's tool list</span></div>
+        <div class="pl-gate"></div>
+        <div class="pl-ring">claims_</div>
+        <span class="pl-lbl" data-k="gate" style="left:176px">tool_filter</span>
+        <span class="pl-lbl" data-k="ring" style="left:374px">tool_name_prefix</span>
+        <div class="pl-card orig" data-k="get-o">get_claim</div>
+        <div class="pl-card orig" data-k="app-o">approve_claim</div>
+        <div class="pl-card danger" data-k="purge">purge_claim</div>
+        <div class="pl-card" data-k="get">get_claim</div>
+        <div class="pl-card" data-k="app">approve_claim</div>
+        <span class="pl-chip">sys.executable · 10.0 s</span>
+        <span class="pl-tok">approved_amount=1800</span>
+        <div class="pl-rule">payout_needs_human(...)<br>1800 &gt; 1000 → True</div>
+        <div class="pl-dlg">Confirm claims_approve_claim?<div class="bt"><span>Confirm</span><span>Reject</span></div></div>
+      </div>
+      <div class="steps-rail ma-rail">
+        <div data-step="1"><span><code>StdioConnectionParams</code> sets <code>timeout</code> (default 5.0 s). A bare <code>StdioServerParameters</code> has no timeout.</span></div>
+        <div data-step="2"><span>The filter uses the server's names. <code>purge_claim</code> stops at the bar.</span></div>
+        <div data-step="3"><span>The prefix renames each tool: the model calls <code>claims_get_claim</code>.</span></div>
+        <div data-step="4"><span>ADK calls the rule with the call's args. Over $1,000 waits for a human.</span></div>
+      </div>
+      <div class="code-wrap out ma-out" data-step="4">
+        <div class="code-head">output · illustrative</div>
+        <pre class="code" data-lang="out"><code><span class="role">[user]:</span> Approve CLM-1001 for 1800
+<span class="role">[claims_desk]:</span> call <span class="ok">claims_get_claim</span> {"claim_id": "CLM-1001"}
+<span class="role">[claims_desk]:</span> result {"status": "ok", "amount": 1800.0, ...}
+<span class="role">[claims_desk]:</span> call <span class="err">adk_request_confirmation</span> → Confirm dialog
+<span class="role">Confirm →</span> <span class="ok">Claim CLM-1001 approved. Payout of $1,800.00 scheduled.</span>
+<span class="role">Reject  →</span> <span class="err">{"error": "This tool call is rejected."}</span></code></pre>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">This is step 2 of the Northwind claims desk: the agent connects to the claims MCP server from step 1 and gets only the tools it needs. Walk the four focus steps. Step 1: use StdioConnectionParams so you can set the timeout to 10 seconds; its default is 5.0 seconds, and a bare StdioServerParameters has no timeout at all. sys.executable starts the server in the agent's own virtual environment. Step 2: tool_filter matches the server's original names, so purge_claim stops at the bar and never reaches the model. Step 3: tool_name_prefix renames the rest to claims_get_claim and claims_approve_claim. Step 4: ADK calls the payout rule with the arguments of the call, so with **kwargs one rule covers every tool; 1,800 dollars is over the limit, and ADK emits adk_request_confirmation before the call runs. On Confirm the tool runs; on Reject the model gets "This tool call is rejected." Note that the rule sees the arguments the model sent: if the model sends 999, no human is asked, which is why the server keeps its own limit (layer 3). Think of a bank teller: some drawers are locked, every drawer has a label, and big withdrawals need a manager's signature. A likely question: "Is the filter enough?" No, other MCP clients can call the server directly, so the server checks amount and role itself. Step 3 adds the claims handbook over streamable HTTP.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c06-lab-mcp-agent";
+  let tw = [];
+  function clear() { tw.forEach((t) => t.kill()); tw = []; }
+  // server chip slots (left, top), wire lane, list slots
+  const SRV = { get: [10, 44], app: [10, 86], purge: [10, 128] };
+  const LANE_Y = 70;                 // card top while it travels on the wire (wire at y=86)
+  const GATE_STOP = 214 - 4;         // purge_claim's right edge stops here
+  const RING_X = 442;                // ring centre: the prefix is added here
+  const LIST = { get: [496, 44], app: [496, 86] };
+
+  function render(slide, n, animate) {
+    clear();
+    const q = (s) => slide.querySelector(s);
+    const card = (k) => q(`.pl-card[data-k="${k}"]`);
+    const get = card("get"), app = card("app"), pur = card("purge");
+    const gate = q(".pl-gate"), ring = q(".pl-ring"), chip = q(".pl-chip"), wire = q("#ma-wire");
+    const lGate = q('.pl-lbl[data-k="gate"]'), lRing = q('.pl-lbl[data-k="ring"]');
+    const tok = q(".pl-tok"), rule = q(".pl-rule"), dlg = q(".pl-dlg"), srv = q(".pl-srv");
+    gsap.set(card("get-o"), { x: SRV.get[0], y: SRV.get[1] });
+    gsap.set(card("app-o"), { x: SRV.app[0], y: SRV.app[1] });
+    gsap.set(card("get-o"), { opacity: n >= 2 ? 0.45 : 0 });
+    gsap.set(card("app-o"), { opacity: n >= 2 ? 0.45 : 0 });
+
+    // step 1: the stdio connection (interpreter + timeout)
+    gsap.set(chip, { opacity: n >= 1 ? 1 : 0 });
+    srv.classList.toggle("pl-glow", n === 1 || n >= 5);
+
+    // step 2: the gate turns on; copies of the allowed tools travel on the wire
+    gate.classList.toggle("on", n >= 2);
+    lGate.classList.toggle("on", n >= 2);
+    wire.style.stroke = n >= 2 ? "var(--tool)" : "var(--line-2)";
+    pur.classList.toggle("stopped", n >= 2);
+    const purW = pur.offsetWidth;
+    const purStop = [GATE_STOP - purW, LANE_Y + 34];
+    const named = n >= 3;
+    // step 3 renames on the ring; before step 3 the copies wait between gate and ring
+    const WAIT = { get: [240, LANE_Y - 34], app: [240, LANE_Y + 34] };
+    const label = (el, base, on) => { el.innerHTML = on ? `<b>claims_</b>${base}` : base; };
+    ring.classList.toggle("on", n >= 3);
+    lRing.classList.toggle("on", n >= 3);
+
+    const finalPos = (k) => (n >= 3 ? LIST[k] : n >= 2 ? WAIT[k] : SRV[k]);
+    if (animate && n === 2) {
+      label(get, "get_claim", false); label(app, "approve_claim", false);
+      gsap.set(get, { x: SRV.get[0], y: SRV.get[1] }); gsap.set(app, { x: SRV.app[0], y: SRV.app[1] });
+      gsap.set(pur, { x: SRV.purge[0], y: SRV.purge[1] });
+      tw.push(gsap.timeline()
+        .to(pur, { x: SRV.purge[0] + 20, duration: 0.2 })
+        .to(pur, { x: purStop[0] + 10, y: purStop[1], duration: 0.5, ease: "power2.in" })
+        .to(pur, { x: purStop[0], duration: 0.25, ease: "back.out(3)" }));
+      ["get", "app"].forEach((k, i) => {
+        const el = k === "get" ? get : app;
+        tw.push(gsap.timeline({ delay: 0.5 + i * 0.35 })
+          .to(el, { x: 186, y: LANE_Y, duration: 0.4, ease: "power2.inOut" })
+          .to(el, { x: WAIT[k][0], duration: 0.45, ease: "none" })
+          .to(el, { y: WAIT[k][1], duration: 0.3, ease: "power2.out" }));
+      });
+    } else if (animate && n === 3) {
+      label(get, "get_claim", false); label(app, "approve_claim", false);
+      gsap.set(pur, { x: purStop[0], y: purStop[1] });
+      ["get", "app"].forEach((k, i) => {
+        const el = k === "get" ? get : app;
+        const base = k === "get" ? "get_claim" : "approve_claim";
+        gsap.set(el, { x: WAIT[k][0], y: WAIT[k][1] });
+        const w = el.offsetWidth;
+        tw.push(gsap.timeline({ delay: i * 0.5 })
+          .to(el, { y: LANE_Y, duration: 0.25 })
+          .to(el, { x: RING_X - w / 2, duration: 0.45, ease: "none" })
+          .call(() => label(el, base, true))
+          .fromTo(el, { scale: 1.15 }, { scale: 1, duration: 0.3, ease: "back.out(3)" })
+          .to(el, { x: LIST[k][0], duration: 0.5, ease: "none" })
+          .to(el, { y: LIST[k][1], duration: 0.3, ease: "power2.out" }));
+      });
+    } else {
+      label(get, "get_claim", named); label(app, "approve_claim", named);
+      const p = finalPos("get"), a = finalPos("app");
+      gsap.set(get, { x: p[0], y: p[1] }); gsap.set(app, { x: a[0], y: a[1] });
+      gsap.set(pur, { x: n >= 2 ? purStop[0] : SRV.purge[0], y: n >= 2 ? purStop[1] : SRV.purge[1] });
+    }
+
+    // step 4: a big payout token leaves the model's list, hits the > 1000 rule, opens the dialog
+    rule.classList.toggle("hit", n >= 4);
+    const tokFrom = [500, 128], tokTo = [210, 220];
+    if (n >= 4 && animate && n === 4) {
+      gsap.set(tok, { x: tokFrom[0], y: tokFrom[1], opacity: 0 });
+      gsap.set([rule, dlg], { opacity: 0, scale: 0.92 });
+      tw.push(gsap.timeline()
+        .to(rule, { opacity: 1, scale: 1, duration: 0.35 })
+        .to(tok, { opacity: 1, duration: 0.2 })
+        .to(tok, { x: tokTo[0], y: tokTo[1], duration: 0.9, ease: "power2.inOut" })
+        .to(rule, { scale: 1.06, duration: 0.15, yoyo: true, repeat: 1 })
+        .to(tok, { opacity: 0, duration: 0.2 })
+        .to(dlg, { opacity: 1, scale: 1, duration: 0.45, ease: "back.out(2)" }));
+    } else {
+      gsap.set(tok, { x: tokTo[0], y: tokTo[1], opacity: 0 });
+      gsap.set([rule, dlg], { opacity: n >= 4 ? 1 : 0, scale: 1 });
+    }
+
+    // step 5: the three layers glow together
+    [gate, dlg].forEach((el) => el.classList.toggle("pl-glow", n >= 5));
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { clear(); if (slide) gsap.killTweensOf(slide.querySelectorAll(".pl *")); },
+  });
+})();
+</script>

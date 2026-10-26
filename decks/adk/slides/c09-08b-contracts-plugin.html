@@ -1,0 +1,113 @@
+<section class="slide" id="adk-c09-contracts-plugin" data-tone="model" data-title="Build: outcome-contract plugin">
+  <style>
+    #adk-c09-contracts-plugin .c9-split { --c9l: 800px; }
+    #adk-c09-contracts-plugin .c9-cap { min-height: 100px; }
+  </style>
+  <div class="kicker">Build · Lab 9 add-on · google-adk 2.13.0</div>
+  <h2 class="title">An after_tool_callback turns a wrong amount into an error</h2>
+  <div class="c9-split fill">
+    <div class="c9-col">
+      <div class="code-wrap good">
+        <div class="code-head">labs/adk/lab9-refund-eval/refund_agent/agent.py · excerpt</div>
+        <pre class="code" data-lang="python" data-focus="1:7-10, 2:11-13, 3:14-15, 4:2"><code>class OutcomeContractPlugin(BasePlugin):
+    RECOVERY = {"lookup_order": ["escalate_to_human"]}
+    def __init__(self):
+        super().__init__(name="outcome_contracts")
+    async def after_tool_callback(self, *, tool, tool_args,
+                                  tool_context, result):
+        if tool.name != "lookup_order":
+            return None                  # None: keep the tool result
+        if result.get("status") != "success":
+            return None
+        amount = result.get("amount")
+        if isinstance(amount, (int, float)) and amount &gt; 0:
+            return None
+        return {"status": "error", "violated": "amount &gt; 0",
+                "recovery_tools": self.RECOVERY["lookup_order"]}</code></pre>
+      </div>
+    </div>
+    <div class="c9-col">
+      <svg class="c9-svg" id="c9p-svg" viewBox="0 0 540 440" aria-label="A lookup_order result with amount minus 79 enters the after_tool_callback. The check amount greater than 0 fails, so the callback returns a dict that replaces the result: status error, violated amount greater than 0, and the recovery tool escalate_to_human. On the ToolMaze benchmark, naming a recovery tool raised success from 10.9 to 28.1 percent."></svg>
+      <div class="c9-cap">
+        <p data-step="1" data-until="2">Return <code>None</code>: ADK keeps the tool result.</p>
+        <p data-step="2" data-until="3">The contract: a looked-up amount must be above 0.</p>
+        <p data-step="3" data-until="4">Return a dict: it <b>replaces</b> the result the model sees.</p>
+        <p data-step="4">Name the next tool. Without it the gain disappears.</p>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">The fix is a check in code, not a line in the prompt. A plugin's after_tool_callback runs after every tool call with the tool, its args, the context and the result. Returning None keeps the result, so every other tool and every error passes through untouched. For lookup_order with status success, the contract is simple: the amount must be a number above 0. If it is not, the callback returns a dict, and that dict replaces the result the model sees: status error, the violated contract, and recovery_tools, the next tool to call. The Outcome Monitors paper, arXiv 2608.19303, shows the receipt must name a recovery tool: on the ToolMaze tool-use benchmark success went from 10.9 to 28.1 percent, and removing the tool list removed the gain. Analogy: a smoke detector wired into the pipe, with the exit sign lit. A likely question: "Why a plugin and not an agent callback?" A plugin on the App applies to every agent and tool in the app, so one contract covers the whole refund team.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c09-contracts-plugin";
+  const NS = "http://www.w3.org/2000/svg";
+  let R = null, tw = [];
+  function mk(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const [a, v] of Object.entries(attrs)) e.setAttribute(a, v);
+    if (text !== undefined) e.textContent = text;
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function build(svg) {
+    svg.innerHTML = "";
+    R = { svg };
+    const defs = mk("defs", {}, svg);
+    const m = mk("marker", { id: "c9p-ah", viewBox: "0 0 10 10", refX: 8, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto" }, defs);
+    mk("path", { d: "M0,0 L10,5 L0,10 z", fill: "var(--line-2)" }, m);
+    R.inp = mk("g", {}, svg);
+    mk("rect", { x: 0, y: 0, width: 540, height: 92, rx: 14, fill: "var(--tool-soft)", stroke: "var(--tool)", "stroke-width": 2 }, R.inp);
+    mk("text", { x: 18, y: 36, "font-size": 18, "font-weight": 700, fill: "var(--ink)" }, R.inp, 'lookup_order → {"status": "success",');
+    R.amt = mk("text", { x: 191, y: 70, "font-size": 18, "font-weight": 800, fill: "var(--ink)" }, R.inp, '"amount": -79.0}');
+    mk("path", { d: "M270,98 V132", stroke: "var(--line-2)", "stroke-width": 2.5, fill: "none", "marker-end": "url(#c9p-ah)" }, svg);
+    R.chk = mk("g", {}, svg);
+    R.chkR = mk("rect", { x: 70, y: 140, width: 400, height: 76, rx: 14, fill: "var(--model-soft)", stroke: "var(--model)", "stroke-width": 2.2 }, R.chk);
+    mk("text", { x: 270, y: 172, "text-anchor": "middle", "font-size": 19, "font-weight": 700, fill: "var(--ink)" }, R.chk, "after_tool_callback");
+    R.chkT = mk("text", { x: 270, y: 202, "text-anchor": "middle", "font-size": 18, "font-weight": 700, fill: "var(--ink-2)" }, R.chk, "amount > 0 ?");
+    R.keep = mk("text", { x: 270, y: 256, "text-anchor": "middle", "font-size": 18, "font-weight": 700, fill: "var(--state)" }, svg, "other tools, errors → None → kept");
+    R.arr2 = mk("path", { d: "M270,222 V258", stroke: "var(--risk)", "stroke-width": 2.5, fill: "none", "marker-end": "url(#c9p-ah)" }, svg);
+    R.out = mk("g", {}, svg);
+    mk("rect", { x: 0, y: 266, width: 540, height: 116, rx: 14, fill: "var(--risk-soft)", stroke: "var(--risk)", "stroke-width": 2.4, "stroke-dasharray": "6 4" }, R.out);
+    mk("text", { x: 18, y: 300, "font-size": 19, "font-weight": 800, fill: "var(--risk)" }, R.out, "status: error");
+    mk("text", { x: 18, y: 332, "font-size": 18, "font-weight": 700, fill: "var(--ink)" }, R.out, "violated: amount > 0");
+    R.rec = mk("text", { x: 18, y: 364, "font-size": 18, "font-weight": 800, fill: "var(--state)" }, R.out, "recovery_tools: escalate_to_human");
+    R.tm = mk("text", { x: 0, y: 420, "font-size": 20, "font-weight": 800, fill: "var(--model)" }, svg, "");
+    R.tm2 = mk("text", { x: 540, y: 420, "font-size": 16, "font-weight": 600, "text-anchor": "end", fill: "var(--muted)" }, svg, "");
+  }
+  function clear() { tw.forEach((t) => t.kill()); tw = []; }
+  function render(slide, n, animate) {
+    const svg = slide.querySelector("#c9p-svg");
+    if (!svg) return;
+    if (!R || R.svg !== svg || !svg.childElementCount) build(svg);
+    clear();
+    gsap.killTweensOf([R.keep, R.out, R.arr2, R.chk]);
+    gsap.set(R.keep, { opacity: n === 1 ? 1 : 0 });
+    const bad = n >= 2;
+    R.amt.setAttribute("fill", bad ? "var(--risk)" : "var(--ink)");
+    R.chkR.setAttribute("stroke", bad ? "var(--risk)" : "var(--model)");
+    R.chkT.textContent = bad ? "amount > 0 ?  ✕ −79.0" : "amount > 0 ?";
+    R.chkT.setAttribute("fill", bad ? "var(--risk)" : "var(--ink-2)");
+    if (animate && n === 2) tw.push(gsap.fromTo(R.chk, { x: 0 }, { x: -6, duration: 0.07, yoyo: true, repeat: 5, delay: 0.2 }));
+    else gsap.set(R.chk, { x: 0 });
+    if (animate && n === 3) {
+      tw.push(gsap.fromTo(R.arr2, { opacity: 0 }, { opacity: 1, duration: 0.3, delay: 0.1 }));
+      tw.push(gsap.fromTo(R.out, { opacity: 0, y: -12 }, { opacity: 1, y: 0, duration: 0.45, delay: 0.3 }));
+    } else gsap.set([R.arr2, R.out], { opacity: n >= 3 ? 1 : 0, y: 0 });
+    R.rec.setAttribute("font-size", n >= 4 ? 20 : 18);
+    if (n >= 4) {
+      R.tm2.textContent = "arXiv 2608.19303";
+      if (animate && n === 4) {
+        const st = { v: 10.9 };
+        R.tm.textContent = "ToolMaze 10.9%";
+        tw.push(gsap.to(st, { v: 28.1, duration: 1.1, delay: 0.3, ease: "power1.out", onUpdate: () => { R.tm.textContent = `ToolMaze ${st.v.toFixed(1)}%`; }, onComplete: () => { R.tm.textContent = "ToolMaze 10.9% → 28.1%"; } }));
+      } else R.tm.textContent = "ToolMaze 10.9% → 28.1%";
+    } else { R.tm.textContent = ""; R.tm2.textContent = ""; }
+  }
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { clear(); },
+  });
+})();
+</script>

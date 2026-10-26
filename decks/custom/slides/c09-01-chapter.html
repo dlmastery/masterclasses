@@ -1,0 +1,179 @@
+<section class="slide chapter" id="custom-c09-chapter" data-tone="human" data-title="Ch 9: Ticket triage">
+  <style>
+    #custom-c09-chapter .c09-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    #custom-c09-chapter .lede { margin-top: -8px; max-width: 1180px; }
+    #custom-c09-chapter svg { margin-bottom: -6px; }
+    #custom-c09-chapter .c09-row .cite { white-space: nowrap; flex: 0 0 auto; }
+    #custom-c09-chapter .c09-row .cite.paper { flex-direction: row; gap: 10px; padding: 8px 14px 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: color-mix(in oklab, var(--surface) 60%, transparent); }
+    #custom-c09-chapter svg text { font-family: var(--f-mono); font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+  </style>
+  <div class="ch-num" data-fx="blur">09</div>
+  <svg id="c09-ch-svg" viewBox="0 0 1300 340" width="1300" height="340" aria-label="A schematic loop of 14 support tickets, coloured by product area, moves left to right through three gates. Gate 1 is the weekly Evidently drift gate with a light: green in week 41, red in week 42 when outage tickets rise, and the retrain job above it changes to held. Gate 2 is the cleanlab label review: two tickets with suspect labels drop into a violet review queue. Gate 3 is a fork that asks whether P(correct) is at least 0.8: confident tickets route to the billing, login, outage and shipping queues; the others go down to human triage. Counters at the top count routed, deferred and flagged tickets."></svg>
+  <h2 class="display">Triage the triage data</h2>
+  <p class="lede" data-fx="up">Drift tells you when to relabel. Out-of-sample probabilities tell you what to relabel. Costs tell you when to ask a human.</p>
+  <div class="c09-row" data-fx="stagger">
+    <span class="tag t-human">Acme support-ticket triage · Lab 8</span>
+    <span class="tag t-state">evidently 0.7.23</span>
+    <span class="tag t-model">cleanlab 2.9.0 · scikit-learn 1.9.1</span>
+    <span class="tag t-tool">costs: route 0 · human 1 · wrong 5</span>
+    <a class="cite doc" href="https://docs.evidentlyai.com/quickstart_ml" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Data and ML checks</a>
+    <a class="cite paper" href="https://arxiv.org/abs/2610.31657" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.31657 Cost-Aware Abstention for LLM-Based IT Ticket Classification</a>
+  </div>
+  <aside class="notes">Chapter 9 is Lab 8: the Acme triage model sorts support tickets into billing, login, outage and shipping, and we build three gates around it. First, a weekly Evidently report exits 1 and holds the retraining job when the ticket mix shifts, as it does in week 42 during a login outage. Second, cleanlab ranks the vendor's roughly 8% wrong labels, so a team lead reviews about 200 tickets instead of 3,000. Third, the router auto-routes only when P(correct) beats the 0.8 break-even of the costs 0, 1 and 5, and defers the rest to a human. Analogy: a hospital triage desk checks the intake form, re-checks suspicious charts, and calls a doctor when the nurse is not sure. Likely question: "Why not just retrain every week?" Because retraining on a shifted mix with noisy labels bakes both problems into the next model.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c09-chapter";
+  const Y = 170;
+  const CLS = { billing: "var(--tool)", login: "var(--agent)", outage: "var(--risk)", shipping: "var(--state)" };
+  const QUEUES = ["billing", "login", "outage", "shipping"];
+  const QY = { billing: 42, login: 100, outage: 158, shipping: 216 };
+  // [class, confident (P >= 0.8), flagged label] : week 41 = tickets 0-6, week 42 = tickets 7-13 (outage share rises)
+  const T = [
+    ["billing", 1, 0], ["login", 1, 0], ["shipping", 0, 0], ["billing", 1, 1], ["login", 0, 0], ["shipping", 1, 0], ["outage", 1, 0],
+    ["outage", 1, 0], ["login", 0, 0], ["outage", 0, 0], ["billing", 1, 1], ["outage", 1, 0], ["shipping", 1, 0], ["outage", 0, 0],
+  ];
+  const FINAL = T.reduce((a, t) => { if (t[2]) a.f++; else if (t[1]) a.r++; else a.d++; return a; }, { r: 0, d: 0, f: 0 });
+  let tl = null, P = null;
+
+  const el = (parent, tag, attrs, style, text) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (style) Object.assign(e.style, style);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  };
+  const f = (w, s) => ({ fontWeight: w, fontSize: s + "px" });
+
+  function build(svg) {
+    svg.innerHTML = "";
+    const wires = el(svg, "g", {});
+    const W = (d, c, dash) => el(wires, "path", { d }, { fill: "none", stroke: c || "var(--line-2)", strokeWidth: 2.4, strokeDasharray: dash || "none" });
+    W(`M140 ${Y} H240`); W(`M420 ${Y} H520`); W(`M700 ${Y} H812`);
+    QUEUES.forEach((q) => W(`M888 ${Y} C 950 ${Y}, 950 ${QY[q]}, 1010 ${QY[q]}`, "color-mix(in oklab, var(--state) 55%, transparent)"));
+    W(`M850 ${Y + 38} V298 H1010`, "color-mix(in oklab, var(--human) 60%, transparent)");
+    W(`M330 110 V78`, "var(--line-2)", "4 4");
+    el(svg, "text", { x: 952, y: 22, "text-anchor": "middle" }, { ...f(700, 13), fill: "var(--state)" }, "route");
+    el(svg, "text", { x: 930, y: 290, "text-anchor": "middle" }, { ...f(700, 13), fill: "var(--human)" }, "defer");
+
+    // counters + week
+    const week = el(svg, "text", { x: 0, y: 104 }, { ...f(700, 14), fill: "var(--muted)" }, "week 41");
+    const cnt = el(svg, "text", { x: 0, y: 24 }, { ...f(700, 15), fill: "var(--ink-2)" }, "");
+    // inbox
+    el(svg, "rect", { x: 0, y: 130, width: 140, height: 80, rx: 14 }, { fill: "var(--surface)", stroke: "var(--line-2)", strokeWidth: 2 });
+    el(svg, "text", { x: 70, y: 166, "text-anchor": "middle" }, { ...f(700, 15), fill: "var(--ink)" }, "new tickets");
+    el(svg, "text", { x: 70, y: 188, "text-anchor": "middle" }, { ...f(500, 12), fill: "var(--muted)" }, "4 product areas");
+    // gate 1: drift
+    el(svg, "rect", { x: 240, y: 110, width: 180, height: 120, rx: 16 }, { fill: "var(--state-soft)", stroke: "var(--state)", strokeWidth: 2.4 });
+    el(svg, "text", { x: 260, y: 146 }, { ...f(700, 16), fill: "var(--ink)" }, "drift gate");
+    el(svg, "text", { x: 260, y: 204 }, { ...f(500, 12), fill: "var(--muted)" }, "Evidently · weekly");
+    const light = el(svg, "circle", { cx: 392, cy: 138, r: 10 }, { fill: "var(--state)" });
+    const gateTxt = el(svg, "text", { x: 260, y: 222 }, { ...f(700, 11.5), fill: "var(--state)" }, "exit 0 · mix stable");
+    const retrain = el(svg, "rect", { x: 255, y: 36, width: 150, height: 42, rx: 12 }, { fill: "var(--model-soft)", stroke: "var(--model)", strokeWidth: 2 });
+    const retrainT = el(svg, "text", { x: 330, y: 62, "text-anchor": "middle" }, { ...f(700, 14), fill: "var(--model)" }, "retrain job");
+    // gate 2: label review
+    el(svg, "rect", { x: 520, y: 110, width: 180, height: 120, rx: 16 }, { fill: "var(--human-soft)", stroke: "var(--human)", strokeWidth: 2.4 });
+    el(svg, "text", { x: 540, y: 146 }, { ...f(700, 16), fill: "var(--ink)" }, "label review");
+    el(svg, "text", { x: 540, y: 204 }, { ...f(500, 12), fill: "var(--muted)" }, "cleanlab ranks");
+    el(svg, "rect", { x: 520, y: 262, width: 180, height: 62, rx: 12 }, { fill: "none", stroke: "var(--human)", strokeWidth: 2, strokeDasharray: "6 5" });
+    el(svg, "text", { x: 610, y: 344 - 6, "text-anchor": "middle" }, { ...f(600, 12), fill: "var(--human)" }, "review queue");
+    // gate 3: fork
+    el(svg, "path", { d: `M850 ${Y - 38} L888 ${Y} L850 ${Y + 38} L812 ${Y} Z` }, { fill: "var(--surface)", stroke: "var(--ink-2)", strokeWidth: 2.4 });
+    el(svg, "text", { x: 850, y: Y + 5, "text-anchor": "middle" }, { ...f(700, 13), fill: "var(--ink)" }, "≥ 0.8?");
+    el(svg, "text", { x: 850, y: Y - 50, "text-anchor": "middle" }, { ...f(500, 12), fill: "var(--muted)" }, "P(correct)");
+    // queues
+    QUEUES.forEach((q) => {
+      el(svg, "rect", { x: 1010, y: QY[q] - 21, width: 170, height: 42, rx: 11 }, { fill: "var(--surface)", stroke: CLS[q], strokeWidth: 2.2 });
+      el(svg, "rect", { x: 1010, y: QY[q] - 21, width: 10, height: 42, rx: 4 }, { fill: CLS[q] });
+      el(svg, "text", { x: 1034, y: QY[q] + 5 }, { ...f(600, 14), fill: "var(--ink)" }, q + " queue");
+    });
+    el(svg, "rect", { x: 1010, y: 274, width: 170, height: 48, rx: 24 }, { fill: "var(--human-soft)", stroke: "var(--human)", strokeWidth: 2.4 });
+    el(svg, "text", { x: 1095, y: 304, "text-anchor": "middle" }, { ...f(700, 14), fill: "var(--human)" }, "human triage");
+
+    // tickets
+    const tickets = T.map((t) => {
+      const g = el(svg, "g", {}, { opacity: 0 });
+      el(g, "rect", { x: -15, y: -10, width: 30, height: 20, rx: 5 }, { fill: CLS[t[0]], stroke: "var(--surface-2)", strokeWidth: 1.5 });
+      el(g, "line", { x1: -8, y1: -2, x2: 8, y2: -2 }, { stroke: "#fff", strokeWidth: 1.6, opacity: 0.8 });
+      el(g, "line", { x1: -8, y1: 3, x2: 4, y2: 3 }, { stroke: "#fff", strokeWidth: 1.6, opacity: 0.8 });
+      const ring = el(g, "rect", { x: -19, y: -14, width: 38, height: 28, rx: 8 }, { fill: "none", stroke: "var(--human)", strokeWidth: 2.4, opacity: 0 });
+      return { g, ring };
+    });
+    P = { week, cnt, light, gateTxt, retrain, retrainT, tickets, c: { r: 0, d: 0, f: 0 } };
+  }
+
+  function counters() {
+    const c = P.c;
+    P.cnt.textContent = `routed ${c.r} · deferred ${c.d} · flagged ${c.f}`;
+  }
+  function setWeek(w) {
+    const red = w === 42;
+    P.week.textContent = red ? "week 42 · login outage" : "week 41";
+    P.week.style.fill = red ? "var(--risk)" : "var(--muted)";
+    P.light.style.fill = red ? "var(--risk)" : "var(--state)";
+    P.gateTxt.textContent = red ? "exit 1 · product_area" : "exit 0 · mix stable";
+    P.gateTxt.style.fill = red ? "var(--risk)" : "var(--state)";
+    P.retrain.style.opacity = red ? 0.35 : 1;
+    P.retrainT.textContent = red ? "retrain held" : "retrain job";
+  }
+  function reset() {
+    P.c = { r: 0, d: 0, f: 0 }; counters(); setWeek(41);
+    P.tickets.forEach((k) => { gsap.set(k.g, { x: 70, y: Y, opacity: 0 }); gsap.set(k.ring, { opacity: 0 }); });
+  }
+  function final() {
+    P.c = { ...FINAL }; counters(); setWeek(42);
+    let fi = 0;
+    P.tickets.forEach((k, i) => {
+      if (T[i][2]) { gsap.set(k.g, { x: 562 + 46 * fi++, y: 293, opacity: 1 }); gsap.set(k.ring, { opacity: 1 }); }
+      else gsap.set(k.g, { opacity: 0 });
+    });
+  }
+
+  function play() {
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) { final(); return; }
+    reset();
+    tl = gsap.timeline({ repeat: -1, repeatDelay: 1.2 });
+    tl.call(reset, null, 0);
+    let fi = 0;
+    T.forEach(([cls, hi, flag], i) => {
+      const k = P.tickets[i], t0 = 0.5 + i * 0.72;
+      tl.set(k.g, { x: 70, y: Y }, t0)
+        .to(k.g, { opacity: 1, duration: 0.2 }, t0)
+        .to(k.g, { x: 330, duration: 0.6, ease: "power1.inOut" }, t0 + 0.05)
+        .to(k.g, { x: 610, duration: 0.6, ease: "power1.inOut" }, t0 + 0.75);
+      if (i === 7) tl.call(() => setWeek(42), null, t0 + 0.65);
+      if (flag) {
+        const slot = fi++;
+        tl.to(k.ring, { opacity: 1, duration: 0.2 }, t0 + 1.35)
+          .to(k.g, { x: 562 + 46 * slot, y: 293, duration: 0.5, ease: "power2.in" }, t0 + 1.5)
+          .call(() => { P.c.f++; counters(); }, null, t0 + 2.0);
+      } else {
+        tl.to(k.g, { x: 850, duration: 0.5, ease: "power1.inOut" }, t0 + 1.4);
+        if (hi) {
+          tl.to(k.g, { x: 1095, y: QY[cls], duration: 0.6, ease: "power2.inOut" }, t0 + 1.95)
+            .to(k.g, { opacity: 0, duration: 0.25 }, t0 + 2.55)
+            .call(() => { P.c.r++; counters(); }, null, t0 + 2.55);
+        } else {
+          tl.to(k.g, { y: 298, duration: 0.35, ease: "power1.in" }, t0 + 1.95)
+            .to(k.g, { x: 1095, duration: 0.45, ease: "power1.out" }, t0 + 2.3)
+            .to(k.g, { opacity: 0, duration: 0.25 }, t0 + 2.75)
+            .call(() => { P.c.d++; counters(); }, null, t0 + 2.75);
+        }
+      }
+    });
+    tl.to({}, { duration: 1.6 });
+  }
+  function stop() {
+    if (tl) { tl.kill(); tl = null; }
+    if (P) P.tickets.forEach((k) => gsap.killTweensOf([k.g, k.ring]));
+  }
+
+  Deck.register(ID, {
+    enter(slide) { stop(); build(slide.querySelector("#c09-ch-svg")); play(); },
+    step() {},
+    leave() { stop(); },
+  });
+})();
+</script>

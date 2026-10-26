@@ -1,0 +1,219 @@
+<section class="slide tight" id="adk-c07-plugins" data-tone="agent" data-title="Lab 7.6: RefundGuardPlugin on the App">
+  <style>
+    #adk-c07-plugins .lab-head { gap: 12px; flex-wrap: nowrap; }
+    #adk-c07-plugins .lab-head .run { font-size: 14.5px; white-space: nowrap; }
+    #adk-c07-plugins .lab-head .pins { font: 500 13.5px/1.3 var(--f-mono); color: var(--muted); white-space: nowrap; }
+    #adk-c07-plugins .lab-head .cite { font-size: 13px; padding: 4px 9px; white-space: nowrap; margin-left: auto; }
+    #adk-c07-plugins .pg-grid { display: grid; grid-template-columns: 740px 1fr; gap: 24px; align-items: start; }
+    #adk-c07-plugins .pg-col { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+    #adk-c07-plugins .code-head { padding: 7px 14px; font-size: 14px; }
+    #adk-c07-plugins .pg-bad pre.code { font-size: 12.5px; line-height: 1.45; padding: 8px 14px 10px; }
+    #adk-c07-plugins .pg-tabs { display: flex; gap: 6px; margin-bottom: -10px; }
+    #adk-c07-plugins .pg-tab { font: 600 13.5px/1 var(--f-mono); padding: 7px 12px; border-radius: 9px 9px 0 0; border: 1.5px solid var(--line-2); border-bottom: 0;
+      color: var(--muted); background: var(--surface); }
+    #adk-c07-plugins .pg-tab.on { color: var(--ink); background: color-mix(in oklab, var(--state) 16%, var(--bg)); border-color: var(--state); }
+    #adk-c07-plugins .pg-tab.on.off { color: var(--muted); background: var(--surface); border-color: var(--line-2); }
+    #adk-c07-plugins .pg-swap { display: grid; }
+    #adk-c07-plugins .pg-swap > * { grid-area: 1 / 1; align-self: start; min-width: 0; }
+    #adk-c07-plugins .pg-swap pre.code { font-size: 12.5px; line-height: 1.45; padding: 9px 14px 11px; }
+    #adk-c07-plugins .pg-out pre.code { font-size: 12.5px; line-height: 1.45; padding: 8px 14px 10px; white-space: pre-wrap; }
+    #adk-c07-plugins .pg-rail { gap: 8px; }
+    #adk-c07-plugins .pg-rail > * { font-size: 15.5px; line-height: 1.33; grid-template-columns: 28px 1fr; gap: 10px; }
+    #adk-c07-plugins .pg-rail > *::before { width: 24px; height: 24px; font-size: 13px; border-radius: 7px; }
+    #adk-c07-plugins .pg-rail code { font-size: 13.5px; }
+    #adk-c07-plugins pre.code span.dim { opacity: 0.85; }
+    /* diagram: three agents inside the App frame; the money-moving tool outside it */
+    #adk-c07-plugins .pa { position: relative; width: 628px; height: 240px; }
+    #adk-c07-plugins .pa svg { position: absolute; inset: 0; overflow: visible; pointer-events: none; }
+    #adk-c07-plugins .pa .e { fill: none; stroke: var(--line-2); stroke-width: 2.4; }
+    #adk-c07-plugins .pa .e.hot { stroke: var(--risk); stroke-width: 3; }
+    #adk-c07-plugins .ring { position: absolute; left: 0; top: 0; width: 440px; height: 240px; border-radius: 26px; border: 2px dashed var(--line-2); }
+    #adk-c07-plugins .ring.on { border: 4px solid var(--agent); box-shadow: 0 0 0 6px color-mix(in oklab, var(--agent) 12%, transparent); }
+    #adk-c07-plugins .ring.hit { border-color: var(--risk); box-shadow: 0 0 0 9px color-mix(in oklab, var(--risk) 20%, transparent); }
+    #adk-c07-plugins .ring span { position: absolute; left: 16px; bottom: 10px; font: 700 13px/1 var(--f-mono); color: var(--muted); white-space: nowrap; }
+    #adk-c07-plugins .ring.on span { color: var(--agent); }
+    #adk-c07-plugins .nd { position: absolute; width: 168px; height: 62px; border-radius: 13px; border: 2px solid var(--agent); background: var(--agent-soft);
+      display: flex; flex-direction: column; justify-content: center; gap: 3px; padding: 0 12px; z-index: 2; }
+    #adk-c07-plugins .nd b { font: 650 15.5px/1.15 var(--f-body); color: var(--ink); white-space: nowrap; }
+    #adk-c07-plugins .nd i { font: 500 12.5px/1.15 var(--f-mono); font-style: normal; white-space: nowrap; }
+    #adk-c07-plugins .nd i.bad { color: var(--risk); }
+    #adk-c07-plugins .nd i.good { color: var(--state); }
+    #adk-c07-plugins .nd.tool { border-color: var(--tool); background: var(--tool-soft); width: 128px; }
+    #adk-c07-plugins .nd.tool.hit { border-color: var(--risk); background: var(--risk-soft); }
+    #adk-c07-plugins .nd.tool.ok { border-color: var(--state); background: var(--state-soft); }
+    #adk-c07-plugins .tk { position: absolute; left: 0; top: 0; padding: 6px 10px; border-radius: 999px; font: 700 13px/1 var(--f-mono); color: #fff; z-index: 4; opacity: 0; white-space: nowrap; }
+    #adk-c07-plugins .tk.r { background: var(--risk); }
+    #adk-c07-plugins .tk.g { background: var(--state); }
+    #adk-c07-plugins .stopbar { position: absolute; left: 435px; top: 72px; width: 10px; height: 46px; border-radius: 4px; background: var(--risk); z-index: 5; opacity: 0; }
+    #adk-c07-plugins .pcap { font: 600 14px/1.35 var(--f-mono); min-height: 20px; }
+    #adk-c07-plugins .pcap.bad { color: var(--risk); }
+    #adk-c07-plugins .pcap.good { color: var(--state); }
+  </style>
+  <div class="kicker"><span class="pill">Lab 7</span> Acme refund team · step 6 of 6</div>
+  <h2 class="title">One plugin enforces the $500 refund cap on every agent in the App</h2>
+  <div class="lab-head">
+    <span class="run">python guarded_app.py</span>
+    <span class="pins">google-adk 2.13.0 · or: adk web --extra_plugins=refund_guard.RefundGuardPlugin .</span>
+    <a class="cite doc" href="https://adk.dev/plugins/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;ADK Plugins</a>
+  </div>
+  <div class="pg-grid fill">
+    <div class="pg-col">
+      <div class="code-wrap bad pg-bad">
+        <div class="code-head">a callback on one agent</div>
+        <pre class="code" data-lang="python" data-focus="1:4-5"><code># M, T, partner, chargebacks: as in guarded_app.py below
+def cap_refund(tool, args, tool_context): ...   # stub: blocks amounts over 500
+refunds = LlmAgent(name="refunds", model=M, tools=T,
+                   sub_agents=[partner, chargebacks],
+                   before_tool_callback=cap_refund)   # guards refunds only</code></pre>
+      </div>
+      <div class="pg-tabs" data-step="2">
+        <span class="pg-tab on" data-on="4:off">refund_guard.py</span>
+        <span class="pg-tab" data-on="4:on">guarded_app.py</span>
+      </div>
+      <div class="pg-swap" data-step="2">
+        <div class="code-wrap good" data-until="4">
+          <div class="code-head">refund_guard.py</div>
+          <pre class="code" data-lang="python" data-focus="2:11-13, 3:14-18"><code>from typing import Any, Optional
+from google.adk.plugins.base_plugin import BasePlugin
+from google.adk.tools.base_tool import BaseTool
+from google.adk.tools.tool_context import ToolContext
+
+class RefundGuardPlugin(BasePlugin):
+    def __init__(self, max_amount: float = 500.0):
+        super().__init__(name="refund_guard")
+        self.max_amount = max_amount
+
+    async def before_tool_callback(
+        self, *, tool: BaseTool, tool_args: dict[str, Any], tool_context: ToolContext
+    ) -&gt; Optional[dict]:
+        amount = float(tool_args.get("amount", 0) or 0)
+        if amount &gt; self.max_amount:     # a returned dict skips the tool
+            return {"status": "blocked",
+                    "reason": f"{amount} exceeds limit {self.max_amount}"}
+        return None</code></pre>
+        </div>
+        <div class="code-wrap good" data-step="4">
+          <div class="code-head">guarded_app.py</div>
+          <pre class="code" data-lang="python" data-focus="4:14"><code>import asyncio
+from google.adk.agents import LlmAgent
+from google.adk.apps import App
+from google.adk.runners import InMemoryRunner
+from refund_guard import RefundGuardPlugin
+def issue_refund(order_id: str, amount: float) -&gt; dict:
+    """Refund amount (USD) to the card on file for order_id."""
+    return {"status": "ok", "refunded": amount}
+M, T = "gemini-3.5-flash", [issue_refund]
+partner = LlmAgent(name="partner_refunds", model=M, tools=T, description="Partner orders.")
+chargebacks = LlmAgent(name="chargebacks", model=M, tools=T, description="Chargebacks.")
+refunds = LlmAgent(name="refunds", model=M, tools=T, sub_agents=[partner, chargebacks],
+                   instruction="Partner-store orders: transfer to partner_refunds.")
+app = App(name="refund_app", root_agent=refunds, plugins=[RefundGuardPlugin()])
+ASKS = ["Refund $79 on A-100", "Partner-store order: refund $640 on A-200"]
+async def main():
+    async with InMemoryRunner(app=app) as runner:
+        await runner.run_debug(ASKS, verbose=True)
+asyncio.run(main())</code></pre>
+        </div>
+      </div>
+    </div>
+    <div class="pg-col">
+      <div class="pa" aria-label="Three agents inside the App frame call issue_refund outside it. Without a plugin a 640 dollar call from partner_refunds reaches the tool. With the plugin it stops at the App frame.">
+        <svg viewBox="0 0 628 240" aria-hidden="true">
+          <path class="e" d="M160 120 C 186 120, 184 59, 210 59 M160 120 C 186 120, 184 181, 210 181"/>
+          <path class="e" id="pg-e1" d="M378 59 C 420 59, 440 108, 490 112"/>
+          <path class="e" d="M378 181 C 420 181, 440 132, 490 128"/>
+          <path class="e" id="pg-e4" d="M160 128 C 185 128, 180 226, 230 226 L 420 226 C 470 226, 500 190, 554 151" stroke-dasharray="5 6"/>
+        </svg>
+        <div class="ring" id="pg-ring"><span id="pg-rl">App · no plugin</span></div>
+        <div class="nd" style="left:10px;top:89px;width:150px"><b>refunds</b><i class="bad" data-k="r">cap_refund callback</i></div>
+        <div class="nd" style="left:210px;top:28px"><b>partner_refunds</b><i class="bad" data-k="p">no callback</i></div>
+        <div class="nd" style="left:210px;top:150px"><b>chargebacks</b><i class="bad" data-k="c">no callback</i></div>
+        <div class="nd tool" id="pg-tool" style="left:490px;top:89px"><b>issue_refund</b><i style="color:var(--muted)">moves money</i></div>
+        <span class="tk r" id="pg-t640">$640</span>
+        <span class="tk g" id="pg-t79">$79</span>
+        <span class="stopbar" id="pg-stop"></span>
+      </div>
+      <div class="pcap" id="pg-cap"></div>
+      <div class="steps-rail pg-rail">
+        <div data-step="1"><span>A callback guards one agent. <code>partner_refunds</code> and <code>chargebacks</code> skip it.</span></div>
+        <div data-step="2"><span>Plugin hooks take keyword-only arguments: <code>tool_args</code>, not <code>args</code>.</span></div>
+        <div data-step="3"><span>A returned dict skips the tool and becomes its result.</span></div>
+        <div data-step="4"><span>Put the plugin on <code>App</code>. Plugins run before agent callbacks; the first non-None result wins.</span></div>
+      </div>
+      <div class="code-wrap out pg-out" data-step="4">
+        <div class="code-head">output · illustrative</div>
+        <pre class="code" data-lang="out"><code><span class="dim">User &gt;</span> Refund $79 on A-100  <span class="dim">→ refunds:</span> <span class="ok">{"status": "ok", "refunded": 79.0}</span>
+<span class="dim">User &gt;</span> Partner-store order: refund $640 on A-200
+  <span class="dim">→ partner_refunds:</span> <span class="err">{"status": "blocked", "reason": "640.0 exceeds limit 500.0"}</span></code></pre>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Step 6 closes Lab 7: the $500 rule that the refund_agent instruction only asks for becomes code, moved from one agent into one plugin on the App. Step 1 shows the old way: a before_tool_callback on the refunds root agent guards that agent only, so partner_refunds and chargebacks can still refund 640 dollars on A-200. Steps 2 and 3 walk RefundGuardPlugin: its before_tool_callback gets keyword-only tool_args, and above 500 it returns a blocked dict, which skips the tool and becomes the tool result. Step 4 registers the plugin once with App(plugins=[...]) in guarded_app.py, where partner_refunds and chargebacks are sub-agents; plugins run before agent callbacks and the first non-None result wins, so a plugin block is final. With adk web you can load the same class with --extra_plugins and no code change. Compare the two: an agent callback covers one agent and gets args; a plugin hook covers every agent and tool in the App and gets tool_args. Think of a guard at the building door instead of a lock on one office. A likely question: "Do my agent callbacks still run?" Yes, after the plugins, unless a plugin already returned a result.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c07-plugins";
+  let tw = [];
+  const clear = () => { tw.forEach((t) => t.kill()); tw = []; };
+  const CAP = ["", "✕ $640 refunded: partner_refunds has no cap.", "The plugin wraps every agent in the App.",
+    "blocked: 640.0 exceeds limit 500.0. The tool never ran.", "$79 passes. Every agent, one rule, one place."];
+
+  function render(slide, n, animate) {
+    clear();
+    const q = (s) => slide.querySelector(s);
+    const ring = q("#pg-ring"), rl = q("#pg-rl"), tool = q("#pg-tool"), e1 = q("#pg-e1");
+    const t640 = q("#pg-t640"), t79 = q("#pg-t79"), stop = q("#pg-stop"), cap = q("#pg-cap");
+    n = Math.max(0, Math.min(4, n | 0));
+
+    // the App frame becomes the plugin ring at step 2
+    ring.classList.toggle("on", n >= 2);
+    ring.classList.remove("hit");
+    rl.textContent = n >= 2 ? "App(plugins=[RefundGuardPlugin()])" : "App · no plugin";
+    if (animate && n === 2) tw.push(gsap.fromTo(ring, { scale: 1.04 }, { scale: 1, duration: 0.5, ease: "back.out(1.6)" }));
+    const sub = (k, txt, good) => { const el = q(`.pa [data-k="${k}"]`); el.textContent = txt; el.className = good ? "good" : "bad"; };
+    sub("r", n >= 2 ? "covered by plugin" : "cap_refund callback", n >= 2);
+    sub("p", n >= 2 ? "covered by plugin" : "no callback", n >= 2);
+    sub("c", n >= 2 ? "covered by plugin" : "no callback", n >= 2);
+
+    // one caption under the diagram per step
+    cap.textContent = CAP[n];
+    cap.className = "pcap " + (n === 1 || n === 3 ? "bad" : n ? "good" : "");
+    if (animate && n) tw.push(gsap.fromTo(cap, { opacity: 0, y: 6 }, { opacity: 1, y: 0, duration: 0.4, delay: 0.9 }));
+    else gsap.set(cap, { opacity: 1, y: 0 });
+
+    // $640 rides the partner_refunds -> issue_refund edge
+    e1.classList.toggle("hot", n === 1 || n === 3);
+    tool.classList.toggle("hit", n === 1);
+    tool.classList.toggle("ok", n === 4);
+    const len = e1.getTotalLength();
+    const place = (el, t) => { const pt = e1.getPointAtLength(len * t); gsap.set(el, { x: pt.x, y: pt.y, xPercent: -50, yPercent: -50 }); };
+    const o = { t: 0 };
+    if (n === 1 || n === 3) {
+      const end = n === 1 ? 0.84 : 0.22;      // step 3: it stops at the App frame
+      if (animate) {
+        place(t640, 0); gsap.set(t640, { opacity: 1 });
+        gsap.set(stop, { opacity: 0 });
+        const tl = gsap.timeline({ delay: 0.3 });
+        tl.to(o, { t: end, duration: n === 1 ? 1.1 : 0.5, ease: n === 1 ? "power2.inOut" : "power2.in", onUpdate: () => place(t640, o.t) });
+        if (n === 1) tl.fromTo(tool, { scale: 1 }, { scale: 1.08, duration: 0.15, yoyo: true, repeat: 1 });
+        else tl.add(() => ring.classList.add("hit")).to(stop, { opacity: 1, duration: 0.15 }).add(() => ring.classList.remove("hit"), "+=0.4");
+        tw.push(tl);
+      } else { place(t640, end); gsap.set(t640, { opacity: 1 }); gsap.set(stop, { opacity: n === 3 ? 1 : 0 }); }
+    } else { gsap.set(t640, { opacity: 0 }); gsap.set(stop, { opacity: n === 4 ? 1 : 0 }); }
+
+    // step 4: $79 from refunds passes through to the tool (bottom edge)
+    if (n === 4) {
+      const pth = q("#pg-e4"), L = pth.getTotalLength(), p = { t: animate ? 0 : 1 };
+      const pl = () => { const pt = pth.getPointAtLength(L * p.t); gsap.set(t79, { x: pt.x, y: pt.y, xPercent: -50, yPercent: -50 }); };
+      pl(); gsap.set(t79, { opacity: 1 });
+      if (animate) tw.push(gsap.to(p, { t: 1, duration: 1.3, ease: "power2.inOut", delay: 0.3, onUpdate: pl }));
+    } else gsap.set(t79, { opacity: 0 });
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { clear(); if (slide) gsap.killTweensOf(slide.querySelectorAll(".pa *, .pcap")); },
+  });
+})();
+</script>

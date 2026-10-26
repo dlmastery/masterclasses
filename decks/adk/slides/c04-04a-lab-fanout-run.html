@@ -1,0 +1,152 @@
+<section class="slide tight" id="adk-c04-lab-fanout-run" data-tone="agent" data-title="Lab 4.3: fan-out timing">
+  <style>
+    #adk-c04-lab-fanout-run .lab-head { gap: 14px; flex-wrap: nowrap; }
+    #adk-c04-lab-fanout-run .lab-head .pins { font: 500 16px/1.3 var(--f-mono); color: var(--muted); white-space: nowrap; }
+    #adk-c04-lab-fanout-run .fr-grid { display: grid; grid-template-columns: 640px 1fr; gap: 28px; align-items: start; }
+    #adk-c04-lab-fanout-run .fr-left { display: flex; flex-direction: column; gap: 22px; }
+    #adk-c04-lab-fanout-run .out pre.code { font-size: 18px; line-height: 1.7; }
+    #adk-c04-lab-fanout-run .cap { position: relative; height: 96px; }
+    #adk-c04-lab-fanout-run .cap > p { position: absolute; left: 0; right: 0; top: 0; margin: 0; font-size: 21px; line-height: 1.4; color: var(--ink-2); }
+    #adk-c04-lab-fanout-run .cap code { font-size: .9em; }
+    #adk-c04-lab-fanout-run #fr-gantt text { font-family: var(--f-mono); }
+  </style>
+  <div class="kicker"><span class="pill">Lab 4</span> Acme back office · step 3 of 8</div>
+  <h2 class="title">The fan-out takes 0.5 s, the slowest branch, not the 1.0 s sum</h2>
+  <div class="lab-head">
+    <span class="run">adk run claim_checks "POL-77 rear-end collision 4200"</span>
+    <span class="pins">run from the parent folder</span>
+  </div>
+  <div class="fr-grid fill">
+    <div class="fr-left">
+      <div class="code-wrap out">
+        <div class="code-head">output · illustrative · no LLM, so the text is fixed</div>
+        <pre class="code" data-lang="text" data-focus="1:1-2, 3:1-6"><code><span class="dim">$</span> adk run claim_checks "POL-77 rear-end collision 4200"
+[claim_checks]: <span class="ok">APPROVE payout $3,490.00</span>
+<span class="dim">$</span> adk run claim_checks "POL-77 total loss fire 18000"
+[claim_checks]: REFER to SIU (fraud score 0.82)
+<span class="dim">$</span> adk run claim_checks "POL-99 hail 3000"
+[claim_checks]: <span class="err">DENY: policy inactive or payout 0</span></code></pre>
+      </div>
+      <div class="cap">
+        <p data-until="1">Run three claims. The graph has no model, so the code fixes each verdict.</p>
+        <p data-step="1" data-until="2">All three branches start at t = 0. Wall time is the slowest branch: 0.5 s.</p>
+        <p data-step="2" data-until="3">In sequence, the same checks take 0.3 + 0.5 + 0.2 = 1.0 s.</p>
+        <p data-step="3">One verdict per claim: approve, refer to the fraud unit, or deny.</p>
+      </div>
+    </div>
+    <svg id="fr-gantt" viewBox="0 0 724 470" width="724" height="470" aria-label="Timeline of the three claim checks: the parallel run ends at 0.5 s, the same checks in sequence end at 1.0 s">
+      <text x="165" y="24" font-size="17" font-weight="700" fill="var(--muted)">parallel · all start at t = 0</text>
+      <text x="150" y="67" font-size="16" text-anchor="end" fill="var(--ink-2)">policy_check</text>
+      <text x="150" y="109" font-size="16" text-anchor="end" fill="var(--ink-2)">fraud_score</text>
+      <text x="150" y="151" font-size="16" text-anchor="end" fill="var(--ink-2)">damage_estimate</text>
+      <text x="150" y="193" font-size="16" text-anchor="end" fill="var(--ink-2)">decide</text>
+      <rect class="g-bar" data-w="156" x="165" y="46" width="156" height="30" rx="6" fill="var(--tool)" opacity=".85"/>
+      <rect class="g-bar" data-w="260" x="165" y="88" width="260" height="30" rx="6" fill="var(--tool)" opacity=".85"/>
+      <rect class="g-bar" data-w="104" x="165" y="130" width="104" height="30" rx="6" fill="var(--tool)" opacity=".85"/>
+      <line class="g-join" x1="425" y1="36" x2="425" y2="210" stroke="var(--agent)" stroke-width="2.5" stroke-dasharray="6 5"/>
+      <text class="g-join" x="425" y="232" font-size="16" font-weight="600" text-anchor="middle" fill="var(--agent)">join_checks fires</text>
+      <text class="g-wall" x="446" y="124" font-size="38" font-weight="800" fill="var(--agent)">0.5 s</text>
+      <rect class="g-ok" x="419" y="172" width="12" height="30" rx="3" fill="var(--state)"/>
+      <text class="g-ok" x="446" y="193" font-size="16" font-weight="600" fill="var(--state)">decide runs 1×</text>
+      <text class="g-seqh" x="165" y="270" font-size="17" font-weight="700" fill="var(--muted)">sequential · one after another</text>
+      <text class="g-seqh" x="724" y="274" font-size="38" font-weight="800" text-anchor="end" fill="var(--muted)">1.0 s</text>
+      <rect class="g-seg" data-w="156" x="165" y="286" width="156" height="30" rx="6" fill="none" stroke="var(--muted)" stroke-width="1.6" stroke-dasharray="5 4"/>
+      <rect class="g-seg" data-w="260" x="321" y="286" width="260" height="30" rx="6" fill="none" stroke="var(--muted)" stroke-width="1.6" stroke-dasharray="5 4"/>
+      <rect class="g-seg" data-w="104" x="581" y="286" width="104" height="30" rx="6" fill="none" stroke="var(--muted)" stroke-width="1.6" stroke-dasharray="5 4"/>
+      <text class="g-seqh" x="243" y="307" font-size="16" text-anchor="middle" fill="var(--muted)">0.3</text>
+      <text class="g-seqh" x="451" y="307" font-size="16" text-anchor="middle" fill="var(--muted)">0.5</text>
+      <text class="g-seqh" x="633" y="307" font-size="16" text-anchor="middle" fill="var(--muted)">0.2</text>
+      <line x1="165" y1="336" x2="685" y2="336" stroke="var(--line-2)" stroke-width="1.5"/>
+      <g fill="var(--muted)" font-size="16" text-anchor="middle">
+        <line x1="165" y1="331" x2="165" y2="341" stroke="var(--line-2)"/><text x="165" y="360">0 s</text>
+        <line x1="295" y1="331" x2="295" y2="341" stroke="var(--line-2)"/><text x="295" y="360">0.25</text>
+        <line x1="425" y1="331" x2="425" y2="341" stroke="var(--line-2)"/><text x="425" y="360">0.5</text>
+        <line x1="555" y1="331" x2="555" y2="341" stroke="var(--line-2)"/><text x="555" y="360">0.75</text>
+        <line x1="685" y1="331" x2="685" y2="341" stroke="var(--line-2)"/><text x="685" y="360">1.0 s</text>
+      </g>
+      <g class="g-chip"><rect x="165" y="386" width="176" height="38" rx="19" fill="var(--state)" opacity=".16" stroke="var(--state)"/><text x="253" y="411" font-size="16" font-weight="700" text-anchor="middle" fill="var(--state)">APPROVE 3,490</text></g>
+      <g class="g-chip"><rect x="351" y="386" width="176" height="38" rx="19" fill="var(--tool)" opacity=".16" stroke="var(--tool)"/><text x="439" y="411" font-size="16" font-weight="700" text-anchor="middle" fill="var(--tool)">REFER · 0.82</text></g>
+      <g class="g-chip"><rect x="537" y="386" width="176" height="38" rx="19" fill="var(--risk)" opacity=".16" stroke="var(--risk)"/><text x="625" y="411" font-size="16" font-weight="700" text-anchor="middle" fill="var(--risk)">DENY · POL-99</text></g>
+      <text class="g-chip" x="150" y="411" font-size="16" text-anchor="end" fill="var(--ink-2)">verdicts</text>
+      <text class="g-math" x="0" y="460" font-size="16" fill="var(--ink-2)"></text>
+    </svg>
+  </div>
+  <aside class="notes">Now run the graph from the parent folder with three claims. adk run takes the query as a positional argument; leave it out and you get an interactive prompt instead. The output is marked illustrative because nothing was executed for the slide, but this graph has no LLM, so the code fixes the text. Step 1 is the point of the slide: the three checks start together, so wall time is the slowest branch, about 0.5 seconds. Step 2 draws the same checks in sequence: the 1.0 second sum. It is like three adjusters working on copies of the same file at the same time, instead of passing one file down a corridor. Step 3 gives one verdict per claim: the first is approved for 3,490 (4,200 times 0.95 is 3,990, capped at the 20,000 limit, minus the 500 deductible); the total-loss claim scores 0.82 and goes to the special investigations unit; POL-99 is not in the policy table, so it is denied. A likely question: "What if one branch is slow?" The whole fan-out waits for it, so put a timeout or retry config on any branch that calls a real service. Next: what goes wrong when you remove the JoinNode.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c04-lab-fanout-run";
+  const SCALE = 2.4;                         // 1 s of simulated I/O = 2.4 s on screen
+  const MATH = "approve: min(4200 × 0.95 = 3,990, 20,000) − 500 = 3,490.00";
+  let tw = [];
+  function clear() { tw.forEach((t) => t.kill()); tw = []; }
+  const q = (s, sel) => Array.from(s.querySelectorAll("#fr-gantt " + sel));
+
+  function render(slide, n, animate) {
+    clear();
+    const bars = q(slide, ".g-bar"), segs = q(slide, ".g-seg");
+    const join = q(slide, ".g-join"), ok = q(slide, ".g-ok");
+    const seqh = q(slide, ".g-seqh"), chips = q(slide, ".g-chip");
+    const wall = slide.querySelector("#fr-gantt .g-wall"), math = slide.querySelector("#fr-gantt .g-math");
+    const durs = [0.3, 0.5, 0.2];
+    gsap.killTweensOf([...bars, ...segs, ...join, ...ok, ...seqh, ...chips, wall, math]);
+
+    // step 1: the three branches run at the same time; the join fires at the slowest (0.5 s)
+    if (n >= 1) {
+      gsap.set(wall, { opacity: 1 });
+      if (animate && n === 1) {
+        bars.forEach((b, i) => tw.push(gsap.fromTo(b, { attr: { width: 0 } }, { attr: { width: +b.dataset.w }, duration: durs[i] * SCALE, ease: "none" })));
+        const c = { t: 0 };
+        tw.push(gsap.to(c, { t: 0.5, duration: 0.5 * SCALE, ease: "none", onUpdate: () => { wall.textContent = `${c.t.toFixed(2)} s`; } }));
+        tw.push(gsap.fromTo(join, { opacity: 0 }, { opacity: 1, duration: 0.3, delay: 0.5 * SCALE }));
+        tw.push(gsap.fromTo(ok, { opacity: 0 }, { opacity: 1, duration: 0.35, delay: 0.5 * SCALE + 0.15 }));
+      } else {
+        bars.forEach((b) => gsap.set(b, { attr: { width: +b.dataset.w } }));
+        wall.textContent = "0.5 s";
+        gsap.set([...join, ...ok], { opacity: 1 });
+      }
+    } else {
+      bars.forEach((b) => gsap.set(b, { attr: { width: 0 } }));
+      wall.textContent = "0.0 s";
+      gsap.set([wall, ...join, ...ok], { opacity: 0 });
+    }
+
+    // step 2: ghost sequential run, bars end to end up to 1.0 s
+    if (n >= 2) {
+      if (animate && n === 2) {
+        tw.push(gsap.fromTo(seqh, { opacity: 0 }, { opacity: 1, duration: 0.4 }));
+        let d = 0.2;
+        segs.forEach((s, i) => { tw.push(gsap.fromTo(s, { attr: { width: 0 } }, { attr: { width: +s.dataset.w }, duration: durs[i] * SCALE, delay: d, ease: "none" })); d += durs[i] * SCALE; });
+      } else {
+        gsap.set(seqh, { opacity: 1 });
+        segs.forEach((s) => gsap.set(s, { attr: { width: +s.dataset.w } }));
+      }
+    } else {
+      gsap.set(seqh, { opacity: 0 });
+      segs.forEach((s) => gsap.set(s, { attr: { width: 0 } }));
+    }
+
+    // step 3: one verdict per claim, then the payout arithmetic is typed out
+    if (n >= 3) {
+      if (animate && n === 3) {
+        tw.push(gsap.fromTo(chips, { opacity: 0, y: 8 }, { opacity: 1, y: 0, duration: 0.4, stagger: 0.15 }));
+        const c = { i: 0 };
+        math.textContent = "";
+        tw.push(gsap.to(c, { i: MATH.length, duration: 1.6, delay: 0.6, ease: "none", onUpdate: () => { math.textContent = MATH.slice(0, Math.round(c.i)); } }));
+      } else {
+        gsap.set(chips, { opacity: 1, y: 0 });
+        math.textContent = MATH;
+      }
+    } else {
+      gsap.set(chips, { opacity: 0, y: 0 });
+      math.textContent = "";
+    }
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { clear(); if (slide) gsap.killTweensOf(slide.querySelectorAll("#fr-gantt *")); },
+  });
+})();
+</script>

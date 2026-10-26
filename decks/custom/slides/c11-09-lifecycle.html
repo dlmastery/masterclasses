@@ -1,0 +1,184 @@
+<section class="slide" id="custom-c11-lifecycle" data-tone="tool" data-title="Lifecycle: one loop per release">
+  <style>
+    #custom-c11-lifecycle { gap: 18px; }
+    #custom-c11-lifecycle .lc-grid { display: grid; grid-template-columns: 940px 1fr; gap: 28px; min-height: 0; }
+    #custom-c11-lifecycle .lc-right { display: flex; flex-direction: column; gap: 26px; justify-content: center; min-width: 0; }
+    #custom-c11-lifecycle .lc-line { font-size: 21px; line-height: 1.45; color: var(--ink-2); border-left: 4px solid var(--state); padding-left: 16px; margin: 0; }
+    #custom-c11-lifecycle .lc-line b { color: var(--ink); }
+    #custom-c11-lifecycle .lc-line.card { border-left-color: var(--tool); }
+    #custom-c11-lifecycle .lc-cites { display: flex; gap: 8px; flex-wrap: wrap; }
+    #custom-c11-lifecycle .lc-cites .cite { font-size: 12.5px; padding: 5px 11px 5px 9px; }
+    #c11lc-svg text { font-family: var(--f-mono); font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #c11lc-svg text.sn { font-family: var(--f-body); }
+  </style>
+  <h2 class="title">One loop per release, from eval design to the quality card</h2>
+  <div class="lc-grid fill">
+    <svg id="c11lc-svg" viewBox="0 0 940 640" width="940" height="640" role="img" aria-label="A ring of seven green stage nodes: design, generate, select, curate, label, denoise and quality card. An amber release token starts in the centre and moves one stage per step. At each stage the centre shows the lab and its key number: Lab 6 contract, 12 failures; Lab 9 synthesis, 29 of 40 items kept; Lab 6 margin sampling, about 300 labels match random sampling's 900; Lab 7 leakage check, ROC-AUC 0.886 falls to 0.602 with GroupKFold; Lab 9 judge labels, kappa 0.58 and a corrected pass rate of 72.7%; Lab 8 cleanlab, 223 of 225 flipped labels flagged. At step 7 the centre becomes the Lab 10 quality card with the eval file hash, n, pass rate, model and train-set hash fields still to add and a red Gate FAIL stamp, and a dashed arc closes the ring back to design for the next release."></svg>
+    <div class="lc-right">
+      <p class="lc-line" data-step="1"><b>One workflow</b>. Run all seven stages again for every release.</p>
+      <p class="lc-line" data-step="2">Each stage is an earlier lab: Lab 6 contract and selection, Lab 9 synthesis and labels, Lab 7 leakage, Lab 8 cleanlab.</p>
+      <p class="lc-line card" data-step="7">The card's eval hash links the eval to its numbers. <b>Add the model and train-set hashes</b> to link all three.</p>
+      <div class="lc-cites" data-step="7">
+        <a class="cite doc" href="https://pandera.readthedocs.io/en/stable/lazy_validation.html" target="_blank" rel="noopener"><b>Docs</b>&nbsp;pandera lazy validation</a>
+        <a class="cite doc" href="https://docs.cleanlab.ai/stable/tutorials/clean_learning/text.html" target="_blank" rel="noopener"><b>Docs</b>&nbsp;cleanlab text tutorial</a>
+        <a class="cite doc" href="https://docs.ragas.io/en/stable/getstarted/rag_testset_generation/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;ragas testset generation</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">This slide joins the whole deck into one loop that we run again for every release. Each step moves the release token to the next stage and shows the number that the lab produced there: the pandera contract found 12 failures, the verifier kept 29 of 40 synthetic questions, margin sampling needed about 300 labels to match random sampling's 900, GroupKFold dropped the leaky 0.886 to an honest 0.602, the judge had kappa 0.58 against humans, and cleanlab flagged 223 of 225 flipped labels. At step 7 the token reaches the quality card from Lab 10, and the card already carries the hash of the eval file; add the model version and the train-set hash as two more fields, so every number traces back to its inputs. Analogy: it is a flight checklist, you run every item before every take-off, not only on the first flight. Likely question: "Do we rerun all stages for a small model change?" Yes, but most stages are cheap scripts with exit codes, so the loop costs minutes; only labelling needs new human time, and only for the new or thin slices.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c11-lifecycle";
+  const CX = 470, CY = 330, RX = 300, RY = 230, NW = 172, NH = 76;
+  // [stage, lab, node number, callout title, callout big number, callout line 1, callout line 2]
+  const ST = [
+    ["design", "Lab 6", "12 failures", "Lab 6 · pandera contract", "12 failures", "lazy=True: one report", "rows 1-3 quarantined"],
+    ["generate", "Lab 9", "29 of 40 kept", "Lab 9 · ragas + verify", "29 of 40", "kept after the checks", "closed-book, ungrounded, dup"],
+    ["select", "Lab 6", "300 vs 900", "Lab 6 · margin sampling", "~300 labels", "match random's score", "at 900 labels"],
+    ["curate", "Lab 7", "AUC 0.886→0.602", "Lab 7 · leakage check", "0.886→0.602", "ROC-AUC: KFold vs", "GroupKFold by customer"],
+    ["label", "Lab 9", "kappa 0.58", "Lab 9 · judge vs humans", "kappa 0.58", "88% raw agreement", "corrected pass rate 72.7%"],
+    ["denoise", "Lab 8", "223 flagged", "Lab 8 · cleanlab", "223 flagged", "of 225 flipped labels", "precision 1.00 · recall 0.99"],
+    ["quality card", "Lab 10", "Gate FAIL", "", "", "", ""],
+  ];
+  const TH = ST.map((_, k) => (-90 + k * 360 / 7) * Math.PI / 180);
+  const P = (t) => [CX + RX * Math.cos(t), CY + RY * Math.sin(t)];
+  const arc = (a, b) => { const p = P(a), q = P(b); return `M${p[0].toFixed(1)} ${p[1].toFixed(1)} A${RX} ${RY} 0 0 1 ${q[0].toFixed(1)} ${q[1].toFixed(1)}`; };
+  const mk = (tag, a, p, t) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); if (t !== undefined) e.textContent = t; p.appendChild(e); return e; };
+  let S = null;
+
+  function build(slide) {
+    const svg = slide.querySelector("#c11lc-svg");
+    if (svg._S) return svg._S;
+    svg.innerHTML = "";
+    const s = { prev: 0, tw: [] };
+    const defs = mk("defs", {}, svg);
+    const m = mk("marker", { id: "c11lc-ah", viewBox: "0 0 10 10", refX: 7, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto" }, defs);
+    mk("path", { d: "M0 0 L10 5 L0 10 z", fill: "var(--tool)" }, m);
+    // base ring
+    mk("ellipse", { cx: CX, cy: CY, rx: RX, ry: RY, fill: "none", stroke: "var(--line)", "stroke-width": 3 }, svg);
+    // lit segments 0..5 (stage k -> k+1)
+    s.seg = [];
+    for (let k = 0; k < 6; k++) s.seg.push(mk("path", { d: arc(TH[k], TH[k + 1]), fill: "none", stroke: "var(--state)", "stroke-width": 5, "stroke-linecap": "round", pathLength: 1, "stroke-dasharray": 1, "stroke-dashoffset": 1 }, svg));
+    // closing segment: card -> design, next release
+    s.ret = mk("g", { opacity: 0 }, svg);
+    mk("path", { d: arc(TH[6] + 0.2, TH[0] + 2 * Math.PI - 0.24), fill: "none", stroke: "var(--tool)", "stroke-width": 3.5, "stroke-dasharray": "9 8", "marker-end": "url(#c11lc-ah)" }, s.ret);
+    mk("text", { x: 300, y: 96, "text-anchor": "middle", "font-size": 14, "font-weight": 700, fill: "var(--tool)", class: "sn" }, s.ret, "next release");
+    // nodes
+    s.nodes = ST.map((d, k) => {
+      const [x, y] = P(TH[k]);
+      const g = mk("g", {}, svg);
+      const card = k === 6;
+      mk("rect", { x: x - NW / 2, y: y - NH / 2, width: NW, height: NH, rx: 14, fill: "var(--surface)" }, g);
+      const r = mk("rect", { x: x - NW / 2, y: y - NH / 2, width: NW, height: NH, rx: 14, fill: "var(--surface)", stroke: card ? "var(--tool)" : "var(--state)", "stroke-width": 2 }, g);
+      mk("text", { x, y: y - 12, "text-anchor": "middle", "font-size": 17, "font-weight": 700, fill: "var(--ink)", class: "sn" }, g, d[0]);
+      mk("text", { x, y: y + 7, "text-anchor": "middle", "font-size": 12.5, fill: "var(--muted)" }, g, d[1]);
+      const num = mk("text", { x, y: y + 27, "text-anchor": "middle", "font-size": 13, "font-weight": 700, fill: card ? "var(--risk)" : "var(--state)", opacity: 0 }, g, d[2]);
+      return { g, r, num, card };
+    });
+    // centre callout (stages 0..5)
+    s.call = mk("g", { opacity: 0 }, svg);
+    mk("rect", { x: 330, y: 240, width: 280, height: 180, rx: 16, fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 1.8 }, s.call);
+    s.cT = mk("text", { x: CX, y: 272, "text-anchor": "middle", "font-size": 14, "font-weight": 700, fill: "var(--ink)" }, s.call, "");
+    s.cB = mk("text", { x: CX, y: 328, "text-anchor": "middle", "font-size": 34, "font-weight": 800, fill: "var(--state)", class: "sn" }, s.call, "");
+    s.c1 = mk("text", { x: CX, y: 366, "text-anchor": "middle", "font-size": 14, fill: "var(--ink-2)", class: "sn" }, s.call, "");
+    s.c2 = mk("text", { x: CX, y: 390, "text-anchor": "middle", "font-size": 14, fill: "var(--muted)", class: "sn" }, s.call, "");
+    // centre: quality card (stage 6)
+    s.qc = mk("g", { opacity: 0 }, svg);
+    mk("rect", { x: 322, y: 232, width: 296, height: 196, rx: 14, fill: "var(--surface)", stroke: "var(--tool)", "stroke-width": 2.2 }, s.qc);
+    mk("rect", { x: 322, y: 232, width: 296, height: 34, rx: 14, fill: "var(--tool-soft)" }, s.qc);
+    mk("text", { x: 338, y: 255, "font-size": 14, "font-weight": 700, fill: "var(--tool)" }, s.qc, "quality_card.json");
+    const rows = [["eval", "sha256:d0e202a5a0b3e504"], ["n", "353 items / 60 claims"], ["pass", "83.9% [79.7, 87.3]"], ["model", "add: claims-agent-v2@4f1c9e2"], ["data", "add: train-set sha256"]];
+    s.rows = rows.map(([a, b], i) => {
+      const g = mk("g", {}, s.qc);
+      mk("text", { x: 338, y: 290 + i * 24, "font-size": 12.5, "font-weight": 700, fill: "var(--muted)" }, g, a);
+      mk("text", { x: 392, y: 290 + i * 24, "font-size": 12.5, fill: "var(--ink)" }, g, b);
+      return g;
+    });
+    s.stamp = mk("g", { opacity: 0 }, svg);
+    mk("rect", { x: 500, y: 393, width: 108, height: 30, rx: 6, fill: "var(--risk-soft)", stroke: "var(--risk)", "stroke-width": 2.4 }, s.stamp);
+    mk("text", { x: 554, y: 414, "text-anchor": "middle", "font-size": 15, "font-weight": 800, fill: "var(--risk)" }, s.stamp, "Gate FAIL");
+    // idle centre label (step 0)
+    s.idle = mk("text", { x: CX, y: CY + 40, "text-anchor": "middle", "font-size": 15, "font-weight": 700, fill: "var(--tool)", class: "sn" }, svg, "v2 release candidate");
+    // token
+    s.tok = mk("circle", { cx: CX, cy: CY, r: 12, fill: "var(--tool)", stroke: "var(--surface)", "stroke-width": 3 }, svg);
+    svg._S = s;
+    return s;
+  }
+
+  // rest distance outside node k along the radial direction from the ring centre
+  const OFF = TH.map((t) => { const ux = Math.cos(t), uy = Math.sin(t) * RY / RX, l = Math.hypot(ux, uy); return Math.min(NW / 2 / Math.abs(ux / l || 1e-6), NH / 2 / Math.abs(uy / l || 1e-6)) + 16; });
+  const tokAt = (t, d) => { const [x, y] = P(t), dx = x - CX, dy = y - CY, l = Math.hypot(dx, dy); return [x + dx / l * d, y + dy / l * d]; };
+  function setTok(s, t, d) { const [x, y] = tokAt(t, d); s.tok.setAttribute("cx", x.toFixed(1)); s.tok.setAttribute("cy", y.toFixed(1)); }
+
+  function render(s, n, animate) {
+    s.tw.forEach((t) => t.kill()); s.tw = [];
+    const T = (tw) => s.tw.push(tw);
+    const fwd = animate && n === s.prev + 1;
+    // segments
+    s.seg.forEach((p, k) => {
+      const lit = n >= k + 2;
+      if (fwd && k === n - 2) { gsap.set(p, { attr: { "stroke-dashoffset": 1 } }); T(gsap.to(p, { attr: { "stroke-dashoffset": 0 }, duration: .8, ease: "power1.inOut" })); }
+      else gsap.set(p, { attr: { "stroke-dashoffset": lit ? 0 : 1 } });
+    });
+    // nodes
+    s.nodes.forEach((o, k) => {
+      const visited = k <= n - 1, active = k === n - 1;
+      gsap.set(o.r, { attr: { fill: visited ? (o.card ? "var(--tool-soft)" : "var(--state-soft)") : "var(--surface)", "stroke-width": active ? 4 : 2 } });
+      gsap.set(o.g, { opacity: n === 0 || visited ? 1 : 0.45 });
+      if (fwd && active) { gsap.set(o.num, { opacity: 0 }); T(gsap.to(o.num, { opacity: 1, duration: .4, delay: .9 })); }
+      else gsap.set(o.num, { opacity: visited ? 1 : 0 });
+    });
+    // token
+    gsap.set(s.idle, { opacity: n === 0 ? 1 : 0 });
+    if (n === 0) { gsap.set(s.tok, { attr: { cx: CX, cy: CY - 6 } }); }
+    else if (fwd && n === 1) {
+      gsap.set(s.tok, { attr: { cx: CX, cy: CY - 6 } });
+      const [x, y] = tokAt(TH[0], OFF[0]);
+      T(gsap.to(s.tok, { attr: { cx: x, cy: y }, duration: .7, ease: "power2.inOut" }));
+    } else if (fwd) {
+      const o = { t: TH[n - 2], d: OFF[n - 2] };
+      setTok(s, o.t, o.d);
+      T(gsap.to(o, { t: TH[n - 1], d: OFF[n - 1], duration: .8, ease: "power1.inOut", onUpdate: () => setTok(s, o.t, o.d) }));
+    } else setTok(s, TH[n - 1], OFF[n - 1]);
+    // centre callout
+    if (n >= 1 && n <= 6) {
+      const d = ST[n - 1];
+      s.cT.textContent = d[3]; s.cB.textContent = d[4]; s.c1.textContent = d[5]; s.c2.textContent = d[6];
+      if (fwd) { gsap.set(s.call, { opacity: 0, scale: .86, transformOrigin: "50% 50%" }); T(gsap.to(s.call, { opacity: 1, scale: 1, duration: .45, delay: .75, ease: "back.out(1.8)" })); }
+      else gsap.set(s.call, { opacity: 1, scale: 1, transformOrigin: "50% 50%" });
+    } else gsap.set(s.call, { opacity: 0 });
+    // quality card + closing arc
+    if (n === 7) {
+      if (fwd) {
+        gsap.set(s.qc, { opacity: 0, scale: .8, transformOrigin: "50% 50%" });
+        T(gsap.to(s.qc, { opacity: 1, scale: 1, duration: .5, delay: .8, ease: "back.out(1.6)" }));
+        s.rows.forEach((r, i) => { gsap.set(r, { opacity: 0 }); T(gsap.to(r, { opacity: 1, duration: .3, delay: 1.2 + i * .18 })); });
+        gsap.set(s.stamp, { opacity: 0, scale: 1.8, rotation: -8, transformOrigin: "50% 50%" });
+        T(gsap.to(s.stamp, { opacity: 1, scale: 1, duration: .35, delay: 2.2, ease: "power3.in" }));
+        gsap.set(s.ret, { opacity: 0 }); T(gsap.to(s.ret, { opacity: 1, duration: .6, delay: 2.7 }));
+      } else {
+        gsap.set(s.qc, { opacity: 1, scale: 1, transformOrigin: "50% 50%" });
+        s.rows.forEach((r) => gsap.set(r, { opacity: 1 }));
+        gsap.set(s.stamp, { opacity: 1, scale: 1, rotation: -8, transformOrigin: "50% 50%" });
+        gsap.set(s.ret, { opacity: 1 });
+      }
+    } else { gsap.set(s.qc, { opacity: 0 }); gsap.set(s.stamp, { opacity: 0 }); gsap.set(s.ret, { opacity: 0 }); }
+    s.prev = n;
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) {
+      S = build(slide); S.prev = step || 0; render(S, step || 0, false);
+      if (!step) S.nodes.forEach((o, k) => S.tw.push(gsap.from(o.g, { opacity: 0, scale: .7, transformOrigin: "50% 50%", duration: .4, delay: .2 + k * .08, ease: "back.out(2)" })));
+    },
+    step(slide, n, animate) { S = build(slide); render(S, n, animate); },
+    leave(slide) {
+      const svg = slide.querySelector("#c11lc-svg");
+      if (svg && svg._S) { svg._S.tw.forEach((t) => t.kill()); svg._S.tw = []; }
+      if (svg) gsap.killTweensOf(svg.querySelectorAll("*"));
+    }
+  });
+})();
+</script>

@@ -1,0 +1,214 @@
+<section class="slide" id="custom-c09-lab8-evidently" data-tone="human" data-title="Lab 8: Evidently CI gate">
+  <style>
+    #custom-c09-lab8-evidently { gap: 20px; }
+    #custom-c09-lab8-evidently .ev-grid { display: grid; grid-template-columns: 720px minmax(0, 1fr); gap: 26px; min-height: 0; }
+    #custom-c09-lab8-evidently .ev-left, #custom-c09-lab8-evidently .ev-right { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    #custom-c09-lab8-evidently .code-head { padding: 7px 14px; font-size: 13.5px; }
+    #custom-c09-lab8-evidently .ev-code pre.code { font-size: 11px; line-height: 1.38; padding: 10px 14px 12px; }
+    #custom-c09-lab8-evidently .lab-head { font-size: 14px; gap: 10px; }
+    #custom-c09-lab8-evidently .lab-head .run { font-size: 14.5px; padding: 7px 11px; }
+    #custom-c09-lab8-evidently .steps-rail { gap: 8px; }
+    #custom-c09-lab8-evidently .steps-rail > * { font-size: 15px; line-height: 1.36; grid-template-columns: 30px minmax(0, 1fr); gap: 10px; }
+    #custom-c09-lab8-evidently .steps-rail > *::before { width: 26px; height: 26px; font-size: 14px; }
+    #custom-c09-lab8-evidently .steps-rail code { font-size: .84em; white-space: normal; overflow-wrap: anywhere; }
+    #custom-c09-lab8-evidently .ev-swap { display: grid; margin-top: auto; }
+    #custom-c09-lab8-evidently .ev-swap > * { grid-area: 1 / 1; align-self: end; }
+    #custom-c09-lab8-evidently .ev-swap pre.code { font-size: 11.5px; line-height: 1.45; padding: 9px 14px 11px; white-space: pre-wrap; }
+    #custom-c09-lab8-evidently pre.code, #custom-c09-lab8-evidently pre.code *, #custom-c09-lab8-evidently code, #custom-c09-lab8-evidently svg text { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #c09ev-svg text { font-family: var(--f-mono); }
+  </style>
+  <div class="kicker"><span class="pill">Lab 8</span> Acme ticket triage · step 1 of 4</div>
+  <h2 class="title">A weekly Evidently report that exits 1 and blocks the retraining job</h2>
+  <div class="ev-grid fill">
+    <div class="ev-left">
+      <div class="code-wrap ev-code">
+        <div class="code-head">triage/drift_gate.py · evidently 0.7.23</div>
+        <pre class="code" data-lang="python" data-focus="1:4-6, 2:24-27, 3:28-33, 4:34-38"><code>import sys
+import numpy as np
+import pandas as pd
+from evidently import DataDefinition, Dataset, Report
+from evidently.metrics import ValueDrift
+from evidently.presets import DataDriftPreset
+
+rng = np.random.default_rng(42)
+def make_window(n, outage_share):   # one synthetic window of tickets
+    p_area = [0.35, 0.30 - outage_share / 2, outage_share, 0.35 - outage_share / 2]
+    return pd.DataFrame({
+        "channel": rng.choice(["email", "chat", "phone"], size=n, p=[0.5, 0.4, 0.1]),
+        "product_area": rng.choice(["billing", "login", "outage", "shipping"], size=n, p=p_area),
+        "body_chars": rng.lognormal(5.5, 0.5, n).round(),
+        "customer_tenure_days": rng.gamma(2.0, 200.0, n).round(),
+    })
+reference = make_window(4_000, outage_share=0.05)   # last month
+current = make_window(1_500, outage_share=0.25)     # this week: login outage
+schema = DataDefinition(numerical_columns=["body_chars", "customer_tenure_days"],
+                        categorical_columns=["channel", "product_area"])
+ref_ds = Dataset.from_pandas(reference, data_definition=schema)
+cur_ds = Dataset.from_pandas(current, data_definition=schema)
+
+report = Report([
+    DataDriftPreset(num_method="psi", num_threshold=0.2, drift_share=0.5),
+    ValueDrift(column="customer_tenure_days", method="ks", threshold=0.05),  # p-value test
+], include_tests=True)
+snapshot = report.run(current_data=cur_ds, reference_data=ref_ds)
+snapshot.save_html("ticket_drift_report.html")
+
+result = snapshot.dict()
+for m in result["metrics"]:
+    print(f"{m['metric_name'][:60]:&lt;62} {m['value']}")
+failed = [t for t in result["tests"] if t["status"] == "FAIL"]
+print(f"tests: {len(result['tests'])}, failed: {len(failed)}")
+for t in failed:
+    print("FAIL:", t["name"], "-", t["description"][:90])
+sys.exit(1 if failed else 0)   # non-zero exit blocks the retraining job in CI</code></pre>
+      </div>
+    </div>
+    <div class="ev-right">
+      <div class="lab-head"><span class="run">python drift_gate.py</span><span>CPU · offline</span><a class="cite doc" href="https://docs.evidentlyai.com/quickstart_ml" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Data and ML checks</a></div>
+      <svg id="c09ev-svg" viewBox="0 0 646 236" width="646" height="236" role="img" aria-label="A CI pipeline strip with three nodes: collect week, drift report and retrain, with data pulses moving along the wires. Step 1: inside collect week, two bars show the outage share, 5 percent in the 4,000-ticket reference and 25 percent in the 1,500-ticket current week. Step 2: six test chips appear in the drift report node; before this step the caption says the default gives 0 tests. Step 3: the chips turn five green and one red for product_area, and a snapshot.dict() panel shows metrics 6 and tests 6. Step 4: the gate light turns red with exit 1, the pulses to retrain stop, and the retrain node greys out as held."></svg>
+      <div class="steps-rail">
+        <div data-step="1"><span>The 0.7.x API: <code>from evidently import DataDefinition, Dataset, Report</code>. Old <code>evidently.report</code> imports fail.</span></div>
+        <div data-step="2"><span><code>include_tests=True</code>. The <code>Report</code> default is <code>False</code>: no tests, so the gate never fails.</span></div>
+        <div data-step="3"><span><code>run()</code> returns a Snapshot. Read <code>metric_name</code> or <code>id</code>. There is no <code>metric_id</code> key.</span></div>
+        <div data-step="4"><span>One <code>FAIL</code> gives <code>sys.exit(1)</code>. CI holds the retraining job.</span></div>
+      </div>
+      <div class="ev-swap">
+        <div class="code-wrap term" data-until="4">
+          <div class="code-head">run it Monday · Python 3.12 · no API keys, no env vars</div>
+          <pre class="code" data-lang="bash"><code>$ python -m venv .venv-monitor   <span class="dim"># evidently pulls a heavy web stack</span>
+$ pip install "evidently==0.7.23" "pandas==3.0.*"
+$ pip install "cleanlab==2.9.0" "scikit-learn==1.9.1"   <span class="dim"># main venv</span>
+triage/
+  drift_gate.py  tickets.py  rank_labels.py  review_queue.py  route_or_defer.py</code></pre>
+        </div>
+        <div class="code-wrap out" data-step="4">
+          <div class="code-head">output · captured run (tail)</div>
+          <pre class="code" data-lang="none"><code><span class="dim">$ python drift_gate.py; echo "exit code: $?"</span>
+<span class="dim"># 6 metric lines: next step</span>
+<span class="err">tests: 6, failed: 1</span>
+<span class="err">FAIL: Value Drift for column product_area - Drift score is 0.21.</span>
+<span class="err">      The drift detection method is Jensen-Shannon distance. The drift thre</span>
+<span class="err">exit code: 1</span></code></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Step 1 of Lab 8: a weekly CI job compares 1,500 tickets from this week with 4,000 from last month, writes an HTML report, and exits non-zero when a drift test fails. The 0.7.x imports come from the top-level evidently package; old tutorials that import evidently.report fail, because that API now lives under evidently.legacy. include_tests=True makes it a gate: the Report default is False, so without it there are no tests and the job never fails. run() returns a Snapshot, and snapshot.dict() holds metrics and tests; parse metric_name or id, because there is no metric_id key. Analogy: a smoke detector without a battery looks fine until the fire. Likely question: "Why a separate venv?" Because evidently 0.7.23 pulls a heavy web stack (litestar, msgspec, plotly below 6) that you do not want in the training image. Next: we read the six metric lines and see why the dataset-level test alone would have passed.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c09-lab8-evidently";
+  const WY = 108;
+  let S = null;
+
+  function mk(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  }
+
+  function build(slide) {
+    const svg = slide.querySelector("#c09ev-svg");
+    if (svg._S) return svg._S;
+    svg.innerHTML = "";
+    const s = {};
+    mk("text", { x: 0, y: 18, "font-size": 13, "font-weight": 700, fill: "var(--ink)" }, svg, "CI job · weekly · triage model");
+    // wires
+    mk("path", { d: `M150 ${WY} H240`, stroke: "var(--line-2)", "stroke-width": 2.4, fill: "none" }, svg);
+    s.wireBC = mk("path", { d: `M406 ${WY} H496`, stroke: "var(--line-2)", "stroke-width": 2.4, fill: "none" }, svg);
+    mk("path", { d: `M232 ${WY - 6} L240 ${WY} L232 ${WY + 6}`, stroke: "var(--line-2)", "stroke-width": 2.4, fill: "none" }, svg);
+    s.headBC = mk("path", { d: `M488 ${WY - 6} L496 ${WY} L488 ${WY + 6}`, stroke: "var(--line-2)", "stroke-width": 2.4, fill: "none" }, svg);
+    s.dotsAB = [0, 1, 2].map(() => mk("circle", { cx: 150, cy: WY, r: 5, fill: "var(--state)" }, svg));
+    s.dotsBC = [0, 1, 2].map(() => mk("circle", { cx: 406, cy: WY, r: 5, fill: "var(--model)" }, svg));
+    // node A: collect week
+    mk("rect", { x: 0, y: 52, width: 150, height: 112, rx: 14, fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 2 }, svg);
+    mk("text", { x: 14, y: 76, "font-size": 14, "font-weight": 700, fill: "var(--ink)" }, svg, "collect week");
+    mk("text", { x: 14, y: 94, "font-size": 11, fill: "var(--muted)" }, svg, "4,000 vs 1,500");
+    s.bars = mk("g", { opacity: 0 }, svg);
+    mk("text", { x: 14, y: 117, "font-size": 10.5, fill: "var(--muted)" }, s.bars, "outage share");
+    s.barR = mk("rect", { x: 14, y: 124, width: 0, height: 11, rx: 3, fill: "var(--agent)" }, s.bars);
+    s.barC = mk("rect", { x: 14, y: 141, width: 0, height: 11, rx: 3, fill: "var(--risk)" }, s.bars);
+    s.lblR = mk("text", { x: 22, y: 133.5, "font-size": 10.5, "font-weight": 700, fill: "var(--agent)" }, s.bars, "5%");
+    s.lblC = mk("text", { x: 22, y: 150.5, "font-size": 10.5, "font-weight": 700, fill: "var(--risk)" }, s.bars, "25%");
+    // node B: drift report gate
+    s.gate = mk("rect", { x: 240, y: 44, width: 166, height: 128, rx: 16, fill: "var(--human-soft)", stroke: "var(--human)", "stroke-width": 2.4 }, svg);
+    mk("text", { x: 254, y: 70, "font-size": 14, "font-weight": 700, fill: "var(--ink)" }, svg, "drift report");
+    mk("text", { x: 254, y: 88, "font-size": 11, fill: "var(--muted)" }, svg, "Report · gate");
+    s.light = mk("circle", { cx: 386, cy: 66, r: 9, fill: "var(--line-2)" }, svg);
+    s.chips = [0, 1, 2, 3, 4, 5].map((i) => mk("rect", { x: 254 + i * 24, y: 104, width: 18, height: 18, rx: 4, fill: "var(--muted)", opacity: 0 }, svg));
+    s.cap0 = mk("text", { x: 254, y: 156, "font-size": 11, "font-weight": 700, fill: "var(--risk)" }, svg, "default: 0 tests");
+    s.cap1 = mk("text", { x: 254, y: 156, "font-size": 11, "font-weight": 700, fill: "var(--human)", opacity: 0 }, svg, "6 tests");
+    s.capPA = mk("text", { x: 254 + 3 * 24 + 9, y: 140, "text-anchor": "middle", "font-size": 10, "font-weight": 700, fill: "var(--risk)", opacity: 0 }, svg, "product_area");
+    s.exit = mk("g", { opacity: 0 }, svg);
+    mk("rect", { x: 284, y: 2, width: 78, height: 26, rx: 8, fill: "var(--risk)" }, s.exit);
+    mk("text", { x: 323, y: 20, "text-anchor": "middle", "font-size": 13, "font-weight": 700, fill: "#fff" }, s.exit, "exit 1");
+    // node C: retrain
+    s.nodeC = mk("g", {}, svg);
+    mk("rect", { x: 496, y: 52, width: 150, height: 112, rx: 14, fill: "var(--model-soft)", stroke: "var(--model)", "stroke-width": 2 }, s.nodeC);
+    mk("text", { x: 510, y: 76, "font-size": 14, "font-weight": 700, fill: "var(--ink)" }, s.nodeC, "retrain");
+    mk("text", { x: 510, y: 94, "font-size": 11, fill: "var(--muted)" }, s.nodeC, "triage model");
+    s.held = mk("text", { x: 571, y: 138, "text-anchor": "middle", "font-size": 18, "font-weight": 800, fill: "var(--risk)", opacity: 0 }, svg, "HELD");
+    // snapshot panel
+    s.snap = mk("g", { opacity: 0 }, svg);
+    mk("path", { d: `M323 172 V190`, stroke: "var(--human)", "stroke-width": 2, "stroke-dasharray": "4 3", fill: "none" }, s.snap);
+    mk("rect", { x: 158, y: 190, width: 330, height: 42, rx: 10, fill: "var(--surface)", stroke: "var(--human)", "stroke-width": 1.6 }, s.snap);
+    mk("text", { x: 172, y: 209, "font-size": 11.5, "font-weight": 700, fill: "var(--ink)" }, s.snap, "snapshot.dict()");
+    mk("text", { x: 172, y: 225, "font-size": 11, fill: "var(--muted)" }, s.snap, "metrics 6 · tests 6 · keys id, metric_name");
+    s.prev = -1;
+    svg._S = s;
+    return s;
+  }
+
+  function loops(s, n) {
+    if (s.tl) s.tl.kill();
+    s.tl = gsap.timeline({ repeat: -1 });
+    s.dotsAB.forEach((d, i) => s.tl.fromTo(d, { attr: { cx: 152 }, opacity: 1 }, { attr: { cx: 236 }, opacity: 0.2, duration: 1.2, ease: "none" }, i * 0.4));
+    if (n < 4) s.dotsBC.forEach((d, i) => s.tl.fromTo(d, { attr: { cx: 408 }, opacity: 1 }, { attr: { cx: 484 }, opacity: 0.2, duration: 1.2, ease: "none" }, i * 0.4));
+    gsap.set(s.dotsBC, { opacity: n < 4 ? 1 : 0 });
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) { s.tl.progress(0.5).pause(); }
+  }
+
+  function render(s, n, animate) {
+    const els = [s.bars, s.barR, s.barC, s.lblR, s.lblC, ...s.chips, s.cap0, s.cap1, s.capPA, s.snap, s.exit, s.nodeC, s.held, s.light];
+    gsap.killTweensOf(els);
+    const to = (el, v, d) => (animate ? gsap.to(el, { ...v, duration: 0.5, delay: d || 0 }) : gsap.set(el, v));
+    // step 1: the two windows
+    to(s.bars, { opacity: n >= 1 ? 1 : 0 });
+    const wR = n >= 1 ? 18 : 0, wC = n >= 1 ? 90 : 0;
+    to(s.barR, { attr: { width: wR } }, 0.1); to(s.barC, { attr: { width: wC } }, 0.25);
+    to(s.lblR, { attr: { x: 14 + wR + 5 } }, 0.1); to(s.lblC, { attr: { x: 14 + wC + 5 } }, 0.25);
+    // step 2: tests exist
+    to(s.cap0, { opacity: n >= 2 ? 0 : 1 });
+    to(s.cap1, { opacity: n >= 2 ? 1 : 0 }, 0.2);
+    s.chips.forEach((c, i) => {
+      const fill = n >= 3 ? (i === 3 ? "var(--risk)" : "var(--state)") : "var(--muted)";
+      c.setAttribute("fill", fill);
+      to(c, { opacity: n >= 2 ? 1 : 0 }, animate ? i * 0.07 : 0);
+    });
+    to(s.capPA, { opacity: n >= 3 ? 1 : 0 }, 0.5);
+    to(s.snap, { opacity: n >= 3 ? 1 : 0 }, 0.3);
+    // step 4: the gate fails
+    s.light.setAttribute("fill", n >= 4 ? "var(--risk)" : "var(--line-2)");
+    to(s.exit, { opacity: n >= 4 ? 1 : 0 }, 0.1);
+    to(s.nodeC, { opacity: n >= 4 ? 0.35 : 1 }, 0.3);
+    to(s.held, { opacity: n >= 4 ? 1 : 0 }, 0.5);
+    s.wireBC.setAttribute("stroke-dasharray", n >= 4 ? "5 5" : "none");
+    s.headBC.style.opacity = n >= 4 ? 0.4 : 1;
+    if ((n >= 4) !== (s.prev >= 4) || !s.tl) loops(s, n);
+    s.prev = n;
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { S = build(slide); S.prev = -1; if (S.tl) { S.tl.kill(); S.tl = null; } render(S, step, false); },
+    step(slide, n, animate) { S = build(slide); render(S, n, animate); },
+    leave(slide) {
+      const svg = slide.querySelector("#c09ev-svg");
+      if (svg && svg._S && svg._S.tl) { svg._S.tl.kill(); svg._S.tl = null; }
+      if (svg) gsap.killTweensOf(svg.querySelectorAll("*"));
+    }
+  });
+})();
+</script>

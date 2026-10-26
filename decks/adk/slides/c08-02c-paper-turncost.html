@@ -1,0 +1,95 @@
+<section class="slide" id="adk-c08-paper-turncost" data-tone="state" data-title="Paper: TurnCost">
+  <style>
+    #adk-c08-paper-turncost .tc-grid { display: grid; grid-template-columns: 540px 1fr; gap: 56px; align-items: center; }
+    #adk-c08-paper-turncost .paper { padding: 26px 28px; gap: 14px; }
+    #adk-c08-paper-turncost .paper h4 { font-size: 24px; line-height: 1.25; }
+    #adk-c08-paper-turncost .paper .find { font-size: 21px; }
+    #adk-c08-paper-turncost .paper .so { font-size: 20px; }
+    #adk-c08-paper-turncost #tc-svg { display: block; width: 790px; height: 470px; overflow: visible; }
+    #adk-c08-paper-turncost #tc-svg text { font-family: var(--f-mono); }
+    #adk-c08-paper-turncost .cites .cite.paper { flex-direction: row; align-items: center; gap: 10px; padding: 8px 14px 8px 10px; border-radius: 10px; border: 1px solid var(--line); }
+  </style>
+  <div class="kicker"><span class="pill">arXiv</span> Oct 2026</div>
+  <h2 class="title">TurnCost: turn count, not observation size, drives agent cost</h2>
+  <div class="tc-grid fill">
+    <div class="paper">
+      <div class="pid">arXiv 2610.15093 <span>2026-10-10</span></div>
+      <h4>Turns, Not Observations: Cache-Aware Loop Engineering for Coding Agents</h4>
+      <div class="find"><b>98.6%</b> of input tokens came from the prefix cache. Turn count explains <b>84%</b> of cost variance; observation size explains <b>4%</b>.</div>
+      <div class="so" data-step="3">Keep the prefix stable. Cut the number of turns.</div>
+    </div>
+    <svg id="tc-svg" viewBox="0 0 790 470" aria-label="Two charts. Top: one bar shows that 98.6 percent of input tokens came from the prefix cache. Bottom: share of cost variance explained, 84 percent for turn count and 4 percent for observation size."></svg>
+  </div>
+  <div class="cites"><a class="cite paper" href="https://arxiv.org/abs/2610.15093" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.15093 · TurnCost</a></div>
+  <aside class="notes">TurnCost studied the cost of coding-agent loops, and it explains why the cache lab matters. Press once: 98.6 percent of all input tokens were served from the prefix cache, so a stable prefix is not a small optimisation, it is most of the bill. Press again: when the authors explained cost variance, the number of turns explained 84 percent and the size of tool observations only 4 percent; every turn re-sends the whole window, so each extra turn costs a full prefix read. Press again: the action for Monday is to keep the static prefix byte-stable and to cut turns, for example by letting one tool call do the work of three. Analogy: a taxi meter that charges per stop matters more than the length of each stop. A likely question: "Is this only for coding agents?" The study is on coding agents, but the mechanism, a long cached prefix re-sent every turn, is the same in the Acme support agent.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c08-paper-turncost";
+  const NS = "http://www.w3.org/2000/svg";
+  const X0 = 250, W = 500;
+  const BARS = [
+    { y: 262, label: "turn count", v: 84, tone: "state" },
+    { y: 346, label: "observation", v: 4, tone: "tool" },
+  ];
+  let R = null, tw = [];
+  function mk(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text !== undefined) e.textContent = text;
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function build(svg) {
+    svg.innerHTML = "";
+    R = {};
+    mk("text", { x: 0, y: 26, "font-size": 18, "font-weight": 700, fill: "var(--ink)" }, svg, "input tokens served from the prefix cache");
+    mk("rect", { x: 0, y: 50, width: 750, height: 64, rx: 12, fill: "var(--surface-2)", stroke: "var(--line-2)", "stroke-width": 1.5 }, svg);
+    R.cache = mk("rect", { x: 0, y: 50, width: 0, height: 64, rx: 12, fill: "var(--state)" }, svg);
+    R.cacheT = mk("text", { x: 24, y: 94, "font-size": 30, "font-weight": 800, fill: "#fff" }, svg, "0%");
+    mk("text", { x: 0, y: 214, "font-size": 18, "font-weight": 700, fill: "var(--ink)" }, svg, "share of cost variance explained by");
+    R.bars = BARS.map((b) => {
+      const g = mk("g", {}, svg);
+      mk("text", { x: 0, y: b.y + 36, "font-size": 18, "font-weight": 700, fill: "var(--ink-2)" }, g, b.label);
+      mk("rect", { x: X0, y: b.y, width: W, height: 56, rx: 10, fill: "var(--surface-2)", stroke: "var(--line-2)", "stroke-width": 1.5 }, g);
+      const bar = mk("rect", { x: X0, y: b.y, width: 0, height: 56, rx: 10, fill: `var(--${b.tone})` }, g);
+      const t = mk("text", { x: X0 + 14, y: b.y + 38, "font-size": 24, "font-weight": 800, fill: `var(--${b.tone})` }, g, "0%");
+      return { g, bar, t, b };
+    });
+    R.note = mk("text", { x: 0, y: 456, "font-size": 20, "font-weight": 700, fill: "var(--state)" }, svg, "every turn re-reads the whole prefix");
+  }
+  function clear() { tw.forEach((t) => t.kill()); tw = []; }
+  function setCache(v) {
+    R.cache.setAttribute("width", (750 * v / 100).toFixed(1));
+    R.cacheT.textContent = v.toFixed(1) + "%";
+  }
+  function setBar(o, v) {
+    const w = W * v / 100;
+    o.bar.setAttribute("width", w.toFixed(1));
+    o.t.textContent = Math.round(v) + "%";
+    const inside = w > 110;
+    o.t.setAttribute("x", inside ? X0 + 14 : X0 + w + 14);
+    o.t.setAttribute("fill", inside ? "#fff" : `var(--${o.b.tone})`);
+  }
+  function render(slide, n, animate) {
+    const svg = slide.querySelector("#tc-svg");
+    if (!R || !svg.childElementCount) build(svg);
+    clear();
+    if (animate && n === 1) { const o = { v: 0 }; tw.push(gsap.to(o, { v: 98.6, duration: 1.2, ease: "power2.out", onUpdate: () => setCache(o.v) })); }
+    else setCache(n >= 1 ? 98.6 : 0);
+    gsap.set(R.cacheT, { opacity: n >= 1 ? 1 : 0 });
+    R.bars.forEach((o, i) => {
+      gsap.set(o.g, { opacity: n >= 2 ? 1 : 0.2 });
+      if (animate && n === 2) { const s = { v: 0 }; tw.push(gsap.to(s, { v: o.b.v, duration: 1.1, delay: 0.2 + i * 0.4, ease: "power2.out", onUpdate: () => setBar(o, s.v) })); }
+      else setBar(o, n >= 2 ? o.b.v : 0);
+    });
+    gsap.set(R.note, { opacity: n >= 3 ? 1 : 0 });
+    if (animate && n === 3) tw.push(gsap.fromTo(R.note, { opacity: 0, x: -12 }, { opacity: 1, x: 0, duration: 0.4 }));
+  }
+  Deck.register(ID, {
+    enter(slide, step) { R = null; render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { clear(); },
+  });
+})();
+</script>

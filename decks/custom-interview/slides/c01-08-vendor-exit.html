@@ -1,0 +1,132 @@
+<section class="slide" id="custom-interview-c01-vendor-exit" data-tone="agent" data-title="Interview: vendor retires the tuned model">
+  <style>
+    #custom-interview-c01-vendor-exit .qa .a { font-size: 19px; line-height: 1.42; }
+    #custom-interview-c01-vendor-exit svg.viz { display: block; width: 620px; height: 270px; }
+    #custom-interview-c01-vendor-exit pre.code, #custom-interview-c01-vendor-exit pre.code * { font-variant-ligatures: none; }
+    #custom-interview-c01-vendor-exit pre.code.sm { font-size: 16.5px; line-height: 1.45; }
+    #custom-interview-c01-vendor-exit pre.code.xs { font-size: 16px; }
+    #custom-interview-c01-vendor-exit .tags .tag { font-size: 15px; }
+  </style>
+  <div class="kicker">Interview · Training method · 2 of 2</div>
+  <h2 class="title">When the vendor retires your tuned model, the recipe survives</h2>
+  <div class="grid fill" style="grid-template-columns: 620px 1fr; gap: 36px">
+    <div class="stack" style="gap:18px">
+      <div class="qa">
+        <div class="q">Your vendor retires your tuned model. What survives?</div>
+        <div class="a" data-step="1">The data with its contract, the graders, the frozen eval and the pinned recipe. Re-tune on another backend. Prove parity on the same eval.</div>
+      </div>
+      <div class="tags" data-step="1" data-fx="stagger"><span class="tag t-risk">ft-o4-mini shut down 2026-10-23</span><span class="tag t-risk">OpenAI self-serve FT: no new jobs after 2027-01-06</span></div>
+      <svg class="viz" id="cive-svg" viewBox="0 0 620 270" aria-label="A retired checkpoint; the portable data, graders, eval and recipe feed a re-tune"></svg>
+    </div>
+
+    <div class="stack" style="gap:12px">
+      <div class="code-wrap" data-step="2">
+        <div class="code-head">grade.py · refund grader · plain Python, no vendor SDK</div>
+        <pre class="code sm" data-lang="python" data-focus="2:4-9, 3:10-11, 4:12"><code>import json, re
+
+def grade(sample: dict, item: dict) -&gt; float:
+    m = re.search(r"\{.*\}", sample["output_text"], re.S)
+    try:
+        out = json.loads(m.group(0))
+        amount = float(out["refund_amount"])
+    except (AttributeError, KeyError, TypeError, ValueError):
+        return 0.0                         # no usable JSON
+    if out.get("decision") != item["gold_decision"]:
+        return 0.0                         # wrong decision
+    return 1.0 if abs(amount - item["gold_amount"]) &lt;= 0.01 else 0.5
+
+sample = {"output_text": '{"decision": "approve", "refund_amount": 80}'}
+item = {"gold_decision": "approve", "gold_amount": 89.0}   # one JSONL line
+print(grade(sample, item))</code></pre>
+      </div>
+      <div class="code-wrap out" data-step="4">
+        <div class="code-head">output</div>
+        <pre class="code xs" data-lang="bash"><code><span class="ok">0.5</span>   <span class="dim"># right decision, wrong amount</span></code></pre>
+      </div>
+      <div class="tags" data-step="4" data-fx="stagger"><span class="tag t-state">right → 1.0</span><span class="tag t-tool">wrong amount → 0.5</span><span class="tag t-risk">wrong decision or no JSON → 0.0</span></div>
+      <div class="cites push" data-step="1">
+        <a class="cite doc" href="https://developers.openai.com/api/docs/deprecations" target="_blank" rel="noopener"><b>Docs</b>&nbsp;OpenAI deprecations</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    Ask the question and wait. This is the 2026 platform question. Click 1: the checkpoint is the part that dies. OpenAI shut down ft-o4-mini on 2026-10-23, and self-serve fine-tuning takes no new jobs after 2027-01-06. What the team keeps is portable: the JSONL data with its contract, the graders as plain Python, the frozen eval on the same items, and the pinned recipe with versions and seed. With those, you re-tune on any backend and prove parity on the same eval. Click 2: the grader has no vendor SDK. It finds the JSON in the output; no usable JSON scores 0. Click 3: a wrong decision scores 0. Click 4: a right decision with a wrong amount scores 0.5, a fully right answer scores 1.0. The example item is one line of the same JSONL file the eval tasks use. Analogy: the checkpoint is a printed photo; the data and the recipe are the negative. Likely follow-up: "How do you prove parity after you move?" Re-run the same frozen eval and compare with paired confidence intervals on the same items. Next: the whiteboard puts both levers into one claims assistant.
+  </aside>
+</section>
+<script>
+(() => {
+  const ID = "custom-interview-c01-vendor-exit";
+  const NS = "http://www.w3.org/2000/svg";
+  let loops = [], S = null;
+  const mk = (p, tag, a = {}, st = {}) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); Object.assign(e.style, st); p.appendChild(e); return e; };
+  const txt = (p, x, y, s, st = {}) => { const t = mk(p, "text", { x, y, "text-anchor": "middle" }, Object.assign({ font: "600 18px var(--f-display)", fill: "var(--ink)" }, st)); t.textContent = s; return t; };
+  const box = (p, x, y, w, h, tone, label, sub) => {
+    const g = mk(p, "g");
+    g._r = mk(g, "rect", { x, y, width: w, height: h, rx: 12 }, { fill: `color-mix(in oklab, var(--${tone}) 10%, var(--bg))`, stroke: `var(--${tone})`, strokeWidth: 2 });
+    txt(g, x + w / 2, y + h / 2 - 2, label);
+    if (sub) txt(g, x + w / 2, y + h / 2 + 20, sub, { font: "500 14px var(--f-mono)", fill: "var(--muted)" });
+    return g;
+  };
+
+  function build(svg) {
+    svg.innerHTML = "";
+    const defs = mk(svg, "defs");
+    ["muted", "agent"].forEach((t) => {
+      const m = mk(defs, "marker", { id: `${ID}-arr-${t}`, viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto-start-reverse" });
+      mk(m, "path", { d: "M0 0 L10 5 L0 10 z" }, { fill: `var(--${t})` });
+    });
+    const s = {};
+    /* the tuned checkpoint: alive at step 0, greyed with a RETIRED badge at step 1 */
+    s.ck = box(svg, 0, 100, 150, 76, "model", "ft-o4-mini", "tuned model");
+    s.badge = mk(svg, "g");
+    mk(s.badge, "rect", { x: 0, y: 56, width: 176, height: 30, rx: 15 }, { fill: "var(--risk)" });
+    txt(s.badge, 88, 76, "RETIRED 2026-10-23", { font: "700 14px var(--f-mono)", fill: "#fff" });
+    /* dashed hand-over: what you take with you */
+    s.hand = mk(svg, "path", { d: "M150 138 L188 138", fill: "none" }, { stroke: "var(--muted)", strokeWidth: 2.4, strokeDasharray: "6 5", markerEnd: `url(#${ID}-arr-muted)` });
+    s.port = mk(svg, "g");
+    mk(s.port, "rect", { x: 192, y: 4, width: 270, height: 262, rx: 16 }, { fill: "none", stroke: "var(--state)", strokeWidth: 2, strokeDasharray: "6 6" });
+    txt(s.port, 327, 28, "portable: keep these", { font: "600 15px var(--f-mono)", fill: "var(--state)" });
+    s.assets = ["data", "graders", "frozen eval", "recipe"].map((l, i) =>
+      box(s.port, 204 + (i % 2) * 128, 44 + Math.floor(i / 2) * 110, 118, 92, "state", l, ["JSONL", ".py", "same items", "pins + seed"][i]));
+    s.ow = mk(svg, "path", { d: "M462 138 L508 138", fill: "none" }, { stroke: "var(--agent)", strokeWidth: 2.6, strokeDasharray: "7 6", markerEnd: `url(#${ID}-arr-agent)` });
+    s.out = box(svg, 510, 100, 110, 76, "agent", "Re-tune", "any backend");
+    s.par = mk(svg, "g");
+    txt(s.par, 565, 204, "prove parity", { font: "600 15px var(--f-mono)", fill: "var(--agent)" });
+    txt(s.par, 565, 224, "on same eval", { font: "600 15px var(--f-mono)", fill: "var(--agent)" });
+    return s;
+  }
+
+  const kill = () => { loops.forEach((t) => t.kill()); loops = []; if (S) gsap.killTweensOf([S.ck, S.badge, S.hand, S.port, S.ow, S.out, S.par, ...S.assets]); };
+
+  function render(n, animate) {
+    if (!S) return;
+    kill();
+    const later = [S.badge, S.hand, S.port, S.ow, S.out, S.par];
+    if (n < 1) {
+      gsap.set(S.ck, { opacity: 1, filter: "none" });
+      gsap.set(later, { opacity: 0 });
+      return;
+    }
+    if (animate) {
+      gsap.to(S.ck, { opacity: 0.5, filter: "grayscale(1)", duration: 0.7, delay: 0.2 });
+      gsap.fromTo(S.badge, { opacity: 0, scale: 0.6, transformOrigin: "88px 71px" }, { opacity: 1, scale: 1, duration: 0.45, ease: "back.out(2)", delay: 0.4 });
+      gsap.fromTo(S.hand, { opacity: 0 }, { opacity: 1, duration: 0.4, delay: 0.8 });
+      gsap.fromTo(S.port, { opacity: 0 }, { opacity: 1, duration: 0.4, delay: 1.0 });
+      gsap.fromTo(S.assets, { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.4, stagger: 0.15, delay: 1.1 });
+      gsap.fromTo([S.ow, S.out, S.par], { opacity: 0 }, { opacity: 1, duration: 0.5, delay: 1.8 });
+    } else {
+      gsap.set(S.ck, { opacity: 0.5, filter: "grayscale(1)" });
+      gsap.set(later, { opacity: 1 });
+      gsap.set(S.assets, { opacity: 1, y: 0 });
+    }
+    loops.push(gsap.to(S.ow, { strokeDashoffset: -26, duration: 0.8, repeat: -1, ease: "none" }));
+    loops.push(gsap.to(S.hand, { strokeDashoffset: -22, duration: 0.9, repeat: -1, ease: "none" }));
+  }
+
+  Deck.register(ID, {
+    enter(slide, n) { S = build(slide.querySelector("#cive-svg")); render(n || 0, false); },
+    step(slide, n, animate) { render(n, animate); },
+    leave() { kill(); }
+  });
+})();
+</script>

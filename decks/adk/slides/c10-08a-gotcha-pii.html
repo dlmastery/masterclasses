@@ -1,0 +1,45 @@
+<section class="slide tight" id="adk-c10-gotcha-pii" data-tone="risk" data-title="Gotcha: PII in spans">
+  <style>
+    #adk-c10-gotcha-pii .gp { display: grid; grid-template-columns: 640px minmax(0, 1fr); gap: 36px; align-items: start; }
+    #adk-c10-gotcha-pii .col { display: flex; flex-direction: column; gap: 26px; min-width: 0; }
+    #adk-c10-gotcha-pii .gotcha { font-size: 20px; grid-template-columns: 110px 1fr; padding: 20px 22px; }
+    #adk-c10-gotcha-pii .gotcha code { font-size: 16px; overflow-wrap: anywhere; white-space: normal; }
+    #adk-c10-gotcha-pii pre.code { font-size: 18px; line-height: 1.6; padding: 14px 18px 16px; }
+    #adk-c10-gotcha-pii table.t { font-size: 19px; width: 100%; }
+    #adk-c10-gotcha-pii table.t th, #adk-c10-gotcha-pii table.t td { padding: 12px 14px; }
+    #adk-c10-gotcha-pii table.t td:first-child { font: 500 17px/1.4 var(--f-mono); }
+    #adk-c10-gotcha-pii .on { color: var(--risk); font-weight: 700; }
+    #adk-c10-gotcha-pii .off { color: var(--state); font-weight: 700; }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> Telemetry · 1 of 3 · telemetry/context.py L137-142</div>
+  <h2 class="title">Spans copy message content unless you turn capture off</h2>
+  <div class="gp fill">
+    <div class="col">
+      <div class="gotcha">
+        <b>Symptom</b><span>Employee names and HR ticket text show in Cloud Trace.</span>
+        <b class="why">Cause</b><span><code>ADK_CAPTURE_MESSAGE_CONTENT_IN_SPANS</code> defaults to on.</span>
+        <b class="fix">Fix</b><span>Set it to <code>false</code> on every target that does not do it for you.</span>
+      </div>
+      <table class="t" data-step="1">
+        <thead><tr><th>Deploy</th><th>Content in spans</th></tr></thead>
+        <tbody>
+          <tr><td>agent_engine --otel_to_cloud</td><td class="off">off, set for you</td></tr>
+          <tr><td>cloud_run</td><td class="on">on: set false</td></tr>
+          <tr><td>gke</td><td class="on">on: set false</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="code-wrap good" data-step="2">
+      <div class="code-head">the fix · google-adk 2.13.0</div>
+      <pre class="code" data-lang="bash" data-focus="2:1-5, 3:6-8"><code># Cloud Run: capture is on unless you say no
+adk deploy cloud_run --project=$PROJECT --region=$REGION \
+  --service_name=acme-hr hr_agent \
+  -- --no-allow-unauthenticated \
+  --set-env-vars=ADK_CAPTURE_MESSAGE_CONTENT_IN_SPANS=false
+# Agent Runtime: --otel_to_cloud turns it off
+adk deploy agent_engine --project=$PROJECT --region=$REGION \
+  --agent_engine_id=$AGENT_ENGINE_ID --otel_to_cloud hr_agent</code></pre>
+    </div>
+  </div>
+  <aside class="notes">Tracing is on in the Acme HR assistant, and three telemetry defaults now work against us; this is the first. ADK copies the message content into spans unless ADK_CAPTURE_MESSAGE_CONTENT_IN_SPANS is false; the default lives in telemetry/context.py. Press once: only adk deploy agent_engine with --otel_to_cloud sets it to false for you; on Cloud Run and on GKE it stays on. Press again: on Cloud Run, pass the env var to gcloud after the double dash with --set-env-vars. Press again: on Agent Runtime, --otel_to_cloud already does it. On GKE, set the same env var in the deployment. Lab 10 step 2 set it in code with os.environ.setdefault, which also works for a script you run yourself. Analogy: a security camera that records audio by default; switch the microphone off before you mount it. Likely question: "Can I keep content for debugging?" Keep it in an access-controlled store keyed by the trace id, not in spans that the whole ops team can read.</aside>
+</section>

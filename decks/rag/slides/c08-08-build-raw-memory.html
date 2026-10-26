@@ -1,0 +1,264 @@
+<section class="slide tight" id="rag-c08-build-raw-memory" data-tone="state" data-title="Build: raw-history memory">
+  <style>
+    #rag-c08-build-raw-memory .rm-main { display: grid; grid-template-columns: 740px 1fr; gap: 26px; align-items: start; }
+    #rag-c08-build-raw-memory .rm-col { gap: 12px; min-width: 0; }
+    #rag-c08-build-raw-memory .rm-swap { display: grid; }
+    #rag-c08-build-raw-memory .rm-swap > .code-wrap { grid-area: 1 / 1; }
+    #rag-c08-build-raw-memory pre.code.xs { font-size: 14.5px; }
+    #rag-c08-build-raw-memory .rm-out pre.code { font-size: 13.5px; padding: 12px 20px 14px; }
+    #rag-c08-build-raw-memory .rm-out .code-head { gap: 8px; }
+    #rag-c08-build-raw-memory .rm-out .delta { font-size: 13px; padding: 3px 7px; }
+    #rag-c08-build-raw-memory .rm-out .delta:first-of-type { margin-left: auto; }
+    #rag-c08-build-raw-memory .steps-rail { gap: 7px; }
+    #rag-c08-build-raw-memory .steps-rail > * { font-size: 15px; line-height: 1.35; grid-template-columns: 30px 1fr; gap: 10px; }
+    #rag-c08-build-raw-memory .steps-rail > *::before { width: 26px; height: 26px; font-size: 13px; }
+    #rag-c08-build-raw-memory .steps-rail code { font-size: .88em; }
+    #rag-c08-build-raw-memory .paper { padding: 10px 14px; gap: 5px; }
+    #rag-c08-build-raw-memory .paper h4 { font-size: 15.5px; line-height: 1.28; margin: 0; }
+    #rag-c08-build-raw-memory .paper .find { font-size: 14.5px; line-height: 1.38; }
+    #rag-c08-build-raw-memory .paper .so { font-size: 14px; line-height: 1.35; }
+    #rag-c08-build-raw-memory .rm-cites { display: flex; flex-wrap: nowrap; gap: 6px; }
+    #rag-c08-build-raw-memory .rm-cites .cite { font-size: 12.5px; padding: 5px 9px 5px 7px; gap: 5px; white-space: nowrap; flex-direction: row; }
+    #rag-c08-build-raw-memory .rm-svg { display: block; overflow: visible; }
+    #rag-c08-build-raw-memory .rm-svg text { font-family: var(--f-mono); }
+    #rag-c08-build-raw-memory .rm-svg .pn { fill: var(--surface); stroke: var(--line-2); stroke-width: 1; }
+    #rag-c08-build-raw-memory .rm-svg .hd { font-size: 11.5px; font-weight: 700; fill: var(--muted); letter-spacing: .05em; }
+    #rag-c08-build-raw-memory .rm-svg .sm { font-size: 12px; fill: var(--ink-2); }
+    #rag-c08-build-raw-memory .rm-svg .xs { font-size: 10.5px; fill: var(--muted); }
+    #rag-c08-build-raw-memory .rm-svg .card { fill: var(--surface-2); stroke: var(--human); stroke-width: 1.6; }
+    #rag-c08-build-raw-memory .rm-svg .card.bad { stroke: var(--risk); fill: var(--risk-soft); }
+    #rag-c08-build-raw-memory .rm-svg .card.good { stroke: var(--state); fill: var(--state-soft); }
+    #rag-c08-build-raw-memory .rm-svg .ct { font-size: 11px; fill: var(--ink-2); }
+    #rag-c08-build-raw-memory .rm-svg .ln { stroke: var(--faint); stroke-width: 2; fill: none; }
+    #rag-c08-build-raw-memory .rm-svg .lt { font-size: 10.5px; font-weight: 700; }
+    #rag-c08-build-raw-memory .rm-svg .r { fill: var(--risk); } #rag-c08-build-raw-memory .rm-svg .g { fill: var(--state); }
+    #rag-c08-build-raw-memory .rm-svg .trk { fill: var(--surface-2); stroke: var(--line-2); }
+    #rag-c08-build-raw-memory .rm-svg .bg { fill: var(--state); } #rag-c08-build-raw-memory .rm-svg .br { fill: var(--risk); }
+    #rag-c08-build-raw-memory .rm-svg .bn { font-size: 12px; font-weight: 700; }
+    #rag-c08-build-raw-memory .rm-svg .clock { font-size: 18px; font-weight: 700; fill: var(--ink-2); }
+    #rag-c08-build-raw-memory .rm-svg .row { fill: var(--surface-2); stroke: var(--line-2); }
+    #rag-c08-build-raw-memory .rm-svg .row.top { stroke: var(--state); stroke-width: 2; }
+    #rag-c08-build-raw-memory .rm-svg .stamp { fill: none; stroke: var(--risk); stroke-width: 2.5; }
+    #rag-c08-build-raw-memory .rm-svg .stT { font-size: 15px; font-weight: 800; fill: var(--risk); }
+    #rag-c08-build-raw-memory .rm-svg .ab { font-size: 12px; fill: var(--ink-2); }
+  </style>
+  <div class="kicker">Build</div>
+  <h2 class="title">Build: raw history plus a reranker beats fact-extraction memory</h2>
+  <div class="rm-main fill">
+    <div class="stack rm-col">
+      <div class="rm-swap">
+        <div class="code-wrap bad" data-until="2">
+          <div class="code-head">harbor_kg/case_memory.py · before · Mem0 open-source quickstart</div>
+          <pre class="code xs" data-lang="python"><code># BEFORE: Mem0 quickstart -- an LLM extracts and rewrites "facts"
+from mem0 import Memory
+
+m = Memory()                 # defaults: OpenAI LLM + embedder, local Qdrant
+turn = "Approve 2026-041 at USD 18,400; flag 2026-057 for SIU."
+# the LLM picks ADD / UPDATE / DELETE / NOOP for each extracted fact
+m.add([{"role": "user", "content": turn}], user_id="maria")
+print(m.search("What did we decide on the Elm St roof claim?",
+               filters={"user_id": "maria"}))</code></pre>
+        </div>
+        <div class="code-wrap good" data-step="2">
+          <div class="code-head">harbor_kg/case_memory.py · sentence-transformers 6.2.0</div>
+          <pre class="code xs" data-lang="python" data-focus="2:6-9, 3:11-14, 4:15-16"><code># AFTER: raw turns + dense retrieval + cross-encoder rerank
+from sentence_transformers import CrossEncoder, SentenceTransformer
+
+emb = SentenceTransformer("Qwen/Qwen3-Embedding-0.6B")
+rr = CrossEncoder("cross-encoder/ms-marco-MiniLM-L6-v2")
+turns: list[str] = []                 # "speaker: text [date]", never rewritten
+
+def remember(turn: str) -&gt; None:
+    turns.append(turn)
+
+def recall(q: str, k_dense: int = 50, k_final: int = 10) -&gt; list[str]:
+    E = emb.encode_document(turns, normalize_embeddings=True)
+    qv = emb.encode_query(q, normalize_embeddings=True)
+    top = emb.similarity(qv, E)[0].argsort(descending=True)[:k_dense].tolist()
+    cand = [turns[i] for i in top]
+    return [cand[h["corpus_id"]] for h in rr.rank(q, cand, top_k=k_final)]</code></pre>
+        </div>
+      </div>
+      <div class="code-wrap out rm-out" data-step="4">
+        <div class="code-head">output · illustrative<span class="delta up">LoCoMo 93.70 vs Mem0 62.92</span><span class="delta up">6 of 7 settings</span></div>
+        <pre class="code" data-lang="out"><code>&gt;&gt;&gt; remember("maria: 2026-057 (car, 14 Elm St): possible fraud. [2026-05-04]")
+&gt;&gt;&gt; remember("maria: Approve 2026-041 at USD 18,400; "
+...          "flag 2026-057 for SIU. [2026-05-06]")
+&gt;&gt;&gt; recall("What did we decide on the Elm St roof claim?")[0]
+<span class="ok">'maria: Approve 2026-041 at USD 18,400; flag 2026-057 for SIU. [2026-05-06]'</span></code></pre>
+      </div>
+    </div>
+    <div class="stack rm-col">
+      <div class="steps-rail">
+        <div data-step="2"><span>Keep each turn verbatim, with speaker and date. No LLM call at write time.</span></div>
+        <div data-step="3"><span><code>encode_document</code> / <code>encode_query</code> apply the Qwen3 prompts. Keep the top 50 by cosine.</span></div>
+        <div data-step="4"><span><code>rank()</code> returns positions: map <code>corpus_id</code> back to <code>cand</code>. Keep 10.</span></div>
+      </div>
+      <svg class="rm-svg" id="rm-svg" viewBox="0 0 626 312" width="626" height="312" aria-label="Top: one raw adjuster turn. A fact-extraction lane rewrites it into short cards that lose the claim ids, amount and date; the raw lane stores it unchanged. Middle: ingest plus search time on 10 MEME episodes, Raw-RAG finishes at 305.91 seconds while Mem0 runs to 4,142.95 seconds. Bottom: LoCoMo accuracy rows re-sort so Raw-RAG 93.70 is on top of MemMachine 91.69 and Mem0 62.92; ablation badges show atomic facts minus 19.62 and no reranker minus 3.92.">
+        <g id="rm-a"></g>
+        <g id="rm-b"></g>
+        <g id="rm-c"></g>
+      </svg>
+      <div class="paper" data-step="5">
+        <div class="pid"><a href="https://arxiv.org/abs/2610.30485" target="_blank" rel="noopener" style="color:inherit">arXiv 2610.30485</a> <span>2026-10-21 · counterpoint</span></div>
+        <h4>Why Bother Me Again? Benchmarking Personal Agent Memory for Interaction Preferences</h4>
+        <div class="find">Retrieval memory (Mem0, MemOS, simple RAG) did <b>not</b> beat no memory on interaction preferences. ReFind (2608.12888): BM25 over raw turns, <b>58.2</b> vs HippoRAG 2 <b>53.2</b>.</div>
+        <div class="so">Keep case history as raw turns. Keep preferences as scoped rules in a profile file.</div>
+      </div>
+      <div class="rm-cites" data-step="5">
+        <a class="cite paper" href="https://arxiv.org/abs/2610.30755" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.30755</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2608.12888" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2608.12888</a>
+        <a class="cite doc" href="https://docs.mem0.ai/open-source/python-quickstart" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Mem0 quickstart</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    This build gives the Harbor Mutual adjuster assistant a long-term memory of past case discussions, and it starts from the Mem0 quickstart, where an LLM extracts facts from each turn and decides ADD, UPDATE, DELETE or NOOP. The after version is about 15 lines: keep every turn word for word with speaker and date, retrieve with the Qwen3 embedder, and rerank with a cross-encoder, the same calls as Labs 3 and 4. The October paper "Naive RAG Is Stronger Than We Thought" found that this Raw-RAG baseline was first in 6 of 7 benchmark settings, scored 93.70 on LoCoMo against 62.92 for Mem0, ingested and searched 10 MEME episodes in 305.91 seconds against 4,142.95, and lost 19.62 points when it switched to atomic facts. Analogy: a court keeps the full transcript, not a clerk's summary, because you cannot know today which detail matters next year. The counterpoint is MemPABench: for how a user wants to be helped, retrieval memory did not beat no memory, so put preferences in an explicit profile file. Likely question: "What about conflicting or outdated turns?" The paper notes that strong readers resolve state changes from dated raw turns; a weak reader may still need explicit updates, and the next slide shows Uber's time-decay weight.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "rag-c08-build-raw-memory";
+  const RAW = ["maria: Approve 2026-041 at", "USD 18,400; flag 2026-057", "for SIU. [2026-05-06]"];
+  const LOSSY = ["“Approved a claim”", "“Flag a claim for SIU”"];
+  const RACE = [["Raw-RAG", 305.91, "bg"], ["Mem0", 4142.95, "br"]];
+  const BX = 96, BW = 420, RMAX = 4142.95, RDUR = 3.2;
+  const ROWS = [["Raw-RAG", 93.70], ["MemMachine", 91.69], ["Mem0", 62.92]];   // final order
+  const START = [1, 2, 0];                                                    // row slot before the flip
+  const RY = 238, RH = 22;
+  let B = null, prev = -1, tweens = [];
+  const el = (tag, attrs, parent, txt) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (txt !== undefined) e.textContent = txt; if (parent) parent.appendChild(e); return e; };
+  const fmt = (v) => v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  function build(slide) {
+    const q = (s) => slide.querySelector(s);
+    const A = q("#rm-a"), Bg = q("#rm-b"), C = q("#rm-c");
+    A.innerHTML = Bg.innerHTML = C.innerHTML = "";
+    const b = {};
+    // ---- A: what gets stored
+    el("rect", { x: 0, y: 0, width: 626, height: 118, rx: 12, class: "pn" }, A);
+    el("text", { x: 12, y: 18, class: "hd" }, A, "WHAT GETS STORED");
+    el("rect", { x: 12, y: 30, width: 214, height: 72, rx: 8, class: "card" }, A);
+    RAW.forEach((t, i) => el("text", { x: 22, y: 50 + i * 18, class: "ct" }, A, t));
+    el("path", { d: "M226 52 C 260 52, 270 44, 300 44", class: "ln" }, A);
+    el("path", { d: "M226 84 C 260 84, 270 92, 300 92", class: "ln" }, A);
+    b.lossy = el("g", {}, A);
+    el("rect", { x: 300, y: 26, width: 314, height: 38, rx: 8, class: "card bad" }, b.lossy);
+    b.lossyT = el("text", { x: 310, y: 42, class: "ct" }, b.lossy, LOSSY.join(" · "));
+    el("text", { x: 310, y: 57, class: "lt r" }, b.lossy, "fact extraction · ids, amount, date lost");
+    b.raw = el("g", {}, A);
+    el("rect", { x: 300, y: 72, width: 314, height: 38, rx: 8, class: "card good" }, b.raw);
+    el("text", { x: 310, y: 88, class: "ct" }, b.raw, "maria: Approve 2026-041 at USD 18,400; …");
+    el("text", { x: 310, y: 103, class: "lt g" }, b.raw, "raw turn · verbatim + date");
+    el("text", { x: 614, y: 18, class: "xs", "text-anchor": "end" }, A, "illustrative");
+    // ---- B: race
+    el("rect", { x: 0, y: 128, width: 626, height: 88, rx: 12, class: "pn" }, Bg);
+    el("text", { x: 12, y: 146, class: "hd" }, Bg, "INGEST + SEARCH · 10 MEME EPISODES");
+    b.clock = el("text", { x: 614, y: 148, class: "clock", "text-anchor": "end" }, Bg, "0 s");
+    b.race = RACE.map(([name, v, cls], i) => {
+      const y = 160 + i * 26;
+      el("text", { x: 12, y: y + 13, class: "sm" }, Bg, name);
+      el("rect", { x: BX, y, width: BW, height: 17, rx: 4, class: "trk" }, Bg);
+      const r = el("rect", { x: BX, y, width: 0, height: 17, rx: 4, class: cls }, Bg);
+      const t = el("text", { x: BX + BW + 8, y: y + 13, class: "bn " + (cls === "bg" ? "g" : "r") }, Bg, "");
+      return { r, t, v, w: (v / RMAX) * BW, cls };
+    });
+    // ---- C: accuracy table + ablations
+    el("rect", { x: 0, y: 226, width: 626, height: 86, rx: 12, class: "pn" }, C);
+    el("text", { x: 12, y: 244, class: "hd" }, C, "LOCOMO · GPT-4.1-MINI");
+    b.rows = ROWS.map(([name, v], i) => {
+      const g = el("g", {}, C);
+      const rr = el("rect", { x: 190, y: 0, width: 190, height: RH - 4, rx: 5, class: "row" + (i === 0 ? " top" : "") }, g);
+      el("text", { x: 198, y: 13, class: "sm" }, g, name);
+      el("text", { x: 372, y: 13, class: "bn " + (i === 0 ? "g" : ""), "text-anchor": "end" }, g, v.toFixed(2));
+      return { g, rr, i };
+    });
+    el("text", { x: 12, y: 266, class: "xs" }, C, "ablations on");
+    el("text", { x: 12, y: 280, class: "xs" }, C, "MemoryAgentBench");
+    b.abl = [
+      [400, 254, "−3.92", "no reranker"],
+      [400, 278, "±1.3", "final k 5-60"]
+    ].map(([x, y, n, l]) => {
+      const g = el("g", {}, C);
+      el("text", { x, y, class: "bn r" }, g, n);
+      el("text", { x: x + 50, y, class: "ab" }, g, l);
+      return g;
+    });
+    b.stamp = el("g", {}, C);
+    el("rect", { x: 400, y: 286, width: 214, height: 22, rx: 5, class: "stamp" }, b.stamp);
+    el("text", { x: 410, y: 302, class: "stT" }, b.stamp, "−19.62 atomic facts");
+    return b;
+  }
+  const kill = () => { tweens.forEach((t) => t.kill()); tweens = []; };
+  const slotY = (s) => RY + 2 + s * RH - 2;
+
+  function finA1(on) { gsap.set(B.lossy, { opacity: on ? 1 : 0, x: 0, scale: 1 }); B.lossyT.textContent = LOSSY.join(" · "); }
+  function finA2(on) { gsap.set(B.raw, { opacity: on ? 1 : 0, x: 0 }); }
+  function finB(on) {
+    B.clock.textContent = on ? fmt(RMAX) + " s" : "0 s";
+    B.race.forEach((r) => { gsap.set(r.r, { attr: { width: on ? Math.max(r.w, 3) : 0 } }); r.t.textContent = on ? "✓ " + fmt(r.v) + " s" : ""; });
+  }
+  function finC(on) {
+    B.rows.forEach((r) => gsap.set(r.g, { y: slotY(on ? r.i : START[r.i]) }));
+    gsap.set(B.rows[0].rr, { attr: { class: on ? "row top" : "row" } });
+    gsap.set(B.abl, { opacity: on ? 1 : 0, x: 0 });
+    gsap.set(B.stamp, { opacity: on ? 1 : 0, scale: 1, rotation: 0, svgOrigin: "507 297" });
+  }
+  function animA1() {
+    finA1(true);
+    const tl = gsap.timeline();
+    tl.fromTo(B.lossy, { opacity: 0, x: -110 }, { opacity: 1, x: 0, duration: 0.7, ease: "power3.out" });
+    const txt = LOSSY.join(" · ");
+    const o = { v: 0 };
+    B.lossyT.textContent = "";
+    tl.to(o, { v: txt.length, duration: 0.8, ease: "none", onUpdate: () => { B.lossyT.textContent = txt.slice(0, Math.round(o.v)); } });
+    return tl;
+  }
+  function animA2() {
+    finA2(true);
+    return gsap.fromTo(B.raw, { opacity: 0, x: -110 }, { opacity: 1, x: 0, duration: 0.7, ease: "power3.out" });
+  }
+  function animB() {
+    finB(false);
+    const tl = gsap.timeline();
+    const o = { t: 0 };
+    tl.to(o, { t: RMAX, duration: RDUR, ease: "none", onUpdate: () => {
+      B.clock.textContent = Math.round(o.t).toLocaleString("en-US") + " s";
+      B.race.forEach((r) => {
+        const done = o.t >= r.v;
+        r.r.setAttribute("width", Math.max(Math.min(o.t, r.v) / RMAX * BW, 3));
+        r.t.textContent = done ? "✓ " + fmt(r.v) + " s" : "running…";
+      });
+    }, onComplete: () => { B.clock.textContent = fmt(RMAX) + " s"; } });
+    return tl;
+  }
+  function animC() {
+    finC(false);
+    const tl = gsap.timeline();
+    B.rows.forEach((r) => tl.to(r.g, { y: slotY(r.i), duration: 0.7, ease: "power3.inOut" }, 0.2));
+    tl.add(() => B.rows[0].rr.setAttribute("class", "row top"));
+    tl.fromTo(B.abl, { opacity: 0, x: 20 }, { opacity: 1, x: 0, duration: 0.35, stagger: 0.15 });
+    tl.fromTo(B.stamp, { opacity: 0, scale: 2.2, rotation: -8, svgOrigin: "507 297" }, { opacity: 1, scale: 1, rotation: 0, svgOrigin: "507 297", duration: 0.45, ease: "back.out(2.4)" });
+    return tl;
+  }
+  function render(slide, n, animate) {
+    if (!B) B = build(slide);
+    kill();
+    const fwd = animate && n === prev + 1;
+    finA1(n >= 1); finA2(n >= 2); finB(n >= 3); finC(n >= 4);
+    if (fwd) {
+      if (n === 1) tweens.push(animA1());
+      if (n === 2) tweens.push(animA2());
+      if (n === 3) tweens.push(animB());
+      if (n === 4) tweens.push(animC());
+    }
+    prev = n;
+  }
+  Deck.register(ID, {
+    enter(slide, step) { B = null; prev = -1; render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { kill(); prev = -1; }
+  });
+})();
+</script>

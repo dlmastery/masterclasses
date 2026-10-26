@@ -1,0 +1,269 @@
+<section class="slide" id="custom-c10-krippendorff-default" data-tone="state" data-title="Gotcha: krippendorff interval default">
+  <style>
+    #custom-c10-krippendorff-default { gap: 20px; }
+    #custom-c10-krippendorff-default .kd-grid { display: grid; grid-template-columns: 640px 1fr; gap: 24px; min-height: 0; }
+    #custom-c10-krippendorff-default .kd-left, #custom-c10-krippendorff-default .kd-right { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+    #custom-c10-krippendorff-default .lab-head { font-size: 14px; gap: 10px; }
+    #custom-c10-krippendorff-default .lab-head .run { font-size: 14px; padding: 6px 11px; }
+    #custom-c10-krippendorff-default .code-head { padding: 7px 14px; font-size: 13px; }
+    #custom-c10-krippendorff-default .kd-code pre.code { font-size: 11.2px; line-height: 1.22; padding: 8px 14px 9px; }
+    #custom-c10-krippendorff-default .out pre.code { font-size: 11.5px; line-height: 1.3; padding: 7px 14px 8px; }
+    #custom-c10-krippendorff-default .steps-rail { gap: 6px; }
+    #custom-c10-krippendorff-default .steps-rail > * { font-size: 14.5px; line-height: 1.32; grid-template-columns: 28px 1fr; gap: 10px; }
+    #custom-c10-krippendorff-default .steps-rail > *::before { width: 24px; height: 24px; font-size: 13px; }
+    #custom-c10-krippendorff-default .steps-rail code, #custom-c10-krippendorff-default .gotcha code { font-size: .84em; }
+    #custom-c10-krippendorff-default .gotcha { grid-template-columns: 76px 1fr; gap: 3px 12px; padding: 9px 14px; font-size: 14px; line-height: 1.34; }
+    #custom-c10-krippendorff-default .gotcha > b { font-size: 12px; line-height: 1.6; }
+    #custom-c10-krippendorff-default .gotcha .em { font: 500 12.5px/1.45 var(--f-mono); color: var(--risk); }
+    #custom-c10-krippendorff-default .kd-svgwrap { padding: 4px 8px; display: flex; justify-content: center; }
+    #custom-c10-krippendorff-default .kd-hook { font-size: 13.5px; line-height: 1.35; color: var(--ink-2); }
+    #custom-c10-krippendorff-default .kd-foot { display: flex; flex-direction: column; gap: 6px; }
+    #custom-c10-krippendorff-default .kd-cites { display: flex; gap: 8px; flex-wrap: wrap; }
+    #custom-c10-krippendorff-default .cite { font-size: 12.5px; padding: 5px 11px 5px 9px; white-space: nowrap; flex-direction: row; gap: 10px; border-radius: 10px; border-color: var(--line); }
+    #custom-c10-krippendorff-default pre.code, #custom-c10-krippendorff-default pre.code *, #custom-c10-krippendorff-default code, #custom-c10-krippendorff-default .code-head, #custom-c10-krippendorff-default svg text { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #c10k-svg text { font-family: var(--f-mono); }
+    #c10k-svg text.sn { font-family: var(--f-body); }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> Agreement statistics · krippendorff 0.9.0 · statsmodels 0.15.0</div>
+  <h2 class="title">krippendorff.alpha defaults to interval: 0.083, not 0.542</h2>
+  <div class="kd-grid fill">
+    <div class="kd-left">
+      <div class="lab-head"><span class="run">python agreement_check.py</span><span class="small">krippendorff==0.9.0 · statsmodels==0.15.0 · scikit-learn==1.9.1</span></div>
+      <div class="code-wrap kd-code">
+        <div class="code-head">hr_eval/agreement_check.py · HR answer codes + relevance grades</div>
+        <pre class="code" data-lang="python" data-focus="1:6-8, 2:9-10, 3:15-17, 4:18-21"><code>import krippendorff
+import numpy as np
+from sklearn.metrics import cohen_kappa_score
+from statsmodels.stats.inter_rater import aggregate_raters, fleiss_kappa
+
+codes = [[0, 2, 1, 2, 0, 1],               # rater 1: 0=answer 1=clarify 2=escalate
+         [2, 2, 1, 0, 0, 1]]               # rater 2   (raters x items)
+bad = krippendorff.alpha(reliability_data=codes)               # default: interval
+good = krippendorff.alpha(reliability_data=codes, level_of_measurement="nominal")
+print(f"interval {bad:.3f}   nominal {good:.3f}")
+
+ana = [3, 2, 0, 1, 3, 2, 0, 3, 1, 2, 3, 0]   # HR relevance grades, ordinal 0-3
+ben = [3, 2, 0, 2, 3, 1, 0, 3, 1, 2, 2, 0]
+chen = [2, 2, 1, 1, 3, 2, 0, 3, 0, 2, 3, 1]
+humans = np.array([ana, ben, chen])          # raters x items  (krippendorff)
+table, _ = aggregate_raters(humans.T)        # items x raters  (statsmodels)
+print(f"fleiss {fleiss_kappa(table, method='fleiss'):.3f}")
+alpha_ord = krippendorff.alpha(reliability_data=humans, level_of_measurement="ordinal")
+print(f"ordinal alpha {alpha_ord:.3f}")
+print(f"cohen {cohen_kappa_score(ana, ben):.3f}  quadratic "
+      f"{cohen_kappa_score(ana, ben, weights='quadratic'):.3f}")</code></pre>
+      </div>
+      <div class="code-wrap out" data-step="1">
+        <div class="code-head">output · captured runs</div>
+        <pre class="code" data-lang="none"><code><span class="err">interval 0.083</span>   <span data-step="2"><span class="ok">nominal 0.542</span></span>
+<span data-step="3">fleiss 0.476</span>
+<span data-step="4"><span class="ok">ordinal alpha 0.852</span></span>
+<span data-step="4">cohen 0.664  <span class="ok">quadratic 0.905</span></span></code></pre>
+      </div>
+      <div class="steps-rail">
+        <div data-step="1"><span>No level given: the codes become numbers on a ruler.</span></div>
+        <div data-step="2"><span>Categories: <code>"nominal"</code>. Likert or 0-3 grades: <code>"ordinal"</code>.</span></div>
+        <div data-step="3"><span>Same matrix, opposite axes in the two libraries.</span></div>
+        <div data-step="4"><span>Ordinal alpha 0.852. Quadratic weights: off by one grade is near-agreement.</span></div>
+      </div>
+    </div>
+    <div class="kd-right">
+      <div class="panel tight kd-svgwrap">
+        <svg id="c10k-svg" viewBox="0 0 712 250" width="600" height="211" role="img" aria-label="A 2 raters by 6 items matrix of HR answer codes draws: 0 answer, 1 clarify, 2 escalate. Step 1: an interval ruler puts answer at 0, clarify at 1 and escalate at 2, and the alpha gauge reads 0.083. Step 2: the ruler is replaced by three unordered category chips and the gauge moves to 0.542. Step 3: the matrix shrinks to the left, labelled krippendorff.alpha raters by items, and a transposed copy flies to the right, labelled aggregate_raters items by rows of raters, with an arrow labelled humans.T and the warning that a wrong orientation raises no error."></svg>
+      </div>
+      <div class="gotcha" data-step="1">
+        <b>Symptom</b><span class="em">3-category labels: nominal 0.542  vs default 'interval' 0.083</span>
+        <b class="why">Cause</b><span><code>alpha(..., level_of_measurement="interval")</code> is the default. No warning.</span>
+        <b class="fix">Fix</b><span>Pass the level every time: <code>"nominal"</code> for categories, <code>"ordinal"</code> for Likert.</span>
+      </div>
+      <div class="gotcha" data-step="3">
+        <b>Symptom</b><span>A wrong Fleiss kappa. No error.</span>
+        <b class="why">Cause</b><span><code>aggregate_raters</code>: items × raters. <code>krippendorff.alpha</code>: raters × items.</span>
+        <b class="fix">Fix</b><span>Name the axes in a comment. Check every <code>.T</code> in code review.</span>
+      </div>
+      <div class="gotcha" data-step="4">
+        <b>Symptom</b><span>Ana vs Ben kappa 0.664, but they differ by one grade at most.</span>
+        <b class="why">Cause</b><span>Unweighted kappa scores 2-vs-3 the same as 0-vs-3.</span>
+        <b class="fix">Fix</b><span><code>weights="quadratic"</code> gives 0.905. Report the weighting.</span>
+        <b class="why">Also</b><span>String labels return <code>0.0</code> silently: map to ints or pass <code>value_domain</code>.</span>
+      </div>
+      <div class="kd-foot" data-step="4">
+        <div class="kd-hook"><b>arXiv 2610.13303</b> (9 Oct 2026): clearer rubrics raised inter-judge alpha by 0.069 (95% CI 0.046-0.092, 129,770 requests). Agreement with experts did not change.</div>
+        <div class="kd-cites">
+          <a class="cite paper" href="https://arxiv.org/abs/2610.13303" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.13303</a>
+          <a class="cite repo" href="https://github.com/pln-fing-udelar/fast-krippendorff" target="_blank" rel="noopener"><b>Repo</b>&nbsp;fast-krippendorff</a>
+        </div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Lab 9 step 4 passed level_of_measurement="nominal" to krippendorff.alpha; this slide shows why. It is the quietest bug in the chapter: krippendorff.alpha uses the interval level unless you say otherwise, so our answer, clarify and escalate codes become the numbers 0, 1 and 2 on a ruler, and the same two raters score 0.083 instead of 0.542. Step 2 is the fix: pass "nominal" for categories and "ordinal" for Likert or 0-3 grades. Step 3 is the second trap: statsmodels aggregate_raters wants items by raters, krippendorff wants raters by items, and a wrong orientation gives a wrong number with no error. Step 4: on an ordinal scale, unweighted Cohen kappa punishes a one-grade miss like a three-grade miss, so Ana and Ben go from 0.664 to 0.905 with quadratic weights; and the lenient LLM judge drops the panel alpha from 0.852 to 0.755. Analogy: averaging shirt colours as if red, green and blue were 0, 1 and 2. Likely question: should we just make the LLM judges agree with each other more? The Agreement Without Alignment paper shows that clearer rubrics raise inter-judge alpha by 0.069 but not agreement with experts, so keep a human anchor.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c10-krippendorff-default";
+  const CODES = [[0, 2, 1, 2, 0, 1], [2, 2, 1, 0, 0, 1]];
+  const CAT = [
+    { n: "answer", tone: "agent" },
+    { n: "clarify", tone: "tool" },
+    { n: "escalate", tone: "human" },
+  ];
+  const GX = 590, GY = 150, GR = 84;           // gauge centre and radius
+  // cell layouts: big matrix (steps 0-2), small matrix (step 3+), transposed copy (step 3+)
+  const big = (i, j) => ({ x: 96 + j * 52, y: 30 + i * 46, w: 44, h: 36 });
+  const small = (i, j) => ({ x: 40 + j * 36, y: 74 + i * 34, w: 30, h: 26 });
+  const tr = (i, j) => ({ x: 560 + i * 40, y: 34 + j * 34, w: 30, h: 26 });
+  let S = null;
+
+  const mk = (tag, a, p, t) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); if (t !== undefined) e.textContent = t; p.appendChild(e); return e; };
+
+  function cell(parent, v) {
+    const g = mk("g", {}, parent);
+    const r = mk("rect", { x: 0, y: 0, width: 44, height: 36, rx: 7, fill: `var(--${CAT[v].tone}-soft)`, stroke: `var(--${CAT[v].tone})`, "stroke-width": 1.6 }, g);
+    const t = mk("text", { x: 22, y: 23, "text-anchor": "middle", "font-size": 15, "font-weight": 700, fill: `var(--${CAT[v].tone})` }, g, String(v));
+    return { g, r, t };
+  }
+  function place(c, L, opacity, animate, delay, T) {
+    const v = { attr: { transform: `translate(${L.x},${L.y})` }, opacity };
+    const rv = { attr: { width: L.w, height: L.h } };
+    const tv = { attr: { x: L.w / 2, y: L.h / 2 + 5 }, fontSize: L.w > 40 ? 15 : 12.5 };
+    if (animate) {
+      T(gsap.to(c.g, Object.assign({ duration: .7, delay: delay || 0, ease: "power3.inOut" }, v)));
+      T(gsap.to(c.r, Object.assign({ duration: .7, delay: delay || 0, ease: "power3.inOut" }, rv)));
+      T(gsap.to(c.t, Object.assign({ duration: .7, delay: delay || 0, ease: "power3.inOut" }, tv)));
+    } else { gsap.set(c.g, v); gsap.set(c.r, rv); gsap.set(c.t, tv); }
+  }
+  const arcPath = (v) => {
+    const phi = Math.PI - v * Math.PI;
+    return `M${GX - GR} ${GY} A ${GR} ${GR} 0 0 1 ${(GX + GR * Math.cos(phi)).toFixed(2)} ${(GY - GR * Math.sin(phi)).toFixed(2)}`;
+  };
+
+  function build(slide) {
+    const svg = slide.querySelector("#c10k-svg");
+    if (svg._S) return svg._S;
+    svg.innerHTML = "";
+    const s = { prev: 0, tw: [], cells: [], tcells: [], gv: { v: 0 } };
+    // headers for the big matrix
+    s.hBig = mk("g", {}, svg);
+    mk("text", { x: 8, y: 16, "font-size": 12, "font-weight": 700, fill: "var(--ink)" }, s.hBig, "codes · 2 raters × 6 items");
+    mk("text", { x: 8, y: 53, "font-size": 12, fill: "var(--muted)" }, s.hBig, "rater 1");
+    mk("text", { x: 8, y: 99, "font-size": 12, fill: "var(--muted)" }, s.hBig, "rater 2");
+    // interval ruler (step 1)
+    s.ruler = mk("g", { opacity: 0 }, svg);
+    mk("line", { x1: 104, y1: 170, x2: 384, y2: 170, stroke: "var(--ink-2)", "stroke-width": 2 }, s.ruler);
+    [114, 244, 374].forEach((x, k) => {
+      mk("line", { x1: x, y1: 162, x2: x, y2: 178, stroke: "var(--ink-2)", "stroke-width": 2 }, s.ruler);
+      mk("text", { x, y: 156, "text-anchor": "middle", "font-size": 13, "font-weight": 700, fill: `var(--${CAT[k].tone})` }, s.ruler, String(k));
+      mk("text", { x, y: 196, "text-anchor": "middle", "font-size": 12, fill: `var(--${CAT[k].tone})`, class: "sn" }, s.ruler, CAT[k].n);
+    });
+    mk("path", { d: "M114 212 Q 244 238 374 212", fill: "none", stroke: "var(--risk)", "stroke-width": 1.8, "stroke-dasharray": "5 4" }, s.ruler);
+    mk("text", { x: 244, y: 246, "text-anchor": "middle", "font-size": 12, fill: "var(--risk)", class: "sn" }, s.ruler, "interval: escalate is “2 units” from answer");
+    // nominal chips (step 2)
+    s.chips = mk("g", { opacity: 0 }, svg);
+    [[100, 0], [222, 1], [344, 2]].forEach(([x, k]) => {
+      mk("rect", { x, y: 156, width: 88, height: 30, rx: 15, fill: `var(--${CAT[k].tone}-soft)`, stroke: `var(--${CAT[k].tone})`, "stroke-width": 1.6 }, s.chips);
+      mk("text", { x: x + 44, y: 176, "text-anchor": "middle", "font-size": 12.5, "font-weight": 700, fill: `var(--${CAT[k].tone})`, class: "sn" }, s.chips, CAT[k].n);
+    });
+    mk("text", { x: 205, y: 177, "text-anchor": "middle", "font-size": 16, "font-weight": 700, fill: "var(--muted)" }, s.chips, "≠");
+    mk("text", { x: 327, y: 177, "text-anchor": "middle", "font-size": 16, "font-weight": 700, fill: "var(--muted)" }, s.chips, "≠");
+    mk("text", { x: 244, y: 222, "text-anchor": "middle", "font-size": 12, fill: "var(--state)", class: "sn" }, s.chips, "nominal: only “same” or “different”");
+    // gauge
+    s.gauge = mk("g", {}, svg);
+    mk("text", { x: GX, y: 34, "text-anchor": "middle", "font-size": 12.5, "font-weight": 700, fill: "var(--ink)" }, s.gauge, "Krippendorff alpha");
+    mk("path", { d: arcPath(1), fill: "none", stroke: "var(--surface-2)", "stroke-width": 16, "stroke-linecap": "round" }, s.gauge);
+    s.arc = mk("path", { d: arcPath(0.001), fill: "none", stroke: "var(--risk)", "stroke-width": 16, "stroke-linecap": "round" }, s.gauge);
+    s.needle = mk("line", { x1: GX, y1: GY, x2: GX - GR + 14, y2: GY, stroke: "var(--ink)", "stroke-width": 3, "stroke-linecap": "round" }, s.gauge);
+    mk("circle", { cx: GX, cy: GY, r: 6, fill: "var(--ink)" }, s.gauge);
+    mk("text", { x: GX - GR, y: GY + 22, "text-anchor": "middle", "font-size": 11, fill: "var(--muted)" }, s.gauge, "0");
+    mk("text", { x: GX + GR, y: GY + 22, "text-anchor": "middle", "font-size": 11, fill: "var(--muted)" }, s.gauge, "1");
+    s.gNum = mk("text", { x: GX, y: GY + 44, "text-anchor": "middle", "font-size": 28, "font-weight": 800, fill: "var(--ink)" }, s.gauge, "?");
+    s.gLvl = mk("text", { x: GX, y: GY + 66, "text-anchor": "middle", "font-size": 12, fill: "var(--muted)" }, s.gauge, "level = ?");
+    // step-3 labels
+    s.hT = mk("g", { opacity: 0 }, svg);
+    mk("text", { x: 40, y: 58, "font-size": 12, "font-weight": 700, fill: "var(--state)" }, s.hT, "krippendorff.alpha");
+    mk("text", { x: 40, y: 166, "font-size": 12, fill: "var(--muted)" }, s.hT, "raters × items");
+    mk("text", { x: 600, y: 18, "text-anchor": "middle", "font-size": 12, "font-weight": 700, fill: "var(--tool)" }, s.hT, "aggregate_raters");
+    mk("text", { x: 548, y: 52, "text-anchor": "end", "font-size": 11, fill: "var(--muted)" }, s.hT, "items ↓");
+    mk("text", { x: 548, y: 240, "text-anchor": "end", "font-size": 11, fill: "var(--muted)" }, s.hT, "× raters");
+    s.arrow = mk("path", { d: "M268 108 C 370 108, 440 134, 540 134", fill: "none", stroke: "var(--tool)", "stroke-width": 2.4, "marker-end": "url(#c10k-ah)" }, s.hT);
+    const defs = mk("defs", {}, svg);
+    const m = mk("marker", { id: "c10k-ah", viewBox: "0 0 10 10", refX: 8, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto" }, defs);
+    mk("path", { d: "M0 0 L10 5 L0 10 z", fill: "var(--tool)" }, m);
+    mk("rect", { x: 362, y: 98, width: 84, height: 22, rx: 11, fill: "var(--tool)" }, s.hT);
+    mk("text", { x: 404, y: 113, "text-anchor": "middle", "font-size": 12, "font-weight": 700, fill: "#fff" }, s.hT, "humans.T");
+    mk("text", { x: 40, y: 206, "font-size": 12.5, "font-weight": 700, fill: "var(--risk)", class: "sn" }, s.hT, "Wrong orientation: no error,");
+    mk("text", { x: 40, y: 224, "font-size": 12.5, "font-weight": 700, fill: "var(--risk)", class: "sn" }, s.hT, "only a wrong number.");
+    // cells (drawn last so they sit on top)
+    CODES.forEach((row, i) => row.forEach((v, j) => {
+      const c = cell(svg, v); c.i = i; c.j = j; s.cells.push(c);
+    }));
+    CODES.forEach((row, i) => row.forEach((v, j) => {
+      const c = cell(svg, v); c.i = i; c.j = j; s.tcells.push(c);
+    }));
+    svg._S = s;
+    return s;
+  }
+
+  function setGauge(s, v, lvl, col) {
+    s.gv.v = v;
+    s.arc.setAttribute("d", arcPath(Math.max(v, 0.001)));
+    s.arc.setAttribute("stroke", col);
+    s.needle.setAttribute("transform", `rotate(${v * 180} ${GX} ${GY})`);
+    s.gNum.textContent = lvl ? v.toFixed(3) : "?";
+    s.gNum.setAttribute("fill", lvl ? col : "var(--ink)");
+    s.gLvl.textContent = `level = ${lvl || "?"}`;
+  }
+
+  function render(s, n, animate) {
+    s.tw.forEach((t) => t.kill()); s.tw = [];
+    const T = (tw) => s.tw.push(tw);
+    const fwd = animate && n > s.prev;
+    const to = (e, v, d) => (fwd ? T(gsap.to(e, Object.assign({ duration: .5, delay: d || 0, ease: "power2.out" }, v))) : gsap.set(e, v));
+    // matrix cells
+    s.cells.forEach((c, k) => {
+      const L = n >= 3 ? small(c.i, c.j) : big(c.i, c.j);
+      place(c, L, 1, fwd, n >= 3 ? 0 : 0, T);
+    });
+    s.tcells.forEach((c, k) => {
+      const on = n >= 3;
+      if (fwd && n === 3) {
+        place(c, small(c.i, c.j), 0, false, 0, T);
+        place(c, tr(c.i, c.j), 1, true, .55 + k * .05, T);
+      } else place(c, on ? tr(c.i, c.j) : big(c.i, c.j), on ? 1 : 0, false, 0, T);
+    });
+    to(s.hBig, { opacity: n >= 3 ? 0 : 1 });
+    to(s.ruler, { opacity: n === 1 ? 1 : 0 });
+    to(s.chips, { opacity: n === 2 ? 1 : 0 }, n === 2 ? .2 : 0);
+    to(s.gauge, { opacity: n >= 3 ? 0 : 1 });
+    to(s.hT, { opacity: n >= 3 ? 1 : 0 }, n === 3 ? .4 : 0);
+    // gauge value
+    const target = n === 1 ? 0.083 : n === 2 ? 0.542 : 0;
+    const lvl = n === 1 ? "interval" : n === 2 ? "nominal" : "";
+    const col = n === 2 ? "var(--state)" : "var(--risk)";
+    if (fwd && (n === 1 || n === 2)) {
+      const from = n === 2 ? 0.083 : 0;
+      setGauge(s, from, n === 2 ? "nominal" : "interval", col);
+      const p = { v: from };
+      T(gsap.to(p, { v: target, duration: 1.1, delay: .3, ease: "power2.out", onUpdate: () => setGauge(s, p.v, lvl, col) }));
+    } else if (n <= 2) setGauge(s, target, lvl, col);
+    s.prev = n;
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) {
+      S = build(slide); S.prev = step || 0; render(S, step || 0, false);
+      if (!step) T0(S);
+    },
+    step(slide, n, animate) { S = build(slide); render(S, n, animate); },
+    leave(slide) {
+      const svg = slide.querySelector("#c10k-svg");
+      if (svg && svg._S) { svg._S.tw.forEach((t) => t.kill()); svg._S.tw = []; }
+      if (svg) gsap.killTweensOf(svg.querySelectorAll("*"));
+    }
+  });
+  // first entry: the matrix cells pop in one by one
+  function T0(s) {
+    s.cells.forEach((c, k) => s.tw.push(gsap.from(c.g, { opacity: 0, duration: .35, delay: .2 + k * .06, ease: "power2.out" })));
+  }
+})();
+</script>

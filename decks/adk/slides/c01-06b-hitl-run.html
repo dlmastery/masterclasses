@@ -1,0 +1,47 @@
+<section class="slide" id="adk-c01-hitl-run" data-tone="human" data-title="Build: approve or reject">
+  <style>
+    #adk-c01-hitl-run pre.code, #adk-c01-hitl-run pre.code * { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #adk-c01-hitl-run .gotcha code { white-space: normal; overflow-wrap: anywhere; }
+    #adk-c01-hitl-run .gotcha > span { min-width: 0; }
+    #adk-c01-hitl-run .hr-main { display: grid; grid-template-columns: 760px 1fr; gap: 40px; align-items: center; }
+    #adk-c01-hitl-run .hr-right { gap: 22px; min-width: 0; }
+    #adk-c01-hitl-run .ms-hd { font: 600 15px/1 var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+    #adk-c01-hitl-run .fr { display: grid; gap: 6px; padding: 14px 16px; border-radius: 14px; border: 2px solid var(--human); background: var(--human-soft); }
+    #adk-c01-hitl-run .fr.no { border-color: var(--risk); background: var(--risk-soft); }
+    #adk-c01-hitl-run .fr .k { font: 700 15px/1 var(--f-mono); letter-spacing: .05em; text-transform: uppercase; color: var(--human); }
+    #adk-c01-hitl-run .fr.no .k { color: var(--risk); }
+    #adk-c01-hitl-run .fr .v { font: 500 18px/1.4 var(--f-mono); color: var(--ink); }
+  </style>
+  <div class="kicker"><span class="pill">Build</span> Acme refund desk · approve or reject</div>
+  <h2 class="title">adk run asks a human, and a no reaches the model as an error</h2>
+  <div class="lab-head"><span class="run">adk run refund_agent</span><span>labs/adk/lab1-refund-guardrails</span></div>
+  <div class="hr-main fill">
+    <div class="code-wrap out">
+      <div class="code-head">adk run refund_agent · output · illustrative</div>
+      <pre class="code" data-lang="none"><code><span class="dim">[user]: A-1002 arrived damaged. Refund the $1,299.</span>
+[HITL confirm] Please approve or reject the tool call
+  issue_refund() by responding with a FunctionResponse
+  with an expected ToolConfirmation payload.
+  Type "yes" to confirm, anything else to reject.
+<span data-step="2"><span class="dim">[user]: no</span>
+<span class="err">[refund_agent]: I'm sorry, a supervisor declined
+  the $1,299 refund for order A-1002.</span></span></code></pre>
+    </div>
+    <div class="hr-right stack">
+      <span class="ms-hd">what the model reads</span>
+      <div class="fr" data-step="1"><span class="k">first call · tool result</span><span class="v">"This tool call requires confirmation, please approve or reject."</span></div>
+      <div class="fr no" data-step="2"><span class="k">after "no" · tool result</span><span class="v">"This tool call is rejected."</span></div>
+      <div class="gotcha" data-step="3">
+        <b>Symptom</b><span>A large refund runs with no prompt.</span>
+        <b class="why">Cause</b><span>The predicate fell through and returned <code>None</code>, which skips the gate. Issue #7010, open.</span>
+        <b class="fix">Fix</b><span>Always return a real <code>bool</code>.</span>
+      </div>
+    </div>
+  </div>
+  <div class="cites">
+    <a class="cite repo" href="https://github.com/google/adk-python/issues/7010" target="_blank" rel="noopener"><b>Issue</b>&nbsp;google/adk-python #7010</a>
+  </div>
+  <aside class="notes">
+    Step 1: over $200 the first call does not run the tool; ADK calls request_confirmation and returns the error dict "This tool call requires confirmation, please approve or reject." adk run detects the pending long-running call and prints the [HITL confirm] prompt; y, yes, true and confirm count as yes. Step 2: anything else is a rejection, and the model reads "This tool call is rejected."; the instruction tells it to say a supervisor declined, so it does not pretend the refund went through. adk web shows a dialog instead. In your own client, watch event.long_running_tool_ids and send back a FunctionResponse with the same id and {"confirmed": true} or {"confirmed": false}. Step 3: the open issue #7010: a predicate that falls off a branch returns None, None is falsy, and the gate is skipped; always return a real bool. Analogy: the manager's key must be turned one way or the other; "no answer" must never mean yes. Likely question: "Can the approver change the amount?" That needs the request-input HITL path, which Chapter 5 covers. Next: the three errors that stop most first runs.
+  </aside>
+</section>

@@ -1,0 +1,186 @@
+<section class="slide" id="rag-interview-c02-qa-ann" data-tone="state" data-title="ANN design: memory maths">
+  <style>
+    #rag-interview-c02-qa-ann .an-grid { display: grid; grid-template-columns: 1fr 680px; gap: 32px; }
+    #rag-interview-c02-qa-ann .qcol { display: flex; flex-direction: column; gap: 30px; }
+    #rag-interview-c02-qa-ann .qa { gap: 12px; transition: opacity .4s; }
+    #rag-interview-c02-qa-ann .qa.dim { opacity: 0.4; }
+    #rag-interview-c02-qa-ann .qa .q { font-size: 24px; }
+    #rag-interview-c02-qa-ann .qa .a { font-size: 19px; line-height: 1.42; padding: 12px 18px; display: grid; gap: 8px; }
+    #rag-interview-c02-qa-ann .qa .a .big { font: 700 21px/1.3 var(--f-display); color: var(--ink); }
+    #rag-interview-c02-qa-ann .qa .a .big .c-agent { color: var(--agent); }
+    #rag-interview-c02-qa-ann code, #rag-interview-c02-qa-ann pre.code, #rag-interview-c02-qa-ann pre.code code { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #rag-interview-c02-qa-ann .viz { position: relative; height: 590px; }
+    #rag-interview-c02-qa-ann .vp { position: absolute; inset: 0; display: flex; flex-direction: column; gap: 12px;
+      padding: 16px 20px; border-radius: 16px; border: 1px solid var(--line); border-top: 3px solid var(--state); background: var(--surface); overflow: hidden; }
+    #rag-interview-c02-qa-ann .vp h4 { font-size: 21px; display: flex; justify-content: space-between; align-items: baseline; margin: 0; }
+    #rag-interview-c02-qa-ann .vp h4 small { font: 500 16px/1 var(--f-mono); color: var(--muted); }
+    #rag-interview-c02-qa-ann svg text { font-family: var(--f-mono); }
+    #rag-interview-c02-qa-ann .vp .code-wrap { width: 100%; }
+    #rag-interview-c02-qa-ann pre.code { font-size: 18px; padding: 12px 16px 14px; }
+    #rag-interview-c02-qa-ann .code-wrap .code-head { padding: 8px 14px; font-size: 15px; }
+    #rag-interview-c02-qa-ann .teaser { flex: 1; display: grid; place-content: center; gap: 14px; text-align: center; }
+    #rag-interview-c02-qa-ann .teaser .f { font: 700 36px/1.2 var(--f-mono); color: var(--ink); }
+    #rag-interview-c02-qa-ann .teaser .fl { display: grid; grid-template-columns: 1.55fr 0.7fr 0.6fr; font: 500 17px/1.3 var(--f-mono); color: var(--muted); }
+    #rag-interview-c02-qa-ann .teaser .eq { font: 700 60px/1 var(--f-mono); color: var(--risk); margin-top: 10px; }
+    #rag-interview-c02-qa-ann .teaser p { font-size: 19px; color: var(--muted); margin: 0; }
+    #rag-interview-c02-qa-ann dl.gl { display: grid; grid-template-columns: 112px 1fr; gap: 6px 12px; margin: 0; font-size: 17px; line-height: 1.3; color: var(--ink-2); }
+    #rag-interview-c02-qa-ann dl.gl dt { font: 700 16px/1.3 var(--f-mono); color: var(--state); }
+    #rag-interview-c02-qa-ann dl.gl dd { margin: 0; }
+    #rag-interview-c02-qa-ann .cites { gap: 8px; margin-top: 12px; }
+    #rag-interview-c02-qa-ann .cite { font-size: 14px; padding: 6px 10px 6px 8px; flex-direction: row; align-items: center; gap: 8px; border-radius: 10px; }
+  </style>
+  <div class="kicker">Interview · ANN memory maths</div>
+  <h2 class="title">ANN design answers start with memory maths and end with recall</h2>
+  <div class="an-grid fill">
+    <div class="qcol">
+      <div class="qa" data-on="2:dim">
+        <div class="q">Design an index for 1B vectors on a tight memory budget.</div>
+        <div class="a" data-step="1">
+          <div>Truncate (MRL), keep compact codes in RAM, full vectors on SSD, re-score the shortlist, measure recall@k.</div>
+          <div class="big">RaBitQ-SSD (paper): <span class="c-agent">10B vectors on 1 server · 90% recall</span>. At 1B: <span class="c-agent">108 GB</span> of codes in RAM.</div>
+        </div>
+      </div>
+      <div class="qa">
+        <div class="q">Estimate RAM for 10M gemini-embedding-001 vectors, then cut it.</div>
+        <div class="a" data-step="2">
+          <div>Vectors × dims × bytes, then add the graph links. Quantisation shrinks the vectors, not the links.</div>
+          <div class="big"><span class="c-agent">123 GB → 0.96 GB</span> vectors + <span class="c-agent">1.3 GB</span> links (M=16)</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="stack" style="gap:0">
+      <div class="viz">
+        <!-- s0: the question, no answer yet -->
+        <div class="vp" data-until="1">
+          <h4>Start with the arithmetic <small>Q1</small></h4>
+          <div class="teaser">
+            <div class="f">1,000,000,000 × 768 × 4 B</div>
+            <div class="fl"><span>vectors</span><span>dims after MRL</span><span>float32</span></div>
+            <div class="eq">= ? TB</div>
+            <p>Say the number aloud before you name an index.</p>
+          </div>
+        </div>
+        <!-- s1: Q1, 1B vectors: compress, tier, re-score, prove -->
+        <div class="vp" data-step="1" data-until="2">
+          <h4>1B vectors: compress → SSD → re-score <small>Q1</small></h4>
+          <svg id="an-pipe" viewBox="0 0 640 300" width="640" height="300" aria-label="1B float32 vectors need 3.07 TB; RaBitQ codes in RAM need 108 GB; the rest stays on SSD; the shortlist is re-scored with full vectors; recall@k is checked against exact search"></svg>
+          <dl class="gl">
+            <dt>MRL</dt><dd>Matryoshka training: the first N dims work alone, so you can cut 3,072 to 768.</dd>
+            <dt>RaBitQ</dt><dd>binary codes with an error bound; ranks a shortlist fast.</dd>
+            <dt>IVF-PQ</dt><dd>cluster the vectors, then compress sub-vectors into short codes.</dd>
+            <dt>DiskANN</dt><dd>a graph index that lives on SSD.</dd>
+          </dl>
+        </div>
+        <!-- s2/s3: Q2, 10M vectors, bars grow with the answer; code on the next click -->
+        <div class="vp" data-step="2">
+          <h4>10M gemini-embedding-001 vectors <small>001 default = 3,072 dims</small></h4>
+          <svg id="an-mem" viewBox="0 0 640 262" width="640" height="262" aria-label="Memory for 10M vectors: 123 GB float32 at 3,072 dims, 31 GB at 768 dims, 7.7 GB int8, 0.96 GB binary, plus 1.3 GB of HNSW links">
+            <g class="mb" data-gb="122.88" data-y="4"><text x="0" y="29" font-size="18" fill="var(--ink-2)">float32×3072</text></g>
+            <g class="mb" data-gb="30.72" data-y="52"><text x="0" y="77" font-size="18" fill="var(--ink-2)">float32×768</text></g>
+            <g class="mb" data-gb="7.68" data-y="100"><text x="0" y="125" font-size="18" fill="var(--ink-2)">int8×768</text></g>
+            <g class="mb" data-gb="0.96" data-y="148"><text x="0" y="173" font-size="18" fill="var(--ink-2)">binary×768</text></g>
+            <g class="mb links" data-gb="1.28" data-y="210"><text x="0" y="235" font-size="18" fill="var(--tool)" font-weight="700">+ HNSW links</text></g>
+          </svg>
+          <div class="code-wrap" data-step="3">
+            <div class="code-head">ram.py · run it: python ram.py</div>
+            <pre class="code" data-lang="python"><code>n, M = 10_000_000, 16
+print(n * 3072 * 4 / 1e9)   # 122.88 GB float32
+print(n * 768 * 4 / 1e9)    # 30.72 GB MRL to 768
+print(n * 768 / 1e9)        # 7.68 GB int8
+print(n * 768 / 8 / 1e9)    # 0.96 GB binary
+# layer 0 stores 2*M int32 neighbour ids per node
+print(n * 2 * M * 4 / 1e9)  # 1.28 GB (+~1/M upper)</code></pre>
+          </div>
+        </div>
+      </div>
+      <div class="cites">
+        <a class="cite paper" href="https://arxiv.org/abs/2610.02652" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.02652 RaBitQ-SSD</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2610.17742" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.17742 PCA truncation</a>
+        <a class="cite doc" href="https://ai.google.dev/gemini-api/docs/embeddings" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Gemini Embeddings</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Ask each question and give the room twenty seconds before you reveal the answer. Q1: 1B vectors × 768 dims (already MRL-truncated from 3,072) × 4 bytes per float32 is 3.07 TB, so it does not fit in RAM. Keep only compact codes in RAM: RaBitQ-SSD keeps 768/8 + 12 = 108 bytes per vector, so 108 GB at 1B. The paper itself reports 10B vectors at about 3,200 QPS and 90% recall on one server. Keep the rest on SSD, re-score the shortlist with full vectors to win back the recall that the codes lose, and prove it with recall@k against an exact IndexFlatIP on a query sample. Q2: vectors × dims × bytes, then add the HNSW links. Layer 0 stores 2·M neighbour ids per node, 128 bytes per vector at M=16; the upper layers add about 1/M more. Quantisation does not shrink the links, so at binary codes the links are bigger than the vectors. Truncated gemini-embedding-001 vectors also need normalisation (slide on filters and normalisation). Analogy: compression is a thumbnail gallery in RAM with the full photos on disk. Likely follow-up: "What recall do binary codes lose?" It depends on the data, so measure it; the re-score step with full vectors is what brings it back.</aside>
+</section>
+<script>
+(() => {
+  const ID = "rag-interview-c02-qa-ann";
+  const NS = "http://www.w3.org/2000/svg";
+  const BAR_X = 160, BAR_W = 350, MAX = 122.88;
+  // Q1 pipeline stages: [title, number, tone, sub]
+  const STAGES = [
+    ["float32 × 768 × 1B", "3.07 TB", "var(--risk)", "does not fit in RAM"],
+    ["RaBitQ codes in RAM", "108 GB", "var(--state)", "768/8 + 12 = 108 B per vector"],
+    ["full vectors on SSD", "SSD", "var(--tool)", "read only for the shortlist"],
+    ["re-score the shortlist", "exact", "var(--agent)", "full vectors win back recall"],
+    ["recall@k vs exact search", "≥ 0.9", "var(--human)", "measured on a query sample"],
+  ];
+  let tw = [];
+
+  const mk = (parent, tag, attrs) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    parent.appendChild(e);
+    return e;
+  };
+  const fmt = (gb) => (gb >= 10 ? gb.toFixed(0) : gb >= 1 ? gb.toFixed(1) : gb.toFixed(2)) + " GB";
+
+  function build(slide) {
+    const pipe = slide.querySelector("#an-pipe");
+    if (pipe && !pipe.querySelector("g")) {
+      STAGES.forEach(([t, num, c, sub], i) => {
+        const y = 4 + i * 60;
+        const g = mk(pipe, "g", { class: "stg" });
+        mk(g, "rect", { x: 0, y, width: 640, height: 50, rx: 10, fill: "var(--surface-2)", stroke: c, "stroke-width": 2 });
+        mk(g, "rect", { x: 0, y, width: 8, height: 50, rx: 4, fill: c });
+        mk(g, "text", { x: 22, y: y + 22, "font-size": 18, "font-weight": 700, fill: "var(--ink)" }).textContent = t;
+        mk(g, "text", { x: 22, y: y + 42, "font-size": 15, fill: "var(--muted)" }).textContent = sub;
+        mk(g, "text", { x: 624, y: y + 34, "font-size": 26, "font-weight": 700, "text-anchor": "end", fill: c }).textContent = num;
+        if (i) mk(g, "path", { d: `M 470 ${y - 10} l 0 9 m -5 -5 l 5 5 l 5 -5`, fill: "none", stroke: "var(--muted)", "stroke-width": 2 });
+      });
+    }
+    const mem = slide.querySelector("#an-mem");
+    if (mem && !mem.querySelector("rect")) {
+      mem.querySelectorAll("g.mb").forEach((g) => {
+        const y = +g.dataset.y, links = g.classList.contains("links");
+        mk(g, "rect", { class: "ghost", x: BAR_X, y, width: BAR_W, height: 36, rx: 6, fill: "none", stroke: "var(--line-2)", "stroke-dasharray": "5 5" });
+        mk(g, "rect", { class: "live", x: BAR_X, y, width: 0, height: 36, rx: 6, fill: links ? "var(--tool)" : "var(--state)" });
+        mk(g, "text", { class: "val", x: BAR_X + BAR_W + 12, y: y + 26, "font-size": 20, "font-weight": 700, fill: "var(--ink)" }).textContent = "";
+      });
+      mk(mem, "line", { x1: 0, y1: 198, x2: 640, y2: 198, stroke: "var(--line-2)", "stroke-dasharray": "4 4" });
+    }
+  }
+
+  function render(slide, n, animate) {
+    build(slide);
+    tw.forEach((t) => t.kill()); tw = [];
+    // answers take space only once revealed, so the questions sit close together at s0
+    slide.querySelectorAll(".qa .a[data-step]").forEach((a) => { a.style.display = n >= +a.dataset.step ? "" : "none"; });
+    const stg = slide.querySelectorAll("#an-pipe g.stg");
+    if (animate && n === 1) tw.push(gsap.fromTo(stg, { opacity: 0, x: -24 }, { opacity: 1, x: 0, duration: 0.4, stagger: 0.35, delay: 0.3 }));
+    else gsap.set(stg, { opacity: 1, x: 0 });
+    // s2: bars grow to 123 GB, then shrink stage by stage; the links bar comes last
+    const gs = [...slide.querySelectorAll("#an-mem g.mb")];
+    gs.forEach((g, i) => {
+      const live = g.querySelector(".live"), val = g.querySelector(".val"), gb = +g.dataset.gb;
+      const links = g.classList.contains("links");
+      const put = (v) => { live.setAttribute("width", Math.max(3, (v / MAX) * BAR_W)); val.textContent = fmt(v); };
+      if (n < 2) { live.setAttribute("width", 0); val.textContent = ""; return; }
+      if (animate && n === 2) {
+        const o = { v: links ? 0 : i ? +gs[i - 1].dataset.gb : 0 };
+        put(o.v); gsap.set(g, { opacity: 0.2 });
+        const t = gsap.timeline({ delay: 0.3 + i * 0.7 });
+        t.to(g, { opacity: 1, duration: 0.2 }).to(o, { v: gb, duration: 0.6, ease: "power2.inOut", onUpdate: () => put(o.v) });
+        tw.push(t);
+      } else { gsap.set(g, { opacity: 1 }); put(gb); }
+    });
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { tw.forEach((t) => t.kill()); tw = []; }
+  });
+})();
+</script>

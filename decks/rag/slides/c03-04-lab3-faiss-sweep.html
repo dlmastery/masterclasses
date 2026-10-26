@@ -1,0 +1,228 @@
+<section class="slide" id="rag-c03-lab3-faiss-sweep" data-tone="state" data-title="Lab 3: FAISS recall sweep">
+  <style>
+    #rag-c03-lab3-faiss-sweep .fs-wrap { display: flex; flex-direction: column; gap: 14px; }
+    #rag-c03-lab3-faiss-sweep .lab-head { gap: 12px; font-size: 15px; }
+    #rag-c03-lab3-faiss-sweep .lab-head .run { font-size: 14px; }
+    #rag-c03-lab3-faiss-sweep .lab-head .cite { font-size: 14px; padding: 5px 10px 5px 8px; }
+    #rag-c03-lab3-faiss-sweep .fs-main { display: grid; grid-template-columns: 772px 1fr; gap: 22px; min-height: 0; }
+    #rag-c03-lab3-faiss-sweep .fs-main .code-head { padding: 8px 14px; font-size: 13.5px; }
+    #rag-c03-lab3-faiss-sweep .fs-code pre.code { font-size: 12px; line-height: 1.45; padding: 12px 16px 14px; }
+    #rag-c03-lab3-faiss-sweep .fs-right { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    #rag-c03-lab3-faiss-sweep .fs-chart { width: 100%; height: auto; display: block; overflow: visible; border: 1px solid var(--line-2); border-radius: 14px; background: var(--surface); }
+    #rag-c03-lab3-faiss-sweep .fs-chart text { font: 500 12px/1 var(--f-mono); fill: var(--muted); }
+    #rag-c03-lab3-faiss-sweep .fs-chart .fs-lab-h { fill: var(--agent); font-weight: 600; }
+    #rag-c03-lab3-faiss-sweep .fs-chart .fs-lab-i { fill: var(--tool); font-weight: 600; }
+    #rag-c03-lab3-faiss-sweep .fs-chart .fs-big { font-size: 13.5px; font-weight: 700; }
+    #rag-c03-lab3-faiss-sweep .fs-chart .fs-ex { fill: var(--state); font-weight: 600; }
+    #rag-c03-lab3-faiss-sweep .fs-chart .fs-tg { fill: var(--risk); font-weight: 600; }
+    #rag-c03-lab3-faiss-sweep .fs-chart .fs-ax { font-size: 12.5px; fill: var(--ink-2); font-weight: 600; }
+    #rag-c03-lab3-faiss-sweep .fs-bottom { display: grid; grid-template-columns: 366px 1fr; gap: 12px; }
+    #rag-c03-lab3-faiss-sweep .code-wrap.out pre.code { font-size: 11px; line-height: 1.48; padding: 9px 12px 11px; }
+    #rag-c03-lab3-faiss-sweep .fs-cap { display: grid; border: 1px solid var(--line-2); border-radius: 14px; background: var(--surface); padding: 12px 12px; }
+    #rag-c03-lab3-faiss-sweep .fs-cap > * { grid-area: 1 / 1; font-size: 14.5px; line-height: 1.38; grid-template-columns: 28px 1fr; gap: 9px; }
+    #rag-c03-lab3-faiss-sweep .fs-cap > *::before { width: 26px; height: 26px; font-size: 13px; }
+    #rag-c03-lab3-faiss-sweep .fs-cap code { font-size: 12px; word-break: break-all; }
+    #rag-c03-lab3-faiss-sweep .fs-err { display: block; margin-top: 6px; font: 500 11.5px/1.35 var(--f-mono); color: var(--risk); }
+  </style>
+  <div class="kicker"><span class="pill">Lab 3</span> Northwind Mutual index · step 3 of 4</div>
+  <h2 class="title">Sweep efSearch and nprobe against exact search on 100k vectors</h2>
+  <div class="fs-wrap fill">
+    <div class="lab-head">
+      <span class="run">pip install "faiss-cpu==1.15.1" numpy</span>
+      <span class="run">python lab6_faiss_bench.py</span>
+      <a class="cite doc" href="https://github.com/facebookresearch/faiss/wiki" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Faiss wiki: Faiss indexes</a>
+    </div>
+    <div class="fs-main fill">
+      <div class="code-wrap fs-code">
+        <div class="code-head">lab6_faiss_bench.py · 100,000 x 256-d unit vectors, 500 queries</div>
+        <pre class="code" data-lang="python" data-focus="1:5-13, 2:18-22, 3:24-28, 4:11-13"><code># lab6_faiss_bench.py
+import time
+import faiss
+import numpy as np
+rng = np.random.default_rng(7)
+N, D, NQ, K = 100_000, 256, 500, 10
+centers = rng.standard_normal((1_000, D)).astype(np.float32)  # clustered, like real embeddings
+xb = centers[rng.integers(0, 1_000, N)] + 0.3 * rng.standard_normal((N, D)).astype(np.float32)
+xq = xb[rng.choice(N, NQ, replace=False)] + 0.1 * rng.standard_normal((NQ, D)).astype(np.float32)
+faiss.normalize_L2(xb); faiss.normalize_L2(xq)                 # cosine == inner product
+flat = faiss.IndexFlatIP(D); flat.add(xb)
+_, gt = flat.search(xq, K)
+recall = lambda I: np.mean([len(set(I[i]) &amp; set(gt[i])) / K for i in range(NQ)])
+
+def bench(index, params, label):
+    t = time.perf_counter(); _, I = index.search(xq, K, params=params)
+    print(f"{label:&lt;22} recall@10={recall(I):.3f}  {1e3 * (time.perf_counter() - t) / NQ:.3f} ms/q")
+hnsw = faiss.IndexHNSWFlat(D, 32, faiss.METRIC_INNER_PRODUCT)  # M=32
+hnsw.hnsw.efConstruction = 80
+t = time.perf_counter(); hnsw.add(xb); print(f"HNSW build {time.perf_counter() - t:.1f}s")
+for ef in (16, 64, 128, 256):
+    bench(hnsw, faiss.SearchParametersHNSW(efSearch=ef), f"HNSW efSearch={ef}")
+
+nlist = 1024                                                   # ~4*sqrt(N)
+ivf = faiss.IndexIVFFlat(faiss.IndexFlatIP(D), D, nlist, faiss.METRIC_INNER_PRODUCT)
+ivf.train(xb[rng.choice(N, 60_000, replace=False)]); ivf.add(xb)
+for p in (1, 8, 32, 64):
+    bench(ivf, faiss.SearchParametersIVF(nprobe=p), f"IVF nprobe={p}")</code></pre>
+      </div>
+      <div class="fs-right">
+        <svg class="fs-chart" viewBox="0 0 600 340" aria-label="recall@10 against milliseconds per query for HNSW and IVF"></svg>
+        <div class="fs-bottom">
+          <div class="code-wrap out">
+            <div class="code-head">output · illustrative · trade-off shape</div>
+            <pre class="code" data-lang="none"><code><span class="dim">$ python lab6_faiss_bench.py</span>
+<span class="fs-ol" data-g="hb">HNSW build 38.2s</span>
+<span class="fs-ol" data-g="h">HNSW efSearch=16       recall@10=<span class="err">0.781</span>  0.041 ms/q</span>
+<span class="fs-ol" data-g="h">HNSW efSearch=64       recall@10=<span class="ok">0.952</span>  0.098 ms/q</span>
+<span class="fs-ol" data-g="h">HNSW efSearch=128      recall@10=0.984  0.171 ms/q</span>
+<span class="fs-ol" data-g="h">HNSW efSearch=256      recall@10=0.996  0.320 ms/q</span>
+<span class="fs-ol" data-g="i">IVF nprobe=1           recall@10=<span class="err">0.412</span>  0.020 ms/q</span>
+<span class="fs-ol" data-g="i">IVF nprobe=8           recall@10=0.861  0.105 ms/q</span>
+<span class="fs-ol" data-g="i">IVF nprobe=32          recall@10=<span class="ok">0.973</span>  0.390 ms/q</span>
+<span class="fs-ol" data-g="i">IVF nprobe=64          recall@10=0.991  0.760 ms/q</span></code></pre>
+          </div>
+          <div class="steps-rail fs-cap">
+            <div data-step="1" data-until="2"><span>Exact <code>IndexFlatIP</code> on unit vectors is the ground truth. FAISS has no cosine metric.</span></div>
+            <div data-step="2" data-until="3"><span>Defaults: efConstruction 40, efSearch 16. Per-query <code>SearchParametersHNSW</code> is thread-safe. Setting <code>index.hnsw.efSearch</code> is not.</span></div>
+            <div data-step="3" data-until="4"><span>nlist 1024 &asymp; 4&radic;N. Give &ge; 39 training points per centroid. Default nprobe is 1.<span class="fs-err">Search before train(): RuntimeError: Error in ... IndexIVF::search ...: IVF index is not trained</span></span></div>
+            <div data-step="4"><span>Run exact search on a 1-5k query sample. Tune to a recall target (0.95). Write the value into config.</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">The 41 claims chunks are too few to benchmark, so this step uses 100,000 clustered synthetic vectors at the same 256 dims as the Qwen3 claims vectors. This is the one benchmark every team should run before choosing index settings: exact search gives the true top 10, and each approximate setting is scored against it. Step through HNSW first: the default efSearch of 16 gets only 0.781 recall here, and efSearch 64 crosses the 0.95 target at about a tenth of a millisecond. Then IVF: the default nprobe of 1 finds only 0.412, and you need nprobe 32 to cross the target, at four times the HNSW latency. Think of efSearch and nprobe as how many shelves a librarian checks before answering: more shelves, slower but more complete. The numbers are illustrative; the shape is what you will see on your own data. A likely question is "why not just set efSearch to 256?": because latency grows with it, so pick the smallest value that meets your recall target and write it into config. Hand-off: step 4 serves the claims vectors from pgvector, where the same breadth setting is called hnsw.ef_search.</aside>
+</section>
+<script>
+(() => {
+  const ID = "rag-c03-lab3-faiss-sweep";
+  const NS = "http://www.w3.org/2000/svg";
+  const X0 = 66, X1 = 584, Y0 = 34, Y1 = 290, XMAX = 0.8, RMIN = 0.75;
+  const X = (v) => X0 + (v / XMAX) * (X1 - X0);
+  const Y = (r) => Y1 - ((Math.max(r, RMIN) - RMIN) / (1 - RMIN)) * (Y1 - Y0);
+  // values from the output pane
+  const HN = [
+    { ms: 0.041, r: 0.781, l: "ef 16", dx: 11, dy: 4, a: "start" },
+    { ms: 0.098, r: 0.952, l: "ef 64", big: "efSearch=64", dx: 12, dy: 22, a: "start" },
+    { ms: 0.171, r: 0.984, l: "ef 128", dx: -10, dy: -3, a: "end" },
+    { ms: 0.320, r: 0.996, l: "ef 256", dx: -9, dy: 18, a: "end" }
+  ];
+  const IV = [
+    { ms: 0.020, r: 0.412, l: "np 1 = 0.412 (off scale)", dx: 11, dy: -6, a: "start", off: true },
+    { ms: 0.105, r: 0.861, l: "np 8", dx: 11, dy: 4, a: "start" },
+    { ms: 0.390, r: 0.973, l: "np 32", big: "nprobe=32", dx: 11, dy: 17, a: "start" },
+    { ms: 0.760, r: 0.991, l: "np 64", dx: -9, dy: 19, a: "end" }
+  ];
+  let tl = null, els = [];
+  const mk = (svg, tag, attrs, text) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text != null) e.textContent = text;
+    svg.appendChild(e);
+    return e;
+  };
+  function build(slide) {
+    const svg = slide.querySelector(".fs-chart");
+    if (svg._b) return svg._b;
+    // grid, ticks, axes
+    [0.75, 0.8, 0.85, 0.9, 0.95, 1.0].forEach((r) => {
+      mk(svg, "line", { x1: X0, x2: X1, y1: Y(r), y2: Y(r), stroke: "var(--line-2)", "stroke-width": 1, opacity: 0.6 });
+      mk(svg, "text", { x: X0 - 8, y: Y(r) + 4, "text-anchor": "end" }, r.toFixed(2));
+    });
+    [0, 0.2, 0.4, 0.6, 0.8].forEach((v) => mk(svg, "text", { x: X(v), y: Y1 + 18, "text-anchor": "middle" }, v.toFixed(1)));
+    mk(svg, "line", { x1: X0, x2: X1, y1: Y1, y2: Y1, stroke: "var(--ink-2)", "stroke-width": 1.4 });
+    mk(svg, "line", { x1: X0, x2: X0, y1: Y0 - 10, y2: Y1, stroke: "var(--ink-2)", "stroke-width": 1.4 });
+    mk(svg, "text", { x: X1, y: Y1 + 40, "text-anchor": "end", class: "fs-ax" }, "ms per query →");
+    mk(svg, "text", { x: 16, y: (Y0 + Y1) / 2, "text-anchor": "middle", class: "fs-ax", transform: `rotate(-90 16 ${(Y0 + Y1) / 2})` }, "recall@10 vs exact");
+    // legend
+    const lg = [["var(--agent)", "HNSW · efSearch"], ["var(--tool)", "IVF · nprobe"]];
+    lg.forEach(([c, t], i) => {
+      const y = 208 + i * 24;
+      mk(svg, "line", { x1: 418, x2: 446, y1: y, y2: y, stroke: c, "stroke-width": 3 });
+      mk(svg, "circle", { cx: 432, cy: y, r: 5, fill: c });
+      mk(svg, "text", { x: 456, y: y + 4, class: "fs-ax" }, t);
+    });
+    // exact line (recall 1.0) and target line (0.95)
+    const exact = mk(svg, "g", {});
+    mk(exact, "line", { x1: X0, x2: X1, y1: Y(1), y2: Y(1), stroke: "var(--state)", "stroke-width": 2, "stroke-dasharray": "6 5" });
+    mk(exact, "text", { x: X1, y: Y(1) - 8, "text-anchor": "end", class: "fs-ex" }, "exact IndexFlatIP = 1.000");
+    const target = mk(svg, "g", {});
+    mk(target, "line", { x1: X0, x2: X1, y1: Y(0.95), y2: Y(0.95), stroke: "var(--risk)", "stroke-width": 1.6, "stroke-dasharray": "3 4" });
+    mk(target, "text", { x: X1, y: Y(0.95) - 7, "text-anchor": "end", class: "fs-tg" }, "target 0.95");
+    const series = (data, color, cls) => data.map((d, i) => {
+      const o = { d, x: X(d.ms), y: Y(d.r) };
+      if (i > 0) {
+        const p = data[i - 1], px = X(p.ms), py = Y(p.r);
+        o.len = Math.hypot(o.x - px, o.y - py);
+        o.seg = mk(svg, "line", { x1: px, y1: py, x2: o.x, y2: o.y, stroke: color, "stroke-width": 3, "stroke-linecap": "round",
+          "stroke-dasharray": p.off ? "5 5" : `${o.len} ${o.len}` });
+        if (p.off) o.len = 0;
+      }
+      o.pt = d.off
+        ? mk(svg, "path", { d: `M${o.x - 7} ${o.y - 11} L${o.x + 7} ${o.y - 11} L${o.x} ${o.y - 1} Z`, fill: color })
+        : mk(svg, "circle", { cx: o.x, cy: o.y, r: 6, fill: color, stroke: "var(--surface)", "stroke-width": 2 });
+      o.lab = mk(svg, "text", { x: o.x + d.dx, y: o.y + d.dy, "text-anchor": d.a, class: cls }, d.l);
+      if (d.big) o.ring = mk(svg, "circle", { cx: o.x, cy: o.y, r: 13, fill: "none", stroke: color, "stroke-width": 2.5 });
+      return o;
+    });
+    const hn = series(HN, "var(--agent)", "fs-lab-h");
+    const iv = series(IV, "var(--tool)", "fs-lab-i");
+    svg._b = { exact, target, hn, iv };
+    return svg._b;
+  }
+  function setSeries(S, lines, on) {
+    S.forEach((o, i) => {
+      gsap.set([o.pt, o.lab], { autoAlpha: on ? 1 : 0, scale: 1, transformOrigin: "50% 50%" });
+      if (o.seg) gsap.set(o.seg, { autoAlpha: on ? 1 : 0, strokeDashoffset: 0 });
+      if (lines[i]) gsap.set(lines[i], { autoAlpha: on ? 1 : 0 });
+    });
+  }
+  function playSeries(t, S, lines) {
+    S.forEach((o, i) => {
+      if (o.seg) {
+        if (o.len) t.fromTo(o.seg, { autoAlpha: 1, strokeDashoffset: o.len }, { strokeDashoffset: 0, duration: 0.35, ease: "power1.inOut" });
+        else t.fromTo(o.seg, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.3 });
+      }
+      t.fromTo(o.pt, { autoAlpha: 0, scale: 0 }, { autoAlpha: 1, scale: 1, duration: 0.3, ease: "back.out(2.2)", transformOrigin: "50% 50%" }, i ? "<+0.15" : ">");
+      t.fromTo([o.lab, lines[i]], { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.25 }, "<");
+    });
+  }
+  function render(slide, n, animate) {
+    const B = build(slide);
+    if (tl) { tl.kill(); tl = null; }
+    const hl = [...slide.querySelectorAll('.fs-ol[data-g="h"]')], il = [...slide.querySelectorAll('.fs-ol[data-g="i"]')];
+    const hb = slide.querySelector('.fs-ol[data-g="hb"]');
+    const rings = [...B.hn, ...B.iv].filter((o) => o.ring);
+    els = [B.exact, B.target, hb, ...hl, ...il, ...[...B.hn, ...B.iv].flatMap((o) => [o.pt, o.lab, o.seg, o.ring].filter(Boolean))];
+    els.forEach((e) => gsap.killTweensOf(e));
+    // final state for step n (correct when jumping to any step)
+    gsap.set(B.exact, { autoAlpha: n >= 1 ? 1 : 0 });
+    setSeries(B.hn, hl, n >= 2);
+    gsap.set(hb, { autoAlpha: n >= 2 ? 1 : 0 });
+    setSeries(B.iv, il, n >= 3);
+    gsap.set(B.target, { autoAlpha: n >= 4 ? 1 : 0 });
+    rings.forEach((o) => {
+      gsap.set(o.ring, { autoAlpha: n >= 4 ? 1 : 0, scale: 1, transformOrigin: "50% 50%" });
+      o.lab.textContent = n >= 4 ? o.d.big : o.d.l;
+      o.lab.classList.toggle("fs-big", n >= 4);
+    });
+    if (!animate || n < 1 || n > 4) return;
+    tl = gsap.timeline({ delay: 0.35 });
+    if (n === 1) tl.fromTo(B.exact, { autoAlpha: 0, x: -20 }, { autoAlpha: 1, x: 0, duration: 0.5, ease: "power2.out" });
+    if (n === 2) {
+      setSeries(B.hn, hl, false); gsap.set(hb, { autoAlpha: 0 });
+      tl.to(hb, { autoAlpha: 1, duration: 0.25 });
+      playSeries(tl, B.hn, hl);
+    }
+    if (n === 3) { setSeries(B.iv, il, false); playSeries(tl, B.iv, il); }
+    if (n === 4) {
+      tl.fromTo(B.target, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.4 });
+      rings.forEach((o) => tl.fromTo(o.ring, { autoAlpha: 0, scale: 2.4 }, { autoAlpha: 1, scale: 1, duration: 0.45, ease: "back.out(1.8)", transformOrigin: "50% 50%" }, "<+0.2"));
+    }
+  }
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { if (tl) { tl.kill(); tl = null; } els.forEach((e) => e && gsap.killTweensOf(e)); }
+  });
+})();
+</script>

@@ -1,0 +1,63 @@
+<section class="slide" id="adk-c06-practices-ops" data-tone="tool" data-title="Practices: isolation and operations">
+  <style>
+    #adk-c06-practices-ops .po-grid { display: grid; grid-template-columns: 640px 1fr; gap: 40px; align-items: start; }
+    #adk-c06-practices-ops ul.checks { gap: 22px; }
+    #adk-c06-practices-ops ul.checks li { font-size: 21px; line-height: 1.4; grid-template-columns: 30px 1fr; gap: 14px; }
+    #adk-c06-practices-ops ul.checks li::before { width: 28px; height: 28px; font-size: 16px; }
+    #adk-c06-practices-ops ul.checks li code { font-size: 18px; }
+    #adk-c06-practices-ops ul.checks li .r { color: var(--muted); }
+    #adk-c06-practices-ops svg { overflow: visible; display: block; }
+    #adk-c06-practices-ops svg text { font-family: var(--f-mono); }
+    #adk-c06-practices-ops .ly rect { stroke-width: 2.5; }
+    #adk-c06-practices-ops .ly text { font-size: 17px; font-weight: 700; }
+  </style>
+  <div class="kicker">Best practices · isolation and operations</div>
+  <h2 class="title">Contain the server process, and make every failure loud</h2>
+  <div class="po-grid fill">
+    <ul class="checks">
+      <li data-step="1"><span>stdio servers in a container with one mount. <span class="r">16.4% launder file access.</span></span></li>
+      <li class="no" data-step="1"><span><code>allow_private_network_access=True</code> in production.</span></li>
+      <li data-step="2"><span>Pin <code>google-adk</code>, <code>mcp</code> and server versions.</span></li>
+      <li data-step="3"><span>Errors say "&lt;cause&gt;. Call &lt;tool&gt;". <span class="r">Recovery 45% → 84%.</span></span></li>
+      <li data-step="4"><span>Smoke-test <code>get_tools()</code>. Alert on "will run without the tools".</span></li>
+      <li class="no" data-step="4"><span><code>print()</code> in a stdio server. <span class="r">stdout carries JSON-RPC.</span></span></li>
+    </ul>
+    <svg id="po-svg" viewBox="0 0 712 560" width="712" height="560" aria-label="Layers of least privilege around the model, from the outside in: container with one mount, server role and amount checks, require_confirmation, tool_filter and prefix.">
+      <g class="ly" data-l="0"><rect x="0" y="0" width="712" height="560" rx="26" style="fill:var(--state-soft);stroke:var(--state);stroke-dasharray:12 8"/><text x="28" y="40" style="fill:var(--state)">container · one mount · no metadata</text></g>
+      <g class="ly" data-l="1"><rect x="56" y="70" width="600" height="434" rx="22" style="fill:var(--tool-soft);stroke:var(--tool)"/><text x="82" y="108" style="fill:var(--tool)">server: role and amount checks</text></g>
+      <g class="ly" data-l="2"><rect x="112" y="140" width="488" height="308" rx="18" style="fill:var(--human-soft);stroke:var(--human)"/><text x="138" y="178" style="fill:var(--human)">require_confirmation</text></g>
+      <g class="ly" data-l="3"><rect x="168" y="210" width="376" height="182" rx="16" style="fill:var(--bg);stroke:var(--model)"/><text x="194" y="248" style="fill:var(--model)">tool_filter + prefix</text></g>
+      <g class="ly" data-l="4"><rect x="266" y="280" width="180" height="70" rx="35" style="fill:var(--model);stroke:var(--model)"/><text x="356" y="322" text-anchor="middle" style="fill:#fff">model</text></g>
+      <g id="po-alert" opacity="0"><rect x="452" y="500" width="240" height="44" rx="10" style="fill:var(--risk)"/><text x="572" y="529" text-anchor="middle" style="fill:#fff;font-size:17px;font-weight:700">alerts + smoke test</text></g>
+    </svg>
+  </div>
+  <aside class="notes">The second half of the review list is about the process around the tools. Check 1: run stdio servers in a container with one mounted directory, because 16.4% of triaged servers reach the filesystem beyond their label, and never set allow_private_network_access=True in production, because it opens the metadata endpoint too. Check 2: pin google-adk, mcp and the server versions, since the 2.x SDK rename shows how a minor upgrade breaks server code. Check 3: write errors as "cause, then the tool to call", which lifted recovery from 45% to 84% in arXiv 2609.35381. Check 4: smoke-test get_tools() at startup and alert on the "will run without the tools" log line, and never print to stdout in a stdio server. The picture shows the layers from the outside in: the container, the server's own checks, the confirmation gate, and the filter with its prefix, around the model; the alerts watch all of them. Think of an onion: an attacker who gets through one layer still meets the next. A likely question: "Which layer would you add first?" tool_filter, because it is one line and it shrinks everything after it.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c06-practices-ops";
+  let tl = null;
+  // which layers are lit after each step (outside in): container, server, confirm, filter, model
+  const LIT = [[], [0, 4], [0, 1, 4], [0, 1, 2, 3, 4], [0, 1, 2, 3, 4]];
+  function render(slide, n, animate) {
+    if (tl) tl.kill(); tl = null;
+    const layers = [...slide.querySelectorAll("#po-svg .ly")];
+    const alert = slide.querySelector("#po-alert");
+    const lit = LIT[Math.min(n, 4)];
+    const prev = n > 0 ? LIT[Math.min(n - 1, 4)] : [];
+    layers.forEach((g, i) => gsap.set(g, { opacity: lit.includes(i) ? 1 : 0.18 }));
+    gsap.set(alert, { opacity: n >= 4 ? 1 : 0 });
+    if (!animate) return;
+    tl = gsap.timeline();
+    layers.forEach((g, i) => {
+      if (lit.includes(i) && !prev.includes(i)) tl.fromTo(g, { opacity: 0.18 }, { opacity: 1, duration: 0.4 }, 0.1 + 0.15 * i);
+    });
+    if (n === 4) tl.fromTo(alert, { opacity: 0, scale: 0.8, transformOrigin: "50% 50%" }, { opacity: 1, scale: 1, duration: 0.4, ease: "back.out(2)" }, 0.2);
+  }
+  Deck.register(ID, {
+    enter(slide, n) { render(slide, n || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { if (tl) tl.kill(); tl = null; },
+  });
+})();
+</script>

@@ -1,0 +1,223 @@
+<section class="slide chapter" id="rag-c06-agentic-adk" data-tone="agent" data-title="Ch 6: Agentic RAG with ADK 2.x">
+  <style>
+    #rag-c06-agentic-adk .display { font-size: 68px; max-width: 1300px; }
+    #rag-c06-agentic-adk .lede { max-width: 1160px; font-size: 26px; }
+    #rag-c06-agentic-adk .tags .tag { font-size: 16px; }
+    #rag-c06-agentic-adk .ag-cites { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+    #rag-c06-agentic-adk .cite.paper { flex-direction: row; gap: 10px; padding: 8px 14px 8px 10px; border-radius: 10px; border: 1px solid var(--line); }
+    #rag-c06-agentic-adk .ag-svg { display: block; overflow: visible; position: relative; z-index: 1; }
+    #rag-c06-agentic-adk .ag-svg text { font-family: var(--f-mono); }
+    #rag-c06-agentic-adk .ag-svg .nd rect, #rag-c06-agentic-adk .ag-svg .nd path.dm { stroke-width: 1.8; transition: stroke .25s, fill .25s; }
+    #rag-c06-agentic-adk .ag-svg .nd .nt { font-size: 15px; font-weight: 700; fill: var(--ink); }
+    #rag-c06-agentic-adk .ag-svg .nd .ns { font-size: 11.5px; font-weight: 600; fill: var(--muted); }
+    #rag-c06-agentic-adk .ag-svg .nd.agent rect, #rag-c06-agentic-adk .ag-svg .nd.agent path.dm { fill: var(--agent-soft); stroke: var(--agent); }
+    #rag-c06-agentic-adk .ag-svg .nd.tool rect { fill: var(--tool-soft); stroke: var(--tool); }
+    #rag-c06-agentic-adk .ag-svg .nd.human rect { fill: var(--human-soft); stroke: var(--human); }
+    #rag-c06-agentic-adk .ag-svg .nd.hot rect, #rag-c06-agentic-adk .ag-svg .nd.hot path.dm { stroke-width: 3.4; }
+    #rag-c06-agentic-adk .ag-svg .nd.bad rect { stroke: var(--risk); fill: var(--risk-soft); stroke-width: 3.4; }
+    #rag-c06-agentic-adk .ag-svg .nd.good rect { stroke: var(--state); fill: var(--state-soft); stroke-width: 3.4; }
+    #rag-c06-agentic-adk .ag-svg .nd.bad .ns { fill: var(--risk); }
+    #rag-c06-agentic-adk .ag-svg .nd.good .ns { fill: var(--state); }
+    #rag-c06-agentic-adk .ag-svg .wr { stroke: var(--line-2); stroke-width: 2; fill: none; }
+    #rag-c06-agentic-adk .ag-svg .wr.on { stroke: var(--agent); stroke-width: 2.6; }
+    #rag-c06-agentic-adk .ag-svg .lp { stroke: var(--agent); stroke-width: 2.4; fill: none; stroke-dasharray: 6 5; opacity: .45; }
+    #rag-c06-agentic-adk .ag-svg .lp.on { opacity: 1; stroke-width: 3; }
+    #rag-c06-agentic-adk .ag-svg .bl { font-size: 12px; font-weight: 700; fill: var(--agent); }
+    #rag-c06-agentic-adk .ag-svg .bl.mu { fill: var(--muted); }
+    #rag-c06-agentic-adk .ag-svg .bdg rect { fill: var(--agent); }
+    #rag-c06-agentic-adk .ag-svg .bdg text { font-size: 12.5px; font-weight: 700; fill: #fff; }
+    #rag-c06-agentic-adk .ag-svg .door { fill: var(--risk); }
+    #rag-c06-agentic-adk .ag-svg .door.open { fill: var(--state); }
+    #rag-c06-agentic-adk .ag-svg .tok { fill: var(--human); stroke: #fff; stroke-width: 2; }
+    #rag-c06-agentic-adk .ag-svg .msg { font-size: 15px; font-weight: 600; fill: var(--human); }
+    #rag-c06-agentic-adk .ag-svg .msgk { font-size: 12px; font-weight: 700; fill: var(--muted); letter-spacing: .05em; }
+    #rag-c06-agentic-adk .ag-svg .rp rect { fill: var(--surface); stroke: var(--human); stroke-width: 1.6; }
+    #rag-c06-agentic-adk .ag-svg .rp text { font-size: 13px; font-weight: 600; fill: var(--ink); }
+    #rag-c06-agentic-adk .ag-svg .rp .rk { font-size: 11.5px; font-weight: 700; fill: var(--muted); letter-spacing: .05em; }
+  </style>
+  <div class="ch-num" data-fx="blur">06</div>
+  <svg class="ag-svg" id="ag-svg" viewBox="0 0 1392 372" width="1392" height="372" aria-label="An employee message enters a router; the HR branch runs retrieve_hr, grader, answerer and a verifier gate, with a rewrite loop of at most 3 attempts; the IT branch and a refusal branch answer the other messages"></svg>
+  <h2 class="display">Agentic RAG with ADK 2.x: route, retrieve, verify, retry</h2>
+  <p class="lede" data-fx="up">An agent earns its latency only where a route or a retry changes the answer.</p>
+  <div class="tags" data-fx="up">
+    <span class="tag t-agent">google-adk 2.13.0 · Workflow</span>
+    <span class="tag t-agent">router → 3 branches</span>
+    <span class="tag t-state">separate verifier gate</span>
+    <span class="tag t-tool">IT: KB first, web second</span>
+    <span class="tag t-risk">MAX_ATTEMPTS = 3</span>
+  </div>
+  <div class="ag-cites" data-fx="up">
+    <span class="tag t-human">Lab 5 · Northwind People &amp; IT helpdesk</span>
+    <a class="cite repo" href="https://github.com/google/adk-python/tree/v2.13.0/contributing/samples/workflows/route" target="_blank" rel="noopener"><b>Repo</b>&nbsp;ADK Workflow Routing Sample @ v2.13.0</a>
+    <a class="cite paper" href="https://arxiv.org/abs/2401.15884" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Corrective RAG (CRAG), arXiv 2401.15884</a>
+  </div>
+  <aside class="notes">
+    Chapter 6 is Lab 5: we build the Northwind People and IT helpdesk as an ADK 2.13.0 Workflow graph, step by step. The animation shows the whole lab in one loop: a message enters the router, and an HR question runs retrieve_hr, grader, answerer and a separate verifier; when the first retrieval is weak, a routed back-edge rewrites the query and the attempt badge goes from 1/3 to 2/3; an IT question goes to it_triage, which searches the known-issues KB first; a pizza order gets a polite refusal. The point of the lede is cost: every agent step adds latency and tokens, so we add a route or a retry only where it changes the answer. Analogy: a hospital triage desk sends each patient to one ward, and a second doctor signs off before discharge. Likely question: "Why not one big agent with all the tools?" Because a graph keeps the budget, the order of tools and the verifier in code, where you can test them; the Dropbox case later in this chapter shows the other side of that trade-off.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const RUNS = [
+    { msg: "Can I work from Lisbon for six weeks?", reply: ["VERIFIED: working abroad over 30 days", "needs HR approval [REMOTE-2026]"] },
+    { msg: "I'm stuck in an Okta login loop since my password reset", reply: ["Severity: P2 | Queue: identity", "Why: matches [KI-311]"] },
+    { msg: "Can you book me a pizza?", reply: ["I can only help with HR policy", "and IT questions."] },
+  ];
+  const Y = { hr: 90, it: 218, no: 346 };
+  let tl = null, all = [];
+  const mk = (p, tag, attrs, cls) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (cls) e.setAttribute("class", cls);
+    p.appendChild(e); return e;
+  };
+  const node = (svg, tone, x, cy, w, name, sub) => {
+    const g = mk(svg, "g", {}, "nd " + tone);
+    mk(g, "rect", { x, y: cy - 24, width: w, height: 48, rx: 12, style: "fill: var(--bg); stroke: none" });
+    mk(g, "rect", { x, y: cy - 24, width: w, height: 48, rx: 12 });
+    mk(g, "text", { x: x + 14, y: cy - 3 }, "nt").textContent = name;
+    const s = mk(g, "text", { x: x + 14, y: cy + 14 }, "ns"); s.textContent = sub;
+    g._sub = s; g._base = sub;
+    return g;
+  };
+  function kill() { if (tl) { tl.kill(); tl = null; } gsap.killTweensOf(all); }
+  function build(slide) {
+    kill();
+    const svg = slide.querySelector("#ag-svg");
+    svg.innerHTML = "";
+    const defs = mk(svg, "defs", {});
+    const mkr = mk(defs, "marker", { id: "ag-arr", viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto-start-reverse" });
+    mk(mkr, "path", { d: "M0,0 L10,5 L0,10 z", fill: "var(--agent)" });
+    // message caption
+    const mk1 = mk(svg, "text", { x: 0, y: 16 }, "msgk"); mk1.textContent = "EMPLOYEE MESSAGE";
+    const msg = mk(svg, "text", { x: 0, y: 40 }, "msg");
+    // wires
+    const W = (d, cls) => mk(svg, "path", { d, "marker-end": "url(#ag-arr)" }, cls || "wr");
+    const w = {
+      in: W("M190,218 L266,218"),
+      hr: W("M374,218 C430,218 430,90 466,90"),
+      it: W("M374,218 L466,218"),
+      no: W("M374,218 C430,218 430,346 466,346"),
+      rg: W("M620,90 L696,90"), ga: W("M850,90 L926,90"), av: W("M1080,90 L1156,90"),
+      vr: W("M1245,114 L1245,186"), ir: W("M830,218 L926,222"), nr: W("M690,346 C820,346 860,250 926,248"),
+    };
+    const loop = mk(svg, "path", { d: "M775,66 L775,30 Q775,18 763,18 L557,18 Q545,18 545,30 L545,62", "marker-end": "url(#ag-arr)" }, "lp");
+    const ll = mk(svg, "text", { x: 660, y: 52, "text-anchor": "middle" }, "bl"); ll.textContent = "rewrite query";
+    // branch labels (above the target nodes)
+    const bl = [["hr_policy", 470, 58], ["it_support", 470, 187], ["out_of_scope", 470, 315]].map(([t, x, y]) => {
+      const e = mk(svg, "text", { x, y }, "bl mu"); e.textContent = t; return e;
+    });
+    // nodes
+    const inN = node(svg, "human", 0, 218, 190, "message", "Event(state=question)");
+    const rt = mk(svg, "g", {}, "nd agent");
+    mk(rt, "path", { d: "M322,166 L374,218 L322,270 L270,218 Z", style: "fill: var(--bg); stroke: none" });
+    mk(rt, "path", { d: "M322,166 L374,218 L322,270 L270,218 Z" }, "dm");
+    mk(rt, "text", { x: 322, y: 223, "text-anchor": "middle" }, "nt").textContent = "router";
+    const re = node(svg, "tool", 470, Y.hr, 150, "retrieve_hr", "attempt 1");
+    const gr = node(svg, "agent", 700, Y.hr, 150, "grader", "Grade");
+    const an = node(svg, "agent", 930, Y.hr, 150, "answerer", "draft");
+    const ve = node(svg, "agent", 1160, Y.hr, 170, "verifier", "Verdict");
+    const itN = node(svg, "agent", 470, Y.it, 360, "it_triage", "KB first, Google Search second");
+    const no = node(svg, "tool", 470, Y.no, 220, "refuse", "polite refusal");
+    // gate doors on the verifier -> reply wire
+    const dl = mk(svg, "rect", { x: 1219, y: 132, width: 26, height: 8, rx: 3 }, "door");
+    const dr = mk(svg, "rect", { x: 1245, y: 132, width: 26, height: 8, rx: 3 }, "door");
+    // attempts badge
+    const bdg = mk(svg, "g", {}, "bdg");
+    mk(bdg, "rect", { x: 606, y: 6, width: 108, height: 24, rx: 12 });
+    const bt = mk(bdg, "text", { x: 660, y: 23, "text-anchor": "middle" }); bt.textContent = "attempt 1/3";
+    // reply card
+    const rp = mk(svg, "g", {}, "rp");
+    mk(rp, "rect", { x: 930, y: 190, width: 400, height: 72, rx: 12 });
+    mk(rp, "text", { x: 946, y: 208 }, "rk").textContent = "REPLY";
+    const r1 = mk(rp, "text", { x: 946, y: 228 }), r2 = mk(rp, "text", { x: 946, y: 248 });
+    mk(rp, "rect", { x: 930, y: 190, width: 400, height: 72, rx: 12, style: "fill: var(--bg); stroke: none" });
+    rp.insertBefore(rp.lastChild, rp.firstChild);
+    // token
+    const tok = mk(svg, "circle", { cx: 95, cy: 218, r: 9 }, "tok");
+    all = [r1, r2, msg, ...Object.values(w), loop, ll, ...bl, inN, rt, re, gr, an, ve, itN, no, dl, dr, bdg, rp, tok];
+
+    const nodes = [inN, rt, re, gr, an, ve, itN, no];
+    const wires = Object.values(w);
+    const P = (x, y, d) => ({ attr: { cx: x, cy: y }, duration: d || 0.45, ease: "power1.inOut" });
+    const hot = (g, on) => () => g.classList.toggle("hot", on);
+    const mark = (g, cls, sub) => () => { g.classList.remove("bad", "good"); if (cls) g.classList.add(cls); g._sub.textContent = sub || g._base; };
+    const wireOn = (wr, on) => () => wr.classList.toggle("on", on);
+    const reply = (r) => () => { r1.textContent = r[0]; r2.textContent = r[1]; };
+
+    tl = gsap.timeline({ repeat: -1, delay: 0.4 });
+    RUNS.forEach((run, k) => {
+      tl.call(() => {
+        nodes.forEach((g) => { g.classList.remove("hot", "bad", "good"); if (g._sub) g._sub.textContent = g._base; });
+        wires.forEach((x) => x.classList.remove("on"));
+        loop.classList.remove("on"); dl.classList.remove("open"); dr.classList.remove("open");
+        bt.textContent = "attempt 1/3"; msg.textContent = "“" + run.msg + "”"; r1.textContent = ""; r2.textContent = "";
+        gsap.set([dl, dr], { x: 0 }); gsap.set(tok, { attr: { cx: 95, cy: 218 }, opacity: 0 });
+        gsap.set([bdg, r1, r2], { opacity: 0 }); gsap.set(msg, { opacity: 0 });
+      });
+      tl.to(msg, { opacity: 1, duration: 0.4 });
+      tl.to(tok, { opacity: 1, duration: 0.25 });
+      tl.call(hot(inN, true)); tl.call(wireOn(w.in, true));
+      tl.to(tok, P(322, 218, 0.5));
+      tl.call(hot(inN, false)); tl.call(hot(rt, true));
+      tl.to({}, { duration: 0.35 });
+      tl.call(hot(rt, false));
+      if (k === 0) {
+        tl.call(wireOn(w.hr, true));
+        tl.to(tok, P(420, 154, 0.3)); tl.to(tok, P(545, 90, 0.35));
+        tl.call(hot(re, true)); tl.to(bdg, { opacity: 1, duration: 0.3 }, "<");
+        tl.to({}, { duration: 0.35 });
+        tl.call(hot(re, false)); tl.call(wireOn(w.rg, true));
+        tl.to(tok, P(775, 90, 0.5));
+        tl.call(mark(gr, "bad", "incorrect · no results"));
+        tl.to({}, { duration: 0.7 });
+        // routed back-edge: rewrite and retrieve again
+        tl.call(() => loop.classList.add("on"));
+        tl.to(tok, P(775, 18, 0.3)); tl.to(tok, P(545, 18, 0.55)); tl.to(tok, P(545, 90, 0.3));
+        tl.call(mark(gr, null)); tl.call(hot(re, true));
+        tl.call(() => { bt.textContent = "attempt 2/3"; re._sub.textContent = "attempt 2"; });
+        tl.fromTo(bdg, { scale: 1 }, { scale: 1.18, transformOrigin: "660px 18px", duration: 0.2, yoyo: true, repeat: 1 });
+        tl.to({}, { duration: 0.2 });
+        tl.call(hot(re, false));
+        tl.to(tok, P(775, 90, 0.5));
+        tl.call(mark(gr, "good", "correct"));
+        tl.to({}, { duration: 0.4 });
+        tl.call(wireOn(w.ga, true));
+        tl.to(tok, P(1005, 90, 0.5)); tl.call(hot(an, true));
+        tl.to({}, { duration: 0.3 });
+        tl.call(hot(an, false)); tl.call(wireOn(w.av, true));
+        tl.to(tok, P(1245, 90, 0.5));
+        tl.call(mark(ve, "good", "supported: true"));
+        tl.to({}, { duration: 0.3 });
+        tl.call(() => { dl.classList.add("open"); dr.classList.add("open"); });
+        tl.to(dl, { x: -18, duration: 0.35, ease: "power2.out" }); tl.to(dr, { x: 18, duration: 0.35, ease: "power2.out" }, "<");
+        tl.call(wireOn(w.vr, true));
+        tl.to(tok, P(1245, 190, 0.4));
+      } else if (k === 1) {
+        tl.call(wireOn(w.it, true));
+        tl.to(tok, P(650, 218, 0.6));
+        tl.call(mark(itN, "good", "known-issues KB hit · KI-311"));
+        tl.to({}, { duration: 0.6 });
+        tl.call(wireOn(w.ir, true));
+        tl.to(tok, P(930, 222, 0.5));
+      } else {
+        tl.call(wireOn(w.no, true));
+        tl.to(tok, P(420, 282, 0.3)); tl.to(tok, P(580, 346, 0.35));
+        tl.call(hot(no, true));
+        tl.to({}, { duration: 0.5 });
+        tl.call(wireOn(w.nr, true));
+        tl.to(tok, P(930, 248, 0.6));
+      }
+      tl.to(tok, { opacity: 0, duration: 0.2 });
+      tl.call(reply(run.reply));
+      tl.to([r1, r2], { opacity: 1, duration: 0.35 });
+      tl.to({}, { duration: 2.2 });
+      tl.to([msg, r1, r2, bdg], { opacity: 0, duration: 0.35 });
+    });
+  }
+  Deck.register("rag-c06-agentic-adk", {
+    enter(slide) { build(slide); },
+    leave() { kill(); }
+  });
+})();
+</script>

@@ -1,0 +1,148 @@
+<section class="slide" id="adk-c08-build-ttl" data-tone="state" data-title="Build: cache TTL for real pauses">
+  <style>
+    #adk-c08-build-ttl .bt-grid { display: grid; grid-template-columns: 620px 1fr; gap: 44px; align-items: start; }
+    #adk-c08-build-ttl .bt-col { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+    #adk-c08-build-ttl #cl-svg { display: block; width: 728px; height: 520px; overflow: visible; }
+    #adk-c08-build-ttl #cl-svg text { font-family: var(--f-mono); }
+    #adk-c08-build-ttl .delta { font-size: 20px; padding: 8px 12px; }
+  </style>
+  <div class="kicker">Build</div>
+  <h2 class="title">Match the cache TTL to real customer pauses</h2>
+  <div class="bt-grid fill">
+    <div class="bt-col">
+      <div class="code-wrap bad">
+        <div class="code-head">handbook_app.py · lab setting</div>
+        <pre class="code" data-lang="python"><code>app = App(name="acme_support", root_agent=agent,
+    context_cache_config=ContextCacheConfig(
+        min_tokens=4096, ttl_seconds=900))</code></pre>
+      </div>
+      <div class="code-wrap good" data-step="2">
+        <div class="code-head">labs/adk/c08-context-cache/handbook_app_tuned.py</div>
+        <pre class="code" data-lang="python" data-focus="2:4"><code>app = App(name="acme_support", root_agent=agent,
+    context_cache_config=ContextCacheConfig(
+        min_tokens=4096,
+        ttl_seconds=3600,      # Uber: 5 min -&gt; 1 h
+        cache_intervals=10),
+    # events_compaction_config=...: next slide
+)</code></pre>
+      </div>
+      <div class="row" data-step="3" style="gap:14px"><span class="delta up">turn 4: 8,960 cached, 520 fresh</span></div>
+    </div>
+    <svg id="cl-svg" viewBox="0 0 728 520" aria-label="Idle-gap timeline for one chat: turns 1 and 2 at minutes 0 and 2, turn 3 at minute 14 and turn 4 at minute 40. Cache bars start at turn 2. TTL 300 seconds misses turns 3 and 4, TTL 900 seconds hits turn 3 and misses turn 4, and TTL 3600 seconds hits both. A token meter for turn 4 shows 9,480 tokens re-sent after a miss against 8,960 cached plus 520 fresh after a hit."></svg>
+  </div>
+  <div class="cites"><a class="cite doc" href="https://uber.com/us/en/blog/efficient-software-factory" target="_blank" rel="noopener"><b>Post</b>&nbsp;Running a Software Factory Efficiently at Uber Scale</a></div>
+  <aside class="notes">The cache lab used a 15-minute TTL for a three-turn demo, but real Acme customers go quiet while they look for a bill or make coffee. The timeline shows one chat with turns at minutes 0, 2, 14 and 40, and the cache is created on turn 2, so each TTL counts from minute 2. At the start you see a 5-minute TTL, which Uber used before: it misses both long pauses. Press once: the lab's 900 seconds survives the 12-minute pause but not the 26-minute one, so turn 4 re-sends all 9,480 tokens. Press again: 3,600 seconds keeps both turns a hit, so turn 4 reads 8,960 tokens from the cache and sends only 520 fresh. Press again: the trade-off is storage, because a longer TTL bills more storage-hours while the customer is idle, so pick about the 90th-percentile pause, not the longest one. Think of the TTL like a parking meter: pay for the time your customers really stay. A likely question: "What if I mistype the field?" The config classes are pydantic models with extra="forbid", so a typo such as ttl_second raises a validation error instead of being ignored.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c08-build-ttl";
+  const NS = "http://www.w3.org/2000/svg";
+  const X0 = 170, X1 = 660, TMAX = 45;
+  const X = (t) => X0 + (Math.min(t, TMAX) * (X1 - X0)) / TMAX;
+  const GAPS = [12, 26];
+  const ROWS = [
+    { ttl: 5, y: 176, label: "ttl 300 s", sub: "Uber, before", step: 0 },
+    { ttl: 15, y: 236, label: "ttl 900 s", sub: "lab setting", step: 1 },
+    { ttl: 60, y: 296, label: "ttl 3600 s", sub: "after", step: 2 },
+  ];
+  const MW = 440, CACHED = Math.round((8960 / 9480) * MW);
+  let R = null, tw = [];
+  function mk(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text !== undefined) e.textContent = text;
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function badge(p, x, y, hit) {
+    const g = mk("g", {}, p);
+    mk("rect", { x: x - 30, y: y - 14, width: 60, height: 28, rx: 14, fill: hit ? "var(--state)" : "var(--risk)", stroke: "var(--bg)", "stroke-width": 2 }, g);
+    mk("text", { x, y: y + 5.5, "font-size": 14, "font-weight": 800, "text-anchor": "middle", fill: "#fff" }, g, hit ? "HIT" : "MISS");
+    return g;
+  }
+  function build(svg) {
+    svg.innerHTML = "";
+    R = { rows: [] };
+    mk("text", { x: 0, y: 20, "font-size": 16, "font-weight": 700, fill: "var(--muted)" }, svg, "one Acme chat · minutes since turn 1");
+    [[0, 2, "1·2", "0·2"], [14, 14, "3", "14"], [40, 40, "4", "40"]].forEach(([a, b, lab, t]) => {
+      const cx = (X(a) + X(b)) / 2, w = lab.length > 1 ? 52 : 30;
+      [a, b].filter((v, i, arr) => arr.indexOf(v) === i).forEach((v) => mk("line", { x1: X(v), y1: 136, x2: X(v), y2: 318, stroke: "var(--line-2)", "stroke-width": 1.2, "stroke-dasharray": "3 4" }, svg));
+      mk("rect", { x: cx - w / 2, y: 38, width: w, height: 28, rx: 14, fill: "var(--human-soft)", stroke: "var(--human)", "stroke-width": 2 }, svg);
+      mk("text", { x: cx, y: 57, "font-size": 15, "font-weight": 800, "text-anchor": "middle", fill: "var(--human)" }, svg, lab);
+      mk("text", { x: cx, y: 90, "font-size": 15, "text-anchor": "middle", fill: "var(--muted)" }, svg, t);
+    });
+    mk("text", { x: X0 - 44, y: 57, "font-size": 15, "text-anchor": "end", fill: "var(--muted)" }, svg, "turn");
+    mk("text", { x: X0 - 44, y: 90, "font-size": 15, "text-anchor": "end", fill: "var(--muted)" }, svg, "min");
+    [[2, 14], [14, 40]].forEach(([a, b], i) => {
+      const y = 128;
+      mk("text", { x: (X(a) + X(b)) / 2, y: y - 10, "font-size": 15, "font-weight": 700, "text-anchor": "middle", fill: "var(--tool)" }, svg, `${GAPS[i]} min idle`);
+      mk("path", { d: `M${X(a) + 4},${y - 4} V${y} H${X(b) - 4} V${y - 4}`, fill: "none", stroke: "var(--tool)", "stroke-width": 2 }, svg);
+    });
+    ROWS.forEach((r) => {
+      const o = {};
+      o.lab = mk("g", {}, svg);
+      mk("text", { x: 0, y: r.y, "font-size": 16, "font-weight": 700, fill: "var(--ink)" }, o.lab, r.label);
+      mk("text", { x: 0, y: r.y + 19, "font-size": 14, fill: "var(--muted)" }, o.lab, r.sub);
+      o.w = X(2 + r.ttl) - X(2);
+      o.bar = mk("rect", { x: X(2), y: r.y - 16, width: o.w, height: 22, rx: 6, fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 2 }, svg);
+      if (2 + r.ttl < TMAX) {
+        const ex = X(2 + r.ttl);
+        o.cap = mk("line", { x1: ex, y1: r.y - 20, x2: ex, y2: r.y + 10, stroke: "var(--risk)", "stroke-width": 3.5, "stroke-linecap": "round" }, svg);
+      } else o.cap = mk("path", { d: `M${X1 - 2},${r.y - 16} l14,11 l-14,11 z`, fill: "var(--state)" }, svg);
+      o.b = GAPS.map((g, i) => badge(svg, X([14, 40][i]), r.y - 5, g <= r.ttl));
+      R.rows.push(o);
+    });
+    R.store = mk("text", { x: 0, y: 360, "font-size": 15, "font-weight": 600, fill: "var(--muted)" }, svg, "longer TTL = more storage-hours · pick the p90 pause, not the max");
+    mk("text", { x: 0, y: 410, "font-size": 16, "font-weight": 700, fill: "var(--ink)" }, svg, "turn 4 prompt tokens · illustrative");
+    R.mA = mk("g", {}, svg);
+    mk("text", { x: 0, y: 452, "font-size": 16, "font-weight": 700, fill: "var(--ink)" }, R.mA, "ttl 900 s");
+    R.mAbar = mk("rect", { x: X0, y: 432, width: MW, height: 28, rx: 5, fill: "var(--tool)" }, R.mA);
+    mk("text", { x: X0 + 12, y: 452, "font-size": 15, "font-weight": 700, fill: "#fff" }, R.mA, "9,480 tokens re-sent");
+    R.mB = mk("g", {}, svg);
+    mk("text", { x: 0, y: 500, "font-size": 16, "font-weight": 700, fill: "var(--ink)" }, R.mB, "ttl 3600 s");
+    R.mBc = mk("rect", { x: X0, y: 480, width: CACHED, height: 28, rx: 5, fill: "var(--state)" }, R.mB);
+    R.mBf = mk("rect", { x: X0 + CACHED, y: 480, width: MW - CACHED, height: 28, rx: 3, fill: "var(--tool)" }, R.mB);
+    mk("text", { x: X0 + 12, y: 500, "font-size": 15, "font-weight": 700, fill: "#fff" }, R.mB, "8,960 cached");
+    mk("text", { x: X0 + MW + 10, y: 500, "font-size": 15, "font-weight": 700, fill: "var(--tool)" }, R.mB, "+520");
+  }
+  function clear() { tw.forEach((t) => t.kill()); tw = []; }
+  function vis(el, on, animate, delay) {
+    gsap.killTweensOf(el);
+    if (!on) { gsap.set(el, { opacity: 0 }); return; }
+    if (animate) tw.push(gsap.fromTo(el, { opacity: 0 }, { opacity: 1, duration: 0.4, delay: delay || 0 }));
+    else gsap.set(el, { opacity: 1 });
+  }
+  function grow(rect, w, on, animate, delay) {
+    gsap.killTweensOf(rect);
+    if (!on) { gsap.set(rect, { opacity: 0, attr: { width: 0 } }); return; }
+    if (animate) tw.push(gsap.fromTo(rect, { opacity: 1, attr: { width: 0 } }, { attr: { width: w }, duration: 0.8, delay: delay || 0, ease: "power2.out" }));
+    else gsap.set(rect, { opacity: 1, attr: { width: w } });
+  }
+  function pop(g, on, animate, delay) {
+    gsap.killTweensOf(g);
+    if (!on) { gsap.set(g, { opacity: 0 }); return; }
+    if (animate) tw.push(gsap.fromTo(g, { opacity: 0, scale: 0.4, transformOrigin: "50% 50%" }, { opacity: 1, scale: 1, duration: 0.4, delay: delay || 0, ease: "back.out(2.2)" }));
+    else gsap.set(g, { opacity: 1, scale: 1 });
+  }
+  function render(slide, n, animate) {
+    const svg = slide.querySelector("#cl-svg");
+    if (!R || !svg.childElementCount) build(svg);
+    clear();
+    const a = (k) => animate && n === k;
+    ROWS.forEach((r, i) => {
+      const o = R.rows[i], on = n >= r.step, an = r.step > 0 && a(r.step);
+      vis(o.lab, on, an, 0); grow(o.bar, o.w, on, an, 0); vis(o.cap, on, an, 0.8);
+      o.b.forEach((b, j) => pop(b, on, an, 0.9 + j * 0.25));
+    });
+    vis(R.mA, n >= 1, a(1), 1.4); grow(R.mAbar, MW, n >= 1, a(1), 1.4);
+    vis(R.mB, n >= 2, a(2), 1.2); grow(R.mBc, CACHED, n >= 2, a(2), 1.2); grow(R.mBf, MW - CACHED, n >= 2, a(2), 2.0);
+    vis(R.store, n >= 3, a(3));
+    if (a(3)) R.rows[2].b.forEach((b, j) => tw.push(gsap.fromTo(b, { scale: 1 }, { scale: 1.2, transformOrigin: "50% 50%", duration: 0.2, yoyo: true, repeat: 1, delay: 0.2 + j * 0.15 })));
+  }
+  Deck.register(ID, {
+    enter(slide, step) { R = null; render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { clear(); if (slide) gsap.killTweensOf(slide.querySelectorAll("#cl-svg *")); },
+  });
+})();
+</script>

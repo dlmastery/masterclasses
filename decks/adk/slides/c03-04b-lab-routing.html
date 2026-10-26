@@ -1,0 +1,111 @@
+<section class="slide" id="adk-c03-lab-routing" data-tone="agent" data-title="Lab 3.3: a function picks the route">
+  <style>
+    #adk-c03-lab-routing .rt-main { display: grid; grid-template-columns: 820px 1fr; gap: 44px; align-items: start; }
+    #adk-c03-lab-routing .rt-right { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+    #adk-c03-lab-routing .rt-graph .node { padding: 12px 16px; }
+    #adk-c03-lab-routing .rt-graph .node .nt { font-size: 20px; white-space: nowrap; }
+    #adk-c03-lab-routing .rt-graph .node .ns { font-size: 16px; }
+    #adk-c03-lab-routing .rt-tok { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; z-index: 2; }
+    #adk-c03-lab-routing .rt-routes { font: 600 20px/1.3 var(--f-mono); color: var(--ink-2); }
+    #adk-c03-lab-routing .rt-routes b { color: var(--agent); }
+    #adk-c03-lab-routing .cap { display: grid; }
+    #adk-c03-lab-routing .cap > * { grid-area: 1 / 1; font-size: 23px; line-height: 1.4; color: var(--ink-2); }
+    #adk-c03-lab-routing .cap code { font-size: .82em; }
+    #adk-c03-lab-routing, #adk-c03-lab-routing * { font-variant-ligatures: none !important; }
+    #adk-c03-lab-routing .out pre.code .dim { color: #a3abd6; opacity: 1; }
+    #adk-c03-lab-routing .cites .cite { display: inline-flex; flex-direction: row; align-items: center; gap: 10px; white-space: nowrap; padding: 6px 12px 6px 10px; border-radius: 10px; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 3.3</span> Acme support desk · 2 of 3</div>
+  <h2 class="title">A plain function picks the route, so the rules get unit tests</h2>
+  <div class="rt-main fill">
+    <div class="code-wrap">
+      <div class="code-head">labs/adk/c03-ticket-triage/ticket_triage/agent.py · excerpt</div>
+      <pre class="code" data-lang="python" data-focus="1:3-4, 2:5, 3:10-11"><code>def route_ticket(node_input: Triage):
+  routes = list(node_input.labels)
+  if node_input.priority == "p1" and "outage" not in routes:
+    routes.append("outage")              # p1 always pages on-call
+  yield Event(output=node_input.model_dump(), route=routes)
+
+# billing, how_to: Agents · page_oncall, human_queue: functions
+root_agent = Workflow(name="ticket_triage", edges=[
+    ("START", intake, classify, route_ticket),
+    (route_ticket, {"billing": billing, "outage": page_oncall,
+                    "how_to": how_to, DEFAULT_ROUTE: human_queue}),
+])</code></pre>
+    </div>
+    <div class="rt-right">
+      <div class="diagram rt-graph" style="width:528px;height:400px"
+           data-wires="rt-route>rt-billing:rl [billing]; rt-route>rt-oncall:rl [outage]; rt-route>rt-howto:rl [how_to]; rt-route>rt-human:rl [DEFAULT]">
+        <div class="node n-tool" id="rt-route" style="left:0;top:160px;width:200px"><span class="nt">route_ticket</span><span class="ns">function</span></div>
+        <div class="node n-agent" id="rt-billing" style="left:348px;top:0;width:180px"><span class="nt">billing</span></div>
+        <div class="node n-tool" id="rt-oncall" style="left:348px;top:110px;width:180px"><span class="nt">page_oncall</span></div>
+        <div class="node n-agent" id="rt-howto" style="left:348px;top:220px;width:180px"><span class="nt">how_to</span></div>
+        <div class="node n-human" id="rt-human" style="left:348px;top:330px;width:180px"><span class="nt">human_queue</span></div>
+      </div>
+      <div class="rt-routes"><b>route=</b><span class="v">["billing"]</span></div>
+      <div class="cap">
+        <p data-until="1">classify said <code>labels=["billing"]</code>, <code>priority="p1"</code>.</p>
+        <p data-step="1" data-until="2">A business rule in code: p1 always adds <code>"outage"</code>.</p>
+        <p data-step="2" data-until="3">A list route runs <b>every</b> matching branch: billing and page_oncall.</p>
+        <p data-step="3"><code>"other"</code> has no key, so <code>DEFAULT_ROUTE</code> sends it to a human.</p>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">route_ticket is plain Python, and that is the point: the model labels, the code decides. Step 1: suppose classify returned only the billing label but priority p1. The rule "p1 always pages on-call" adds outage to the routes. Because it is a function, you can unit-test this rule and it costs no tokens. Step 2: the route is a list, so every matching branch runs; here billing and page_oncall run in the same run. The same Event carries the Triage payload as output, which page_oncall receives as node_input. Step 3: a thank-you ticket is labelled other, which has no key in the edge map, so DEFAULT_ROUTE sends it to the human queue. DEFAULT runs only when no key matches: if the labels were other and billing, billing would run and the default would not. Analogy: the nurse writes the label, and the hospital rule book picks the ward. A likely question: "Why not let the LLM return the route directly?" Then a casing slip like "Billing" ends the branch with only a log line, and you cannot unit-test the rule.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c03-lab-routing";
+  const NS = "http://www.w3.org/2000/svg";
+  // wire order: 0 billing, 1 oncall, 2 how_to, 3 DEFAULT
+  const PLAN = {
+    0: { go: [], lit: [], dim: [], routes: '["billing"]' },
+    1: { go: [], lit: ["rt-route"], dim: [], routes: '["billing", "outage"]' },
+    2: { go: [0, 1], lit: ["rt-billing", "rt-oncall"], dim: ["rt-howto", "rt-human"], routes: '["billing", "outage"]' },
+    3: { go: [3], lit: ["rt-human"], dim: ["rt-billing", "rt-oncall", "rt-howto"], routes: '["other"] → DEFAULT' },
+  };
+  let tl = null, retry = null;
+  function render(slide, n, animate) {
+    if (tl) { tl.kill(); tl = null; }
+    if (retry) { retry.kill(); retry = null; }
+    const dg = slide.querySelector(".rt-graph");
+    if (!dg) return;
+    const p = PLAN[Math.max(0, Math.min(3, n))];
+    let svg = dg.querySelector("svg.rt-tok");
+    if (!svg) { svg = document.createElementNS(NS, "svg"); svg.setAttribute("class", "rt-tok"); dg.appendChild(svg); }
+    svg.innerHTML = "";
+    ["rt-route", "rt-billing", "rt-oncall", "rt-howto", "rt-human"].forEach((id) => {
+      const el = dg.querySelector("#" + id);
+      el.classList.toggle("lit", p.lit.includes(id)); el.classList.toggle("dim", p.dim.includes(id));
+    });
+    const rv = slide.querySelector(".rt-routes .v");
+    if (rv) {
+      rv.textContent = p.routes;
+      if (animate && n === 1) gsap.fromTo(rv, { color: "var(--agent)" }, { color: "var(--ink-2)", duration: 1.2 });
+    }
+    if (!p.go.length) return;
+    const paths = [...dg.querySelectorAll("svg.wires path.w")];
+    if (paths.length < 4) { retry = gsap.delayedCall(0.35, () => render(slide, n, false)); return; }
+    const ride = (c, path, dur) => {
+      const L = path.getTotalLength(), o = { t: 0 };
+      return gsap.to(o, { t: 1, duration: dur, ease: "power1.inOut", onStart: () => c.setAttribute("opacity", 1),
+        onUpdate: () => { const pt = path.getPointAtLength(o.t * L); c.setAttribute("cx", pt.x); c.setAttribute("cy", pt.y); } });
+    };
+    tl = gsap.timeline({ repeat: -1, repeatDelay: 0.8 });
+    p.go.forEach((i) => {
+      const c = document.createElementNS(NS, "circle");
+      c.setAttribute("r", 9); c.setAttribute("opacity", 0);
+      c.setAttribute("fill", i === 3 ? "var(--human)" : "var(--agent)");
+      svg.appendChild(c);
+      tl.add(ride(c, paths[i], 0.9), 0);
+      tl.call(() => c.setAttribute("opacity", 0), null, 1.1);
+    });
+    if (!animate) tl.progress(0.98).play();
+  }
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { if (tl) { tl.kill(); tl = null; } if (retry) { retry.kill(); retry = null; } }
+  });
+})();
+</script>

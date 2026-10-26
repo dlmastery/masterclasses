@@ -1,0 +1,123 @@
+<section class="slide" id="custom-interview-c03-whiteboard-rl-loop" data-tone="tool" data-title="Whiteboard: RL from live traffic">
+  <style>
+    #custom-interview-c03-whiteboard-rl-loop .wb-prompt { padding: 14px 18px; }
+    #custom-interview-c03-whiteboard-rl-loop .wb-prompt p { font-size: 19px; line-height: 1.4; color: var(--ink); }
+    #custom-interview-c03-whiteboard-rl-loop .steps-rail { gap: 8px; }
+    #custom-interview-c03-whiteboard-rl-loop .steps-rail > * { font-size: 17px; line-height: 1.35; }
+    #custom-interview-c03-whiteboard-rl-loop .gotcha { font-size: 17px; padding: 12px 16px; grid-template-columns: 62px 1fr; gap: 4px 12px; }
+    #custom-interview-c03-whiteboard-rl-loop .node { width: 200px; }
+    #custom-interview-c03-whiteboard-rl-loop #mon { width: 170px; }
+    #custom-interview-c03-whiteboard-rl-loop .rl-token { position: absolute; left: 0; top: 0; width: 22px; height: 22px; border-radius: 50%;
+      background: var(--tool); box-shadow: 0 0 0 5px var(--tool-soft), 0 0 20px var(--tool); z-index: 5; opacity: 0; pointer-events: none; }
+    #custom-interview-c03-whiteboard-rl-loop .rl-clock { position: absolute; left: 500px; top: 118px; width: 140px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+    #custom-interview-c03-whiteboard-rl-loop .rl-clock b { font: 700 30px/1 var(--f-mono); color: var(--ink); }
+    #custom-interview-c03-whiteboard-rl-loop .rl-clock span { font: 600 15px/1.2 var(--f-mono); color: var(--muted); text-align: center; }
+    #custom-interview-c03-whiteboard-rl-loop .rl-stats { position: absolute; left: 222px; top: 296px; width: 416px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    #custom-interview-c03-whiteboard-rl-loop .rl-stats .stat { padding: 10px 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line-2); }
+    #custom-interview-c03-whiteboard-rl-loop .rl-stats .stat .n { font-size: 30px; }
+    #custom-interview-c03-whiteboard-rl-loop .rl-stats .stat .l { font-size: 14px; line-height: 1.25; }
+    #custom-interview-c03-whiteboard-rl-loop .rl-ab { position: absolute; left: 222px; top: 432px; width: 416px; display: flex; justify-content: center; }
+    #custom-interview-c03-whiteboard-rl-loop .rl-stats .small { grid-column: 1 / -1; text-align: center; font-size: 14px; color: var(--muted); }
+    #custom-interview-c03-whiteboard-rl-loop .rl-ab .cite { display: inline-flex; flex-direction: row; gap: 8px; font-size: 15px; padding: 6px 12px 6px 8px; white-space: nowrap; border-radius: 10px; }
+  </style>
+  <div class="kicker"><span class="pill">Whiteboard</span> System design</div>
+  <h2 class="title">Design an RL loop that learns from live product traffic</h2>
+  <div class="row fill" style="gap:32px;align-items:start">
+    <div class="stack" style="width:500px;flex:none;gap:14px">
+      <div class="panel k-tool wb-prompt">
+        <p>"Improve our coding assistant with RL from live traffic. Ship several times a day. Never ship a reward hack."</p>
+      </div>
+      <div class="steps-rail">
+        <div data-step="1">Serve a checkpoint. Collect billions of tokens of real user interactions.</div>
+        <div data-step="2">Distill rewards: edit persisted (+), dissatisfied follow-up (−), latency (−). The signal is noisy, so use large batches.</div>
+        <div data-step="3">GRPO-style update in the production harness, with sandboxed tools.</div>
+        <div data-step="4">Eval gate: regression suite, then deploy. About 5&thinsp;h per cycle.</div>
+        <div data-step="5">Behavior monitor: edit rate and questions asked. It can block a deploy.</div>
+      </div>
+      <div class="gotcha" data-step="7">
+        <b>Hack</b><span>Broken tool calls on tasks it will likely fail, so no negative reward.</span>
+        <b class="fix">Fix</b><span>Count broken calls as negative examples.</span>
+        <b>Hack</b><span>Asks clarifying questions instead of making risky edits.</span>
+        <b class="fix">Fix</b><span>Monitor the edit rate. Change the reward.</span>
+      </div>
+    </div>
+
+    <div class="diagram" id="rl-loop-dg" style="width:860px;height:600px"
+         data-wires="serve>collect@1:flow:rt [interactions]; collect>reward@2:flow:bt [distill]; reward>rl@3:flow:lr [GRPO batch]; rl>gate@4:flow:tb [checkpoint]; gate>serve@4:flow:rb [deploy]; serve--mon@5:dash:lr {risk} [edit rate]; mon>gate@5:dash:bt {risk} [block]">
+      <div class="node n-model" id="serve" style="left:380px;top:10px" data-step="1" data-fx="pop"><span class="nt">Serve</span><span class="ns">checkpoint</span></div>
+      <div class="node n-risk" id="mon" style="left:0;top:10px" data-step="5" data-fx="pop"><span class="nt">Behavior monitor</span><span class="ns">edits, questions</span></div>
+      <div class="node n-state" id="collect" style="left:660px;top:220px" data-step="1" data-fx="pop"><span class="nt">Collect</span><span class="ns">user interactions</span></div>
+      <div class="node n-tool" id="reward" style="left:560px;top:480px" data-step="2" data-fx="pop"><span class="nt">Reward signals</span><span class="ns">edit, follow-up, latency</span></div>
+      <div class="node n-model" id="rl" style="left:100px;top:480px" data-step="3" data-fx="pop"><span class="nt">RL update</span><span class="ns">GRPO-style, sandbox</span></div>
+      <div class="node n-human" id="gate" style="left:10px;top:220px" data-step="4" data-fx="pop"><span class="nt">Eval gate</span><span class="ns">regression suite</span></div>
+
+      <div class="rl-clock" data-step="4">
+        <svg viewBox="0 0 80 80" width="76" height="76">
+          <circle cx="40" cy="40" r="34" fill="var(--surface)" stroke="var(--tool)" stroke-width="4"/>
+          <line class="rl-hand" x1="40" y1="40" x2="40" y2="12" stroke="var(--ink)" stroke-width="4" stroke-linecap="round"/>
+          <circle cx="40" cy="40" r="4" fill="var(--ink)"/>
+        </svg>
+        <b>5&thinsp;h</b>
+        <span>per cycle</span>
+      </div>
+      <div class="rl-stats" data-step="6" data-fx="stagger">
+        <div class="stat"><div class="n c-state" data-to="2.28" data-dec="2" data-pre="+" data-suf="%">+2.28%</div><div class="l">edit persists ↑</div></div>
+        <div class="stat"><div class="n c-state" data-to="3.13" data-dec="2" data-pre="−" data-suf="%">−3.13%</div><div class="l">dissatisfied follow-ups ↓</div></div>
+        <div class="stat"><div class="n c-state" data-to="10.3" data-dec="1" data-pre="−" data-suf="%">−10.3%</div><div class="l">latency ↓</div></div>
+        <div class="small">arrow = the better direction; all three improved</div>
+      </div>
+      <div class="rl-ab" data-step="6">
+        <a class="cite doc" href="https://cursor.com/blog/real-time-rl-for-composer" target="_blank" rel="noopener"><b>Blog</b>&nbsp;Cursor real-time RL · Composer 1.5 A/B</a>
+      </div>
+      <div class="rl-token"></div>
+    </div>
+  </div>
+  <aside class="notes">This whiteboard scales the coding-defense answers from the previous slide to live traffic. Give the candidate the prompt card and two minutes before you build the reference answer. The reference is Cursor's real-time RL loop for Composer (cursor.com/blog/real-time-rl-for-composer): serve a checkpoint, distill reward signals from real interactions (did the edit persist, did the user send a dissatisfied follow-up, latency), update in the same harness the product uses, gate on evals, and deploy, about five hours per cycle, so several releases a day. Cursor does not publish the reward weights, so ask the candidate how they would combine the three signals; the strong answer says the signal is noisy, which needs large batches and data close to on-policy. Step five adds the behavior monitor, which watches the edit rate and can block a deploy. Step six shows the Composer 1.5 A/B results: edits persisted 2.28% more, dissatisfied follow-ups fell 3.13%, latency fell 10.3%. The last step shows the two hacks Cursor found in production; push the candidate to name a monitor for each. Cursor's own lesson: "Each attempted reward hack essentially becomes a bug report that we can use to improve our training system." Analogy: a restaurant that changes the menu every evening from tonight's plates sent back, but only after the head chef tastes each new dish. Hand-off: the next slide shows that the reward code itself can be the bug.</aside>
+</section>
+<script>
+(() => {
+  const ID = "custom-interview-c03-whiteboard-rl-loop";
+  const HOPS = [["serve", "collect"], ["collect", "reward"], ["reward", "rl"], ["rl", "gate"], ["gate", "serve"]];
+  let tl = null;
+
+  function stop(slide) {
+    if (tl) { tl.kill(); tl = null; }
+    const tok = slide.querySelector(".rl-token"), hand = slide.querySelector(".rl-hand");
+    if (tok) gsap.set(tok, { opacity: 0 });
+    if (hand) gsap.set(hand, { rotation: 0, svgOrigin: "40 40" });
+  }
+  // the token rides the wire paths only, so it never sits on a node label
+  function wirePath(dg, a, b) {
+    const we = (dg._wireEls || []).find((x) => x.w.from === a && x.w.to === b);
+    return we ? we.p : null;
+  }
+  function run(slide, n) {
+    stop(slide);
+    if (n < 1) return;
+    const dg = slide.querySelector("#rl-loop-dg");
+    const tok = slide.querySelector(".rl-token"), hand = slide.querySelector(".rl-hand");
+    const full = n >= 4;
+    const hops = full ? HOPS : HOPS.slice(0, Math.min(n, 3));
+    const paths = hops.map(([a, b]) => wirePath(dg, a, b)).filter(Boolean);
+    if (!paths.length) return;
+    const seg = 1.0;
+    tl = gsap.timeline({ repeat: -1, delay: 0.9, repeatDelay: 0.2 });
+    paths.forEach((p, i) => {
+      const L = p.getTotalLength(), o = { t: 0 };
+      const put = () => { const pt = p.getPointAtLength(o.t * L); gsap.set(tok, { x: pt.x - 11, y: pt.y - 11 }); };
+      const at = i * (seg + 0.15);
+      tl.set(o, { t: 0, onComplete: put }, at)
+        .to(tok, { opacity: 1, duration: 0.12 }, at)
+        .to(o, { t: 1, duration: seg, ease: "power1.inOut", onUpdate: put }, at)
+        .to(tok, { opacity: 0, duration: 0.12 }, at + seg - 0.06);
+    });
+    if (full) tl.fromTo(hand, { rotation: 0, svgOrigin: "40 40" }, { rotation: 360, svgOrigin: "40 40", duration: paths.length * (seg + 0.15), ease: "none" }, 0);
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { run(slide, step); },
+    step(slide, n) { run(slide, n); },
+    leave(slide) { stop(slide); }
+  });
+})();
+</script>

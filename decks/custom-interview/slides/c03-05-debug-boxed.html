@@ -1,0 +1,188 @@
+<section class="slide tight" id="custom-interview-c03-debug-boxed" data-tone="risk" data-title="Debug: the \boxed regex">
+  <style>
+    #custom-interview-c03-debug-boxed .db-grid { display: grid; grid-template-columns: 800px 1fr; gap: 24px; }
+    #custom-interview-c03-debug-boxed .db-left pre.code { font-size: 16px; }
+    #custom-interview-c03-debug-boxed .db-right { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+    #custom-interview-c03-debug-boxed .token.comment { color: #aab3e0; }
+    #custom-interview-c03-debug-boxed .lab-head .note { font-size: 16px; color: var(--muted); }
+    #custom-interview-c03-debug-boxed .lab-head .note code { font-size: 15px; }
+    #custom-interview-c03-debug-boxed .out-row { display: grid; grid-template-columns: 260px 1fr; gap: 14px; align-items: center; }
+    #custom-interview-c03-debug-boxed .out-cell { display: grid; }
+    #custom-interview-c03-debug-boxed .out-cell > * { grid-area: 1 / 1; align-self: center; }
+    #custom-interview-c03-debug-boxed .out-cell pre.code { font-size: 15px; padding-top: 10px; padding-bottom: 10px; }
+    #custom-interview-c03-debug-boxed .anno { font: 700 20px/1.3 var(--f-mono); color: var(--risk); }
+    #custom-interview-c03-debug-boxed .callout-big { font: 700 30px/1.1 var(--f-mono); color: var(--state); }
+    #custom-interview-c03-debug-boxed .callout-big span { display: block; font: 600 16px/1.4 var(--f-mono); color: var(--muted); margin-top: 6px; }
+    #custom-interview-c03-debug-boxed .fix-cell { display: grid; }
+    #custom-interview-c03-debug-boxed .fix-cell > * { grid-area: 1 / 1; align-self: start; }
+    #custom-interview-c03-debug-boxed .gotcha { font-size: 17px; padding: 10px 16px; gap: 2px 14px; grid-template-columns: 86px 1fr; }
+    #custom-interview-c03-debug-boxed .fix-note { font: 700 18px/1.3 var(--f-mono); color: var(--state); margin-bottom: 6px; }
+    #custom-interview-c03-debug-boxed .fix-cell pre.code { font-size: 16px; }
+  </style>
+  <div class="kicker"><span class="pill">Debug this</span> Claims-payout rewards · trl 1.16.0</div>
+  <div class="row" style="justify-content:space-between;align-items:center;gap:20px">
+    <h2 class="title sm" style="white-space:nowrap">One missing backslash zeroed every brevity reward</h2>
+    <a class="cite paper" href="https://arxiv.org/abs/2610.21404" target="_blank" rel="noopener" style="flex:none;white-space:nowrap;flex-direction:row;gap:10px;padding:8px 14px 8px 10px;border-radius:10px"><b>arXiv</b>&nbsp;2610.21404 · why gate brevity</a>
+  </div>
+  <div class="db-grid fill">
+    <div class="db-left stack" style="gap:10px">
+      <div class="lab-head"><span class="run">python lab4_rewards.py</span><span class="note"><code>reward_funcs=[accuracy_reward, gated_brevity_reward]</code></span></div>
+      <div class="code-wrap bad">
+        <div class="code-head">lab4_rewards.py · correctness-gated brevity reward</div>
+        <pre class="code" data-lang="python" data-focus="1:2, 2:2"><code>import re
+BOX_RE = re.compile(r"\boxed\{([^{}]*)\}")
+
+def _is_correct(text, gold):
+    m = BOX_RE.findall(text)
+    return bool(m) and abs(float(m[-1]) - float(gold)) &lt; 0.01
+# TRL 1.16 passes completion_ids, trainer_state, log_metric
+def gated_brevity_reward(completions, completion_ids, solution,
+        trainer_state=None, log_metric=None,
+        target_tokens=120, warmup_steps=50, **kwargs):
+    ramp = min(1.0, trainer_state.global_step / warmup_steps)
+    out, gated = [], 0
+    for c, ids, gold in zip(completions, completion_ids, solution):
+        if not _is_correct(c[0]["content"], gold):
+            out.append(0.0); gated += 1; continue
+        out.append(ramp * max(0.0, 1 - len(ids) / (2 * target_tokens)))
+    log_metric("brevity/gated_frac", gated / len(out))
+    log_metric("brevity/ramp", ramp)
+    return out</code></pre>
+      </div>
+    </div>
+
+    <div class="db-right">
+      <div class="code-wrap">
+        <div class="code-head">lab4_rewards.py · self-test</div>
+        <pre class="code xs" data-lang="python"><code>if __name__ == "__main__":
+    class S: global_step = 25            # half the warm-up
+    comps = [[{"content": r"...so \boxed{8500}"}],
+             [{"content": r"\boxed{1}"}],
+             [{"content": r"long... \boxed{8500}"}]]
+    ids = [[0] * 40, [0] * 5, [0] * 200]  # token counts
+    r = gated_brevity_reward(comps, ids, ["8500"] * 3,
+            trainer_state=S(),
+            log_metric=lambda k, v: print(k, round(v, 2)))
+    print([round(x, 2) for x in r])</code></pre>
+      </div>
+
+      <div class="out-row">
+        <div class="out-cell">
+          <div class="code-wrap out" data-until="3">
+            <div class="code-head">output · buggy regex</div>
+            <pre class="code" data-lang="out"><code><span class="err">brevity/gated_frac 1.0</span>
+brevity/ramp 0.5
+<span class="err">[0.0, 0.0, 0.0]</span></code></pre>
+          </div>
+          <div class="code-wrap out" data-step="3">
+            <div class="code-head">output · fixed regex</div>
+            <pre class="code" data-lang="out"><code><span class="ok">brevity/gated_frac 0.33</span>
+brevity/ramp 0.5
+<span class="ok">[0.42, 0.0, 0.08]</span></code></pre>
+          </div>
+        </div>
+        <div class="out-cell">
+          <div class="anno" data-until="3">2 correct answers,<br>0 credit</div>
+          <div class="callout-big" data-step="3" data-fx="pop">gated 3/3 → 1/3<span>only the wrong \boxed{1} is gated</span></div>
+        </div>
+      </div>
+
+      <svg id="c305-scan" viewBox="0 0 600 70" width="100%" style="display:block;overflow:visible" aria-label="Regex scan of the model text"></svg>
+
+      <div class="fix-cell">
+        <div class="gotcha" data-step="1" data-until="2">
+          <b>Symptom</b><span><code>gated_frac 1.0</code> on correct answers.</span>
+          <b class="why">Cause</b><span>In a raw regex, <code>\b</code> is a word boundary.</span>
+          <b class="fix">Fix</b><span>Escape it: <code>\\boxed</code> matches the <code>\</code>.</span>
+        </div>
+        <div data-step="2">
+          <div class="code-wrap good">
+            <div class="code-head">FIX: r"\\boxed" matches a literal backslash</div>
+            <pre class="code" data-lang="python"><code>BOX_RE = re.compile(r"\\boxed\{([^{}]*)\}")
+assert BOX_RE.findall(r"so \boxed{8500}") == ["8500"]</code></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">This is the correctness-gated brevity reward from the reward-hacking slides, in the claims-payout run. TRL 1.16 calls every reward function with completion_ids, trainer_state and log_metric as keyword arguments, so this function plugs straight into reward_funcs next to accuracy_reward. Show the code and the output first, and ask why two correct answers get zero brevity credit. Step 1 is the answer: in a raw regex, backslash-b is a word boundary, so the pattern wants "oxed" after a boundary and never matches a real \boxed{8500}; every answer is gated as wrong. Step 2 shows the fix and an assert that tests the regex on one real model-style string. Step 3 runs the self-test again: only the wrong \boxed{1} is gated, and the short correct answer earns 0.42 (half of 1 − 40/240, because step 25 is half the warm-up). Analogy: a ticket scanner that rejects every ticket looks like a very strict guard until you test it with one real ticket. Likely follow-up: "Is there a twin bug?" Yes: in a normal, non-raw Python string, backslash-b is a backspace byte, and the lab's claims_data SYSTEM prompt held exactly that until it became a raw string. So use raw strings for prompts, patterns and test strings, and alert when one reward channel sits at a constant value. Next chapter: the data those rewards and verifiers are trained on.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const CH = ["\\", "b", "o", "x", "e", "d", "{", "8", "5", "0", "0", "}"];
+  const X0 = 118, W = 36, P = 38, Y = 4, H = 34;
+  const STATUS = [
+    'BOX_RE.findall(text): scan the model text',
+    'r"\\b" = boundary, then needs "o", sees "b" -> []',
+    'r"\\\\boxed" matches "\\" literally -> ["8500"]'
+  ];
+  let S = null;
+  const mk = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); parent.appendChild(e); return e; };
+  function build(slide) {
+    const svg = slide.querySelector("#c305-scan");
+    if (S && S.svg === svg) return S;
+    svg.innerHTML = "";
+    const lab = mk("text", { x: 0, y: 26, "font-family": "var(--f-mono)", "font-size": 16 }, svg);
+    lab.style.fill = "var(--muted)"; lab.textContent = "model text";
+    const cells = CH.map((c, i) => {
+      const g = mk("g", {}, svg);
+      const r = mk("rect", { x: X0 + i * P, y: Y, width: W, height: H, rx: 7 }, g);
+      r.style.fill = "var(--surface-2)"; r.style.stroke = "var(--line-2)";
+      const t = mk("text", { x: X0 + i * P + W / 2, y: Y + 23, "text-anchor": "middle", "font-family": "var(--f-mono)", "font-size": 17, "font-weight": 600 }, g);
+      t.style.fill = "var(--ink)"; t.textContent = c;
+      return { g, r, t };
+    });
+    const cur = mk("rect", { x: X0 - 3, y: Y - 3, width: W + 6, height: H + 6, rx: 9, fill: "none", "stroke-width": 3 }, svg);
+    const st = mk("text", { x: 0, y: 66, "font-family": "var(--f-mono)", "font-size": 17, "font-weight": 600 }, svg);
+    S = { svg, cells, cur, st, tl: null };
+    return S;
+  }
+  function render(slide, n, animate) {
+    const s = build(slide);
+    if (s.tl) { s.tl.kill(); s.tl = null; }
+    gsap.killTweensOf([s.cur, ...s.cells.map((c) => c.g), ...s.cells.map((c) => c.r)]);
+    // base state for step n (correct when jumping to any step)
+    s.cells.forEach((c) => { c.r.style.fill = "var(--surface-2)"; gsap.set(c.g, { y: 0 }); });
+    const k = Math.min(n, 2);
+    s.st.textContent = STATUS[k];
+    s.st.style.fill = k === 1 ? "var(--risk)" : k === 2 ? "var(--state)" : "var(--ink-2)";
+    if (k === 0) { gsap.set(s.cur, { autoAlpha: 0, attr: { x: X0 - 3, width: W + 6 } }); return; }
+    if (k === 1) {
+      s.cur.style.stroke = "var(--risk)";
+      s.cells[1].r.style.fill = "var(--risk-soft)";
+      gsap.set(s.cur, { autoAlpha: 1, attr: { x: X0 + P - 3, width: W + 6 } });
+      if (animate) {
+        s.cells[1].r.style.fill = "var(--surface-2)";
+        s.tl = gsap.timeline()
+          .fromTo(s.cur, { autoAlpha: 1, attr: { x: X0 - 3 } }, { attr: { x: X0 + P - 3 }, duration: 0.5, ease: "power2.inOut" })
+          .add(() => { s.cells[1].r.style.fill = "var(--risk-soft)"; })
+          .fromTo(s.cur, { x: -4 }, { x: 4, duration: 0.07, repeat: 5, yoyo: true, clearProps: "x" });
+      }
+      return;
+    }
+    // k === 2: fixed pattern matches the whole token, captures 8500
+    s.cur.style.stroke = "var(--state)";
+    const full = 11 * P + W + 6;
+    const cap = [7, 8, 9, 10];
+    cap.forEach((i) => { s.cells[i].r.style.fill = "var(--state-soft)"; });
+    gsap.set(s.cur, { autoAlpha: 1, attr: { x: X0 - 3, width: full } });
+    if (animate && n === 2) {
+      cap.forEach((i) => { s.cells[i].r.style.fill = "var(--surface-2)"; });
+      s.tl = gsap.timeline()
+        .fromTo(s.cur, { autoAlpha: 1, attr: { width: W + 6 } }, { attr: { width: full }, duration: 0.9, ease: "steps(11)" })
+        .add(() => cap.forEach((i) => { s.cells[i].r.style.fill = "var(--state-soft)"; }))
+        .fromTo(cap.map((i) => s.cells[i].g), { y: -6 }, { y: 0, duration: 0.3, stagger: 0.06, ease: "back.out(3)" });
+    }
+  }
+  Deck.register("custom-interview-c03-debug-boxed", {
+    enter(slide, n) { render(slide, n, true); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() {
+      if (!S) return;
+      if (S.tl) { S.tl.kill(); S.tl = null; }
+      gsap.killTweensOf([S.cur, ...S.cells.map((c) => c.g)]);
+    }
+  });
+})();
+</script>

@@ -1,0 +1,44 @@
+<section class="slide tight" id="adk-c05-lab-payouts-app" data-tone="tool" data-title="Lab 5B.1: the payout app">
+  <style>
+    #adk-c05-lab-payouts-app .lab-head { flex-wrap: nowrap; gap: 14px; }
+    #adk-c05-lab-payouts-app .lab-head .pins { font: 500 16px/1.3 var(--f-mono); color: var(--muted); white-space: nowrap; }
+    #adk-c05-lab-payouts-app .lab-head .pins b { color: var(--ink-2); font-weight: 600; }
+    #adk-c05-lab-payouts-app .pa-body { display: grid; grid-template-columns: 800px 1fr; gap: 40px; align-items: start; }
+    #adk-c05-lab-payouts-app .pa-right { padding-top: 26px; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 5B</span> Acme payouts · step 1 of 6</div>
+  <h2 class="title">The payout graph logs a side effect, waits for an analyst, then pays</h2>
+  <div class="lab-head">
+    <span class="run">pip install "google-adk==2.13.0"</span>
+    <span class="pins"><b>no API key</b> (no LLM node) · run from labs/adk/lab5b-payouts-durable/</span>
+  </div>
+  <div class="pa-body fill">
+    <div class="code-wrap">
+      <div class="code-head">labs/adk/lab5b-payouts-durable/payouts/app.py · excerpt</div>
+      <pre class="code" data-lang="python" data-focus="1:1-3, 2:4-6, 3:8-9, 4:10-13"><code>def kyc_lookup(node_input: str) -&gt; dict:
+  open("side_effects.log", "a").write(f"kyc_lookup {node_input}\n")
+  return {"payee": node_input, "risk": "medium"}
+def analyst_review(node_input: dict):   # hand-off pause
+  yield RequestInput(message=f"Approve payout to {node_input['payee']} "
+                             f"(risk {node_input['risk']})? yes/no")
+# ... pay with RetryConfig: next slide
+root = Workflow(name="payouts",
+                edges=[("START", kyc_lookup, analyst_review, pay)])
+app = App(name="payouts", root_agent=root,
+          resumability_config=ResumabilityConfig(is_resumable=True))
+runner = Runner(app=app,
+                session_service=SqliteSessionService("payouts.db"))</code></pre>
+    </div>
+    <div class="pa-right">
+      <div class="diagram" style="width:552px;height:500px"
+           data-wires="kyc>log@1:dash {state} [append]; kyc>review@2; review>pay@3 {human} [reply &quot;yes&quot;]; review>db@4:dash {state} [events]">
+        <div class="node n-tool" id="kyc" style="left:0;top:0;width:236px" data-on="1:hot 2:dim"><span class="nt">kyc_lookup</span><span class="ns">side effect</span></div>
+        <div class="node n-state" id="log" style="left:330px;top:0;width:222px" data-step="1"><span class="nt">side_effects.log</span><span class="ns">1 line</span></div>
+        <div class="node n-human" id="review" style="left:0;top:200px;width:236px" data-step="2" data-on="2:hot 3:dim"><span class="nt">analyst_review</span><span class="ns">RequestInput</span></div>
+        <div class="node n-tool" id="pay" style="left:0;top:400px;width:236px" data-step="3" data-on="3:hot"><span class="nt">pay</span><span class="ns">node_input = "yes"</span></div>
+        <div class="node n-state" id="db" style="left:330px;top:300px;width:222px" data-step="4" data-fx="pop"><span class="nt">payouts.db</span><span class="ns">SQLite session</span></div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Lab 5B is the Acme payout desk, and it needs no API key because there is no LLM node. Install google-adk 2.13.0 and run every command from labs/adk/lab5b-payouts-durable. Walk the four focus steps. kyc_lookup appends one line to side_effects.log; that line is our proof later that a finished node is replayed, not run again. analyst_review is a plain function that yields a RequestInput, so ADK wraps it as a function node with the default hand-off pattern: the analyst's reply becomes its output, and that output is the node_input of pay. The edges chain the three nodes. Last, the App turns on ResumabilityConfig and the Runner keeps the session in payouts.db with SqliteSessionService, so a second process can read it. Think of side_effects.log as the stamp on a parcel: if a parcel has two stamps, somebody sent it twice. A likely question: "Why a file and not a print?" A print goes away with the process; the file survives the restart and lets you count real executions.</aside>
+</section>

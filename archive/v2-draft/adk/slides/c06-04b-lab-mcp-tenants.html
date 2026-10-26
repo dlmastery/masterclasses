@@ -1,0 +1,178 @@
+<section class="slide tight" id="adk-c06-lab-mcp-tenants" data-tone="tool" data-title="Lab 6.4: tenant headers and tool cache">
+  <style>
+    #adk-c06-lab-mcp-tenants .lab-head { gap: 12px; flex-wrap: nowrap; }
+    #adk-c06-lab-mcp-tenants .lab-head .run { font-size: 15px; white-space: nowrap; }
+    #adk-c06-lab-mcp-tenants .lab-head .pins { font: 500 15px/1.3 var(--f-mono); color: var(--muted); white-space: nowrap; }
+    #adk-c06-lab-mcp-tenants .lab-head .cite { font-size: 13.5px; padding: 4px 9px; margin-left: auto; white-space: nowrap; }
+    #adk-c06-lab-mcp-tenants .mt-grid { display: grid; grid-template-columns: 724px 1fr; gap: 24px; align-items: start; }
+    #adk-c06-lab-mcp-tenants .mt-left, #adk-c06-lab-mcp-tenants .mt-right { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    #adk-c06-lab-mcp-tenants .code-head { padding: 7px 14px; font-size: 14px; }
+    #adk-c06-lab-mcp-tenants pre.code { font-size: 15px; line-height: 1.45; padding: 9px 14px 11px; }
+    #adk-c06-lab-mcp-tenants .mt-out pre.code { font-size: 14.5px; line-height: 1.42; }
+    #adk-c06-lab-mcp-tenants .mt-out .dim { color: #9aa5c4; }
+    #adk-c06-lab-mcp-tenants .mt-rail > * { font-size: 16px; line-height: 1.34; grid-template-columns: 26px 1fr; gap: 8px; }
+    #adk-c06-lab-mcp-tenants .mt-rail > *::before { width: 24px; height: 24px; font-size: 13px; border-radius: 7px; }
+    #adk-c06-lab-mcp-tenants .mt-rail code { font-size: 14px; }
+    /* scene: two brokers -> header chip -> pooled session -> server */
+    #adk-c06-lab-mcp-tenants .sc { position: relative; width: 644px; height: 288px; }
+    #adk-c06-lab-mcp-tenants .sc svg { position: absolute; inset: 0; overflow: visible; }
+    #adk-c06-lab-mcp-tenants .sc-ten { position: absolute; left: 0; width: 128px; height: 42px; border-radius: 999px; border: 2px solid var(--human);
+      background: var(--human-soft); display: grid; place-items: center; font: 700 15px/1 var(--f-mono); color: var(--human); }
+    #adk-c06-lab-mcp-tenants .sc-chip { position: absolute; left: 0; top: 0; padding: 6px 9px; border-radius: 7px; font: 700 13.5px/1 var(--f-mono);
+      color: #fff; background: var(--human); white-space: nowrap; opacity: 0; z-index: 4; }
+    #adk-c06-lab-mcp-tenants .sc-tube { position: absolute; left: 186px; width: 236px; height: 62px; border-radius: 31px; border: 2px solid var(--state);
+      background: var(--state-soft); }
+    #adk-c06-lab-mcp-tenants .sc-tube .tl { position: absolute; left: 20px; top: 10px; font: 700 15px/1.2 var(--f-mono); color: var(--state); white-space: nowrap; }
+    #adk-c06-lab-mcp-tenants .sc-tube .ts { position: absolute; left: 20px; top: 33px; font: 600 14px/1.2 var(--f-mono); color: var(--ink-2); white-space: nowrap; }
+    #adk-c06-lab-mcp-tenants .sc-clk { position: absolute; right: 12px; top: 13px; width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--tool); background: var(--bg); opacity: 0; }
+    #adk-c06-lab-mcp-tenants .sc-clk i { position: absolute; left: 15px; top: 3px; width: 2px; height: 13px; border-radius: 1px; background: var(--tool); transform-origin: 1px 13px; }
+    #adk-c06-lab-mcp-tenants .sc-srv { position: absolute; left: 470px; top: 30px; width: 174px; height: 196px; border-radius: 14px; border: 2px solid var(--tool); background: var(--tool-soft); }
+    #adk-c06-lab-mcp-tenants .sc-srv .bl { position: absolute; left: 12px; top: 10px; font: 700 15px/1.2 var(--f-mono); color: var(--tool); }
+    #adk-c06-lab-mcp-tenants .sc-card { position: absolute; left: 12px; width: 150px; height: 32px; border-radius: 8px; border: 1.5px solid var(--tool); background: var(--bg);
+      display: flex; align-items: center; padding: 0 9px; font: 600 14px/1 var(--f-mono); color: var(--ink); white-space: nowrap; }
+    #adk-c06-lab-mcp-tenants .sc-card.new { border-style: dashed; border-color: var(--risk); color: var(--risk); opacity: 0; }
+    #adk-c06-lab-mcp-tenants .sc-gnote { position: absolute; left: 270px; top: 248px; width: 374px; text-align: right; font: 700 16px/1.3 var(--f-body); color: var(--risk); opacity: 0; }
+    #adk-c06-lab-mcp-tenants .sc-hw, #adk-c06-lab-mcp-tenants .sc-wire { fill: none; stroke-width: 3; }
+    #adk-c06-lab-mcp-tenants .sc-hw { stroke: var(--human); }
+    #adk-c06-lab-mcp-tenants .sc-wire { stroke: var(--state); stroke-dasharray: 8 7; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 6</span> Northwind claims desk · step 4 of 4</div>
+  <h2 class="title">Each broker gets its own session and tool cache via header_provider</h2>
+  <div class="lab-head">
+    <span class="run">adk api_server --with_ui .</span>
+    <span class="pins">broker = an insurance agency that uses the desk (one tenant)</span>
+    <a class="cite doc" href="https://adk.dev/tools-custom/mcp-tools/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;adk.dev MCP tools</a>
+  </div>
+  <div class="mt-grid fill">
+    <div class="mt-left">
+      <div class="code-wrap">
+        <div class="code-head">claims_agent/agent.py · handbook_tools with identity</div>
+        <pre class="code" data-lang="python" data-focus="1:3-7, 2:13, 3:14"><code>from google.adk.agents.readonly_context import ReadonlyContext
+# McpToolset and StreamableHTTPConnectionParams: imported in step 3
+def tenant_headers(ctx: ReadonlyContext) -&gt; dict[str, str]:
+    tenant = ctx.state.get("user:tenant")   # set at login, not by the model
+    if not tenant:
+        raise ValueError("no user:tenant in session state")  # fail closed
+    return {"X-Tenant-ID": tenant}
+handbook_tools = McpToolset(
+    connection_params=StreamableHTTPConnectionParams(
+        url="http://127.0.0.1:3000/mcp", timeout=5.0, sse_read_timeout=300.0),
+    tool_filter=["search_policy", "list_topics"],
+    tool_name_prefix="handbook",
+    header_provider=tenant_headers,        # one pooled session per identity
+    tool_list_cache_ttl_seconds=300,       # tools/list reused for 5 minutes
+)</code></pre>
+      </div>
+      <div class="code-wrap term" data-step="4">
+        <div class="code-head">login step · your app sets user: state, here with curl</div>
+        <pre class="code" data-lang="bash"><code>$ curl -s -X POST 127.0.0.1:8000/apps/claims_agent/users/broker-b/sessions \
+    -H "Content-Type: application/json" \
+    -d '{"state": {"user:tenant": "broker-b"}}'</code></pre>
+      </div>
+      <div class="code-wrap out mt-out" data-step="4">
+        <div class="code-head">output · illustrative</div>
+        <pre class="code" data-lang="out"><code><span class="ok">{"id": "...", "userId": "broker-b", "state": {"user:tenant": "broker-b"}}</span>
+<span class="dim"># open this session in the UI: handbook calls now carry X-Tenant-ID: broker-b</span></code></pre>
+      </div>
+    </div>
+    <div class="mt-right">
+      <div class="sc" id="mt-sc">
+        <svg viewBox="0 0 644 288" width="644" height="288" aria-hidden="true">
+          <path class="sc-hw" data-k="a" d="M128 71 L 186 71"/>
+          <path class="sc-hw" data-k="b" d="M128 181 L 186 181"/>
+          <path class="sc-wire" data-k="a" d="M422 71 C 448 71, 448 100, 470 100"/>
+          <path class="sc-wire" data-k="b" d="M422 181 C 448 181, 448 156, 470 156"/>
+        </svg>
+        <div class="sc-ten" data-k="a" style="top:50px">northwind</div>
+        <div class="sc-ten" data-k="b" style="top:160px">broker-b</div>
+        <span class="sc-chip" data-k="a">X-Tenant-ID</span>
+        <span class="sc-chip" data-k="b">X-Tenant-ID</span>
+        <div class="sc-tube" data-k="a" style="top:40px"><span class="tl">session · northwind</span><span class="ts">listed 2 · filtered to 2</span><div class="sc-clk"><i></i></div></div>
+        <div class="sc-tube" data-k="b" style="top:150px"><span class="tl">session · broker-b</span><span class="ts">listed 2 · filtered to 2</span><div class="sc-clk"><i></i></div></div>
+        <div class="sc-srv"><span class="bl">handbook :3000</span>
+          <div class="sc-card" style="top:44px">search_policy</div>
+          <div class="sc-card" style="top:90px">list_topics</div>
+          <div class="sc-card new" style="top:142px">new_tool</div>
+        </div>
+        <div class="sc-gnote">new_tool: listed after the TTL, still hidden by tool_filter</div>
+      </div>
+      <div class="steps-rail mt-rail">
+        <div data-step="1"><span><code>user:</code> state belongs to one user and lasts across sessions. No tenant: raise, never a default.</span></div>
+        <div data-step="2"><span>One pooled session per header identity. Identity rides in headers, not in the prompt.</span></div>
+        <div data-step="3"><span><code>tools/list</code> is cached per identity for 300 s. A new tool shows after the TTL, and only if <code>tool_filter</code> lists it.</span></div>
+        <div data-step="4"><span>Create each session with its tenant. The model cannot change it.</span></div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">This is step 4 of the Northwind claims desk: several brokers share the handbook server, so each request must carry the broker's identity. A broker here is an insurance agency that uses the desk, one tenant. Step 1: tenant_headers reads user:tenant from session state. State with the user: prefix belongs to one user and survives across that user's sessions; your login code sets it, never the model. If it is missing, raise, so a request never falls back to another tenant's data. Step 2: header_provider sends it as X-Tenant-ID, and ADK pools one MCP session per header identity, so two brokers never share a session. Step 3: the tools/list cache is keyed the same way and lives 300 seconds; ADK does not subscribe to tools/list_changed, so a tool the server adds appears only after the entry expires, and even then the model sees it only if tool_filter lists it. A value of 0 raises ValueError, and None disables the cache. Step 4: create the session with its tenant through the REST API that adk api_server --with_ui serves, then open it in the UI. Think of a hotel key card: identity travels with the request, not in what the guest says, so a prompt injection cannot change the tenant. A likely question: "Why did my new server tool not appear?" The cache had not expired yet, or tool_filter does not list it. Next, the third tool source: the claims-status REST API.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c06-lab-mcp-tenants";
+  let tw = [];
+  function clear() { tw.forEach((t) => t.kill()); tw = []; }
+  const ROW = { a: 71, b: 181 };
+
+  function render(slide, n, animate) {
+    clear();
+    const q = (s) => slide.querySelector(s);
+    const K = ["a", "b"];
+    const ten = (k) => q(`.sc-ten[data-k="${k}"]`), chip = (k) => q(`.sc-chip[data-k="${k}"]`);
+    const tube = (k) => q(`.sc-tube[data-k="${k}"]`), hw = (k) => q(`.sc-hw[data-k="${k}"]`), wire = (k) => q(`.sc-wire[data-k="${k}"]`);
+    const ghost = q(".sc-card.new"), gnote = q(".sc-gnote");
+    const set = (el, props) => gsap.set(el, props);
+
+    // step 0-1: the brokers and their sessions are faint until the identity exists
+    K.forEach((k) => {
+      set(ten(k), { opacity: n >= 1 ? 1 : 0.25 });
+      set([tube(k), hw(k), wire(k)], { opacity: n >= 2 ? 1 : 0.2 });
+    });
+    if (animate && n === 1) tw.push(gsap.fromTo(K.map(ten), { scale: 0.85 }, { scale: 1, duration: 0.45, stagger: 0.2, ease: "back.out(2)" }));
+
+    // step 2: a header chip rides from each broker into its own session
+    K.forEach((k, i) => {
+      const c = chip(k);
+      set(c, { x: 120, y: ROW[k] - 14, opacity: 0 });
+      if (n >= 2 && animate && n === 2) {
+        tw.push(gsap.timeline({ delay: 0.25 + i * 0.4 })
+          .to(c, { opacity: 1, duration: 0.15 })
+          .to(c, { x: 330, duration: 0.8, ease: "power2.inOut" })
+          .to(c, { x: 470, opacity: 0, duration: 0.4 })
+          .fromTo(tube(k), { scale: 1.06 }, { scale: 1, duration: 0.35, ease: "back.out(3)" }, "<"));
+      }
+      if (n >= 2 && animate) tw.push(gsap.fromTo(wire(k), { strokeDashoffset: 0 }, { strokeDashoffset: -30, duration: 0.8, ease: "none", repeat: -1 }));
+    });
+
+    // step 3: per-identity cache clocks; a new server tool is listed after each entry expires, then filtered out
+    const clks = K.map((k) => tube(k).querySelector(".sc-clk")), hands = clks.map((c) => c.querySelector("i"));
+    const counts = K.map((k) => tube(k).querySelector(".ts"));
+    set(clks, { opacity: n >= 3 ? 1 : 0 });
+    const after = "listed 3 · filtered to 2", before = "listed 2 · filtered to 2";
+    if (n >= 3 && animate && n === 3) {
+      counts.forEach((c) => (c.textContent = before));
+      set(ghost, { opacity: 0 }); set(gnote, { opacity: 0 });
+      tw.push(gsap.to(ghost, { opacity: 1, duration: 0.4, delay: 0.2 }));
+      const start = [220, 120], dur = 3.6;
+      K.forEach((k, i) => {
+        set(hands[i], { rotation: start[i] });
+        tw.push(gsap.timeline({ delay: 0.5 })
+          .to(hands[i], { rotation: 360, duration: (360 - start[i]) / 360 * dur, ease: "none" })
+          .call(() => { counts[i].textContent = after; })
+          .fromTo(tube(k), { scale: 1.06 }, { scale: 1, duration: 0.35, ease: "back.out(3)" }));
+      });
+      tw.push(gsap.to(gnote, { opacity: 1, duration: 0.4, delay: 0.5 + dur * (240 / 360) + 0.2 }));
+    } else {
+      hands.forEach((h) => set(h, { rotation: n >= 3 ? 360 : 0 }));
+      counts.forEach((c) => (c.textContent = n >= 3 ? after : before));
+      set(ghost, { opacity: n >= 3 ? 1 : 0 });
+      set(gnote, { opacity: n >= 3 ? 1 : 0 });
+    }
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { clear(); if (slide) gsap.killTweensOf(slide.querySelectorAll(".sc *")); },
+  });
+})();
+</script>

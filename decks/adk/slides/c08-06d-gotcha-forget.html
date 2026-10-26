@@ -1,0 +1,99 @@
+<section class="slide" id="adk-c08-gotcha-forget" data-tone="risk" data-title="Gotcha: memory that vanishes or stays">
+  <style>
+    #adk-c08-gotcha-forget .gf-grid { display: grid; grid-template-columns: 640px 1fr; gap: 48px; align-items: start; }
+    #adk-c08-gotcha-forget .gf-col { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
+    #adk-c08-gotcha-forget .gotcha { font-size: 20px; line-height: 1.45; padding: 20px 24px; }
+    #adk-c08-gotcha-forget #gf-svg { display: block; width: 704px; height: 500px; overflow: visible; }
+    #adk-c08-gotcha-forget #gf-svg text { font-family: var(--f-mono); }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> Memory</div>
+  <h2 class="title">adk web forgets on restart; delete_session does not forget</h2>
+  <div class="gf-grid fill">
+    <div class="gf-col">
+      <div class="gotcha" data-step="1">
+        <b>Symptom</b><span>Memories vanish after <code>adk web</code> restarts.</span>
+        <b class="why">Cause</b><span>Without a URI, <code>adk web</code> uses <code>InMemoryMemoryService</code>.</span>
+        <b class="fix">Fix</b><span>Point it at Memory Bank. To erase, call <code>delete_memory</code>.</span>
+      </div>
+      <div class="code-wrap term" data-step="2">
+        <div class="code-head">terminal · labs/adk/c08-memory-bank/</div>
+        <pre class="code" data-lang="bash"><code>$ adk web . \
+    --memory_service_uri="agentengine://$AGENT_ENGINE_ID"</code></pre>
+      </div>
+    </div>
+    <svg id="gf-svg" viewBox="0 0 704 500" aria-label="Two lanes. Top: InMemoryMemoryService holds two fact chips; a restart wipes them. Middle: Memory Bank keeps the chips after the restart. Bottom: delete_session removes the session but the chips stay; delete_memory removes them."></svg>
+  </div>
+  <div class="cites" data-step="3"><a class="cite repo" href="https://github.com/google/adk-python/issues/7109" target="_blank" rel="noopener"><b>Issue</b>&nbsp;#7109: delete_session leaves memories</a></div>
+  <aside class="notes">Two memory traps point in opposite directions. Press once: in the dev UI, adk web without --memory_service_uri falls back to InMemoryMemoryService, so the callback works, but every memory disappears when the server restarts; the top lane shows the restart wiping the chips. Press again: start adk web with --memory_service_uri pointing at your Agent Runtime, and the Memory Bank lane keeps the facts across restarts. Press again: the opposite trap: deleting the session does not delete memories. Issue 7109 showed that memories survive delete_session, so a forget-me request must call delete_memory, new in 2.13, in the erasure path. Think of a notebook on the desk versus a filing cabinet: the in-memory service is the notebook that goes in the bin every night, and shredding the call log does not empty the cabinet. A likely question: "Does a new session id forget the user?" No, memories are keyed by app_name and user_id, not by session.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c08-gotcha-forget";
+  const NS = "http://www.w3.org/2000/svg";
+  const LANES = [
+    { y: 20, title: "adk web · InMemoryMemoryService", tone: "tool", step: 1 },
+    { y: 180, title: "adk web --memory_service_uri · Memory Bank", tone: "state", step: 2 },
+    { y: 340, title: "delete_session keeps them · delete_memory erases", tone: "risk", step: 3 },
+  ];
+  let R = null, tw = [];
+  function mk(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text !== undefined) e.textContent = text;
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function chips(p, x, y) {
+    return ["Family 4-line", "SMS only"].map((f, i) => {
+      const g = mk("g", {}, p);
+      mk("rect", { x: x + i * 172, y, width: 160, height: 34, rx: 17, fill: "var(--bg)", stroke: "var(--state)", "stroke-width": 2 }, g);
+      mk("text", { x: x + i * 172 + 80, y: y + 23, "text-anchor": "middle", "font-size": 15, "font-weight": 700, fill: "var(--state)" }, g, f);
+      return g;
+    });
+  }
+  function build(svg) {
+    svg.innerHTML = "";
+    R = { lanes: [] };
+    LANES.forEach((l) => {
+      const o = {};
+      o.g = mk("g", {}, svg);
+      mk("text", { x: 0, y: l.y + 18, "font-size": 16, "font-weight": 800, fill: `var(--${l.tone})` }, o.g, l.title);
+      mk("rect", { x: 0, y: l.y + 32, width: 704, height: 96, rx: 14, fill: "var(--surface)", stroke: `var(--${l.tone})`, "stroke-width": 2 }, o.g);
+      o.chips = chips(o.g, 20, l.y + 63);
+      o.tag = mk("g", {}, o.g);
+      o.tagR = mk("rect", { x: 384, y: l.y + 58, width: 300, height: 44, rx: 10, fill: `var(--${l.tone}-soft)`, stroke: `var(--${l.tone})`, "stroke-width": 1.8 }, o.tag);
+      o.tagT = mk("text", { x: 534, y: l.y + 86, "text-anchor": "middle", "font-size": 16, "font-weight": 700, fill: `var(--${l.tone})` }, o.tag, "");
+      R.lanes.push(o);
+    });
+    R.lanes[0].tagT.textContent = "restart → empty";
+    R.lanes[1].tagT.textContent = "restart → kept";
+    R.lanes[2].tagT.textContent = "delete_memory → gone";
+  }
+  function clear() { tw.forEach((t) => t.kill()); tw = []; }
+  function render(slide, n, animate) {
+    const svg = slide.querySelector("#gf-svg");
+    if (!R || !svg.childElementCount) build(svg);
+    clear();
+    R.lanes.forEach((o, i) => {
+      const st = LANES[i].step, on = n >= st, a = animate && n === st;
+      gsap.killTweensOf([o.g, o.tag, ...o.chips]);
+      gsap.set(o.g, { opacity: on ? 1 : 0.18 });
+      gsap.set(o.tag, { opacity: on ? 1 : 0 });
+      const gone = on && (i === 0 || i === 2);
+      o.chips.forEach((c, j) => {
+        if (a && gone) {
+          gsap.set(c, { opacity: 1, y: 0 });
+          tw.push(gsap.to(c, { opacity: 0.12, y: 10, duration: 0.6, delay: 0.7 + j * 0.15, ease: "power2.in" }));
+        } else gsap.set(c, { opacity: gone ? 0.12 : 1, y: gone ? 10 : 0 });
+      });
+      if (a) tw.push(gsap.fromTo(o.tag, { opacity: 0, x: 20 }, { opacity: 1, x: 0, duration: 0.4, delay: 0.3 }));
+      if (a && i === 1) o.chips.forEach((c, j) => tw.push(gsap.fromTo(c, { scale: 1 }, { scale: 1.08, transformOrigin: "50% 50%", transformBox: "fill-box", duration: 0.2, yoyo: true, repeat: 1, delay: 0.7 + j * 0.15 })));
+    });
+  }
+  Deck.register(ID, {
+    enter(slide, step) { R = null; render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { clear(); },
+  });
+})();
+</script>

@@ -1,0 +1,177 @@
+<section class="slide chapter" id="rag-c10-secure" data-tone="risk" data-title="Ch 10: Secure the retrieval path">
+  <style>
+    #rag-c10-secure .display { font-size: 64px; max-width: 1340px; }
+    #rag-c10-secure .lede { max-width: 1160px; font-size: 26px; }
+    #rag-c10-secure .tags .tag { font-size: 16px; }
+    #rag-c10-secure .sc-cites { display: flex; gap: 12px; flex-wrap: wrap; }
+    #rag-c10-secure .sc-cites .cite.paper { display: inline-flex; flex-direction: row; gap: 10px; padding: 8px 14px 8px 10px; border: 1px solid var(--line); border-radius: 10px; }
+    #rag-c10-secure .sc-svg { display: block; overflow: visible; position: relative; z-index: 1; }
+    #rag-c10-secure .sc-svg text { font-family: var(--f-mono); }
+    #rag-c10-secure .sc-svg .track { stroke: var(--line-2); stroke-width: 2; stroke-dasharray: 6 8; fill: none; }
+    #rag-c10-secure .sc-svg .hd { font-size: 12px; font-weight: 700; fill: var(--muted); letter-spacing: .06em; }
+    #rag-c10-secure .sc-svg .gl { font-size: 14px; font-weight: 700; letter-spacing: .06em; fill: var(--risk); }
+    #rag-c10-secure .sc-svg .gs { font-size: 12px; font-weight: 600; fill: var(--muted); }
+    #rag-c10-secure .sc-svg .gate { fill: var(--risk-soft); stroke: var(--risk); stroke-width: 2; }
+    #rag-c10-secure .sc-svg .gate.pass { fill: var(--state-soft); stroke: var(--state); }
+    #rag-c10-secure .sc-svg .gate.stop { fill: var(--risk); }
+    #rag-c10-secure .sc-svg .verdict { font-size: 13px; font-weight: 700; }
+    #rag-c10-secure .sc-svg .verdict.bad { fill: var(--risk); }
+    #rag-c10-secure .sc-svg .card rect.fr { fill: var(--surface); stroke: var(--line-2); stroke-width: 1.6; }
+    #rag-c10-secure .sc-svg .card.red rect.fr { stroke: var(--risk); }
+    #rag-c10-secure .sc-svg .card.green rect.fr { stroke: var(--state); stroke-width: 2.2; }
+    #rag-c10-secure .sc-svg .card .id { font-size: 13px; font-weight: 700; fill: var(--ink); }
+    #rag-c10-secure .sc-svg .card .tx { font-size: 11.5px; font-weight: 600; fill: var(--ink-2); }
+    #rag-c10-secure .sc-svg .card .hid { font-size: 11px; font-weight: 700; fill: var(--risk); }
+    #rag-c10-secure .sc-svg .badge rect { fill: var(--human-soft); stroke: var(--human); stroke-width: 1.2; }
+    #rag-c10-secure .sc-svg .badge text { font-size: 10.5px; font-weight: 700; fill: var(--human); }
+    #rag-c10-secure .sc-svg .model rect { fill: var(--model-soft); stroke: var(--model); stroke-width: 2; }
+    #rag-c10-secure .sc-svg .model .t { font-size: 16px; font-weight: 700; fill: var(--model); }
+    #rag-c10-secure .sc-svg .model .s { font-size: 11.5px; font-weight: 600; fill: var(--ink-2); }
+    #rag-c10-secure .sc-svg .user rect { fill: var(--human-soft); stroke: var(--human); stroke-width: 2; }
+    #rag-c10-secure .sc-svg .user .t { font-size: 15px; font-weight: 700; fill: var(--human); }
+    #rag-c10-secure .sc-svg .user .s { font-size: 11.5px; font-weight: 600; fill: var(--ink-2); }
+    #rag-c10-secure .sc-svg .ans rect { fill: var(--state); }
+    #rag-c10-secure .sc-svg .ans text { font-size: 11.5px; font-weight: 700; fill: #fff; }
+  </style>
+  <div class="ch-num" data-fx="blur">10</div>
+  <svg class="sc-svg" id="sc-svg" viewBox="0 0 1392 284" width="1392" height="284" aria-label="Three document cards flow from ClaimsKB toward the model. An SIU playbook card is stopped at the ACL filter. A public KB page with hidden instructions passes the ACL filter but is stopped at datamarking. The FAQ card passes both gates, its words joined by carets, reaches the model, and the answer passes the egress URL allowlist to Maria."></svg>
+  <h2 class="display">Secure the retrieval path: retrieved text is untrusted input</h2>
+  <p class="lede" data-fx="up">A RAG system is as safe as its least trusted document and its weakest filter.</p>
+  <div class="tags" data-fx="up">
+    <span class="tag t-state">chromadb 1.5.9 · ACL inside the query</span>
+    <span class="tag t-agent">leak test in CI</span>
+    <span class="tag t-model">pytest 9.1.1 · injection suite</span>
+    <span class="tag t-risk">poisoning · laundering · stale docs</span>
+    <span class="tag">Lab 9 · Harbor Mutual claims desk</span>
+  </div>
+  <div class="sc-cites" data-fx="up">
+    <a class="cite doc" href="https://genai.owasp.org/llmrisk/llm082025-vector-and-embedding-weaknesses/" target="_blank" rel="noopener"><b>Doc</b>&nbsp;OWASP LLM08:2025 Vector and Embedding Weaknesses</a>
+    <a class="cite paper" href="https://arxiv.org/abs/2403.14720" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Spotlighting, arXiv 2403.14720</a>
+    <a class="cite paper" href="https://arxiv.org/abs/2610.19133" target="_blank" rel="noopener"><b>Paper</b>&nbsp;TRACER, arXiv 2610.19133</a>
+  </div>
+  <aside class="notes">
+    Chapter 10 is Lab 9 at the Harbor Mutual claims desk: ClaimsKB holds a public FAQ, adjuster manuals and the SIU fraud playbook, and call-centre agent Maria must never see the playbook. The loop shows the three gates we build: the ACL filter inside the vector query stops the SIU card, datamarking marks the retrieved text as data so the KB page with hidden instructions stays inert, and a deterministic egress allowlist checks every URL in the answer. Analogy: a hospital pharmacy checks who you are before it opens the cabinet, labels every bottle, and checks the bag again at the door. Then we look at 2026 evidence: injections work much better through retrieved documents than through chat, coordinated poison passes ingestion checks, and citations can point to the wrong source. Likely question: "Is a prompt-injection classifier enough?" No: the papers later in this chapter show that detectors miss fluent false facts, so we test outcomes, not detections. Next: the first gate, the ACL filter inside the vector query (Lab 9, step 1).
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const CY = 162, CW = 226, CH = 76;
+  const GATES = [
+    { x: 340, k: "ACL FILTER", s: "where=allowed_groups" },
+    { x: 610, k: "DATAMARKING", s: "<<DOC>>a^b<</DOC>>" },
+    { x: 1040, k: "EGRESS FILTER", s: "URL allowlist" },
+  ];
+  let tl = null, all = [];
+  const mk = (p, tag, attrs, cls) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (cls) e.setAttribute("class", cls);
+    p.appendChild(e); return e;
+  };
+  function kill() { if (tl) { tl.kill(); tl = null; } gsap.killTweensOf(all); }
+  function card(svg, o) {
+    const g = mk(svg, "g", {}, "card " + (o.cls || ""));
+    mk(g, "rect", { x: 0, y: CY - CH / 2, width: CW, height: CH, rx: 12 }, "fr");
+    mk(g, "text", { x: 12, y: CY - 16 }, "id").textContent = o.id;
+    const b = mk(g, "g", {}, "badge");
+    mk(b, "rect", { x: CW - 84, y: CY - 30, width: 74, height: 20, rx: 10 });
+    mk(b, "text", { x: CW - 47, y: CY - 16, "text-anchor": "middle" }).textContent = o.grp;
+    const tx = mk(g, "text", { x: 12, y: CY + 6 }, "tx"); tx.textContent = o.tx;
+    let hid = null;
+    if (o.hid) { hid = mk(g, "text", { x: 12, y: CY + 26 }, "hid"); hid.textContent = o.hid; }
+    else { const t2 = mk(g, "text", { x: 12, y: CY + 26 }, "tx"); t2.textContent = o.tx2 || ""; }
+    return { g, tx, hid, o };
+  }
+  function build(slide) {
+    kill();
+    const svg = slide.querySelector("#sc-svg");
+    svg.innerHTML = "";
+    mk(svg, "text", { x: 0, y: 40 }, "hd").textContent = "CLAIMSKB + TICKETS";
+    mk(svg, "text", { x: 0, y: 58 }, "gs").textContent = "query by Maria (all-staff)";
+    mk(svg, "path", { d: `M0,${CY} L1160,${CY}` }, "track");
+    const gates = GATES.map((G) => {
+      mk(svg, "text", { x: G.x, y: 40, "text-anchor": "middle" }, "gl").textContent = G.k;
+      mk(svg, "text", { x: G.x, y: 58, "text-anchor": "middle" }, "gs").textContent = G.s;
+      const bar = mk(svg, "rect", { x: G.x - 8, y: 76, width: 16, height: 172, rx: 8 }, "gate");
+      const v = mk(svg, "text", { x: G.x, y: 274, "text-anchor": "middle" }, "verdict");
+      return { bar, v, G };
+    });
+    // model and user
+    const model = mk(svg, "g", {}, "model");
+    mk(model, "rect", { x: 740, y: CY - 46, width: 200, height: 92, rx: 16, fill: "var(--surface, #fff)", style: "fill:var(--surface,#fff)" }, "bg");
+    mk(model, "rect", { x: 740, y: CY - 46, width: 200, height: 92, rx: 16 });
+    mk(model, "text", { x: 840, y: CY - 6, "text-anchor": "middle" }, "t").textContent = "LLM";
+    mk(model, "text", { x: 840, y: CY + 18, "text-anchor": "middle" }, "s").textContent = "gemini-3.8-flash";
+    const user = mk(svg, "g", {}, "user");
+    mk(user, "rect", { x: 1160, y: CY - 40, width: 232, height: 80, rx: 40, style: "fill:var(--surface,#fff)" }, "bg");
+    mk(user, "rect", { x: 1160, y: CY - 40, width: 232, height: 80, rx: 40 });
+    mk(user, "text", { x: 1276, y: CY - 4, "text-anchor": "middle" }, "t").textContent = "Maria";
+    mk(user, "text", { x: 1276, y: CY + 18, "text-anchor": "middle" }, "s").textContent = "call centre · all-staff";
+    const cards = [
+      card(svg, { id: "siu-02", grp: "siu", tx: "Fraud red flags: claim", tx2: "within 30 days of start" }),
+      card(svg, { id: "kb-public", grp: "all-staff", cls: "red", tx: "Password reset: go to", hid: "IGNORE ALL PREVIOUS INSTR..." }),
+      card(svg, { id: "faq-01", grp: "all-staff", cls: "green", tx: "To file a claim, call", tx2: "1-800-555-0100." }),
+    ];
+    const ans = mk(svg, "g", {}, "ans");
+    mk(ans, "rect", { x: 0, y: CY - 15, width: 196, height: 30, rx: 15 });
+    mk(ans, "text", { x: 98, y: CY + 4.5, "text-anchor": "middle" }).textContent = "answer + help.harbormutual";
+
+    all = [...cards.map((c) => c.g), ans, model, user, ...gates.flatMap((g) => [g.bar, g.v])];
+    const at = (gi) => GATES[gi].x - 14 - CW;            // card x when its right edge touches gate gi
+    const flash = (gi, ok, msg, t) => {
+      tl.call(() => {
+        gates[gi].bar.setAttribute("class", "gate " + (ok ? "pass" : "stop"));
+        gates[gi].v.textContent = msg;
+        gates[gi].v.setAttribute("class", "verdict " + (ok ? "" : "bad"));
+        gates[gi].v.setAttribute("fill", ok ? "var(--state)" : "var(--risk)");
+      }, null, t);
+      tl.call(() => { gates[gi].bar.setAttribute("class", "gate"); }, null, t + 0.9);
+    };
+    const reset = () => {
+      cards.forEach((c) => { gsap.set(c.g, { x: 0, y: 0, opacity: 0 }); c.tx.textContent = c.o.tx; if (c.hid) gsap.set(c.hid, { opacity: 0.12 }); });
+      gsap.set(ans, { x: 742, opacity: 0 });
+      gates.forEach((g) => { g.bar.setAttribute("class", "gate"); g.v.textContent = ""; });
+      gsap.set(model, { scale: 1, svgOrigin: "840 162" });
+    };
+
+    tl = gsap.timeline({ repeat: -1, delay: 0.3 });
+    tl.call(reset);
+    // 1. SIU playbook: stopped by the ACL filter
+    const [c1, c2, c3] = cards;
+    tl.to(c1.g, { opacity: 1, duration: 0.3 }, 0.1);
+    tl.to(c1.g, { x: at(0), duration: 1.0, ease: "power2.inOut" }, 0.4);
+    flash(0, false, "no group match", 1.4);
+    tl.to(c1.g, { x: at(0) - 30, y: 60, opacity: 0, duration: 0.6, ease: "power2.in" }, 2.0);
+    // 2. public KB page with hidden text: passes ACL, stopped at datamarking
+    tl.to(c2.g, { opacity: 1, duration: 0.3 }, 2.2);
+    tl.to(c2.g, { x: at(0), duration: 0.9, ease: "power2.inOut" }, 2.4);
+    flash(0, true, "all-staff ok", 3.3);
+    tl.to(c2.g, { x: at(1), duration: 0.8, ease: "power2.inOut" }, 3.5);
+    tl.to(c2.hid, { opacity: 1, duration: 0.3, repeat: 3, yoyo: true }, 4.3);
+    tl.set(c2.hid, { opacity: 1 }, 5.3);
+    flash(1, false, "hidden text: inert", 4.4);
+    tl.to(c2.g, { y: 60, opacity: 0, duration: 0.6, ease: "power2.in" }, 5.5);
+    // 3. FAQ: passes both gates, datamarked, reaches the model; answer passes egress
+    tl.to(c3.g, { opacity: 1, duration: 0.3 }, 5.6);
+    tl.to(c3.g, { x: at(0), duration: 0.9, ease: "power2.inOut" }, 5.8);
+    flash(0, true, "all-staff ok", 6.7);
+    tl.to(c3.g, { x: at(1), duration: 0.8, ease: "power2.inOut" }, 6.9);
+    flash(1, true, "marked as DATA", 7.7);
+    tl.call(() => { c3.tx.textContent = "<<DOC>>To^file^a^claim^call"; }, null, 7.8);
+    tl.to(c3.g, { x: 740 - CW / 2, opacity: 0, duration: 0.8, ease: "power2.in" }, 8.4);
+    tl.to(model, { scale: 1.08, svgOrigin: "840 162", duration: 0.25, yoyo: true, repeat: 1 }, 9.1);
+    tl.to(ans, { opacity: 1, duration: 0.2 }, 9.6);
+    tl.to(ans, { x: GATES[2].x - 14 - 196, duration: 0.6, ease: "power2.out" }, 9.6);
+    flash(2, true, "allowlisted URL", 10.2);
+    tl.to(ans, { x: 1176, duration: 0.6, ease: "power2.inOut" }, 10.5);
+    tl.to(user, { scale: 1.05, svgOrigin: "1276 162", duration: 0.25, yoyo: true, repeat: 1 }, 11.1);
+    tl.to(ans, { opacity: 0, duration: 0.4 }, 12.4);
+    tl.to({}, { duration: 0.6 });
+  }
+  Deck.register("rag-c10-secure", {
+    enter(slide) { build(slide); },
+    leave() { kill(); }
+  });
+})();
+</script>

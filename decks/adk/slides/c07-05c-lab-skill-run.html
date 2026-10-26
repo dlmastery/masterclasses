@@ -1,0 +1,98 @@
+<section class="slide tight" id="adk-c07-lab-skill-run" data-tone="agent" data-title="Lab 7.5b: the skill loads level by level">
+  <style>
+    #adk-c07-lab-skill-run .sr-grid { display: grid; grid-template-columns: 800px 1fr; gap: 36px; align-items: start; }
+    #adk-c07-lab-skill-run pre.code .dim { opacity: .95; color: #9aa3cf; }
+    #adk-c07-lab-skill-run .lab-head > span:last-child { font: 500 17px/1.3 var(--f-mono); color: var(--ink-2); }
+    /* bespoke: files move from disk into the prompt, level by level */
+    #adk-c07-lab-skill-run .an { position: relative; width: 800px; height: 480px; }
+    #adk-c07-lab-skill-run .bx { position: absolute; top: 0; height: 480px; border-radius: 16px; border: 2px dashed var(--line-2); background: var(--surface); }
+    #adk-c07-lab-skill-run .bx .bl { position: absolute; left: 16px; top: 14px; font: 700 17px/1.2 var(--f-mono); color: var(--ink-2); white-space: nowrap; }
+    #adk-c07-lab-skill-run .bx .lvl { position: absolute; right: 16px; top: 10px; font: 700 17px/1 var(--f-mono); padding: 6px 10px; border-radius: 7px; background: var(--agent); color: #fff; }
+    #adk-c07-lab-skill-run .disk { left: 0; width: 300px; }
+    #adk-c07-lab-skill-run .ctx { left: 344px; width: 456px; border-style: solid; border-color: var(--agent); background: var(--agent-soft); }
+    #adk-c07-lab-skill-run .ctx .bl { color: var(--agent); }
+    #adk-c07-lab-skill-run .fi, #adk-c07-lab-skill-run .ch { position: absolute; height: 72px; border-radius: 12px; display: flex; flex-direction: column; justify-content: center; gap: 4px;
+      padding: 0 16px; background: var(--bg); border: 2px solid var(--line-2); white-space: nowrap; z-index: 2; }
+    #adk-c07-lab-skill-run .fi b, #adk-c07-lab-skill-run .ch b { font: 700 18px/1.15 var(--f-mono); color: var(--ink); }
+    #adk-c07-lab-skill-run .fi i, #adk-c07-lab-skill-run .ch i { font: 500 15px/1.15 var(--f-mono); font-style: normal; color: var(--muted); }
+    #adk-c07-lab-skill-run .fi { left: 16px; width: 268px; }
+    #adk-c07-lab-skill-run .fi.ld { border-color: var(--state); background: var(--state-soft); }
+    #adk-c07-lab-skill-run .fi.run { border-color: var(--tool); background: var(--tool-soft); }
+    #adk-c07-lab-skill-run .ch { left: 362px; width: 420px; border-color: var(--agent); opacity: 0; }
+    #adk-c07-lab-skill-run .ch em { position: absolute; right: 14px; top: 22px; font: 700 15px/1 var(--f-mono); font-style: normal; padding: 6px 9px; border-radius: 6px; background: var(--agent); color: #fff; }
+    #adk-c07-lab-skill-run .ch.o { border-color: var(--state); background: var(--state-soft); }
+    #adk-c07-lab-skill-run .dot { position: absolute; width: 16px; height: 16px; border-radius: 50%; background: var(--agent); opacity: 0; z-index: 5; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 7</span> Acme refund team · step 5 of 6 · run</div>
+  <h2 class="title">The model loads the refund skill one level at a time</h2>
+  <div class="lab-head">
+    <span class="run">adk web .</span>
+    <span>"Order A-300 is a jacket I bought 42 days ago. Can I get money back?"</span>
+  </div>
+  <div class="sr-grid fill">
+    <div class="an" aria-label="Progressive disclosure: the skill enters the prompt level by level">
+      <div class="bx disk"><span class="bl">skills/refund-policy/</span></div>
+      <div class="bx ctx"><span class="bl">in the prompt · this turn</span><span class="lvl" id="sr-lv">L0</span></div>
+      <div class="fi" data-k="md" style="top:60px"><b>SKILL.md</b><i>on disk</i></div>
+      <div class="fi" data-k="pol" style="top:156px"><b>policy.md</b><i>references/</i></div>
+      <div class="fi" data-k="py" style="top:252px"><b>prorate.py</b><i>scripts/</i></div>
+      <div class="ch" data-k="c1" style="top:60px"><b>refund-policy</b><i>name + description</i><em>L1</em></div>
+      <div class="ch" data-k="c2" style="top:156px"><b>SKILL.md body</b><i>steps 1-4 · unlocks lookup_order</i><em>L2</em></div>
+      <div class="ch" data-k="c3" style="top:252px"><b>policy.md</b><i>return windows</i><em>L3</em></div>
+      <div class="ch o" data-k="c4" style="top:348px"><b>prorate.py stdout</b><i>"72.0"</i><em>L3</em></div>
+      <div class="dot"></div>
+    </div>
+    <div class="code-wrap out">
+      <div class="code-head">tool trace · illustrative, abridged</div>
+      <pre class="code" data-lang="out"><code><span class="ln" data-step="1" data-fx="fade"><span class="ok">list_skills</span> {}
+  -&gt; [{"name": "refund-policy", ...}]
+</span><span class="ln" data-step="2" data-fx="fade"><span class="ok">load_skill</span> "refund-policy"
+<span class="ok">lookup_order</span> {"order_id": "A-300"}
+  -&gt; {"days_since_purchase": 42, ...}
+</span><span class="ln" data-step="3" data-fx="fade"><span class="ok">load_skill_resource</span> "policy.md"
+<span class="ok">run_skill_script</span> "prorate.py"
+  args {"amount": 120.0, "days": 42}
+</span><span class="ln" data-step="4" data-fx="fade">  -&gt; stdout <span class="ok">"72.0"</span>
+<span class="dim">[agent]:</span> <span class="ok">PARTIAL_REFUND 72.00</span></span></code></pre>
+    </div>
+  </div>
+  <aside class="notes">Now run the skill agent in adk web with the A-300 prompt and watch the trace. Step 1: list_skills returns only the name and description, level 1; the body stays on disk. Step 2: load_skill adds the four steps, level 2, and only now does lookup_order reach the model, which reads A-300: 42 days, 120 dollars. Step 3: load_skill_resource reads policy.md, and run_skill_script runs prorate.py; the args dict becomes --amount 120.0 --days 42. Step 4: the script prints 72.0 and the agent answers PARTIAL_REFUND 72.00, past 30 days and inside 60. The trace on the slide is abridged; the real calls also carry the skill name and the file_path keys, and the full trace is in the lab README. Think of a manual on a shelf: the model reads the spine first and opens the chapter only when the question needs it. A likely question: "Does the body stay in the prompt for the rest of the session?" By default yes; the paper slides show how BOUNDED lifecycle caps the number of active skills. Next, the policy says refunds over 500 dollars need a manager, and step 6 enforces that cap in code.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c07-lab-skill-run";
+  let tw = [];
+  const clear = () => { tw.forEach((t) => t.kill()); tw = []; };
+  const SRC = { 1: 88, 2: 88, 3: 184, 4: 280 }, DST = { 1: 88, 2: 184, 3: 280, 4: 376 };
+  function render(slide, n, animate) {
+    clear();
+    const q = (s) => slide.querySelector(s);
+    const k = (name) => q(`.an [data-k="${name}"]`);
+    n = Math.max(0, Math.min(4, n | 0));
+    q("#sr-lv").textContent = ["L0", "L1", "L2", "L3", "L3"][n];
+    // files on disk: loaded into the prompt, or run as a script
+    k("md").classList.toggle("ld", n >= 2);
+    k("pol").classList.toggle("ld", n >= 3);
+    k("py").classList.toggle("run", n >= 3);
+    k("md").querySelector("i").textContent = n >= 2 ? "loaded" : n === 1 ? "header only" : "on disk";
+    // chip i appears at step i, flying in from the disk column
+    ["c1", "c2", "c3", "c4"].forEach((c, i) => {
+      const el = k(c), on = n >= i + 1;
+      if (animate && n === i + 1) tw.push(gsap.fromTo(el, { opacity: 0, x: -160 }, { opacity: 1, x: 0, duration: 0.7, ease: "power3.out", delay: 0.2 }));
+      else gsap.set(el, { opacity: on ? 1 : 0, x: 0 });
+    });
+    // a token travels disk -> prompt on the step that loads something
+    const dot = q(".an .dot");
+    if (animate && n >= 1) {
+      gsap.set(dot, { left: 276, top: SRC[n], opacity: 1 });
+      tw.push(gsap.to(dot, { left: 370, top: DST[n], duration: 0.55, ease: "power2.inOut" }));
+      tw.push(gsap.to(dot, { opacity: 0, duration: 0.2, delay: 0.55 }));
+    } else gsap.set(dot, { opacity: 0 });
+  }
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { clear(); if (slide) gsap.killTweensOf(slide.querySelectorAll(".an *")); },
+  });
+})();
+</script>

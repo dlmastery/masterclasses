@@ -1,0 +1,133 @@
+<section class="slide tight" id="adk-c10-gotcha-instances" data-tone="risk" data-title="Gotcha: duplicate Agent Runtime instances">
+  <style>
+    #adk-c10-gotcha-instances .gi { display: grid; grid-template-columns: 700px minmax(0, 1fr); gap: 32px; align-items: start; }
+    #adk-c10-gotcha-instances .gotcha { font-size: 20px; grid-template-columns: 110px 1fr; padding: 18px 22px; }
+    #adk-c10-gotcha-instances .gotcha code { font-size: 16px; }
+    #adk-c10-gotcha-instances pre.code { font-size: 18px; line-height: 1.55; padding: 14px 18px 16px; }
+    #adk-c10-gotcha-instances svg { display: block; overflow: visible; }
+    #adk-c10-gotcha-instances svg text { font-family: var(--f-mono); }
+    #adk-c10-gotcha-instances .gi-h { font-size: 17px; font-weight: 700; fill: var(--ink); }
+    #adk-c10-gotcha-instances .gi-box { stroke-width: 2.2; }
+    #adk-c10-gotcha-instances .gi-nt { font-size: 17px; font-weight: 700; fill: var(--ink); }
+    #adk-c10-gotcha-instances .gi-ns { font-size: 15px; fill: var(--ink-2); }
+    #adk-c10-gotcha-instances .gi-wire { fill: none; stroke-width: 2.6; }
+    #adk-c10-gotcha-instances .gi-wl { font-size: 16px; font-weight: 700; }
+    #adk-c10-gotcha-instances .gi-cnt { font-size: 18px; font-weight: 700; }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> Deployment · 2 of 3 · cli_deploy.py L1893-1898</div>
+  <h2 class="title">Each agent_engine deploy without an id makes a new instance</h2>
+  <svg id="gi-svg" viewBox="0 0 1100 300" width="1100" height="300" aria-label="Three CI deploys without an instance id create instance 1, 2 and 3, while the HR web client stays on instance 1. With --agent_engine_id the deploy updates instance 1 in place.">
+    <defs>
+      <marker id="gi-ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" style="fill:var(--ink-2)"/></marker>
+    </defs>
+    <text class="gi-h" x="0" y="22">adk deploy agent_engine · hr_agent</text>
+    <rect class="gi-box" x="0" y="110" width="220" height="68" rx="12" style="fill:var(--tool-soft);stroke:var(--tool)"/>
+    <text class="gi-nt" x="110" y="138" text-anchor="middle">CI deploy</text>
+    <text class="gi-ns" x="110" y="162" text-anchor="middle">rev 1, 2, 3</text>
+    <rect class="gi-box" x="0" y="236" width="220" height="54" rx="27" style="fill:var(--human-soft);stroke:var(--human)"/>
+    <text class="gi-nt" x="110" y="269" text-anchor="middle">HR web client</text>
+    <path class="gi-wire" id="gi-w1" d="M220 144 L398 146" marker-end="url(#gi-ah)"/>
+    <path class="gi-wire" id="gi-w2" d="M220 126 C 400 50, 600 50, 720 108" marker-end="url(#gi-ah)"/>
+    <path class="gi-wire" id="gi-w3" d="M220 116 C 460 -10, 860 -10, 1020 108" marker-end="url(#gi-ah)"/>
+    <path class="gi-wire" id="gi-wc" d="M220 263 C 340 263, 480 250, 480 186" marker-end="url(#gi-ah)" style="stroke:var(--human);stroke-dasharray:6 5"/>
+    <text class="gi-wl" id="gi-l1" x="300" y="134" text-anchor="middle">#1</text>
+    <text class="gi-wl" id="gi-l2" x="492" y="96" text-anchor="middle">#2</text>
+    <text class="gi-wl" id="gi-l3" x="650" y="48" text-anchor="middle">#3</text>
+    <text class="gi-wl" id="gi-lf" x="240" y="216">--agent_engine_id</text>
+    <g id="gi-b1"><rect class="gi-box" x="400" y="110" width="160" height="76" rx="12"/><text class="gi-nt" x="480" y="140" text-anchor="middle">instance 1</text><text class="gi-ns" id="gi-r1" x="480" y="166" text-anchor="middle">rev 1</text></g>
+    <g id="gi-b2"><rect class="gi-box" x="640" y="110" width="160" height="76" rx="12"/><text class="gi-nt" x="720" y="140" text-anchor="middle">instance 2</text><text class="gi-ns" x="720" y="166" text-anchor="middle">rev 2</text></g>
+    <g id="gi-b3"><rect class="gi-box" x="940" y="110" width="160" height="76" rx="12"/><text class="gi-nt" x="1020" y="140" text-anchor="middle">instance 3</text><text class="gi-ns" x="1020" y="166" text-anchor="middle">rev 3</text></g>
+    <circle id="gi-dot" r="8" cx="0" cy="0" style="fill:var(--tool)"/>
+    <text class="gi-cnt" id="gi-cnt" x="600" y="240"></text>
+    <text class="gi-ns" id="gi-sub" x="600" y="268"></text>
+  </svg>
+  <div class="gi fill">
+    <div class="gotcha" data-step="2">
+      <b>Symptom</b><span>Two instances exist. The client still talks to the old one.</span>
+      <b class="why">Cause</b><span>Without <code>--agent_engine_id</code>, every deploy creates a new instance. A failed update deletes only a newly created one.</span>
+      <b class="fix">Fix</b><span>Pass <code>--agent_engine_id</code> on every update.</span>
+    </div>
+    <div class="code-wrap good" data-step="3">
+      <div class="code-head">labs/adk/c10-acme-hr/ship.sh · excerpt</div>
+      <pre class="code" data-lang="bash"><code>adk deploy agent_engine --project=$PROJECT --region=$REGION \
+  --agent_engine_id=$AGENT_ENGINE_ID hr_agent</code></pre>
+    </div>
+  </div>
+  <aside class="notes">The second default is on Agent Runtime. Press once: CI runs adk deploy agent_engine three times without an instance id; each run creates a new instance, so we end with three instances while the HR web client still talks to instance 1 on revision 1. Press again: the cause is in cli_deploy.py: without --agent_engine_id, every deploy creates a new instance, and if an update fails, only a newly created instance is deleted, so the old ones stay and keep billing. Press again: pass --agent_engine_id on every update and the deploy updates instance 1 in place; the client gets revision 3 at the same address. Analogy: the instance id is a house number; without it the mover builds a new house each time instead of furnishing the one you live in. Likely question: "How do I clean up the extra instances?" Delete them in the console or with the Agent Platform SDK, and put the id in your CI variables so it cannot be forgotten.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c10-gotcha-instances";
+  let tl = null;
+  const q = (s, sel) => s.querySelector(sel);
+  const op = (el, v) => el.setAttribute("opacity", String(v));
+  function box(g, tone, alpha) { const r = g.querySelector("rect"); r.style.fill = `var(--${tone}-soft)`; r.style.stroke = `var(--${tone})`; op(g, alpha); }
+  function wire(el, tone, alpha) { el.style.stroke = `var(--${tone})`; op(el, alpha); }
+  // a in [0,3]: deploys #1..#3 without an id; b in [0,1]: one deploy with --agent_engine_id
+  function render(s, a, b) {
+    const dot = q(s, "#gi-dot");
+    let dotOn = false;
+    for (let k = 1; k <= 3; k++) {
+      const w = q(s, "#gi-w" + k), l = q(s, "#gi-l" + k), g = q(s, "#gi-b" + k);
+      const started = a > k - 1, done = a >= k - 0.3, dupe = k > 1;
+      if (b > 0) {
+        wire(w, k === 1 ? "state" : "line-2", k === 1 ? 1 : 0.25);
+        op(l, k === 1 ? 0 : 0.25);
+        box(g, k === 1 ? "state" : "risk", k === 1 ? 1 : 0.25);
+      } else {
+        wire(w, dupe ? "risk" : "tool", started ? 1 : 0);
+        l.style.fill = dupe ? "var(--risk)" : "var(--tool)";
+        op(l, started ? 1 : 0);
+        box(g, dupe ? "risk" : "agent", done ? 1 : 0);
+      }
+      if (b === 0 && started && !done) {
+        const f = Math.min(1, (a - (k - 1)) / 0.7), p = w.getPointAtLength(w.getTotalLength() * f);
+        dot.setAttribute("cx", p.x); dot.setAttribute("cy", p.y);
+        dot.style.fill = dupe ? "var(--risk)" : "var(--tool)";
+        dotOn = true;
+      }
+    }
+    const lf = q(s, "#gi-lf");
+    lf.style.fill = "var(--state)";
+    op(lf, b > 0 ? 1 : 0);
+    if (b > 0 && b < 0.7) {
+      const w1 = q(s, "#gi-w1"), p = w1.getPointAtLength(w1.getTotalLength() * (b / 0.7));
+      dot.setAttribute("cx", p.x); dot.setAttribute("cy", p.y);
+      dot.style.fill = "var(--state)";
+      dotOn = true;
+    }
+    op(dot, dotOn ? 1 : 0);
+    op(q(s, "#gi-wc"), 1);
+    q(s, "#gi-r1").textContent = b >= 0.7 ? "rev 3 ✓" : "rev 1";
+    const n = (a >= 0.7 ? 1 : 0) + (a >= 1.7 ? 1 : 0) + (a >= 2.7 ? 1 : 0);
+    const c = q(s, "#gi-cnt"), sub = q(s, "#gi-sub");
+    if (b >= 0.7) {
+      c.textContent = "1 instance, updated in place"; c.style.fill = "var(--state)";
+      sub.textContent = "the client gets rev 3 at the same id";
+    } else {
+      c.textContent = "instances: " + n; c.style.fill = n > 1 ? "var(--risk)" : "var(--ink)";
+      sub.textContent = n > 1 ? "the client still talks to rev 1" : "";
+    }
+  }
+  function stop() { if (tl) tl.kill(); tl = null; }
+  function build(s, n, animate) {
+    stop();
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const P = { a: n >= 1 ? 3 : 0, b: n >= 3 ? 1 : 0 };
+    const playA = animate && n === 1 && !reduce, playB = animate && n === 3 && !reduce;
+    if (playA) P.a = 0;
+    if (playB) P.b = 0;
+    render(s, P.a, P.b);
+    if (playA || playB) {
+      tl = gsap.timeline({ delay: 0.4 });
+      if (playA) tl.to(P, { a: 3, duration: 3.6, ease: "none", onUpdate: () => render(s, P.a, P.b) });
+      else tl.to(P, { b: 1, duration: 1.8, ease: "none", onUpdate: () => render(s, P.a, P.b) });
+    }
+  }
+  Deck.register(ID, {
+    enter(slide, n) { build(slide, n || 0, false); },
+    step(slide, n, animate) { build(slide, n, animate); },
+    leave() { stop(); },
+  });
+})();
+</script>

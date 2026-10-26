@@ -1,0 +1,191 @@
+<section class="slide" id="custom-c02-lab1-mask" data-tone="model" data-title="Lab 1 · print the loss mask">
+  <style>
+    #custom-c02-lab1-mask { gap: 22px; }
+    #custom-c02-lab1-mask .m-grid { display: grid; grid-template-columns: 724px 1fr; gap: 24px; min-height: 0; }
+    #custom-c02-lab1-mask .m-left, #custom-c02-lab1-mask .m-right { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    #custom-c02-lab1-mask .m-code pre.code { font-size: 14.5px; line-height: 1.45; padding: 12px 18px 14px; }
+    #custom-c02-lab1-mask .m-out pre.code { font-size: 14px; line-height: 1.45; padding: 10px 16px 12px; white-space: pre-wrap; }
+    #custom-c02-lab1-mask .m-out pre.code code { white-space: pre-wrap; }
+    #custom-c02-lab1-mask .m-env pre.code { font-size: 13.5px; line-height: 1.45; padding: 9px 16px 11px; }
+    #custom-c02-lab1-mask .code-head { padding: 8px 14px; font-size: 14px; }
+    #custom-c02-lab1-mask .lab-head .run { font-size: 15px; padding: 7px 11px; }
+    #custom-c02-lab1-mask .lab-head { font-size: 15px; gap: 12px; }
+    #custom-c02-lab1-mask .steps-rail { gap: 8px; }
+    #custom-c02-lab1-mask .steps-rail > * { font-size: 16px; line-height: 1.36; grid-template-columns: 30px 1fr; gap: 10px; }
+    #custom-c02-lab1-mask .steps-rail > *::before { width: 26px; height: 26px; font-size: 14px; }
+    #custom-c02-lab1-mask .callout { padding: 9px 14px; font-size: 16px; line-height: 1.38; gap: 10px; }
+    #custom-c02-lab1-mask code { font-size: .88em; }
+    #custom-c02-lab1-mask pre.code, #custom-c02-lab1-mask pre.code *, #custom-c02-lab1-mask code, #custom-c02-lab1-mask .code-head, #custom-c02-lab1-mask svg text { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 1</span> Acme refunds assistant · step 1 of 5</div>
+  <h2 class="title">Look before you train: print exactly which tokens SFT learns from</h2>
+  <div class="m-grid fill">
+    <div class="m-left">
+      <div class="code-wrap m-code">
+        <div class="code-head">refunds_sft/step1_inspect_mask.py · trl 1.16.0 · transformers 5.20.2</div>
+        <pre class="code" data-lang="python" data-focus="1:12-15, 2:16-19, 3:20-21"><code># step1_inspect_mask.py - which tokens does SFT learn from? (CPU)
+from transformers import AutoTokenizer
+from trl import get_training_chat_template
+from common import SYSTEM   # refunds system prompt, shared by all steps
+tok = AutoTokenizer.from_pretrained("Qwen/Qwen3-0.6B")
+# {{Order Number}} is literal Bitext text: the model must copy it
+messages = [{"role": "system", "content": SYSTEM},
+  {"role": "user", "content": "Where is my refund for {{Order Number}}?"},
+  {"role": "assistant", "content": "I'm sorry for the wait. Let me check."},
+  {"role": "user", "content": "Thanks. Can you check it now?"},
+  {"role": "assistant", "content": "{{Order Number}}: it is on its way."}]
+tpl = get_training_chat_template(tok) or tok.chat_template  # None: OK
+orig = tok.apply_chat_template(messages, tokenize=False)
+print("orig == patched:", orig == tok.apply_chat_template(
+    messages, tokenize=False, chat_template=tpl))
+out = tok.apply_chat_template(messages, chat_template=tpl, tokenize=True,
+    return_dict=True, return_assistant_tokens_mask=True)
+mask = out["assistant_masks"]       # 1 = in the loss, 0 = label -100
+print(f"tokens={len(mask)} trained={sum(mask)}")
+print(repr(tok.decode([t for t, m in zip(out["input_ids"], mask) if m])))
+assert sum(mask) &gt; 0, "no assistant tokens in the loss"   # run this in CI</code></pre>
+      </div>
+      <div class="code-wrap out m-out" data-step="4">
+        <div class="code-head">output · illustrative</div>
+        <pre class="code" data-lang="none"><code><span class="ok">orig == patched: False</span>
+<span class="ok">tokens=118 trained=46</span>
+<span class="ok">"&lt;think&gt;\n\n&lt;/think&gt;\n\nI'm sorry for the wait. Let me check.&lt;|im_end|&gt;\n&lt;think&gt;\n\n&lt;/think&gt;\n\n{{Order Number}}: it is on its way.&lt;|im_end|&gt;\n"</span></code></pre>
+      </div>
+    </div>
+    <div class="m-right">
+      <div class="lab-head"><span class="run">python step1_inspect_mask.py</span><a class="cite doc" href="https://huggingface.co/docs/trl/sft_trainer" target="_blank" rel="noopener"><b>Docs</b>&nbsp;TRL SFT Trainer</a></div>
+      <div class="code-wrap term m-env">
+        <div class="code-head">run it Monday · Python &gt;= 3.11 · step 1: CPU · steps 2-5: 1 GPU</div>
+        <pre class="code" data-lang="bash"><code>$ pip install "trl==1.16.0" "peft==0.21.2" "transformers==5.20.2" \
+    "datasets==5.1.0" "accelerate==1.15.0" "torch==2.14.1" "kernels==0.17.2"
+refunds_sft/  common.py (SYSTEM, refund_splits)  step1_inspect_mask.py
+              step2_train.py  step4_merge_and_verify.py  step5_serve.sh</code></pre>
+      </div>
+      <svg id="c02m-svg" viewBox="0 0 648 266" width="648" height="266" aria-label="The rendered chat as token boxes by role. System and user boxes stay grey (label -100). Assistant boxes turn coral, including the empty think block and the end-of-turn token."></svg>
+      <div class="steps-rail">
+        <div data-step="1"><span>Stock Qwen3 drops the earlier <code>&lt;think&gt;</code> block from history. TRL's template keeps it, so every turn trains the same way.</span></div>
+        <div data-step="2"><span>Mask 1 = trained. The trainer gives 0 positions label -100 (ignore_index).</span></div>
+        <div data-step="3"><span><code>&lt;|im_end|&gt;</code> is trained, so the model learns to stop.</span></div>
+      </div>
+      <div class="callout tip" data-step="5"><span>Train with an empty <code>&lt;think&gt;&lt;/think&gt;</code> → serve with <code>enable_thinking=False</code>: the same prefix, in steps 4 and 5.</span></div>
+    </div>
+  </div>
+  <aside class="notes">Before we spend any GPU time, we print what SFT will actually learn from. This script runs on a laptop CPU in seconds. Step 1: TRL swaps the stock Qwen3 chat template for its training template, because the stock one drops the think block from earlier assistant turns, so history renders differently from the final turn; if TRL returns None, the template is already training-ready and we keep it. Step 2: the assistant mask is what assistant_only_loss turns into labels: a 0 becomes label -100, which cross-entropy ignores, so only the coral tokens are in the loss. Step 3: the end-of-turn token must be inside the trained span, or the model never learns to stop; the assert is the line to copy into CI. Analogy: it is a highlighter over the transcript, and the model only studies the highlighted lines. The counts are illustrative and depend on the tokenizer version. The rule to remember: we train with an empty think block, so every inference call in steps 4 and 5 must pass enable_thinking=False, which prefills the same block. Likely question: "What about Gemma 4?" TRL 1.16 does not patch its template and raises a ValueError; we fix that with Unsloth later in this chapter. Next: step 2 turns this mask into one SFTConfig with assistant_only_loss=True.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c02-lab1-mask";
+  // box kinds: h = role header (masked), s = system/user text (masked), k = empty think block, a = assistant text, e = <|im_end|>
+  const ROWS = [
+    { role: "system", kinds: "hssssssss" },
+    { role: "user", kinds: "hsssss" },
+    { role: "assistant", kinds: "hkkaaaaae", hist: true },
+    { role: "user", kinds: "hssss" },
+    { role: "assistant", kinds: "hkkaaaaaae" },
+  ];
+  const TRAINED = 46, TOTAL = 118;
+  const X0 = 116, PITCH = 44, BW = 36, BH = 36, Y0 = 50, RP = 44;
+  let S = null, pulse = null, counter = null;
+
+  const el = (parent, tag, attrs, style, text) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (style) Object.assign(e.style, style);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  };
+
+  function build(svg) {
+    svg.innerHTML = "";
+    // legend + counter on the top line, above the grid
+    const leg = [["var(--surface-2)", "var(--line-2)", "-100", 0], ["var(--model-soft)", "var(--model)", "trained", 92], ["none", "var(--model)", "th = empty <think>", 204]];
+    leg.forEach(([f, s, t, x]) => {
+      el(svg, "rect", { x, y: 6, width: 16, height: 16, rx: 4 }, { fill: f, stroke: s, strokeWidth: 1.5, strokeDasharray: f === "none" ? "3 2" : "none" });
+      el(svg, "text", { x: x + 22, y: 20 }, { font: "500 14px var(--f-mono)", fill: "var(--muted)" }, t);
+    });
+    const cnt = el(svg, "text", { x: 648, y: 20, "text-anchor": "end" }, { font: "700 16px var(--f-mono)", fill: "var(--model)" }, "");
+    const cap = el(svg, "text", { x: 0, y: 40 }, { font: "500 13px var(--f-mono)", fill: "var(--muted)" }, "");
+    const trained = [], ends = [], hist = [], notes = [];
+    ROWS.forEach((r, ri) => {
+      const y = Y0 + ri * RP;
+      el(svg, "text", { x: 0, y: y + 23 }, { font: "600 14px var(--f-mono)", fill: r.role === "assistant" ? "var(--model)" : "var(--muted)" }, r.role);
+      [...r.kinds].forEach((k, i) => {
+        const x = X0 + i * PITCH;
+        const g = el(svg, "g", {});
+        const rect = el(g, "rect", { x, y, width: BW, height: BH, rx: 7 }, { fill: "var(--surface-2)", stroke: "var(--line-2)", strokeWidth: 1.6, strokeDasharray: k === "k" ? "4 3" : "none" });
+        if (k === "k" || k === "e") el(g, "text", { x: x + BW / 2, y: y + 23, "text-anchor": "middle" }, { font: "700 14px var(--f-mono)", fill: "var(--ink-2)" }, k === "k" ? "th" : "end");
+        const box = { g, rect, k };
+        if (k === "k" || k === "a" || k === "e") trained.push(box);
+        if (k === "e") ends.push(box);
+        if (k === "k" && r.hist) hist.push(box);
+      });
+      if (r.kinds.endsWith("e")) {
+        const xe = X0 + (r.kinds.length - 1) * PITCH + BW + 10;
+        notes.push(el(svg, "text", { x: xe, y: y + 23 }, { font: "700 14px var(--f-mono)", fill: "var(--model)", opacity: 0 }, "← stop"));
+      }
+    });
+    S = { svg, cap, cnt, trained, ends, hist, notes };
+  }
+
+  const CAPS = [
+    "rendered chat by role · 1 box ≈ 2-3 tokens",
+    "patched template: the earlier turn keeps its <think> block",
+    "assistant_masks: coral boxes are in the loss",
+    "<|im_end|> is trained: the model learns to stop",
+  ];
+
+  function stopAnim() {
+    if (pulse) { pulse.kill(); pulse = null; }
+    if (counter) { counter.kill(); counter = null; }
+    if (S) gsap.killTweensOf([...S.trained.map((b) => b.g), ...S.hist.map((b) => b.rect), ...S.ends.map((b) => b.g), ...S.notes]);
+  }
+
+  function render(n, animate) {
+    if (!S) return;
+    stopAnim();
+    S.cap.textContent = CAPS[Math.min(n, 3)];
+    // step 1: the history think boxes get a thick outline (the patched template keeps them)
+    S.hist.forEach((b) => { b.rect.style.strokeWidth = n === 1 ? 3 : 1.6; });
+    if (n === 1 && animate) gsap.fromTo(S.hist.map((b) => b.g), { y: -8 }, { y: 0, duration: 0.4, stagger: 0.12, ease: "back.out(2)" });
+    const coral = (b) => { b.rect.style.fill = "var(--model-soft)"; b.rect.style.stroke = "var(--model)"; };
+    const grey = (b) => { b.rect.style.fill = "var(--surface-2)"; b.rect.style.stroke = "var(--line-2)"; };
+    if (n >= 2) {
+      if (animate && n === 2) {
+        S.trained.forEach(grey);
+        const st = { v: 0 };
+        S.cnt.textContent = `0 / ${TOTAL} trained`;
+        counter = gsap.timeline();
+        S.trained.forEach((b, i) => counter.call(() => coral(b), null, 0.1 + i * 0.07).fromTo(b.g, { y: -5 }, { y: 0, duration: 0.25, ease: "back.out(3)" }, 0.1 + i * 0.07));
+        counter.to(st, { v: TRAINED, duration: 0.1 + S.trained.length * 0.07, ease: "none", onUpdate: () => { S.cnt.textContent = `${Math.round(st.v)} / ${TOTAL} trained`; } }, 0.1);
+      } else {
+        S.trained.forEach((b) => { coral(b); gsap.set(b.g, { y: 0 }); });
+        S.cnt.textContent = `${TRAINED} / ${TOTAL} trained`;
+      }
+    } else {
+      S.trained.forEach((b) => { grey(b); if (!(n === 1 && animate)) gsap.set(b.g, { y: 0 }); });
+      S.cnt.textContent = `${TOTAL} tokens · patched template`;
+    }
+    S.ends.forEach((b) => { b.rect.style.strokeWidth = n >= 3 ? 3 : 1.6; gsap.set(b.g, { scale: 1 }); });
+    S.notes.forEach((t) => gsap.set(t, { opacity: n >= 3 ? 1 : 0 }));
+    if (n >= 3) {
+      const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+      if (!reduce) pulse = gsap.to(S.ends.map((b) => b.g), { scale: 1.12, transformOrigin: "50% 50%", duration: 0.5, yoyo: true, repeat: -1, ease: "sine.inOut" });
+    }
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) {
+      stopAnim();
+      build(slide.querySelector("#c02m-svg"));
+      render(step || 0, false);
+    },
+    step(slide, n, animate) {
+      if (!S || !slide.contains(S.svg)) build(slide.querySelector("#c02m-svg"));
+      render(n, animate);
+    },
+    leave() { stopAnim(); },
+  });
+})();
+</script>

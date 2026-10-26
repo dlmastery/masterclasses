@@ -1,0 +1,161 @@
+<section class="slide chapter" id="rag-c04-hybrid-rerank" data-tone="agent" data-title="Ch 4: Hybrid search and reranking">
+  <style>
+    #rag-c04-hybrid-rerank .display { font-size: 74px; max-width: 1280px; }
+    #rag-c04-hybrid-rerank .lede { max-width: 1100px; font-size: 26px; }
+    #rag-c04-hybrid-rerank .hr-svg { display: block; overflow: visible; }
+    #rag-c04-hybrid-rerank .hr-svg text { font-family: var(--f-mono); }
+    #rag-c04-hybrid-rerank .hr-svg .hd { font-size: 14px; font-weight: 700; letter-spacing: .05em; }
+    #rag-c04-hybrid-rerank .hr-svg .hd.bm { fill: var(--tool); }
+    #rag-c04-hybrid-rerank .hr-svg .hd.de { fill: var(--state); }
+    #rag-c04-hybrid-rerank .hr-svg .hd.fu { fill: var(--agent); }
+    #rag-c04-hybrid-rerank .hr-svg .hd.ce { fill: var(--model); }
+    #rag-c04-hybrid-rerank .hr-svg .hd.mu { fill: var(--muted); font-weight: 600; }
+    #rag-c04-hybrid-rerank .hr-svg .ch rect { stroke-width: 1.5; }
+    #rag-c04-hybrid-rerank .hr-svg .ch text { font-size: 14px; font-weight: 700; fill: var(--ink); }
+    #rag-c04-hybrid-rerank .hr-svg .ch .rk { fill: var(--muted); font-weight: 600; }
+    #rag-c04-hybrid-rerank .hr-svg .ch .sc { fill: var(--agent); }
+    #rag-c04-hybrid-rerank .hr-svg .ch.bm rect { fill: var(--tool-soft); stroke: var(--tool); }
+    #rag-c04-hybrid-rerank .hr-svg .ch.de rect { fill: var(--state-soft); stroke: var(--state); }
+    #rag-c04-hybrid-rerank .hr-svg .ch.fu rect { fill: var(--agent-soft); stroke: var(--agent); }
+    #rag-c04-hybrid-rerank .hr-svg .ch.ot rect { fill: var(--surface); stroke: var(--model); }
+    #rag-c04-hybrid-rerank .hr-svg .ch.gold rect { stroke: var(--human); stroke-width: 2.6; }
+    #rag-c04-hybrid-rerank .hr-svg .fl { font-size: 13px; font-weight: 700; fill: var(--agent); }
+    #rag-c04-hybrid-rerank .hr-svg .fun { fill: var(--model-soft); stroke: var(--model); stroke-width: 1.6; }
+    #rag-c04-hybrid-rerank .hr-svg .ft { font-size: 14px; font-weight: 700; fill: var(--model); }
+    #rag-c04-hybrid-rerank .hr-svg .fs { font-size: 12px; font-weight: 600; fill: var(--muted); }
+    #rag-c04-hybrid-rerank .hr-svg .ar { stroke: var(--line-2); stroke-width: 1.6; fill: none; stroke-dasharray: 5 5; }
+    #rag-c04-hybrid-rerank .hr-svg .ql rect { fill: var(--human-soft); stroke: var(--human); stroke-width: 1.3; }
+    #rag-c04-hybrid-rerank .hr-svg .ql text { font-size: 13px; font-weight: 600; fill: var(--human); }
+    #rag-c04-hybrid-rerank .tags .tag { font-size: 16px; }
+  </style>
+  <div class="ch-num" data-fx="blur">04</div>
+  <svg class="hr-svg" id="hr-svg" viewBox="0 0 1392 276" width="1392" height="276" aria-label="A BM25 list and a dense list merge by reciprocal rank fusion; a cross-encoder reorders the fused top 20 into a top 5"></svg>
+  <h2 class="display">Hybrid search and reranking: two lists for recall, one model to order</h2>
+  <p class="lede" data-fx="up">Dense fixes paraphrases, BM25 fixes exact codes, a cross-encoder fixes the order.</p>
+  <div class="tags" data-fx="up">
+    <span class="tag t-state">BGE-small + RRF from scratch</span>
+    <span class="tag t-state">Qdrant one-call hybrid</span>
+    <span class="tag t-model">cross-encoder · top 20 → 10</span>
+    <span class="tag t-tool">Cohere Rerank v5 spans</span>
+    <span class="tag">Lab 4 · Northwind Outfitters · same 15 queries</span>
+  </div>
+  <aside class="notes">
+    Chapter 4 is Lab 4: we upgrade the retrieval of the Northwind Outfitters support assistant and score every step with the same Chapter 1 harness on the same 15 queries. The order is BM25, then dense BGE-small, then hybrid fused by reciprocal rank, then the same fusion inside Qdrant, then a cross-encoder over the top 20, and finally Cohere Rerank v5 with relevant spans as free context compression. The animation uses query q13, "who pays customs fees on orders to Canada?", with illustrative ranks: BM25 misses the gold chunk c18 because it says "import duties", dense ranks it first, RRF adds 1/(60 + rank) from both lists and puts c18 at rank 4, and the cross-encoder moves it to rank 1. Analogy: two scouts each bring a shortlist, and a judge who reads every candidate decides the order. Likely question: "If the reranker fixes the order, why fuse at all?" Because a reranker can only reorder what the first stage found; recall comes from the two lists, order comes from the model.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  // q13 "who pays customs fees on orders to Canada?" -- illustrative ranks; gold chunk = c18
+  const BM = [["c17", 1], ["c15", 2], ["c16", 3], ["c05", 4], ["c10", 5], ["c18", 7]];
+  const DE = [["c18", 1], ["c17", 2], ["c15", 3], ["c16", 4], ["c05", 5], ["c02", 6]];
+  const FU = [["c17", ".0325"], ["c15", ".0320"], ["c16", ".0315"], ["c18", ".0313"], ["c05", ".0310"]];   // sum of 1/(60+rank)
+  const CE = ["c18", "c17", "c16", "c15", "c05"];                                                       // cross-encoder order (illustrative)
+  const Y0 = 58, P = 36, CH = 28;
+  const X = { bm: 0, de: 196, fu: 470, out: 1150 };
+  const W = { bm: 150, de: 150, fu: 190, out: 200 };
+  const FX = { a: 760, b: 960 };                    // funnel left / right x
+  let tl = null, els = [];
+  const mk = (p, tag, attrs, cls) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (cls) e.setAttribute("class", cls);
+    p.appendChild(e); return e;
+  };
+  const chip = (svg, cls, x, y, w, id, left, right, gold) => {
+    const g = mk(svg, "g", { transform: `translate(${x},${y})`, opacity: 0 }, "ch " + cls + (gold ? " gold" : ""));
+    mk(g, "rect", { x: 0, y: 0, width: w, height: CH, rx: 8 });
+    if (left) mk(g, "text", { x: 10, y: 19 }, "rk").textContent = left;
+    mk(g, "text", { x: left ? 40 : 12, y: 19 }).textContent = id;
+    if (right) mk(g, "text", { x: w - 10, y: 19, "text-anchor": "end" }, "sc").textContent = right;
+    return g;
+  };
+  function kill() {
+    if (tl) { tl.kill(); tl = null; }
+    gsap.killTweensOf(els);
+  }
+  function build(slide) {
+    kill();
+    const svg = slide.querySelector("#hr-svg");
+    svg.innerHTML = "";
+    const ql = mk(svg, "g", { opacity: 0 }, "ql");
+    mk(ql, "rect", { x: 0, y: 0, width: 470, height: 24, rx: 12 });
+    mk(ql, "text", { x: 14, y: 17 }).textContent = "q13 · who pays customs fees on orders to Canada?";
+    const hds = [
+      mk(svg, "text", { x: X.bm, y: Y0 - 10 }, "hd bm"), mk(svg, "text", { x: X.de, y: Y0 - 10 }, "hd de"),
+      mk(svg, "text", { x: X.fu, y: Y0 - 10 }, "hd fu"), mk(svg, "text", { x: X.out, y: Y0 - 10 }, "hd ce"),
+    ];
+    ["BM25", "DENSE · BGE", "RRF · k=60", "TOP 5"].forEach((t, i) => (hds[i].textContent = t));
+    const bm = BM.map(([id, r], i) => chip(svg, "bm", X.bm, Y0 + i * P, W.bm, id, String(r), "", id === "c18"));
+    const de = DE.map(([id, r], i) => chip(svg, "de", X.de, Y0 + i * P, W.de, id, String(r), "", id === "c18"));
+    // floating RRF contributions 1/(60+rank)
+    const fl = [];
+    BM.forEach(([id, r], i) => { const t = mk(svg, "text", { x: X.bm + W.bm - 10, y: Y0 + i * P + 19, "text-anchor": "end", opacity: 0 }, "fl"); t.textContent = "1/" + (60 + r); fl.push(t); });
+    DE.forEach(([id, r], i) => { const t = mk(svg, "text", { x: X.de + W.de - 10, y: Y0 + i * P + 19, "text-anchor": "end", opacity: 0 }, "fl"); t.textContent = "1/" + (60 + r); fl.push(t); });
+    // fused column: each id flies in from its BM25 row, a twin flies in from its dense row
+    const fu = [], twins = [];
+    FU.forEach(([id, s], i) => {
+      const bi = BM.findIndex((b) => b[0] === id), di = DE.findIndex((d) => d[0] === id);
+      const a = chip(svg, "fu", X.bm, Y0 + bi * P, W.fu, id, String(i + 1), s, id === "c18");
+      const b = chip(svg, "fu", X.de, Y0 + di * P, W.fu, id, "", "", id === "c18");
+      fu.push({ g: a, bi, di }); twins.push(b);
+    });
+    const more = mk(svg, "text", { x: X.fu + 12, y: Y0 + 5 * P + 18, opacity: 0 }, "hd mu"); more.textContent = "… +13 more = top 20";
+    // funnel
+    const fy = Y0 - 4, fh = 6 * P - 4;
+    const fun = mk(svg, "path", { d: `M${FX.a},${fy} L${FX.b},${fy + fh * 0.3} L${FX.b},${fy + fh * 0.7} L${FX.a},${fy + fh} Z`, opacity: 0 }, "fun");
+    const ft = mk(svg, "text", { x: (FX.a + FX.b) / 2 - 6, y: fy + fh / 2 - 4, "text-anchor": "middle", opacity: 0 }, "ft"); ft.textContent = "cross-encoder";
+    const fs = mk(svg, "text", { x: (FX.a + FX.b) / 2 - 6, y: fy + fh / 2 + 16, "text-anchor": "middle", opacity: 0 }, "fs"); fs.textContent = "reads (query, chunk)";
+    const a1 = mk(svg, "path", { d: `M${X.fu + W.fu + 14},${fy + fh / 2} L${FX.a - 12},${fy + fh / 2}`, opacity: 0 }, "ar");
+    const a2 = mk(svg, "path", { d: `M${FX.b + 12},${fy + fh / 2} L${X.out - 14},${fy + fh / 2}`, opacity: 0 }, "ar");
+    const out = CE.map((id, i) => chip(svg, "ot", FX.b - 40, fy + fh / 2 - CH / 2, W.out, id, String(i + 1), id === "c18" ? "gold" : "", id === "c18"));
+    const keep = mk(svg, "text", { x: X.out, y: Y0 + 5 * P + 18, opacity: 0 }, "hd mu"); keep.textContent = "→ prompt";
+    els = [ql, ...hds, ...bm, ...de, ...fl, ...fu.map((f) => f.g), ...twins, more, fun, ft, fs, a1, a2, ...out, keep];
+
+    tl = gsap.timeline({ repeat: -1, repeatDelay: 0.6, delay: 0.3 });
+    const reset = () => {
+      gsap.set(els, { opacity: 0 });
+      bm.forEach((g, i) => gsap.set(g, { x: X.bm - 40, y: Y0 + i * P }));
+      de.forEach((g, i) => gsap.set(g, { x: X.de + 40, y: Y0 + i * P }));
+      fl.forEach((t) => gsap.set(t, { y: 0 }));
+      fu.forEach((f) => gsap.set(f.g, { x: X.bm, y: Y0 + f.bi * P }));
+      twins.forEach((t, i) => gsap.set(t, { x: X.de, y: Y0 + fu[i].di * P }));
+      out.forEach((g) => gsap.set(g, { x: FX.b - 40, y: fy + fh / 2 - CH / 2 }));
+    };
+    tl.call(reset);
+    tl.to(ql, { opacity: 1, duration: 0.4 });
+    tl.to(hds.slice(0, 2), { opacity: 1, duration: 0.3 }, "<");
+    // 1. the two lists slide together
+    tl.to(bm, { opacity: 1, x: X.bm, duration: 0.5, stagger: 0.06, ease: "power3.out" });
+    tl.to(de, { opacity: 1, x: X.de, duration: 0.5, stagger: 0.06, ease: "power3.out" }, "<");
+    // 2. each chip scores 1/(60 + rank); the scores float up
+    tl.to(fl, { opacity: 1, duration: 0.3, stagger: 0.04 }, "+=0.2");
+    tl.to(fl, { y: -6, opacity: 0, duration: 0.6, stagger: 0.03, ease: "power1.in" }, "+=0.6");
+    // 3. identical chips merge into the fused column, which is sorted by the summed score
+    tl.to(hds[2], { opacity: 1, duration: 0.3 }, "-=0.3");
+    tl.to([...fu.map((f) => f.g), ...twins], { opacity: 0.9, duration: 0.2 }, "<");
+    fu.forEach((f, i) => {
+      tl.to([f.g, twins[i]], { x: X.fu, y: Y0 + i * P, duration: 0.8, ease: "power3.inOut" }, i === 0 ? ">" : "<0.06");
+    });
+    tl.to(twins, { opacity: 0, duration: 0.2 });
+    tl.to(fu.map((f) => f.g), { opacity: 1, duration: 0.2 }, "<");
+    tl.to(more, { opacity: 1, duration: 0.3 }, "<");
+    tl.to([bm, de].flat(), { opacity: 0.35, duration: 0.4 }, "<");
+    // 4. the fused top 20 passes through the cross-encoder; a new top 5 comes out
+    tl.to([fun, ft, fs, a1, a2, hds[3]], { opacity: 1, duration: 0.4 }, "+=0.4");
+    tl.to(fu.map((f) => f.g), { x: FX.a - 20, y: fy + fh / 2 - CH / 2, opacity: 0, duration: 0.6, stagger: 0.08, ease: "power2.in" }, "+=0.2");
+    tl.to(more, { opacity: 0, duration: 0.3 }, "<");
+    out.forEach((g, i) => {
+      tl.to(g, { opacity: 1, x: X.out, y: Y0 + i * P, duration: 0.6, ease: "power3.out" }, i === 0 ? "-=0.2" : "<0.1");
+    });
+    tl.to(keep, { opacity: 1, duration: 0.3 });
+    tl.fromTo(out[0], { scale: 1 }, { scale: 1.08, transformOrigin: "left center", duration: 0.25, yoyo: true, repeat: 1 });
+    tl.to({}, { duration: 2.4 });
+    tl.to(els, { opacity: 0, duration: 0.4 });
+  }
+  Deck.register("rag-c04-hybrid-rerank", {
+    enter(slide) { build(slide); },
+    leave() { kill(); }
+  });
+})();
+</script>

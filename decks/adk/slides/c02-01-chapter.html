@@ -1,0 +1,147 @@
+<section class="slide chapter" id="adk-c02-chapter" data-tone="state" data-title="Ch 2: Structured output, state and the App">
+  <style>
+    /* shared by every chapter-2 slide */
+    .slide[id^="adk-c02-"] .code-wrap .band { background: color-mix(in oklab, var(--aurora) 30%, transparent); border-left-width: 5px; }
+    .slide[id^="adk-c02-"] .c02-ln { transition: opacity .35s; }
+    .slide[id^="adk-c02-"] pre.code.c17 { font-size: 17px; }
+    .slide[id^="adk-c02-"] .c02-cap { position: relative; min-height: 66px; }
+    .slide[id^="adk-c02-"] .c02-cap > p { position: absolute; left: 0; right: 0; top: 0; margin: 0; font-size: 21px; line-height: 1.42; }
+    .slide[id^="adk-c02-"] .c02-cap code { font-size: .88em; }
+    .slide[id^="adk-c02-"] .lab-head .run { font-size: 17px; }
+    .slide[id^="adk-c02-"] .cites .cite { font-size: 15px; }
+    .slide[id^="adk-c02-"] .cite.paper { flex-direction: row; align-items: center; gap: 10px; padding: 8px 14px 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); }
+    .slide[id^="adk-c02-"] .code-wrap { align-self: stretch; }
+    .c02b-svg text { font-family: var(--f-mono); }
+    .c02b-svg .bk { fill: var(--state-soft); stroke: var(--state); stroke-width: 1.8; transition: stroke-width .4s, opacity .4s; }
+    .c02b-svg .bk.kept { stroke-width: 4.5; }
+    .c02b-svg .bk.t { stroke-dasharray: 7 6; }
+    .c02b-svg .bh { font-size: 22px; font-weight: 700; fill: var(--ink); }
+    .c02b-svg .bs { font-size: 16px; font-weight: 600; fill: var(--muted); }
+    .c02b-svg .bs.warn { fill: var(--risk); }
+    .c02b-svg .ch rect { fill: var(--surface-2); stroke: var(--state); stroke-width: 1.8; transition: fill .3s; }
+    .c02b-svg .ch.t rect { stroke-dasharray: 5 4; }
+    .c02b-svg .ch text { font-size: 17px; font-weight: 600; fill: var(--ink); transition: fill .3s; }
+    .c02b-svg .ch.read rect { fill: var(--state); }
+    .c02b-svg .ch.read text { fill: #fff; }
+    .c02b-svg .wp rect { fill: var(--state); }
+    .c02b-svg .wp text { font-size: 17px; font-weight: 700; fill: #fff; }
+    .c02b-svg .stag rect { fill: none; stroke: var(--line-2); stroke-width: 1.5; }
+    .c02b-svg .stag text { font-size: 17px; font-weight: 700; fill: var(--ink-2); }
+    .c02b-svg .wipe { fill: var(--state); }
+    #adk-c02-chapter .ch-num { font-size: 230px; top: 36px; right: 104px; }
+    #adk-c02-chapter .display { font-size: 80px; max-width: none; white-space: nowrap; }
+    #adk-c02-chapter .lede { margin-top: -4px; max-width: none; }
+    #adk-c02-chapter svg { overflow: visible; }
+    #adk-c02-chapter svg text { font-family: var(--f-mono); }
+  </style>
+  <div class="ch-num" data-fx="blur">02</div>
+  <svg id="c02c-svg" viewBox="0 0 1392 250" width="1392" height="250" aria-label="Lab 2 road map: a loss email enters five stations in order: typed intake, App plus audit plugin, REST and SSE, state scopes, and SQLite sessions"></svg>
+  <h2 class="display">Structured output, state and the App</h2>
+  <p class="lede" data-fx="up">By the end, <code>adk api_server</code> serves the claims App on :8000, and sessions live in a SQLite file.</p>
+  <aside class="notes">This chapter builds one service in five steps, in this order: typed intake with output_schema, an App with an audit plugin, the same App over REST and SSE with adk api_server, state scopes that remember the customer, and sessions in a SQLite file that survive a restart. Each later step adds one file to the same lab folder, so point at the road map when you start each step. It is Lab 2 because Lab 1 was the refund desk in chapter 1. Analogy: the App is a shipping container; the agent is the cargo, and plugins, config and state go in the same box. A likely question is "Why not call the model with a JSON schema directly?" Because the App gives you state, plugins and a server, and the schema result lands in state where the next agent can read it. Everything is tested against google-adk 2.13.0 with Python 3.11 or newer. The complete files live in labs/adk/lab2-claims-api; the slides show only the lines that carry each idea, and the next slide sets the folder up.</aside>
+</section>
+<script>
+(() => {
+  // Shared helper for chapter 2: dim the code lines outside the current data-focus range to 40%.
+  window.c02Focus = function (slide, n) {
+    slide.querySelectorAll("pre.code[data-focus]").forEach((pre) => {
+      const code = pre.querySelector("code") || pre;
+      if (!pre._c02ln) {
+        code.innerHTML = code.innerHTML.split("\n").map((l) => `<span class="c02-ln">${l}</span>`).join("\n");
+        pre._c02ln = [...code.querySelectorAll(".c02-ln")];
+      }
+      let f = null;
+      pre.dataset.focus.split(",").forEach((p) => {
+        const [k, r] = p.trim().split(":");
+        const [a, b] = r.split("-").map(Number);
+        if (+k <= n) f = { a, b: b || a };
+      });
+      pre._c02ln.forEach((l, i) => { l.style.opacity = !f || (i + 1 >= f.a && i + 1 <= f.b) ? "1" : "0.4"; });
+    });
+  };
+
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "adk-c02-chapter";
+  const ST = [
+    ["Typed intake", "claim_intake.py", "output_schema", "state"],
+    ["App + plugin", "claims_api/agent.py", "AuditPlugin", "tool"],
+    ["REST + SSE", "adk api_server", "/run  /run_sse", "agent"],
+    ["State scopes", "claims_faq.py", "app: user: temp:", "state"],
+    ["Survive restart", "claims_followup.py", "SQLite file", "state"],
+  ];
+  const X0 = 170, W = 208, GAP = 33, Y = 70, H = 160;
+  let tl = null, P = null;
+
+  const el = (parent, tag, attrs, style, text) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (style) Object.assign(e.style, style);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  };
+
+  function build(svg) {
+    svg.innerHTML = "";
+    const defs = el(svg, "defs", {});
+    const mk = el(defs, "marker", { id: "c02c-ah", viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 8, markerHeight: 8, orient: "auto" });
+    el(mk, "path", { d: "M0 0 L10 5 L0 10 Z" }, { fill: "var(--line-2)" });
+    el(svg, "text", { x: 0, y: 22 }, { font: "600 18px var(--f-mono)", fill: "var(--muted)" }, "LAB 2 · the Acme claims API · one folder, built in five steps");
+    // loss email (human)
+    el(svg, "rect", { x: 0, y: 104, width: 128, height: 88, rx: 12 }, { fill: "var(--human-soft)", stroke: "var(--human)", strokeWidth: 2.5 });
+    el(svg, "path", { d: "M0 112 L64 156 L128 112", fill: "none" }, { stroke: "var(--human)", strokeWidth: 2.5 });
+    el(svg, "text", { x: 64, y: 222, "text-anchor": "middle" }, { font: "700 18px var(--f-mono)", fill: "var(--human)" }, "loss email");
+    // arrows
+    const arrows = [el(svg, "line", { x1: 134, y1: Y + H / 2, x2: X0 - 6, y2: Y + H / 2, "marker-end": "url(#c02c-ah)" }, { stroke: "var(--line-2)", strokeWidth: 3 })];
+    for (let i = 0; i < 4; i++) {
+      const x = X0 + i * (W + GAP) + W;
+      arrows.push(el(svg, "line", { x1: x + 4, y1: Y + H / 2, x2: x + GAP - 6, y2: Y + H / 2, "marker-end": "url(#c02c-ah)" }, { stroke: "var(--line-2)", strokeWidth: 3 }));
+    }
+    const boxes = ST.map(([t, f, a, tone], i) => {
+      const x = X0 + i * (W + GAP);
+      const g = el(svg, "g", {});
+      const r = el(g, "rect", { x, y: Y, width: W, height: H, rx: 16 }, { fill: "var(--surface)", stroke: `var(--${tone})`, strokeWidth: 2.5 });
+      el(g, "circle", { cx: x + 28, cy: Y + 32, r: 16 }, { fill: `var(--${tone})` });
+      el(g, "text", { x: x + 28, y: Y + 38, "text-anchor": "middle" }, { font: "800 17px var(--f-mono)", fill: "#fff" }, String(i + 1));
+      el(g, "text", { x: x + 54, y: Y + 39 }, { font: "700 19px var(--f-body)", fill: "var(--ink)" }, t);
+      el(g, "text", { x: x + 16, y: Y + 92 }, { font: "600 15px var(--f-mono)", fill: "var(--ink-2)" }, f);
+      el(g, "text", { x: x + 16, y: Y + 126 }, { font: "700 15px var(--f-mono)", fill: `var(--${tone})` }, a);
+      return { g, r, tone };
+    });
+    P = { boxes, arrows };
+  }
+
+  function play() {
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const { boxes, arrows } = P;
+    tl = gsap.timeline({ repeat: reduce ? 0 : -1, repeatDelay: 0.6 });
+    tl.set(boxes.map((b) => b.g), { opacity: 0.4 }, 0)
+      .set(boxes.map((b) => b.r), { fill: "var(--surface)" }, 0)
+      .set(arrows, { stroke: "var(--line-2)" }, 0);
+    let t = 0.3;
+    boxes.forEach((b, i) => {
+      // the arrow into station i lights up, then the station fills
+      tl.to(arrows[i], { stroke: "var(--human)", duration: 0.3 }, t)
+        .to(b.g, { opacity: 1, duration: 0.3 }, t + 0.3)
+        .to(b.r, { fill: `var(--${b.tone}-soft)`, duration: 0.3 }, t + 0.3);
+      t += 0.75;
+    });
+    tl.to({}, { duration: 1.8 }, t);
+    if (reduce) tl.progress(1);
+  }
+
+  Deck.register(ID, {
+    enter(slide) {
+      if (tl) tl.kill();
+      build(slide.querySelector("#c02c-svg"));
+      play();
+    },
+    step() {},
+    leave() {
+      if (tl) tl.kill();
+      tl = null;
+      if (P) gsap.killTweensOf([...P.arrows, ...P.boxes.map((b) => b.g), ...P.boxes.map((b) => b.r)]);
+    },
+  });
+})();
+</script>

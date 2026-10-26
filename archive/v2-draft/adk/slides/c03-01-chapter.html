@@ -1,0 +1,179 @@
+<section class="slide chapter" id="adk-c03-chapter" data-tone="agent" data-title="Ch 3: Workflow graphs">
+  <style>
+    #adk-c03-chapter { gap: 20px; padding-bottom: 76px; }
+    #adk-c03-chapter .c03c-fig { position: relative; width: 960px; height: 300px; flex: none; }
+    #adk-c03-chapter .c03c-fig svg { position: absolute; left: 0; top: 0; overflow: visible; }
+    #adk-c03-chapter svg text { font-family: var(--f-mono); }
+    #adk-c03-chapter .c03c-lane { position: absolute; left: 0; font: 600 15px/1 var(--f-mono); color: var(--ink-2); white-space: nowrap; }
+    #adk-c03-chapter .c03c-lane b { display: inline-grid; place-items: center; width: 22px; height: 22px; margin-right: 8px; border-radius: 6px; color: #fff; background: var(--agent); font-size: 13px; }
+    #adk-c03-chapter .c03c-lane span { color: var(--muted); font-weight: 500; }
+    #adk-c03-chapter .lede { max-width: 1200px; }
+    #adk-c03-chapter .c03c-q { display: flex; flex-direction: column; gap: 10px; max-width: 1300px; }
+    #adk-c03-chapter .quote { font-size: 26px; margin: 0; }
+    #adk-c03-chapter .c03c-row { display: flex; gap: 12px; align-items: center; flex-wrap: nowrap; }
+  </style>
+  <div class="ch-num" data-fx="blur">03</div>
+  <div class="c03c-fig">
+    <svg id="c03c-svg" viewBox="0 0 960 300" width="960" height="300" aria-label="Step 1: a refund chain START, parse, check, reply, audit draws and a token runs through it. Step 2: a triage router START, classify, route fans out to billing, page_oncall and human_queue, and a P1 token takes page_oncall. Step 3: the same router appears as a root_agent.yaml file."></svg>
+    <div class="c03c-lane" style="top:0" data-step="1"><b>1</b>Refund chain <span>· fixed order</span></div>
+    <div class="c03c-lane" style="top:130px" data-step="2"><b>2</b>Triage router <span>· the LLM labels, code routes</span></div>
+    <div class="c03c-lane" style="top:130px;left:760px" data-step="3"><b>3</b>Same router <span>· YAML</span></div>
+  </div>
+  <h2 class="display">Workflow graphs</h2>
+  <p class="lede" data-fx="up">Build the Acme support desk as a graph: a typed chain, a router, and the same router in YAML.</p>
+  <div class="c03c-q" data-fx="up">
+    <p class="quote">"The graph model is worth the learning curve as soon as you have more than two branching paths."</p>
+    <div class="c03c-row">
+      <a class="cite doc" href="https://cloud.google.com/blog/topics/developers-practitioners/io26-news-for-agent-developers-on-google-cloud" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Google Cloud, I/O '26 news for agent developers (2026-05-19)</a>
+      <span class="tag t-human">Acme support desk</span>
+      <span class="tag t-agent">tested on google-adk 2.13.0</span>
+    </div>
+  </div>
+  <aside class="notes">This chapter builds the Acme support desk as three graphs; press three times to preview them. Step 1 is the refund chain: parse the request, check the 30-day policy, write the reply, write an audit line, always in that order. Step 2 is the triage router: the model labels the ticket from a closed set, and a plain function picks the route, so a P1 outage always pages on-call. Step 3 is the same router as YAML that a PM or a lawyer can review. After the lab: porting a 1.x SequentialAgent, two gotchas (a silent route failure and two loud graph errors), one paper on what routing costs, and a rules slide. Think of the graph as the rail track and the model as the driver: the driver sets the speed, but the track decides where the train can go. A likely question: "When do I need a graph instead of one agent with tools?" Google's I/O '26 advice is the quote on the slide: as soon as you have more than two branching paths.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "adk-c03-chapter";
+  let tl = null, P = null;
+
+  const el = (parent, tag, attrs, style, text) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (style) Object.assign(e.style, style);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  };
+  const mono = (w, s) => ({ font: `${w} ${s}px var(--f-mono)` });
+
+  function node(parent, x, y, w, h, tone, label, pill) {
+    const g = el(parent, "g", {});
+    const r = el(g, "rect", { x, y, width: w, height: h, rx: pill ? h / 2 : 12 },
+      { fill: `var(--${tone}-soft)`, stroke: `var(--${tone})`, strokeWidth: 2.5 });
+    el(g, "text", { x: x + w / 2, y: y + h / 2 + 6, "text-anchor": "middle" }, { ...mono(700, 17), fill: "var(--ink)" }, label);
+    g._r = r; g._tone = tone;
+    return g;
+  }
+  function wire(parent, d, x2, y2, tone) {
+    const c = tone ? `var(--${tone})` : "var(--line-2)";
+    const p = el(parent, "path", { d, pathLength: 1, "stroke-dasharray": "1 1", "stroke-dashoffset": 1, fill: "none" }, { stroke: c, strokeWidth: 2.5 });
+    const a = el(parent, "path", { d: `M${x2 - 11} ${y2 - 6} L${x2} ${y2} L${x2 - 11} ${y2 + 6}`, fill: "none" }, { stroke: c, strokeWidth: 2.5, opacity: 0 });
+    return { p, a };
+  }
+
+  // lane 1 (centre y 62): START, parse, check, reply, audit. ends at x 830
+  // lane 2 (centre y 215): START, classify, route, then 3 branches at x 560..710
+  // lane 3: the YAML card at x 760..960, y 160..300 (left of the ghost 03 numeral)
+  function build(svg) {
+    svg.innerHTML = "";
+    const L1 = [[0, 90, "human", "START", true], [150, 140, "tool", "parse"], [330, 140, "tool", "check"], [510, 140, "model", "reply"], [690, 140, "tool", "audit"]];
+    const w1 = [], n1 = [];
+    L1.forEach(([x], i) => { if (i > 0) { const px = L1[i - 1][0] + L1[i - 1][1]; w1.push(wire(svg, `M${px} 62 L${x - 4} 62`, x - 4, 62)); } });
+    L1.forEach(([x, w, tone, label, pill]) => n1.push(node(svg, x, pill ? 42 : 38, w, pill ? 40 : 48, tone, label, pill)));
+
+    const w2 = [wire(svg, "M90 215 L146 215", 146, 215), wire(svg, "M290 215 L326 215", 326, 215)];
+    const brY = [167, 215, 263];
+    const wb = brY.map((y) => wire(svg, `M470 215 C 515 215, 510 ${y}, 556 ${y}`, 556, y));
+    const n2 = [node(svg, 0, 195, 90, 40, "human", "START", true), node(svg, 150, 191, 140, 48, "model", "classify"), node(svg, 330, 191, 140, 48, "tool", "route")];
+    const br = [node(svg, 560, 150, 160, 34, "agent", "billing"), node(svg, 560, 198, 160, 34, "tool", "page_oncall"), node(svg, 560, 246, 160, 34, "human", "human_queue")];
+    const brLab = [
+      el(svg, "text", { x: 560, y: 145 }, { ...mono(600, 13), fill: "var(--muted)", opacity: 0 }, "\"billing\""),
+      el(svg, "text", { x: 728, y: 220 }, { ...mono(700, 13), fill: "var(--risk)", opacity: 0 }, "p1 → outage"),
+      el(svg, "text", { x: 560, y: 296 }, { ...mono(600, 13), fill: "var(--muted)", opacity: 0 }, "DEFAULT_ROUTE"),
+    ];
+
+    const yaml = el(svg, "g", { opacity: 0 });
+    el(yaml, "path", { d: "M828 160 L944 160 L960 176 L960 300 L828 300 Z" }, { fill: "var(--surface)", stroke: "var(--state)", strokeWidth: 2.5 });
+    el(yaml, "path", { d: "M944 160 L944 176 L960 176", fill: "none" }, { stroke: "var(--state)", strokeWidth: 2 });
+    el(yaml, "text", { x: 836, y: 182 }, { ...mono(700, 11), fill: "var(--state)" }, "root_agent.yaml");
+    const bars = [[0, 96], [12, 80], [12, 96], [24, 80], [24, 70], [12, 90]].map(([ind, w], i) =>
+      el(yaml, "rect", { x: 840 + ind, y: 198 + i * 16, width: w, height: 7, rx: 3.5 }, { fill: i === 4 ? "var(--risk)" : "var(--state)", opacity: 0.55, transformOrigin: `${840 + ind}px 0px` }));
+    const tok = el(svg, "circle", { cx: 90, cy: 62, r: 9 }, { fill: "var(--agent)", opacity: 0 });
+    P = { w1, n1, w2, wb, n2, br, brLab, yaml, bars, tok };
+  }
+
+  const nodesOf = (p) => [...p.n1, ...p.n2, ...p.br];
+  const wiresOf = (p) => [...p.w1, ...p.w2, ...p.wb];
+  const flash = (t, g, at) => t.to(g._r, { fill: `var(--${g._tone})`, duration: 0.14, yoyo: true, repeat: 1 }, at);
+
+  // final state for step n, no motion
+  function setState(n) {
+    const p = P;
+    const lane1 = n >= 1, lane2 = n >= 2, lane3 = n >= 3;
+    gsap.set(p.n1, { opacity: lane1 ? 1 : 0, scale: 1, transformOrigin: "50% 50%" });
+    gsap.set([...p.n2, ...p.br], { opacity: lane2 ? 1 : 0, scale: 1, transformOrigin: "50% 50%" });
+    p.w1.forEach((w) => { gsap.set(w.p, { attr: { "stroke-dashoffset": lane1 ? 0 : 1 }, opacity: 1 }); gsap.set(w.a, { opacity: lane1 ? 1 : 0 }); });
+    [...p.w2, ...p.wb].forEach((w) => { gsap.set(w.p, { attr: { "stroke-dashoffset": lane2 ? 0 : 1 }, opacity: 1 }); gsap.set(w.a, { opacity: lane2 ? 1 : 0 }); });
+    gsap.set(p.brLab, { opacity: lane2 ? 1 : 0 });
+    // after step 2 the outage branch stays highlighted, the others dimmed
+    if (lane2) {
+      gsap.set([p.wb[0].p, p.wb[0].a, p.wb[2].p, p.wb[2].a, p.br[0], p.br[2], p.brLab[0], p.brLab[2]], { opacity: 0.35 });
+    }
+    nodesOf(p).forEach((g) => gsap.set(g._r, { fill: `var(--${g._tone}-soft)` }));
+    if (lane2) gsap.set(p.br[1]._r, { fill: "var(--tool)" });
+    gsap.set(p.yaml, { opacity: lane3 ? 1 : 0, x: 0 });
+    gsap.set(p.bars, { scaleX: lane3 ? 1 : 0 });
+    gsap.set(p.tok, { opacity: 0 });
+  }
+
+  function animateTo(n) {
+    const p = P;
+    setState(n - 1);
+    tl = gsap.timeline();
+    if (n === 1) {
+      p.n1.forEach((g, i) => {
+        const at = 0.1 + i * 0.22;
+        tl.fromTo(g, { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1, duration: 0.3, ease: "back.out(2)" }, at);
+        if (i > 0) tl.to(p.w1[i - 1].p, { attr: { "stroke-dashoffset": 0 }, duration: 0.2 }, at - 0.12).to(p.w1[i - 1].a, { opacity: 1, duration: 0.1 }, at + 0.05);
+      });
+      tl.set(p.tok, { attr: { cx: 90, cy: 62 }, fill: "var(--agent)" }, 1.3).to(p.tok, { opacity: 1, duration: 0.08 }, 1.3)
+        .to(p.tok, { attr: { cx: 830 }, duration: 1.3, ease: "none" }, 1.3).to(p.tok, { opacity: 0, duration: 0.15 }, 2.6);
+      [220, 400, 580, 760].forEach((x, i) => flash(tl, p.n1[i + 1], 1.3 + ((x - 90) / 740) * 1.3));
+    } else if (n === 2) {
+      gsap.set(p.br[1]._r, { fill: "var(--tool-soft)" });
+      p.n2.forEach((g, i) => {
+        const at = 0.1 + i * 0.22;
+        tl.fromTo(g, { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1, duration: 0.3, ease: "back.out(2)" }, at);
+        if (i > 0) tl.to(p.w2[i - 1].p, { attr: { "stroke-dashoffset": 0 }, duration: 0.2 }, at - 0.12).to(p.w2[i - 1].a, { opacity: 1, duration: 0.1 }, at + 0.05);
+      });
+      p.br.forEach((g, i) => {
+        const at = 0.8 + i * 0.12;
+        tl.to(p.wb[i].p, { attr: { "stroke-dashoffset": 0 }, duration: 0.25 }, at).to(p.wb[i].a, { opacity: 1, duration: 0.1 }, at + 0.2)
+          .fromTo(g, { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1, duration: 0.3, ease: "back.out(2)" }, at + 0.15)
+          .to(p.brLab[i], { opacity: 1, duration: 0.2 }, at + 0.3);
+      });
+      tl.set(p.tok, { attr: { cx: 90, cy: 215 }, fill: "var(--risk)" }, 1.5).to(p.tok, { opacity: 1, duration: 0.08 }, 1.5)
+        .to(p.tok, { attr: { cx: 470 }, duration: 0.8, ease: "none" }, 1.5)
+        .to(p.tok, { attr: { cx: 556 }, duration: 0.22, ease: "none" }, 2.3)
+        .to(p.tok, { opacity: 0, duration: 0.1 }, 2.52)
+        .to([p.wb[0].p, p.wb[0].a, p.wb[2].p, p.wb[2].a, p.br[0], p.br[2], p.brLab[0], p.brLab[2]], { opacity: 0.35, duration: 0.25 }, 2.3)
+        .to(p.br[1]._r, { fill: "var(--tool)", duration: 0.2 }, 2.5);
+      flash(tl, p.n2[1], 1.5 + (130 / 380) * 0.8);
+      flash(tl, p.n2[2], 1.5 + (310 / 380) * 0.8);
+    } else if (n === 3) {
+      tl.fromTo(p.yaml, { opacity: 0, x: 60 }, { opacity: 1, x: 0, duration: 0.5, ease: "power2.out" }, 0.1)
+        .fromTo(p.bars, { scaleX: 0 }, { scaleX: 1, duration: 0.25, stagger: 0.08, ease: "power2.out" }, 0.5);
+    }
+  }
+
+  function kill() {
+    if (tl) tl.kill();
+    tl = null;
+    if (P) {
+      gsap.killTweensOf([P.tok, P.yaml, ...P.bars, ...P.brLab, ...nodesOf(P), ...wiresOf(P).flatMap((w) => [w.p, w.a])]);
+      nodesOf(P).forEach((g) => gsap.killTweensOf(g._r));
+    }
+  }
+
+  Deck.register(ID, {
+    enter(slide, n) { kill(); build(slide.querySelector("#c03c-svg")); setState(n || 0); },
+    step(slide, n, animate) {
+      if (!P) build(slide.querySelector("#c03c-svg"));
+      kill();
+      if (animate && n >= 1) animateTo(n); else setState(n);
+    },
+    leave() { kill(); },
+  });
+})();
+</script>

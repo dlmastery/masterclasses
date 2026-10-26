@@ -1,0 +1,4 @@
+- Apparel: full refund within 30 days.
+- Electronics: full refund within 14 days.
+- Days 31-60 (any category): partial refund, prorated by prorate.py.
+- After 60 days: no refund.

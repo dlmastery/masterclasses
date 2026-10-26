@@ -1,0 +1,176 @@
+<section class="slide" id="custom-c06-pair-pitfalls" data-tone="risk" data-title="Preference-pair pitfalls">
+  <style>
+    #custom-c06-pair-pitfalls { gap: 18px; }
+    #custom-c06-pair-pitfalls .pp-grid { display: grid; grid-template-columns: 600px 1fr; gap: 28px; min-height: 0; }
+    #custom-c06-pair-pitfalls .pp-col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    #custom-c06-pair-pitfalls .gotcha { grid-template-columns: 84px 1fr; gap: 3px 12px; padding: 11px 16px; font-size: 15.5px; line-height: 1.36; }
+    #custom-c06-pair-pitfalls .gotcha > b { font-size: 12.5px; line-height: 1.75; }
+    #custom-c06-pair-pitfalls .pp-h { grid-column: 1 / -1; font: 700 14.5px/1.3 var(--f-mono); color: var(--ink); margin-bottom: 2px; }
+    #custom-c06-pair-pitfalls .code-head { padding: 6px 14px; font-size: 13px; }
+    #custom-c06-pair-pitfalls pre.code { font-size: 11.8px; line-height: 1.3; padding: 9px 14px 10px; }
+    #custom-c06-pair-pitfalls pre.code, #custom-c06-pair-pitfalls pre.code *, #custom-c06-pair-pitfalls code { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #custom-c06-pair-pitfalls .steps-rail { gap: 6px; }
+    #custom-c06-pair-pitfalls .steps-rail > * { font-size: 14.5px; line-height: 1.3; grid-template-columns: 28px 1fr; gap: 10px; }
+    #custom-c06-pair-pitfalls .steps-rail > *::before { width: 24px; height: 24px; font-size: 13px; }
+    #custom-c06-pair-pitfalls a.cite.paper { flex-direction: row; gap: 10px; padding: 8px 14px 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: color-mix(in oklab, var(--surface) 60%, transparent); }
+    #custom-c06-pair-pitfalls .pp-col .row .cite { font-size: 14.5px; padding: 6px 10px 6px 8px; gap: 8px; }
+    #pp-svg text { font-family: var(--f-mono); }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> Preference data · TRL 1.16.0</div>
+  <h2 class="title">Truncated preference pairs give empty answers and NaN weights</h2>
+  <div class="pp-grid fill">
+    <div class="pp-col">
+      <div class="gotcha" data-step="1">
+        <div class="pp-h">1 · Truncation empties a response</div>
+        <b>Symptom</b><span><code>loss_type="simpo"</code> (CPOTrainer): <code>loss = 0</code>, <code>grad_norm = nan</code>, all rewards and logps <code>nan</code> after the first optimizer step. Other loss types silently use <code>logp = 0</code>.</span>
+        <b class="why">Cause</b><span>Both responses are cut to <code>max_length - longer_response_length</code>. When negative, <code>lst[:negative]</code> cuts from the end and can empty the shorter one. Length normalisation divides 0 by 0.</span>
+        <b class="fix">Fix</b><span>Drop long pairs before training. Fail fast on the first non-finite <code>grad_norm</code>. CPO fix: PR #6588.</span>
+      </div>
+      <div class="gotcha" data-step="4">
+        <div class="pp-h">2 · Flipped labels steer DPO</div>
+        <b>Symptom</b><span>DPO moves toward an attacker's preference.</span>
+        <b class="why">Cause</b><span>Preference label flips. arXiv 2610.24945 (18 Oct 2026) gives Trim-K Robust-DPO with bounds.</span>
+        <b class="fix">Fix</b><span>Audit labels. Use <code>label_smoothing=0.1</code> as the cheap built-in.</span>
+      </div>
+      <div class="gotcha" data-step="5">
+        <div class="pp-h">3 · Judge labels are unstable</div>
+        <b>Symptom</b><span>The same pair gets a different verdict on a re-run.</span>
+        <b class="why">Cause</b><span>A re-run of Arena-Hard's GPT-4.1 judge flips <b>21.2%</b> of prompt outcomes; the aggregate moves ~1 pt (2610.30512).</span>
+        <b class="fix">Fix</b><span>Judge each pair twice. Keep only pairs with the same verdict.</span>
+      </div>
+      <div class="row push" style="gap:8px;flex-wrap:wrap" data-step="1">
+        <a class="cite repo" href="https://github.com/huggingface/trl/issues/6548" target="_blank" rel="noopener"><b>Repo</b>&nbsp;TRL #6548</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2610.24945" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.24945</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2610.30512" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.30512</a>
+      </div>
+    </div>
+    <div class="pp-col">
+      <svg id="pp-svg" viewBox="0 0 760 290" width="680" height="260" role="img" aria-label="A token ruler at max_length: the short response is emptied, 0/0 becomes NaN across the weights, the filter drops the pair"></svg>
+      <div class="code-wrap good" data-step="3">
+        <div class="code-head">support_dpo/filter_pairs.py · trl 1.16.0</div>
+        <pre class="code" data-lang="python" data-focus="3:8-10, 4:14, 5:5"><code>from datasets import load_dataset
+from transformers import AutoTokenizer
+from trl import DPOConfig
+tok = AutoTokenizer.from_pretrained("Qwen/Qwen2.5-0.5B-Instruct")
+ds = load_dataset("json", data_files="acme_qa_pairs.jsonl", split="train")  # QA export
+L = 1024                                       # the same value as DPOConfig.max_length
+n0 = len(ds)
+ds = ds.filter(lambda r: len(tok(r["prompt"] + r["chosen"]).input_ids) &lt;= L and
+                         len(tok(r["prompt"] + r["rejected"]).input_ids) &lt;= L)
+print(f"kept {len(ds)} of {n0} pairs")         # every kept pair fits: no empty response
+args = DPOConfig(output_dir="support-dpo", max_length=L, beta=0.1,
+                 model_init_kwargs={"dtype": "bfloat16"},
+                 loss_type=["sigmoid", "sft"], loss_weights=[1.0, 0.2],
+                 label_smoothing=0.1)          # Robust DPO; other Lab 5 settings unchanged</code></pre>
+      </div>
+      <div class="steps-rail">
+        <div data-step="3"><span>Filter on the full prompt + response length, with the training tokenizer.</span></div>
+        <div data-step="4"><span><code>label_smoothing</code> assumes some labels are wrong.</span></div>
+        <div data-step="5"><span>Re-judged pairs land in the same JSONL; the filter runs again.</span></div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">This bug does not crash; it destroys the run quietly. When a pair is longer than max_length, TRL cuts both responses to max_length minus the longer response length, and if that number is negative, the Python slice cuts from the end and can empty the shorter response. With a length-normalised loss such as SimPO this divides zero by zero, the first optimizer step writes NaN into every weight, and the loss shows 0. The fix is a data contract: drop every pair that does not fit, with the same tokenizer and the same max_length, and stop the job on the first non-finite grad_norm. Think of it as a luggage check at the gate: a bag that does not fit is removed before boarding, not cut in half in the air. The other two cards are about label quality: flipped labels can steer DPO, and LLM judge verdicts flip on about one prompt in five even when the aggregate looks stable. A likely question: does DPOTrainer have the same bug? DPO already drops long pairs; the empty-response NaN is in CPOTrainer, and PR 6588 fixes it there.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c06-pair-pitfalls";
+  const RX0 = 120, RX1 = 640;                // ruler: 0 .. max_length tokens
+  const PW = 200, CHW = 420, REJW = 130;      // prompt, chosen (too long), rejected widths
+  const GC = 16, GR = 3, CS = 26, CG = 6, GX = 120, GY = 196;   // weight grid
+  let S = null, tw = [];
+  const mk = (tag, a, p, t) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); if (t !== undefined) e.textContent = t; p.appendChild(e); return e; };
+
+  function build(slide) {
+    const svg = slide.querySelector("#pp-svg");
+    svg.innerHTML = "";
+    const s = { svg, cells: [] };
+    const defs = mk("defs", {}, svg);
+    const pat = mk("pattern", { id: "pp-hatch", width: 8, height: 8, patternUnits: "userSpaceOnUse", patternTransform: "rotate(45)" }, defs);
+    mk("rect", { width: 8, height: 8, fill: "var(--risk-soft)" }, pat);
+    mk("line", { x1: 0, y1: 0, x2: 0, y2: 8, stroke: "var(--risk)", "stroke-width": 3, opacity: .5 }, pat);
+
+    // ruler
+    mk("line", { x1: RX0, y1: 26, x2: RX1, y2: 26, stroke: "var(--ink-2)", "stroke-width": 2 }, svg);
+    for (let i = 0; i <= 8; i++) mk("line", { x1: RX0 + i * (RX1 - RX0) / 8, y1: 20, x2: RX0 + i * (RX1 - RX0) / 8, y2: 32, stroke: "var(--ink-2)", "stroke-width": 1.5 }, svg);
+    mk("text", { x: RX0, y: 14, "font-size": 12, fill: "var(--muted)" }, svg, "0 tokens");
+    mk("line", { x1: RX1, y1: 10, x2: RX1, y2: 150, stroke: "var(--risk)", "stroke-width": 2.5, "stroke-dasharray": "6 4" }, svg);
+    mk("text", { x: RX1 + 6, y: 16, "font-size": 12.5, "font-weight": 700, fill: "var(--risk)" }, svg, "max_length");
+
+    s.pair = mk("g", {}, svg);
+    // row 1: prompt + chosen (longer than max_length)
+    mk("text", { x: 0, y: 70, "font-size": 13, fill: "var(--ink-2)" }, s.pair, "+ chosen");
+    mk("rect", { x: RX0, y: 50, width: PW, height: 30, rx: 6, fill: "var(--human-soft)", stroke: "var(--human)" }, s.pair);
+    mk("text", { x: RX0 + 10, y: 70, "font-size": 12.5, fill: "var(--human)" }, s.pair, "prompt");
+    s.cho = mk("rect", { x: RX0 + PW, y: 50, width: CHW, height: 30, rx: 6, fill: "var(--state-soft)", stroke: "var(--state)" }, s.pair);
+    s.over = mk("rect", { x: RX1, y: 50, width: RX0 + PW + CHW - RX1, height: 30, fill: "url(#pp-hatch)" }, s.pair);
+    mk("text", { x: RX0 + PW + 10, y: 70, "font-size": 12.5, fill: "var(--state)" }, s.pair, "chosen · long");
+    // row 2: prompt + rejected (short)
+    mk("text", { x: 0, y: 118, "font-size": 13, fill: "var(--ink-2)" }, s.pair, "+ rejected");
+    mk("rect", { x: RX0, y: 98, width: PW, height: 30, rx: 6, fill: "var(--human-soft)", stroke: "var(--human)" }, s.pair);
+    mk("text", { x: RX0 + 10, y: 118, "font-size": 12.5, fill: "var(--human)" }, s.pair, "prompt");
+    s.rej = mk("rect", { x: RX0 + PW, y: 98, width: REJW, height: 30, rx: 6, fill: "var(--risk-soft)", stroke: "var(--risk)" }, s.pair);
+    s.rejTxt = mk("text", { x: RX0 + PW + REJW + 10, y: 118, "font-size": 12.5, fill: "var(--risk)" }, s.pair, "rejected · 0 tokens");
+    s.cut = mk("text", { x: RX0, y: 154, "font-size": 13, "font-weight": 700, fill: "var(--risk)" }, s.pair, "keep = max_length − longer < 0 → lst[:negative]");
+
+    // weight grid
+    mk("text", { x: 0, y: GY + 18, "font-size": 13, fill: "var(--ink-2)" }, svg, "weights");
+    for (let r = 0; r < GR; r++) for (let c = 0; c < GC; c++) {
+      s.cells.push({ r, c, el: mk("rect", { x: GX + c * (CS + CG), y: GY + r * (CS + CG), width: CS, height: CS, rx: 4, fill: "var(--model)", opacity: 0.35 }, svg) });
+    }
+    s.div = mk("text", { x: GX + GC * (CS + CG) + 4, y: GY - 12, "font-size": 20, "font-weight": 700, "text-anchor": "end", fill: "var(--risk)", opacity: 0 }, svg, "0 / 0");
+    s.status = mk("text", { x: 0, y: GY - 12, "font-size": 13.5, "font-weight": 700, fill: "var(--muted)" }, svg, "first optimizer step");
+    s.drop = mk("text", { x: 470, y: 118, "font-size": 13, "font-weight": 700, fill: "var(--state)", opacity: 0 }, svg, "dropped by filter");
+    return s;
+  }
+
+  function kill() { tw.forEach((t) => t.kill()); tw = []; }
+
+  function render(slide, n, animate) {
+    if (!S || !S.svg.isConnected || S.svg.childNodes.length === 0) S = build(slide);
+    kill();
+    const s = S;
+    const emptied = n >= 1 && n < 3, nan = n === 2, dropped = n >= 3;
+    // step 1: the rejected block empties to zero width
+    if (n === 1 && animate) {
+      s.rej.setAttribute("width", REJW); s.rejTxt.setAttribute("opacity", 0); s.cut.setAttribute("opacity", 0);
+      tw.push(gsap.to(s.cut, { attr: { opacity: 1 }, duration: 0.4, delay: 0.2 }));
+      tw.push(gsap.to(s.rej, { attr: { width: 0 }, duration: 1.0, delay: 0.7, ease: "power2.in" }));
+      tw.push(gsap.to(s.rejTxt, { attr: { opacity: 1, x: RX0 + PW + 10 }, duration: 0.4, delay: 1.6 }));
+    } else {
+      s.rej.setAttribute("width", emptied ? 0 : REJW);
+      s.rejTxt.setAttribute("opacity", emptied ? 1 : 0); s.rejTxt.setAttribute("x", RX0 + PW + 10);
+      s.cut.setAttribute("opacity", emptied ? 1 : 0);
+    }
+    // step 2: 0/0 -> NaN spreads across the grid
+    s.div.textContent = nan ? "0 / 0 → NaN" : "0 / 0";
+    s.div.setAttribute("opacity", nan ? 1 : 0);
+    s.status.textContent = nan ? "grad_norm = nan · loss = 0" : dropped ? "loss finite · weights clean" : "first optimizer step";
+    s.status.setAttribute("fill", nan ? "var(--risk)" : dropped ? "var(--state)" : "var(--muted)");
+    s.cells.forEach((cell) => {
+      const fill = nan ? "var(--risk)" : dropped ? "var(--state)" : "var(--model)";
+      const op = nan ? 0.9 : dropped ? 0.55 : 0.35;
+      if (animate && (n === 2 || n === 3)) {
+        const d = (cell.c + cell.r) * 0.045;
+        tw.push(gsap.to(cell.el, { attr: { fill, opacity: op }, duration: 0.25, delay: (n === 2 ? 0.3 : 0.6) + d }));
+      } else { cell.el.setAttribute("fill", fill); cell.el.setAttribute("opacity", op); }
+    });
+    // step 3: the filter drops the pair before training
+    if (n === 3 && animate) {
+      gsap.set(s.pair, { opacity: 1, x: 0 });
+      tw.push(gsap.to(s.pair, { opacity: 0.22, duration: 0.6, ease: "power2.out" }));
+      tw.push(gsap.fromTo(s.drop, { attr: { opacity: 0 } }, { attr: { opacity: 1 }, duration: 0.4, delay: 0.4 }));
+    } else {
+      gsap.set(s.pair, { opacity: dropped ? 0.22 : 1, x: 0 });
+      s.drop.setAttribute("opacity", dropped ? 1 : 0);
+    }
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { S = build(slide); render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { kill(); }
+  });
+})();
+</script>

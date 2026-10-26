@@ -1,0 +1,124 @@
+<section class="slide chapter" id="rag-c01-measure-first" data-tone="human" data-title="Ch 1: Measure first">
+  <style>
+    #rag-c01-measure-first .display { font-size: 70px; line-height: 1.02; max-width: 1300px; }
+    #rag-c01-measure-first .mf-svg { overflow: visible; display: block; }
+    #rag-c01-measure-first .mf-svg text { font-family: var(--f-mono); }
+    #rag-c01-measure-first .mf-svg .hd { font-size: 14px; font-weight: 600; fill: var(--muted); letter-spacing: .03em; }
+    #rag-c01-measure-first .mf-svg .rl { font: 700 22px/1 var(--f-display); fill: var(--ink); }
+    #rag-c01-measure-first .mf-svg .rs { font-size: 13px; fill: var(--muted); }
+    #rag-c01-measure-first .mf-svg .rs.ok { fill: var(--state); font-weight: 600; }
+    #rag-c01-measure-first .mf-svg .val { font-size: 14px; font-weight: 700; fill: var(--ink); }
+    #rag-c01-measure-first .mf-svg .miss { font-size: 28px; font-weight: 700; fill: var(--risk); }
+    #rag-c01-measure-first .mf-svg .grid-line { stroke: var(--line-2); stroke-width: 1.2; }
+    #rag-c01-measure-first .mf-svg .arrow { stroke: var(--human); stroke-width: 2.4; fill: none; stroke-linecap: round; }
+    #rag-c01-measure-first .mf-svg .box { fill: var(--human-soft); stroke: var(--human); stroke-width: 1.8; }
+    #rag-c01-measure-first .mf-svg .box-t { font-size: 17px; font-weight: 700; fill: var(--human); }
+    #rag-c01-measure-first .tags .tag { font-size: 16px; }
+  </style>
+  <div class="ch-num" data-fx="blur">01</div>
+  <svg class="mf-svg" id="mf-svg" width="1000" height="318" viewBox="0 0 1000 318" aria-label="15 labelled queries run through evaluate(); a floor row and a BM25 row fill the scorecard"></svg>
+  <h2 class="display">Measure first: a labelled set, four metrics and a BM25 floor</h2>
+  <p class="lede" data-fx="up">You cannot claim that hybrid search or reranking helps until you can print one table.</p>
+  <div class="tags">
+    <span class="tag t-state" data-step="1">kb.py · 18 chunks · 15 labelled queries</span>
+    <span class="tag t-human" data-step="2">evalkit.py · recall@k · hit@k · MRR · nDCG</span>
+    <span class="tag t-tool" data-step="3">floor run + BM25 · bm25s 0.3.15</span>
+    <span class="tag" data-step="3">every later lab calls evaluate()</span>
+    <span class="tag" data-step="3">Python 3.12</span>
+  </div>
+  <aside class="notes">
+    This chapter builds the measuring stick before any retriever: the Northwind Outfitters support corpus of 18 policy chunks in 4 documents, 15 labelled support queries, and evalkit.py with recall@k, hit@k, MRR and nDCG. The animation is the whole chapter in one picture: the 15 queries run through evaluate(), a floor run that ignores the query fills the grey row with recall@5 = 0.333, and a BM25 baseline with bm25s 0.3.15 fills the green row. The floor numbers were executed; the BM25 row is illustrative until you run it. Analogy: you weigh yourself before the diet starts, or you can never say the diet worked. Likely question: "Why not go straight to embeddings?" Because without this table you cannot tell whether dense, hybrid or a reranker helped, and every later lab in the deck plugs into the same evaluate() call. Next: Lab 1 starts with the answer key, kb.py.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const COLS = ["R@1", "R@3", "R@5", "MRR@10", "nDCG@5"];
+  const ROWS = [
+    { vals: [0.067, 0.233, 0.333, 0.197, 0.211], miss: 10, base: 168, fill: "var(--faint)" },
+    { vals: [0.600, 0.733, 0.767, 0.680, 0.690], miss: 3, base: 300, fill: "var(--state)" }
+  ];
+  const CX = (j) => 600 + j * 76, BW = 38, MAXH = 100, BOX = { x: 287, y: 90 };
+  const dotPos = (i) => ({ x: 16 + (i % 5) * 30, y: 60 + Math.floor(i / 5) * 30 });
+  let tl = null, dots = [], bars = [], texts = [], misses = [], box = null;
+
+  function el(svg, tag, attrs, txt) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (txt !== undefined) e.textContent = txt;
+    svg.appendChild(e);
+    return e;
+  }
+  function build(svg) {
+    svg.innerHTML = "";
+    dots = []; bars = []; texts = []; misses = [];
+    el(svg, "text", { class: "hd", x: 0, y: 24 }, "kb.py · 15 queries");
+    el(svg, "path", { class: "arrow", d: "M160,90 L204,90 M196,83 L205,90 L196,97" });
+    box = el(svg, "rect", { class: "box", x: 212, y: 62, width: 150, height: 56, rx: 12 });
+    el(svg, "text", { class: "box-t", x: 287, y: 96, "text-anchor": "middle" }, "evaluate()");
+    el(svg, "path", { class: "arrow", d: "M368,90 L400,90 M392,83 L401,90 L392,97" });
+    COLS.concat(["miss@5"]).forEach((c, j) => el(svg, "text", { class: "hd", x: CX(j), y: 24, "text-anchor": "middle" }, c));
+    el(svg, "line", { class: "grid-line", x1: 414, y1: 38, x2: 1000, y2: 38 });
+    el(svg, "line", { class: "grid-line", x1: 414, y1: 186, x2: 1000, y2: 186 });
+    el(svg, "text", { class: "rl", x: 414, y: 108 }, "floor");
+    el(svg, "text", { class: "rs", x: 414, y: 132 }, "corpus order");
+    el(svg, "text", { class: "rs ok", x: 414, y: 152 }, "executed");
+    el(svg, "text", { class: "rl", x: 414, y: 240 }, "BM25");
+    el(svg, "text", { class: "rs", x: 414, y: 264 }, "bm25s 0.3.15");
+    el(svg, "text", { class: "rs", x: 414, y: 284 }, "illustrative");
+    ROWS.forEach((r, ri) => {
+      bars[ri] = []; texts[ri] = [];
+      r.vals.forEach((v, j) => {
+        el(svg, "rect", { x: CX(j) - BW / 2, y: r.base - MAXH, width: BW, height: MAXH, rx: 5, fill: "var(--surface)", stroke: "var(--line)" });
+        bars[ri][j] = el(svg, "rect", { x: CX(j) - BW / 2, y: r.base, width: BW, height: 0, rx: 5, fill: r.fill });
+        texts[ri][j] = el(svg, "text", { class: "val", x: CX(j), y: r.base - 6, "text-anchor": "middle", opacity: 0 }, v.toFixed(3));
+      });
+      misses[ri] = el(svg, "text", { class: "miss", x: CX(5), y: r.base - 34, "text-anchor": "middle", opacity: 0 }, String(r.miss));
+      el(svg, "text", { class: "rs", x: CX(5), y: r.base - 12, "text-anchor": "middle" }, "of 15");
+    });
+    for (let i = 0; i < 15; i++) {
+      const p = dotPos(i);
+      dots.push(el(svg, "circle", { cx: p.x, cy: p.y, r: 9, fill: "var(--human)", opacity: 0 }));
+    }
+  }
+  function phase(t, ri, at) {
+    const r = ROWS[ri];
+    // dots fly into evaluate(), one query at a time
+    dots.forEach((d, i) => {
+      const p = dotPos(i);
+      t.set(d, { attr: { cx: p.x, cy: p.y }, opacity: 1 }, at);
+      t.to(d, { attr: { cx: BOX.x, cy: BOX.y }, opacity: 0, duration: 0.42, ease: "power2.in" }, at + 0.05 * i);
+    });
+    t.to(box, { attr: { "stroke-width": 4 }, duration: 0.2, yoyo: true, repeat: 3 }, at + 0.3);
+    const barsAt = at + 0.05 * 15 + 0.4;
+    r.vals.forEach((v, j) => {
+      const h = v * MAXH, txt = texts[ri][j], o = { v: 0 };
+      t.to(bars[ri][j], { attr: { y: r.base - h, height: h }, duration: 0.8, ease: "power3.out" }, barsAt + j * 0.08);
+      t.to(txt, { attr: { y: r.base - h - 6 }, opacity: 1, duration: 0.8, ease: "power3.out" }, barsAt + j * 0.08);
+      t.to(o, { v, duration: 0.8, ease: "power3.out", onUpdate: () => (txt.textContent = o.v.toFixed(3)) }, barsAt + j * 0.08);
+    });
+    const m = misses[ri], mo = { v: 15 };
+    t.to(m, { opacity: 1, duration: 0.3 }, barsAt);
+    t.to(mo, { v: r.miss, duration: 0.8, ease: "power2.out", onUpdate: () => (m.textContent = String(Math.round(mo.v))) }, barsAt);
+    return barsAt + 1.0;
+  }
+  Deck.register("rag-c01-measure-first", {
+    enter(slide) {
+      if (tl) tl.kill();
+      build(slide.querySelector("#mf-svg"));
+      tl = gsap.timeline({ delay: 0.3 });
+      tl.to(dots, { opacity: 1, duration: 0.3, stagger: 0.03 }, 0);
+      const end1 = phase(tl, 0, 1.0);
+      const end2 = phase(tl, 1, end1 + 0.4);
+      // rest state: the 15 labelled queries wait for the next retriever
+      dots.forEach((d, i) => { const p = dotPos(i); tl.set(d, { attr: { cx: p.x, cy: p.y } }, end2 + 0.2); });
+      tl.to(dots, { opacity: 1, duration: 0.3, stagger: 0.02 }, end2 + 0.2);
+    },
+    step() {},
+    leave() {
+      if (tl) { tl.kill(); tl = null; }
+      gsap.killTweensOf(dots.concat(bars.flat(), texts.flat(), misses, box ? [box] : []));
+    }
+  });
+})();
+</script>

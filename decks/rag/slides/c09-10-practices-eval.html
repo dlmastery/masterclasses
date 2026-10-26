@@ -1,0 +1,147 @@
+<section class="slide" id="rag-c09-practices-eval" data-tone="human" data-title="Practices: eval and release-gate rules">
+  <style>
+    #rag-c09-practices-eval .pe-grid { display: grid; grid-template-columns: 1fr 600px; gap: 28px; align-items: start; }
+    #rag-c09-practices-eval .pe-left, #rag-c09-practices-eval .pe-right { gap: 12px; min-width: 0; }
+    #rag-c09-practices-eval .pe-grp { display: grid; gap: 8px; padding: 10px 14px 12px; border: 1px solid var(--line); border-left: 4px solid var(--state); border-radius: 12px; background: var(--surface); }
+    #rag-c09-practices-eval .pe-grp.no { border-left-color: var(--risk); }
+    #rag-c09-practices-eval .pe-grp h4 { margin: 0; font-size: 14px; font-family: var(--f-mono); text-transform: uppercase; letter-spacing: .05em; color: var(--state); }
+    #rag-c09-practices-eval .pe-grp.no h4 { color: var(--risk); }
+    #rag-c09-practices-eval ul.checks { gap: 10px; }
+    #rag-c09-practices-eval ul.checks li { font-size: 17px; line-height: 1.32; }
+    #rag-c09-practices-eval ul.checks li .r { color: var(--muted); font-size: .9em; }
+    #rag-c09-practices-eval ul.checks li code { font-size: .84em; }
+    #rag-c09-practices-eval .code-wrap .code-head { padding: 7px 14px; font-size: 13px; }
+    #rag-c09-practices-eval pre.code.pe-c { font-size: 13px; line-height: 1.4; padding: 8px 16px 10px; }
+    #rag-c09-practices-eval .pe-badge { border: 1px solid var(--line); border-radius: 14px; background: var(--surface); padding: 8px 10px 4px; }
+    #rag-c09-practices-eval .pe-badge svg { display: block; overflow: visible; }
+    #rag-c09-practices-eval svg text { font-family: var(--f-mono); }
+    #rag-c09-practices-eval .pe-hd { font-size: 11.5px; font-weight: 700; letter-spacing: .05em; fill: var(--muted); }
+    #rag-c09-practices-eval .pe-st { font-size: 13.5px; font-weight: 700; }
+    #rag-c09-practices-eval .pe-sb { font-size: 11px; fill: var(--muted); }
+    #rag-c09-practices-eval .pe-cites { display: flex; gap: 6px; flex-wrap: wrap; }
+    #rag-c09-practices-eval .pe-cites .cite { font-size: 12.5px; padding: 5px 10px 5px 8px; white-space: nowrap; flex-direction: row; gap: 8px; border-radius: 10px; }
+    #rag-c09-practices-eval .pe-right .code-wrap { width: 100%; }
+  </style>
+  <div class="kicker">Best practices</div>
+  <h2 class="title">Eval rules: real queries, canary slices, a pinned judge, paired gates</h2>
+  <div class="pe-grid fill">
+    <div class="pe-left stack">
+      <div class="pe-grp">
+        <h4>Do</h4>
+        <ul class="checks">
+          <li data-step="1"><span>Start with 20-50 real failures. <span class="r">Grow to 100-300 labelled queries.</span></span></li>
+          <li data-step="1"><span>Add canary, multi-turn and all-evidence slices. <span class="r">Sharded turns: up to 21% drop.</span></span></li>
+          <li data-step="2"><span>Gate on deterministic <code>recall@5</code> first. <span class="r">It needs no judge.</span></span></li>
+          <li data-step="2"><span>Report coverage next to every judge score. <span class="r">NaN rows raise the mean.</span></span></li>
+          <li data-step="3"><span>Pin judge model, prompt hash, temperature. <span class="r">Re-calibrate on any change.</span></span></li>
+          <li data-step="3"><span>Quote kappa against the human ceiling, plus the unsupported-admit rate.</span></li>
+          <li data-step="3"><span>Evaluate at temperature 0. <span class="r">Disagreement 14.3% → 3.4%.</span></span></li>
+          <li data-step="4"><span>Count "not enough evidence" as INCONCLUSIVE. <span class="r">Compare paired rows.</span></span></li>
+        </ul>
+      </div>
+      <div class="pe-grp no" data-step="5">
+        <h4>Don't</h4>
+        <ul class="checks">
+          <li class="no"><span>Ship from an isolated A/B test. <span class="r">+47% predicted, +17% together.</span></span></li>
+          <li class="no"><span>Merge TestsetGenerator rows unreviewed. <span class="r">Mix in ~20% real queries.</span></span></li>
+        </ul>
+      </div>
+      <div class="pe-cites" data-step="5">
+        <a class="cite doc" href="https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents" target="_blank" rel="noopener"><b>Blog</b>&nbsp;Demystifying evals for AI agents</a>
+        <a class="cite repo" href="https://github.com/vibrantlabsai/ragas/issues/3028" target="_blank" rel="noopener"><b>Issue</b>&nbsp;ragas#3028</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2609.36700" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2609.36700</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2610.05034" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.05034</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2609.34179" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2609.34179</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2610.29722" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.29722</a>
+      </div>
+    </div>
+    <div class="pe-right stack">
+      <div class="code-wrap">
+        <div class="code-head">shopco_eval/baseline.json · Lab 8 baseline + pinned claim judge</div>
+        <pre class="code pe-c" data-lang="json" data-focus="1:22-22, 2:2-11, 3:12-21, 4:5-9"><code>{
+  "recall_at_5": 0.86,
+  "faithfulness": 0.91,
+  "canary_abstain": 0.90,
+  "tolerance": {
+    "recall_at_5": 0.03,
+    "faithfulness": 0.03,
+    "canary_abstain": 0.00
+  },
+  "min_rows": 50,
+  "max_judge_nan_rate": 0.05,
+  "judge": {
+    "model": "gemini-3.8-flash",
+    "prompt_sha256": "&lt;sha256 of the judge prompt file&gt;",
+    "temperature": 0.0,
+    "calibration": {
+      "kappa": 1.00,
+      "unsupported_admit_rate": 0.0,
+      "labelled_claims": 120
+    }
+  },
+  "slices": ["normal", "canary", "multi_turn", "all_evidence"]
+}</code></pre>
+      </div>
+      <div class="pe-badge" data-step="4">
+        <svg id="pe-svg" viewBox="0 0 576 108" width="576" height="108" aria-label="Four release outcomes: PROMOTE, BLOCK, REJECT, INCONCLUSIVE"></svg>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    These are the rules that turn the ShopCo gate from a demo into a release process. Build the golden set from real failures first, 20 to 50 is enough to start, and add slices for canaries, multi-turn sharded questions and all-evidence questions, because each slice fails in its own way. Gate on deterministic recall before any judge, and print coverage next to every judge score, because ragas drops NaN rows and the mean goes up as rows fail. Pin the judge like a model you ship: model id, prompt hash and temperature live in baseline.json, and any change means re-calibration. Analogy: you would not change the scale in a lab and keep the old readings. A likely question: "Why is INCONCLUSIVE its own state?" Because a gate that cannot decide must not pass silently; RAGWarrant separates it from PROMOTE, BLOCK and REJECT so a human looks at it. Next chapter: the gate measures quality; chapter 10 secures the retrieval path for the Harbor Mutual claims desk.
+  </aside>
+</section>
+<script>
+(() => {
+  const ID = "rag-c09-practices-eval";
+  const NS = "http://www.w3.org/2000/svg";
+  const ST = [
+    { t: "PROMOTE", s: "release", c: "var(--state)", k: "state" },
+    { t: "BLOCK", s: "", c: "var(--risk)", k: "risk" },
+    { t: "REJECT", s: "", c: "var(--model)", k: "model" },
+    { t: "INCONCLUSIVE", s: "not enough evidence", c: "var(--tool)", k: "tool" }
+  ];
+  const BW = 132, BX = (i) => i * 148;
+  const mk = (tag, a, p, t) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); if (t != null) e.textContent = t; p.appendChild(e); return e; };
+  let R = null, loop = null;
+
+  function build(slide) {
+    if (R && R.slide === slide) return;
+    const svg = slide.querySelector("#pe-svg");
+    svg.innerHTML = "";
+    R = { slide, cells: [] };
+    mk("text", { class: "pe-hd", x: 0, y: 14 }, svg, "RELEASE OUTCOMES · RAGWarrant (2609.34179)");
+    ST.forEach((s, i) => {
+      const g = mk("g", {}, svg);
+      const r = mk("rect", { x: BX(i), y: 26, width: BW, height: 50, rx: 12, fill: `var(--${s.k}-soft)`, stroke: s.c, "stroke-width": 1.5 }, g);
+      mk("text", { class: "pe-st", x: BX(i) + BW / 2, y: 56, "text-anchor": "middle", fill: s.c }, g, s.t);
+      mk("text", { class: "pe-sb", x: BX(i) + BW / 2, y: 96, "text-anchor": "middle" }, g, s.s);
+      R.cells.push({ g, r });
+    });
+  }
+  function light(k) {
+    R.cells.forEach((c, i) => {
+      c.g.setAttribute("opacity", k < 0 || i === k ? 1 : 0.35);
+      c.r.setAttribute("stroke-width", i === k ? 3.5 : 1.5);
+    });
+  }
+  function stop() { if (loop) { loop.kill(); loop = null; } }
+
+  function render(slide, n) {
+    build(slide);
+    stop();
+    if (n < 4) { light(-1); return; }
+    // step 4 highlights INCONCLUSIVE; step 5 cycles all four outcomes
+    if (n === 4) { light(3); return; }
+    light(0);
+    loop = gsap.timeline({ repeat: -1 });
+    [0, 1, 2, 3].forEach((k) => loop.call(() => light(k)).to({}, { duration: 1.1 }));
+  }
+
+  Deck.register(ID, {
+    enter(slide, n) { render(slide, n || 0); },
+    step(slide, n) { render(slide, n); },
+    leave() { stop(); }
+  });
+})();
+</script>

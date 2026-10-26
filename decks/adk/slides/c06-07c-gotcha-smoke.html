@@ -1,0 +1,40 @@
+<section class="slide" id="adk-c06-gotcha-smoke" data-tone="risk" data-title="Gotcha fix: startup smoke test">
+  <style>
+    #adk-c06-gotcha-smoke .sm-grid { display: grid; grid-template-columns: 820px 1fr; gap: 36px; align-items: start; }
+    #adk-c06-gotcha-smoke .sm-right { display: flex; flex-direction: column; gap: 28px; min-width: 0; }
+    #adk-c06-gotcha-smoke .cap { font-size: 24px; line-height: 1.4; color: var(--ink-2); margin: 0; }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> MCP at runtime · the fix</div>
+  <h2 class="title">A startup smoke test fails loudly when a toolset does not load</h2>
+  <div class="lab-head"><span class="run">python smoke_test.py</span></div>
+  <div class="sm-grid fill">
+    <div class="code-wrap good">
+      <div class="code-head">labs/adk/lab6-acme-claims-desk/smoke_test.py</div>
+      <pre class="code" data-lang="python" data-focus="1:5-8, 2:9-11, 3:12"><code>import asyncio
+from claims_agent.agent import claims_tools
+EXPECTED = {"get_claim", "approve_claim", "login"}
+async def main() -&gt; None:
+    try:
+        tools = await claims_tools.get_tools()
+    except Exception as exc:  # crash, print, bad path, timeout
+        raise SystemExit(f"FAIL toolset did not load: {exc!r}")
+    names = {t.name.removeprefix("claims_") for t in tools}
+    if names != EXPECTED:
+        raise SystemExit(f"FAIL expected {EXPECTED}, got {names}")
+    print("OK", sorted(names))
+asyncio.run(main())</code></pre>
+    </div>
+    <div class="sm-right">
+      <div class="code-wrap out" data-step="3">
+        <div class="code-head">output · illustrative · two runs</div>
+        <pre class="code sm" data-lang="bash"><code><span class="dim">$ python smoke_test.py  # print() in server</span>
+<span class="err">FAIL toolset did not load: ConnectionError(...)</span>
+<span class="dim">$ python smoke_test.py  # fixed</span>
+<span class="ok">OK ['approve_claim', 'get_claim', 'login']</span></code></pre>
+      </div>
+      <p class="cap" data-step="4">Run it in CI and before each deploy. A non-zero exit stops the rollout.</p>
+      <div class="cites" data-step="4"><a class="cite doc" href="https://adk.dev/tools-custom/mcp-tools/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;adk.dev MCP tools</a></div>
+    </div>
+  </div>
+  <aside class="notes">The fix for the silent failure is to make it loud before traffic arrives. Step 1: the smoke test imports the same claims_tools object the agent uses and calls get_tools(), which starts the stdio server and lists its tools; any crash, stdout print, wrong path or timeout raises here, and SystemExit turns it into a non-zero exit code. Step 2: it also compares the names with the expected set, so a server that drops a tool, or a tool_filter typo, fails too. The prefix is removed before the compare. Step 3: the output shows two runs: the first with a print in the server, the second after the fix. Step 4: run it in CI and as a deploy gate. The full file is in the lab folder; it needs claims_api running, because agent.py fetches the OpenAPI spec when it is imported. Think of a pilot's pre-flight checklist: the plane can fly without it, until the day it cannot. A likely question: "Why remove the prefix before the compare?" get_tools returns the names the model sees, with the claims_ prefix, while EXPECTED uses the server's names, the same names as tool_filter.</aside>
+</section>

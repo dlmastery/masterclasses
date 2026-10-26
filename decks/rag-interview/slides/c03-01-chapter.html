@@ -1,0 +1,108 @@
+<section class="slide chapter" id="rag-interview-c03-chapter" data-tone="agent" data-title="Ch 3: Retrieval quality">
+  <style>
+    #rag-interview-c03-chapter { justify-content: flex-start; padding-bottom: 76px; gap: 20px; }
+    #rag-interview-c03-chapter .ch-num { font-size: 210px; top: 70px; right: 96px; }
+    #rag-interview-c03-chapter .lede { font-size: 25px; max-width: 1000px; margin: 0; }
+    #rag-interview-c03-chapter #c03ch-funnel { margin-top: 6px; }
+    #rag-interview-c03-chapter #c03ch-funnel text { font-family: var(--f-body); }
+    #rag-interview-c03-chapter .c03ch-run { margin-top: 2px; }
+    #rag-interview-c03-chapter .c03ch-files { font-size: 18px; color: var(--ink-2); margin: 0; }
+  </style>
+  <div class="ch-num" data-fx="blur">03</div>
+  <h2 class="display">Retrieval quality</h2>
+  <p class="lede" data-fx="up">Strong answers print the queries each stage made worse, not only the average. You build <code>hybrid_search()</code>, <code>rerank_search()</code> and <code>gated_search()</code>.</p>
+  <svg class="interactive" id="c03ch-funnel" viewBox="0 0 1000 300" width="1000" height="300" aria-label="BM25 and dense retrieval each send their top 75 to RRF; RRF keeps the top 30; a cross-encoder reorders them and keeps 8 for the reader LLM">
+    <defs>
+      <marker id="c03ch-ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+        <path d="M0 0 L10 5 L0 10 Z" style="fill:var(--ink-2)"/>
+      </marker>
+    </defs>
+    <g style="stroke:var(--ink-2);stroke-width:2;fill:none">
+      <line id="c03ch-e1" x1="196" y1="60" x2="286" y2="128" marker-end="url(#c03ch-ah)"/>
+      <line id="c03ch-e2" x1="196" y1="240" x2="286" y2="172" marker-end="url(#c03ch-ah)"/>
+      <line id="c03ch-e3" x1="460" y1="150" x2="576" y2="150" marker-end="url(#c03ch-ah)"/>
+      <line id="c03ch-e4" x1="770" y1="150" x2="866" y2="150" marker-end="url(#c03ch-ah)"/>
+    </g>
+    <!-- nodes -->
+    <rect x="0" y="10" width="196" height="100" rx="14" style="fill:var(--tool-soft);stroke:var(--tool);stroke-width:2"/>
+    <text x="18" y="44" style="font-weight:700;font-size:23px;fill:var(--ink)">BM25</text>
+    <text x="18" y="70" style="font-size:16px;fill:var(--ink-2)">exact words</text>
+    <text x="18" y="94" style="font:600 15px var(--f-mono);fill:var(--ink-2)">top 75</text>
+    <rect x="0" y="190" width="196" height="100" rx="14" style="fill:var(--state-soft);stroke:var(--state);stroke-width:2"/>
+    <text x="18" y="224" style="font-weight:700;font-size:23px;fill:var(--ink)">Dense</text>
+    <text x="18" y="250" style="font-size:16px;fill:var(--ink-2)">meaning (embeddings)</text>
+    <text x="18" y="274" style="font:600 15px var(--f-mono);fill:var(--ink-2)">top 75</text>
+    <rect x="290" y="95" width="170" height="110" rx="14" style="fill:var(--agent-soft);stroke:var(--agent);stroke-width:2.5"/>
+    <text x="375" y="130" text-anchor="middle" style="font-weight:700;font-size:23px;fill:var(--ink)">RRF</text>
+    <text x="375" y="156" text-anchor="middle" style="font-size:16px;fill:var(--ink-2)">merge by rank</text>
+    <text x="375" y="182" text-anchor="middle" style="font:600 14px var(--f-mono);fill:var(--ink-2)">k = 60 smoothing</text>
+    <rect x="580" y="95" width="190" height="110" rx="14" style="fill:var(--model-soft);stroke:var(--model);stroke-width:2.5"/>
+    <text x="675" y="130" text-anchor="middle" style="font-weight:700;font-size:22px;fill:var(--ink)">Cross-encoder</text>
+    <text x="675" y="156" text-anchor="middle" style="font-size:16px;fill:var(--ink-2)">reads query + chunk</text>
+    <text x="675" y="179" text-anchor="middle" style="font-size:16px;fill:var(--ink-2)">together, reorders</text>
+    <rect x="870" y="95" width="130" height="110" rx="14" style="fill:var(--model-soft);stroke:var(--model);stroke-width:2.5"/>
+    <text x="935" y="130" text-anchor="middle" style="font-weight:700;font-size:21px;fill:var(--ink)">Reader</text>
+    <text x="935" y="156" text-anchor="middle" style="font-size:16px;fill:var(--ink-2)">LLM answers</text>
+    <text x="935" y="179" text-anchor="middle" style="font-size:16px;fill:var(--ink-2)">from 8 chunks</text>
+    <g id="c03ch-dots"></g>
+    <!-- counts sit on their own connectors -->
+    <g class="c03ch-pill" data-i="0"><rect x="215" y="80" width="46" height="28" rx="14" style="fill:var(--surface);stroke:var(--tool);stroke-width:2"/><text x="238" y="100" text-anchor="middle" style="font:700 16px var(--f-mono);fill:var(--ink)">75</text></g>
+    <g class="c03ch-pill" data-i="1"><rect x="215" y="192" width="46" height="28" rx="14" style="fill:var(--surface);stroke:var(--state);stroke-width:2"/><text x="238" y="212" text-anchor="middle" style="font:700 16px var(--f-mono);fill:var(--ink)">75</text></g>
+    <g class="c03ch-pill" data-i="2"><rect x="481" y="136" width="76" height="28" rx="14" style="fill:var(--surface);stroke:var(--agent);stroke-width:2"/><text x="519" y="156" text-anchor="middle" style="font:700 16px var(--f-mono);fill:var(--ink)">top 30</text></g>
+    <g class="c03ch-pill" data-i="3"><rect x="781" y="136" width="78" height="28" rx="14" style="fill:var(--surface);stroke:var(--model);stroke-width:2"/><text x="820" y="156" text-anchor="middle" style="font:700 16px var(--f-mono);fill:var(--ink)">keep 8</text></g>
+    <text x="519" y="190" text-anchor="middle" style="font-size:15px;fill:var(--ink-2)">truncate</text>
+    <text x="244" y="155" text-anchor="middle" style="font-size:15px;fill:var(--ink-2)">up to 150</text>
+  </svg>
+  <div class="lab-head c03ch-run" data-fx="up"><span class="run">pip install bm25s==0.3.15 PyStemmer==3.1.0 sentence-transformers==6.2.0 qdrant-client==1.20.0 google-genai==2.33.0</span></div>
+  <p class="c03ch-files" data-fx="up">The code builds on the Northwind retrieval labs: <code>kb.py</code> · <code>evalkit.py</code> · <code>lab2_bm25.py</code> · <code>lab3_hybrid.py</code> · <code>lab7_query_transform.py</code> (export <code>GEMINI_API_KEY</code>).</p>
+  <aside class="notes">This chapter covers the most-asked RAG design area in 2026 interviews: hybrid search, reranking and query rewriting. The funnel shows the standard shape: BM25 finds exact words and dense search finds meaning; each sends its top 75, so RRF gets up to 150 candidates, fewer unique chunks when the two lists overlap. RRF (Reciprocal Rank Fusion) merges by rank, k is a smoothing constant, and we truncate to the top 30. A cross-encoder reads the query and each chunk together, reorders the 30, and 8 reach the reader. Analogy: a hiring funnel where each round is cheaper to skip than to run, so every round must prove its value. The theme of every drill: a stage can raise the mean and still make single queries worse, so a strong candidate prints the per-query "got worse" list. Every drill uses one running case, Northwind outdoor-gear support search, with error codes such as E-4012, and the code reuses the lab files kb.py, evalkit.py, lab2_bm25.py, lab3_hybrid.py and lab7_query_transform.py. Likely question: "Do I always need all three stages?" No; measure each stage on a labelled set and keep only the ones that help. Next: hybrid search and RRF.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "rag-interview-c03-chapter";
+  let tl = null, dots = [];
+  // edges as [x1, y1, x2, y2]; dots travel along them
+  const E = [[196, 60, 284, 127], [196, 240, 284, 173], [460, 150, 574, 150], [770, 150, 864, 150]];
+  const PLAN = [                                   // [edge, dot count, colour, start time]
+    [0, 6, "var(--tool)", 0.1], [1, 6, "var(--state)", 0.2],
+    [2, 4, "var(--agent)", 1.5], [3, 3, "var(--model)", 2.6]
+  ];
+  function build(slide) {
+    const g = slide.querySelector("#c03ch-dots");
+    if (g.childNodes.length) return;
+    dots = [];
+    PLAN.forEach(([e, n, col]) => {
+      for (let i = 0; i < n; i++) {
+        const c = document.createElementNS(NS, "circle");
+        c.setAttribute("r", 6); c.setAttribute("cx", E[e][0]); c.setAttribute("cy", E[e][1]);
+        c.style.fill = col; c.style.opacity = 0;
+        g.appendChild(c);
+        dots.push({ c, e, i });
+      }
+    });
+  }
+  function loop(slide) {
+    if (tl) tl.kill();
+    const pills = slide.querySelectorAll(".c03ch-pill");
+    tl = gsap.timeline({ repeat: -1, repeatDelay: 0.6 });
+    dots.forEach(({ c, e, i }) => {
+      const [x1, y1, x2, y2] = E[e];
+      const t0 = PLAN.find((p) => p[0] === e)[3] + i * 0.14;
+      tl.set(c, { attr: { cx: x1, cy: y1 }, opacity: 0 }, 0);
+      tl.to(c, { opacity: 1, duration: 0.12 }, t0);
+      tl.to(c, { attr: { cx: x2, cy: y2 }, duration: 0.75, ease: "power1.inOut" }, t0);
+      tl.to(c, { opacity: 0, duration: 0.15 }, t0 + 0.72);
+    });
+    PLAN.forEach(([e, , , t]) => {
+      tl.fromTo(pills[e], { scale: 1, transformOrigin: "50% 50%" }, { scale: 1.18, duration: 0.25, yoyo: true, repeat: 1 }, t + 0.3);
+    });
+    tl.to({}, { duration: 0.4 });
+  }
+  Deck.register(ID, {
+    enter(slide) { build(slide); loop(slide); },
+    step(slide) { build(slide); },
+    leave() { if (tl) { tl.kill(); tl = null; } dots.forEach((d) => gsap.killTweensOf(d.c)); }
+  });
+})();
+</script>

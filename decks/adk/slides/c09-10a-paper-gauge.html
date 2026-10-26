@@ -1,0 +1,95 @@
+<section class="slide" id="adk-c09-paper-gauge" data-tone="model" data-title="Paper: GAUGE">
+  <style>
+    #adk-c09-paper-gauge .c9-split { --c9l: 600px; }
+    #adk-c09-paper-gauge .jp-sub { fill: var(--ink-2); font-size: 17px; }
+    #adk-c09-paper-gauge .jp-big { fill: var(--risk); font-size: 36px; font-weight: 800; }
+  </style>
+  <div class="kicker"><span class="pill">arXiv</span> Sep 2026</div>
+  <h2 class="title">Of simulated chats judged satisfied, 57.5% had failed the task</h2>
+  <div class="c9-split fill">
+    <div class="c9-col">
+      <div class="paper c9-paper">
+        <div class="pid">arXiv 2609.12191 <span>2026-09-10</span></div>
+        <h4>GAUGE: when not to trust an LLM judge in user-simulated evals</h4>
+        <div class="find">25 agents, simulated customers. Of chats rated satisfied, <b>57.5%</b> failed the task. On close agent pairs, judge and real reward disagree <b>31%</b>.</div>
+        <div class="so" data-step="3">Add a judge-free completion bit.</div>
+      </div>
+      <div class="cites" data-step="3"><a class="cite paper" href="https://arxiv.org/abs/2609.12191" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2609.12191 GAUGE</a></div>
+    </div>
+    <div class="c9-fig">
+      <svg class="c9-svg" id="jp-sc" viewBox="0 0 700 470" aria-label="Scatter of judge satisfaction against task success: 80 chats, 40 rated satisfied. At step 2, 23 of the 40 satisfied chats turn red because they failed the task: 57.5 percent.">
+        <rect x="70" y="40" width="620" height="150" rx="10" fill="var(--state-soft)"/>
+        <rect x="70" y="240" width="620" height="150" rx="10" fill="var(--risk-soft)"/>
+        <text class="jp-sub" x="60" y="122" text-anchor="end">done</text>
+        <text class="jp-sub" x="60" y="322" text-anchor="end">failed</text>
+        <line x1="420" y1="28" x2="420" y2="400" stroke="var(--model)" stroke-width="2.5" stroke-dasharray="7 6"/>
+        <text class="jp-sub" x="430" y="22" style="fill:var(--model);font-weight:700">rated satisfied →</text>
+        <line x1="70" y1="410" x2="690" y2="410" stroke="var(--line-2)" stroke-width="2"/>
+        <text class="jp-sub" x="380" y="440" text-anchor="middle">judge satisfaction →</text>
+        <g id="jp-pts"></g>
+        <text id="jp-cnt" class="jp-big" x="430" y="228"></text>
+        <text id="jp-cnt2" class="jp-sub" x="410" y="226" text-anchor="end" style="font-weight:700"></text>
+        <text class="jp-sub" x="70" y="466" style="font-size:15px">schematic · 80 chats, 40 rated satisfied</text>
+      </svg>
+    </div>
+  </div>
+  <aside class="notes">GAUGE, from September 2026, ran 25 agents with simulated customers on tau-squared-bench and SimulatorArena, then compared the LLM judge's verdict with the real task outcome. Of the chats the judge rated satisfied, 57.5 percent had failed the customer's task. On close pairs, meaning two agents with similar scores, the judge and the real reward disagreed 31 percent of the time, against under 1 percent for clearly different agents. The scatter is schematic: 80 chats, 40 rated satisfied, and 23 of those 40, which is 57.5 percent, turn red because the task failed. The Monday change is a judge-free completion bit next to every rubric, which the next slides build. Analogy: a polite customer saying "thanks" is not the same as the parcel arriving. A likely question: "So should I drop the judge?" No: keep it for tone and meaning, but never let it alone decide whether the task was done.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c09-paper-gauge";
+  const NS = "http://www.w3.org/2000/svg";
+  const frac = (x) => x - Math.floor(x);
+  const q = (s, id) => s.querySelector("#" + id);
+  const h = (a) => frac(Math.sin(a * 12.9898 + 78.233) * 43758.5453);   // deterministic hash
+  // 80 fixed chats: 40 rated satisfied, 23 of those failed (23/40 = 57.5%)
+  const PTS = Array.from({ length: 80 }, (_, i) => {
+    const sat = i < 40, k = sat ? i : i - 40;
+    const fail = sat ? (k * 7) % 40 < 23 : (k * 11) % 40 < 20;
+    const x = sat ? 438 + 240 * h(i + 1) : 84 + 320 * h(i + 1);
+    const y = (fail ? 254 : 54) + 122 * h(i + 101);
+    return { x, y, sat, fail };
+  });
+  const RED = PTS.filter((p) => p.sat && p.fail);
+  let tls = [];
+  function stop() { tls.forEach((t) => t.kill()); tls = []; }
+  function buildPts(s) {
+    const g = q(s, "jp-pts");
+    if (g.childNodes.length) return;
+    PTS.forEach((p) => {
+      const c = document.createElementNS(NS, "circle");
+      c.setAttribute("cx", p.x.toFixed(1)); c.setAttribute("cy", p.y.toFixed(1)); c.setAttribute("r", 8);
+      g.appendChild(c);
+    });
+  }
+  function paint(s, shown, k) {
+    buildPts(s);
+    const cs = q(s, "jp-pts").childNodes;
+    PTS.forEach((p, i) => {
+      const r = RED.indexOf(p);
+      const red = r >= 0 && r < k;
+      cs[i].setAttribute("fill", red ? "var(--risk)" : p.sat ? "var(--model)" : "var(--muted)");
+      cs[i].setAttribute("opacity", i < shown ? (red ? "0.95" : "0.55") : "0");
+    });
+    q(s, "jp-cnt").textContent = k ? (k / 40 * 100).toFixed(1) + "%" : "";
+    q(s, "jp-cnt2").textContent = k ? k + " of 40 =" : "";
+  }
+  function render(s, n, animate) {
+    stop();
+    if (n === 1 && animate) {
+      const o = { v: 0 };
+      paint(s, 0, 0);
+      tls.push(gsap.to(o, { v: 80, duration: 1.2, delay: 0.2, ease: "none", onUpdate: () => paint(s, Math.floor(o.v), 0), onComplete: () => paint(s, 80, 0) }));
+    } else if (n === 2 && animate) {
+      paint(s, 80, 0);
+      const o = { k: 0 };
+      tls.push(gsap.to(o, { k: RED.length, duration: 2.0, delay: 0.3, ease: "none", onUpdate: () => paint(s, 80, Math.floor(o.k)), onComplete: () => paint(s, 80, RED.length) }));
+    } else paint(s, n >= 1 ? 80 : 0, n >= 2 ? RED.length : 0);
+  }
+  Deck.register(ID, {
+    enter(slide, n) { render(slide, n || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { stop(); }
+  });
+})();
+</script>

@@ -1,0 +1,102 @@
+<section class="slide tight" id="adk-c07-gotcha-a2a-trust" data-tone="risk" data-title="Gotcha: A2A auth">
+  <style>
+    #adk-c07-gotcha-a2a-trust .gt-top { display: grid; grid-template-columns: 580px 1fr; gap: 40px; align-items: start; }
+    #adk-c07-gotcha-a2a-trust .gotcha { font-size: 19px; line-height: 1.4; gap: 8px 16px; }
+    #adk-c07-gotcha-a2a-trust .em { color: var(--risk); font-style: italic; }
+    #adk-c07-gotcha-a2a-trust .sc { position: relative; width: 772px; height: 300px; }
+    #adk-c07-gotcha-a2a-trust .sc svg { position: absolute; inset: 0; overflow: visible; pointer-events: none; }
+    #adk-c07-gotcha-a2a-trust .bx { position: absolute; border-radius: 14px; border: 2px solid; padding: 12px 16px; display: flex; flex-direction: column; gap: 6px; background: var(--bg); z-index: 1; }
+    #adk-c07-gotcha-a2a-trust .bx b { font: 700 20px/1.2 var(--f-mono); }
+    #adk-c07-gotcha-a2a-trust .bx span { font: 500 17px/1.3 var(--f-mono); color: var(--ink-2); white-space: nowrap; }
+    #adk-c07-gotcha-a2a-trust .card { left: 432px; top: 0; width: 340px; border-color: var(--agent); background: var(--agent-soft); }
+    #adk-c07-gotcha-a2a-trust .card b { color: var(--agent); }
+    #adk-c07-gotcha-a2a-trust .card .lk { color: var(--tool); font-weight: 700; }
+    #adk-c07-gotcha-a2a-trust .cli { left: 0; top: 182px; width: 250px; height: 116px; border-color: var(--agent); }
+    #adk-c07-gotcha-a2a-trust .cli b { color: var(--agent); }
+    #adk-c07-gotcha-a2a-trust .gw { left: 300px; top: 182px; width: 200px; height: 116px; border-color: var(--human); background: var(--human-soft); opacity: 0; }
+    #adk-c07-gotcha-a2a-trust .gw b { color: var(--human); }
+    #adk-c07-gotcha-a2a-trust .srv { left: 552px; top: 182px; width: 220px; height: 116px; border-color: var(--state); background: var(--state-soft); }
+    #adk-c07-gotcha-a2a-trust .srv b { color: var(--state); }
+    #adk-c07-gotcha-a2a-trust .st { font-weight: 700 !important; }
+    #adk-c07-gotcha-a2a-trust .st.red { color: var(--risk) !important; }
+    #adk-c07-gotcha-a2a-trust .st.amber { color: var(--tool) !important; }
+    #adk-c07-gotcha-a2a-trust .st.green { color: var(--state) !important; }
+    #adk-c07-gotcha-a2a-trust .w { fill: none; stroke-width: 3; stroke-dasharray: 8 7; stroke: var(--line-2); }
+    #adk-c07-gotcha-a2a-trust .chip { position: absolute; left: 0; top: 0; padding: 6px 12px; border-radius: 9px; font: 700 16px/1.2 var(--f-mono); color: #fff; white-space: nowrap; opacity: 0; z-index: 3; }
+    #adk-c07-gotcha-a2a-trust .chip.amber { background: var(--tool); color: var(--ink); }
+    #adk-c07-gotcha-a2a-trust .chip.red { background: var(--risk); }
+    #adk-c07-gotcha-a2a-trust .chip.green { background: var(--state); }
+    #adk-c07-gotcha-a2a-trust .cites { margin-top: auto; }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> A2A trust · auth</div>
+  <h2 class="title">security_schemes on the card is metadata: enforce auth in front</h2>
+  <div class="gt-top">
+    <div class="gotcha">
+      <b>Symptom</b><span>You set <code>security_schemes=</code> on <code>to_a2a</code>. A call with no token still gets 200 OK.</span>
+      <b class="why" data-step="1">Cause</b><span data-step="1" class="em">"Populates metadata on the card only and is not enforced at runtime by the Starlette application."</span>
+      <b class="fix" data-step="2">Fix</b><span data-step="2">Check tokens in front: Cloud Run IAM, a gateway or middleware. The client sends one.</span>
+    </div>
+    <div class="sc">
+      <svg viewBox="0 0 772 300" width="772" height="300">
+        <path class="w" id="gt-w" d="M125 182 L125 160 L662 160 L662 182"/>
+        <path class="w" d="M400 160 L400 182" style="stroke-dasharray:none"/>
+      </svg>
+      <div class="bx card"><b>AgentCard</b><span class="lk">security_schemes:</span><span>metadata only</span></div>
+      <div class="bx cli"><b>support_triage</b><span>RemoteA2aAgent</span><span class="st" id="gt-cst"></span></div>
+      <div class="bx gw" id="gt-gw"><b>IAM / gateway</b><span>checks token</span><span class="st" id="gt-gst"></span></div>
+      <div class="bx srv"><b>refund_agent</b><span>to_a2a app</span><span class="st" id="gt-sst"></span></div>
+      <span class="chip" id="gt-chip"></span>
+    </div>
+  </div>
+  <div class="code-wrap good" data-step="3">
+    <div class="code-head">labs/adk/lab7-acme-refunds/deploy/triage_remote_auth.py · excerpt</div>
+    <pre class="code" data-lang="python" data-focus="3:2-4, 4:5-7"><code># the gateway checks the token; the client sends it
+scheme, cred = token_to_scheme_credential(
+    "oauth2Token", "header", "Authorization",
+    os.environ["REFUNDS_ID_TOKEN"])
+refund_remote = RemoteA2aAgent(name="refund_agent", timeout=60.0,
+    agent_card=f"{URL}{AGENT_CARD_WELL_KNOWN_PATH}",
+    auth_scheme=scheme, auth_credential=cred)</code></pre>
+  </div>
+  <div class="cites">
+    <a class="cite doc" href="https://adk.dev/a2a/quickstart-consuming/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;A2A Consuming</a>
+  </div>
+  <aside class="notes">An A2A card can list auth schemes, but the card does not enforce them. The to_a2a docstring says security_schemes "populates metadata on the card only and is not enforced at runtime by the Starlette application", so a call with no token still gets 200 OK. Step 2: put the check in front of the server: Cloud Run IAM, an API gateway, or your own middleware; now a call without a token is rejected before it reaches the agent. Steps 3 and 4: the client sends a bearer token. token_to_scheme_credential with oauth2Token returns an HTTP bearer scheme and a credential, and RemoteA2aAgent sends them on every call through auth_scheme and auth_credential. The token comes from the REFUNDS_ID_TOKEN environment variable, for example an identity token for the Cloud Run service. Analogy: a business card that says "visitors need a badge" does not lock the office door; the guard at the door does. A likely question: "Is the card itself secret?" No, the card is public on purpose, which is why it must never hold the instruction or any secret.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c07-gotcha-a2a-trust";
+  let tw = [];
+  function clear() { tw.forEach((t) => t.kill()); tw = []; }
+  // per step: chip text, colour, where it rests (x on the wire), statuses
+  const RUN = {
+    1: { t: "POST · no token", c: "amber", to: 560, cst: "", gst: "", sst: ["amber", "200 OK · no check"] },
+    2: { t: "POST · no token", c: "red", to: 120, cst: ["red", "rejected"], gst: ["red", "no token"], sst: "" },
+    3: { t: "Bearer token", c: "green", to: 600, cst: ["green", "sends a token"], gst: ["green", "token OK"], sst: ["green", "200 OK"] },
+    4: { t: "Bearer token", c: "green", to: 600, cst: ["green", "sends a token"], gst: ["green", "token OK"], sst: ["green", "200 OK"] },
+  };
+  function st(el, v) { el.className = "st" + (v ? " " + v[0] : ""); el.textContent = v ? v[1] : ""; }
+  function render(slide, n, animate) {
+    clear();
+    const q = (s) => slide.querySelector("#" + s);
+    const chip = q("gt-chip"), gw = q("gt-gw");
+    n = Math.max(0, Math.min(4, n | 0));
+    if (animate && n === 2) tw.push(gsap.fromTo(gw, { opacity: 0, y: -20 }, { opacity: 1, y: 0, duration: 0.45, ease: "back.out(2)" }));
+    else gsap.set(gw, { opacity: n >= 2 ? 1 : 0, y: 0 });
+    const run = RUN[n];
+    st(q("gt-cst"), run && run.cst); st(q("gt-gst"), run && run.gst); st(q("gt-sst"), run && run.sst);
+    if (!run) { gsap.set(chip, { opacity: 0 }); return; }
+    chip.className = "chip " + run.c; chip.textContent = run.t;
+    const y = 144;   // the chip rides the lane above the boxes
+    if (animate && n <= 3) {
+      gsap.set(chip, { x: 0, y, opacity: 1 });
+      tw.push(gsap.to(chip, { x: run.to, duration: 0.9, delay: 0.3, ease: "power2.out" }));
+    } else gsap.set(chip, { x: run.to, y, opacity: 1 });
+  }
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { clear(); if (slide) gsap.killTweensOf(slide.querySelectorAll(".sc, .sc *")); },
+  });
+})();
+</script>

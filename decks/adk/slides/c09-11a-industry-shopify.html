@@ -1,0 +1,108 @@
+<section class="slide" id="adk-c09-industry-shopify" data-tone="model" data-title="Industry: Shopify judge kappa">
+  <style>
+    #adk-c09-industry-shopify .c9-split { --c9l: 660px; }
+    #adk-c09-industry-shopify .c9-cap { min-height: 100px; }
+    #adk-c09-industry-shopify .ki-lbl { fill: var(--ink); font-size: 19px; font-weight: 700; }
+    #adk-c09-industry-shopify .ki-sub { fill: var(--muted); font-size: 16px; }
+    #adk-c09-industry-shopify .ki-big { font-size: 56px; font-weight: 800; fill: var(--model); }
+  </style>
+  <div class="kicker"><span class="pill">In production</span> Shopify Sidekick</div>
+  <h2 class="title">Shopify calibrated its judge from kappa 0.02 to 0.61</h2>
+  <div class="c9-split fill">
+    <div class="c9-fig">
+      <svg class="c9-svg" id="ki-svg" viewBox="0 0 640 450" aria-label="A gauge of Cohen's kappa between the Shopify judge and expert labels: the needle sweeps from 0.02 to 0.61, and a dashed human line marks the human ceiling at 0.69.">
+        <text class="ki-lbl" x="0" y="26">judge vs expert labels · Cohen's κ</text>
+        <path id="ki-track" fill="none" stroke="var(--surface-2)" stroke-width="36"/>
+        <path id="ki-fill" fill="none" stroke="var(--model)" stroke-width="36" opacity=".85"/>
+        <g id="ki-ticks"></g>
+        <line id="ki-human" stroke="var(--human)" stroke-width="4" stroke-dasharray="8 6"/>
+        <text id="ki-hl" class="ki-lbl" style="fill:var(--human)">human 0.69</text>
+        <circle id="ki-start" r="9" fill="var(--muted)"/>
+        <line id="ki-needle" stroke="var(--ink)" stroke-width="6" stroke-linecap="round"/>
+        <circle cx="320" cy="322" r="13" fill="var(--ink)"/>
+        <text id="ki-val" class="ki-big" x="320" y="400" text-anchor="middle">0.02</text>
+        <text id="ki-gap" class="ki-sub" x="320" y="438" text-anchor="middle"></text>
+      </svg>
+    </div>
+    <div class="c9-col">
+      <div class="code-wrap" data-step="3">
+        <div class="code-head">labs/adk/lab9-refund-eval/judge_kappa.py · excerpt</div>
+        <pre class="code" data-lang="python"><code>import csv
+import sys
+from sklearn.metrics import cohen_kappa_score
+
+path = sys.argv[1] if len(sys.argv) &gt; 1 else "labels.csv"
+with open(path, newline="") as f:
+    rows = list(csv.DictReader(f))  # chat_id, human, judge
+kappa = cohen_kappa_score([r["human"] for r in rows],
+                          [r["judge"] for r in rows])
+print(f"{len(rows)} chats, kappa = {kappa:.2f}")</code></pre>
+      </div>
+      <div class="c9-cap">
+        <p data-step="1" data-until="2">Kappa is agreement beyond chance: 0 is chance, 1 is perfect.</p>
+        <p data-step="2" data-until="3">Ground truth: sampled real chats, each labelled by 3 or more experts.</p>
+        <p data-step="3">Acme: label about 100 refund chats before the judge gates anything.</p>
+      </div>
+      <div class="cites" data-step="3"><a class="cite doc" href="https://shopify.engineering/building-production-ready-agentic-systems" target="_blank" rel="noopener"><b>Post</b>&nbsp;Shopify Engineering, 2025-08-26</a></div>
+    </div>
+  </div>
+  <aside class="notes">Cohen's kappa measures agreement beyond chance: 0 is chance and 1 is perfect. Shopify's first Sidekick judge agreed with expert labels at a kappa of 0.02, which is close to chance; after calibration it reached 0.61, against a human ceiling of 0.69, the agreement between the experts themselves. The labels came from sampled real conversations, each labelled by at least 3 experts, and their swap test is simple: put a human into the judge group, and if people cannot tell who the judge is, trust it. The script on the right is the check you can run yourself: label about 100 refund chats, run the judge on the same chats, and compute kappa with scikit-learn; the lab has a labels.csv with sample rows. Analogy: you calibrate a scale with known weights before you weigh parcels with it. A likely question: "When is the judge good enough?" When its kappa nears the human ceiling; stop tuning there, because the humans do not agree more than that.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c09-industry-shopify";
+  const NS = "http://www.w3.org/2000/svg";
+  const CX = 320, CY = 322, R = 210;
+  const V0 = 0.02, V1 = 0.61, VH = 0.69;
+  const q = (s, id) => s.querySelector("#" + id);
+  const P = (v, r) => { const a = Math.PI * (1 - v); return [CX + r * Math.cos(a), CY - r * Math.sin(a)]; };
+  const arc = (v0, v1, r) => { const a = P(v0, r), b = P(v1, r); return `M ${a[0].toFixed(1)} ${a[1].toFixed(1)} A ${r} ${r} 0 0 1 ${b[0].toFixed(1)} ${b[1].toFixed(1)}`; };
+  let tws = [];
+  function el(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  }
+  function build(s) {
+    if (q(s, "ki-ticks").childNodes.length) return;
+    q(s, "ki-track").setAttribute("d", arc(0, 1, R));
+    const gt = q(s, "ki-ticks");
+    [0, 0.2, 0.4, 0.6, 0.8, 1].forEach((v) => {
+      const a = P(v, R + 22), b = P(v, R + 32), t = P(v, R + 52);
+      el("line", { x1: a[0], y1: a[1], x2: b[0], y2: b[1], stroke: "var(--line-2)", "stroke-width": 2 }, gt);
+      el("text", { class: "ki-sub", x: t[0], y: t[1] + 6, "text-anchor": "middle" }, gt, v.toFixed(1));
+    });
+    const h0 = P(VH, R - 30), h1 = P(VH, R + 34), hl = P(VH, R + 40);
+    const hu = q(s, "ki-human");
+    hu.setAttribute("x1", h0[0]); hu.setAttribute("y1", h0[1]); hu.setAttribute("x2", h1[0]); hu.setAttribute("y2", h1[1]);
+    q(s, "ki-hl").setAttribute("x", hl[0] + 8); q(s, "ki-hl").setAttribute("y", hl[1] - 6);
+    const st = P(V0, R); q(s, "ki-start").setAttribute("cx", st[0]); q(s, "ki-start").setAttribute("cy", st[1]);
+  }
+  function gauge(s, v) {
+    q(s, "ki-fill").setAttribute("d", arc(0, Math.max(0.005, v), R));
+    const n = P(v, R - 40), nd = q(s, "ki-needle");
+    nd.setAttribute("x1", CX); nd.setAttribute("y1", CY); nd.setAttribute("x2", n[0].toFixed(1)); nd.setAttribute("y2", n[1].toFixed(1));
+    q(s, "ki-val").textContent = v.toFixed(2);
+  }
+  function stop() { tws.forEach((t) => t.kill()); tws = []; }
+  function render(s, n, animate) {
+    stop();
+    build(s);
+    if (n === 1 && animate) {
+      gauge(s, V0);
+      const o = { v: V0 };
+      tws.push(gsap.to(o, { v: V1, duration: 2.2, delay: 0.4, ease: "power2.inOut", onUpdate: () => gauge(s, o.v), onComplete: () => gauge(s, V1) }));
+    } else gauge(s, n >= 1 ? V1 : V0);
+    const show = n >= 2;
+    gsap.set([q(s, "ki-human"), q(s, "ki-hl")], { opacity: show ? 1 : 0 });
+    q(s, "ki-gap").textContent = show ? "gap to the human ceiling: 0.08" : n >= 1 ? "after calibration" : "first judge: near chance";
+  }
+  Deck.register(ID, {
+    enter(slide, n) { render(slide, n || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { stop(); }
+  });
+})();
+</script>

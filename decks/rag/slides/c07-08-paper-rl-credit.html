@@ -1,0 +1,160 @@
+<section class="slide tight" id="rag-c07-paper-rl-credit" data-tone="tool" data-title="arXiv: reward evidence, not only EM">
+  <style>
+    #rag-c07-paper-rl-credit .rc-gloss { font: 500 14px/1.3 var(--f-mono); color: var(--muted); margin: -4px 0 2px; }
+    #rag-c07-paper-rl-credit .rc-gloss b { color: var(--ink-2); }
+    #rag-c07-paper-rl-credit .rc-grid { display: grid; grid-template-columns: 780px 1fr; gap: 26px; align-items: start; }
+    #rag-c07-paper-rl-credit .rc-left, #rag-c07-paper-rl-credit .rc-right { gap: 10px; min-width: 0; }
+    #rag-c07-paper-rl-credit .paper { padding: 11px 18px 12px; gap: 6px; }
+    #rag-c07-paper-rl-credit .paper h4 { font-size: 17.5px; margin: 0; line-height: 1.25; }
+    #rag-c07-paper-rl-credit .paper .find { font-size: 15.5px; line-height: 1.4; }
+    #rag-c07-paper-rl-credit .paper .so { font-size: 15px; line-height: 1.35; }
+    #rag-c07-paper-rl-credit .paper .pid { font-size: 13px; }
+    #rag-c07-paper-rl-credit .code-wrap .code-head { padding: 7px 14px; font-size: 13.5px; }
+    #rag-c07-paper-rl-credit pre.code.rc-c { font-size: 12px; line-height: 1.42; padding: 8px 14px 10px; }
+    #rag-c07-paper-rl-credit pre.code.rc-o { font-size: 11.5px; line-height: 1.45; padding: 7px 14px 9px; }
+    #rag-c07-paper-rl-credit .rc-left > .code-wrap { width: 100%; }
+    #rag-c07-paper-rl-credit .rc-also { display: grid; gap: 8px; font-size: 15px; line-height: 1.38; color: var(--ink-2); border-left: 3px solid var(--human); padding: 2px 0 2px 12px; }
+    #rag-c07-paper-rl-credit .rc-also a { color: var(--human); font: 700 13px/1 var(--f-mono); text-decoration: none; margin-right: 6px; }
+    #rag-c07-paper-rl-credit .rc-cites { display: flex; gap: 8px; flex-wrap: wrap; }
+    #rag-c07-paper-rl-credit .rc-cites .cite { flex-direction: row; align-items: center; gap: 6px; font-size: 13px; padding: 5px 10px 5px 8px; white-space: nowrap; }
+    #rag-c07-paper-rl-credit .rc-cites .cite::before { width: 18px; height: 18px; }
+    #rag-c07-paper-rl-credit .rc-svg { display: block; overflow: visible; }
+    #rag-c07-paper-rl-credit .rc-svg text { font-family: var(--f-mono); }
+    #rag-c07-paper-rl-credit .rc-svg .band { fill: var(--surface); stroke: var(--line-2); stroke-width: 1.2; }
+    #rag-c07-paper-rl-credit .rc-svg .hd { font-size: 12.5px; font-weight: 700; letter-spacing: .05em; fill: var(--muted); }
+    #rag-c07-paper-rl-credit .rc-svg .gl { font-size: 14px; font-weight: 700; fill: var(--ink); }
+    #rag-c07-paper-rl-credit .rc-svg .bl { font-size: 13px; font-weight: 600; fill: var(--ink-2); }
+    #rag-c07-paper-rl-credit .rc-svg .v { font-size: 16px; font-weight: 700; }
+    #rag-c07-paper-rl-credit .rc-svg .em { font-size: 13.5px; font-weight: 700; }
+    #rag-c07-paper-rl-credit .rc-svg .trk { fill: var(--surface-2, #f3f4f8); stroke: var(--line); stroke-width: 1; }
+  </style>
+  <div class="kicker"><span class="pill">arXiv</span> Oct 2026 · RL search agents</div>
+  <h2 class="title">RL search agents raise EM while grounding collapses: reward evidence</h2>
+  <p class="rc-gloss"><b>EM</b> = exact-match accuracy · <b>GRPO</b> = an RL training method for LLMs · <b>grounded share</b> = correct answers whose retrieved text holds the answer</p>
+  <div class="rc-grid fill">
+    <div class="stack rc-left">
+      <div class="paper">
+        <div class="pid">arXiv 2610.23148 <span>16 Oct 2026 · GCA</span></div>
+        <h4>Grounded Credit Assignment for Multi-Turn Search Agents</h4>
+        <div class="find">Search-R1, an RL-trained search agent, raises EM on all 7 QA sets. Its grounded share on Bamboogle falls <b>84.0% → 42.9%</b>. GCA adds a ToolHit reward (a tool result holds the gold answer): <b>+5.7 EM</b> at 3B.</div>
+        <div class="so">Track grounded share next to EM. You need no RL for that.</div>
+      </div>
+      <div class="code-wrap good" data-step="4">
+        <div class="code-head">lab6/grounded_share.py · answer-in-retrieved, a cheap proxy for ToolHit</div>
+        <pre class="code rc-c" data-lang="python"><code>import json
+from lab6_multihop_register import app, store
+GOLD = {"Who must approve a return of the jacket made by the supplier "
+        "that failed the March 2026 audit?": "Priya Natarajan"}   # add your labelled questions
+with open("lab6_runs.jsonl", "w") as f:                          # 1) log one line per run
+    for q, gold in GOLD.items():
+        out = app.invoke({"question": q}, {"recursion_limit": 20})
+        seen = [d.page_content for r in out["register"]           # re-run each final hop search
+                for d in store.similarity_search(r["q"], k=2 + 2 * (r["tries"] - 1))]
+        em = int(gold.lower() in out["answer"].lower())           # lenient exact match
+        f.write(json.dumps({"em": em, "gold": gold, "retrieved": seen}) + "\n")
+runs = [json.loads(line) for line in open("lab6_runs.jsonl")]   # 2) score the log
+correct = [r for r in runs if r["em"]]
+hit = [r for r in correct if any(r["gold"].lower() in p.lower() for p in r["retrieved"])]
+print(f"EM {len(correct) / len(runs):.2f} · answer-in-retrieved {len(hit) / max(len(correct), 1):.2f}")</code></pre>
+      </div>
+      <div class="code-wrap out" data-step="4">
+        <div class="code-head">output · illustrative · first line of lab6_runs.jsonl (shortened), then the score</div>
+        <pre class="code rc-o" data-lang="output"><code>{"em": 1, "gold": "Priya Natarajan", "retrieved": ["Kestrel Textiles failed the March …", <span class="dim">+9 more</span>]}
+<span class="ok">EM 1.00 · answer-in-retrieved 1.00</span></code></pre>
+      </div>
+    </div>
+    <div class="stack rc-right">
+      <svg class="rc-svg" id="rc-svg" viewBox="0 0 588 330" width="588" height="330" aria-label="Two labelled before-and-after bar pairs from arXiv 2610.23148. First, Search-R1 against its base model on Bamboogle: grounded share falls from 84.0 percent to 42.9 percent while EM rises on 7 of 7 sets. Second, GCA against its baseline: supported share rises from 76.9 percent to 93.4 percent, with plus 5.7 EM. The two pairs are different comparisons."></svg>
+      <div class="rc-also" data-step="3">
+        <div><a href="https://arxiv.org/abs/2610.25269" target="_blank" rel="noopener">also 2610.25269</a>EG-GRPO rewards the step that first cites each evidence item: GAIA 34.8 → 45.9 at 4B.</div>
+        <div><a href="https://arxiv.org/abs/2609.36505" target="_blank" rel="noopener">also 2609.36505</a>BRIDGE adapts the retriever to agent queries before RL on the policy: +9.6 EM multi-hop at 3B.</div>
+      </div>
+      <div class="rc-cites">
+        <a class="cite paper" href="https://arxiv.org/abs/2610.23148" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.23148 GCA</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    The main paper is GCA, Grounded Credit Assignment (arXiv 2610.23148). Define the terms first: EM is exact-match accuracy; GRPO is a reinforcement-learning method that trains the LLM from rewards on whole answers; grounded share is the share of correct answers that the retrieved text supports. Search-R1, an older RL-trained search agent, raises EM on all seven QA sets, yet on Bamboogle its grounded share falls from 84.0% to 42.9% against the base model: the agent learns to answer from memory. GCA adds a small extra reward, ToolHit, which fires when a tool response contains the gold answer; it adds 5.7 EM over Search-R1 at Qwen2.5-3B, and the supported share goes from 76.9% to 93.4%. The two bar pairs are different comparisons, so do not chain them into one story of 42.9 to 93.4. You can use the metric today without RL: the script logs one line per Lab 6 run with a lenient exact match, the gold answer and the passages from each final hop search, then measures answer-in-retrieved, a cheap proxy for ToolHit, not a full check that the evidence supports the answer. Two more papers, as one line each: EG-GRPO (2610.25269) rewards the step that first cites each evidence item, best at weight 0.5, GAIA 34.8 to 45.9 at 4B; BRIDGE (2609.36505) adapts the retriever to agent-issued queries before RL on the policy, +9.6 EM on multi-hop at 3B and +3.4 at 7B. Analogy: a student who guesses right on an open-book exam still fails the audit if no page in the book supports the answer. Likely question: "Do I need RL for any of this?" No; the metric and a retriever fine-tune on agent-issued queries both work with a prompted agent. Next: the desk now calls many MCP servers, so tools need retrieval too.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const BX = 140, BW = 360;                  // bar track x and width (0..100%)
+  const G1 = [["base model", 84.0, "muted"], ["Search-R1", 42.9, "risk"]];
+  const G2 = [["baseline", 76.9, "muted"], ["GCA", 93.4, "state"]];
+  let B = null, prev = -1, tweens = [];
+  const mk = (p, tag, attrs, cls, txt) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (cls) e.setAttribute("class", cls);
+    if (txt !== undefined) e.textContent = txt;
+    p.appendChild(e); return e;
+  };
+  function group(svg, y0, title, rows, emTxt, emTone) {
+    const g = mk(svg, "g", {});
+    mk(g, "text", { x: 16, y: y0 }, "gl", title);
+    const bars = rows.map(([name, v, tone], i) => {
+      const y = y0 + 16 + i * 38;
+      mk(g, "text", { x: 16, y: y + 19 }, "bl", name);
+      mk(g, "rect", { x: BX, y, width: BW, height: 26, rx: 6 }, "trk");
+      const r = mk(g, "rect", { x: BX, y, width: 0, height: 26, rx: 6, fill: `var(--${tone})`, opacity: tone === "muted" ? 0.45 : 0.9 });
+      const t = mk(g, "text", { x: BX + 8, y: y + 19, fill: `var(--${tone === "muted" ? "ink-2" : tone})` }, "v", "");
+      return { r, t, v };
+    });
+    const em = mk(g, "text", { x: 16, y: y0 + 112, fill: `var(--${emTone})` }, "em", emTxt);
+    return { g, bars, em };
+  }
+  function setBar(b, f) {
+    const v = b.v * f, w = BW * v / 100;
+    b.r.setAttribute("width", w);
+    b.t.setAttribute("x", BX + w + 8);
+    b.t.textContent = v.toFixed(1) + "%";
+  }
+  function build(slide) {
+    const svg = slide.querySelector("#rc-svg");
+    svg.innerHTML = "";
+    mk(svg, "rect", { x: 0, y: 0, width: 588, height: 330, rx: 12 }, "band");
+    mk(svg, "text", { x: 16, y: 26 }, "hd", "GROUNDED SHARE OF CORRECT ANSWERS");
+    const g1 = group(svg, 58, "1 · Search-R1 vs base model · Bamboogle", G1, "EM: up on 7 of 7 QA sets", "agent");
+    const g2 = group(svg, 200, "2 · GCA vs its baseline", G2, "EM: +5.7 (Qwen2.5-3B)", "state");
+    mk(svg, "line", { x1: 16, x2: 572, y1: 182, y2: 182, stroke: "var(--line-2)", "stroke-width": 1, "stroke-dasharray": "4 4" });
+    B = { g1, g2 };
+  }
+  function show(gr, n, on, fwd) {
+    gsap.set(gr.g, { opacity: on ? 1 : 0 });
+    if (fwd) {
+      gr.bars.forEach((b) => setBar(b, 0));
+      gsap.set(gr.em, { opacity: 0 });
+      const tl = gsap.timeline();
+      tl.fromTo(gr.g, { opacity: 0 }, { opacity: 1, duration: 0.3 }, 0);
+      const o0 = { f: 0 }, o1 = { f: 0 };
+      tl.to(o0, { f: 1, duration: 0.7, ease: "power2.out", onUpdate: () => setBar(gr.bars[0], o0.f) }, 0.2);
+      tl.to(o1, { f: 1, duration: 1.1, ease: "power2.out", onUpdate: () => setBar(gr.bars[1], o1.f) }, 1.0);
+      tl.fromTo(gr.em, { opacity: 0, y: 8 }, { opacity: 1, y: 0, duration: 0.35 }, 2.0);
+      tweens.push(tl);
+    } else {
+      gr.bars.forEach((b) => setBar(b, 1));
+      gsap.set(gr.em, { opacity: 1, y: 0 });
+    }
+  }
+  function render(slide, n, animate) {
+    if (!B) build(slide);
+    tweens.forEach((t) => t.kill()); tweens = [];
+    const fwd = animate && n === prev + 1;
+    show(B.g1, n, n >= 1, fwd && n === 1);
+    show(B.g2, n, n >= 2, fwd && n === 2);
+    prev = n;
+  }
+  Deck.register("rag-c07-paper-rl-credit", {
+    enter(slide, step) { prev = -1; B = null; render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() {
+      tweens.forEach((t) => t.kill()); tweens = [];
+      if (B) gsap.killTweensOf([B.g1.g, B.g2.g, B.g1.em, B.g2.em]);
+      prev = -1;
+    }
+  });
+})();
+</script>

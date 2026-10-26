@@ -1,0 +1,50 @@
+<section class="slide" id="adk-c03-gotcha-loud" data-tone="risk" data-title="Gotcha: schema mismatch on an edge">
+  <style>
+    #adk-c03-gotcha-loud .g8-main { display: grid; grid-template-columns: 700px 1fr; gap: 44px; align-items: start; }
+    #adk-c03-gotcha-loud .g8-col { display: flex; flex-direction: column; gap: 26px; min-width: 0; }
+    #adk-c03-gotcha-loud .diagram .node { padding: 16px 20px; }
+    #adk-c03-gotcha-loud .diagram .node .nt { font-size: 23px; white-space: nowrap; }
+    #adk-c03-gotcha-loud .diagram .node .ns { font-size: 18px; white-space: nowrap; }
+    #adk-c03-gotcha-loud .g8-chip { position: absolute; font: 700 19px/1 var(--f-mono); padding: 10px 14px; border-radius: 10px; white-space: nowrap; z-index: 3; }
+    #adk-c03-gotcha-loud .g8-chip.bad { color: var(--risk); background: var(--risk-soft); border: 2px solid var(--risk); }
+    #adk-c03-gotcha-loud .g8-chip.good { color: var(--state); background: var(--state-soft); border: 2px solid var(--state); }
+    #adk-c03-gotcha-loud .gotcha { font-size: 23px; line-height: 1.45; padding: 24px 26px; gap: 14px 18px; }
+    #adk-c03-gotcha-loud .gotcha > b { font-size: 16px; }
+    #adk-c03-gotcha-loud pre.code { font-size: 22px; }
+    #adk-c03-gotcha-loud .gotcha .em { font: 500 20px/1.5 var(--f-mono); color: #b0123b; }
+    #adk-c03-gotcha-loud .g8-sw { display: inline-grid; } #adk-c03-gotcha-loud .g8-sw > * { grid-area: 1 / 1; }
+    #adk-c03-gotcha-loud .g8-swap { display: grid; }
+    #adk-c03-gotcha-loud .g8-swap > * { grid-area: 1 / 1; }
+    #adk-c03-gotcha-loud, #adk-c03-gotcha-loud * { font-variant-ligatures: none !important; }
+    #adk-c03-gotcha-loud .out pre.code .dim { color: #a3abd6; opacity: 1; }
+    #adk-c03-gotcha-loud .cites .cite { display: inline-flex; flex-direction: row; align-items: center; gap: 10px; white-space: nowrap; padding: 6px 12px 6px 10px; border-radius: 10px; }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> Graph validation · 1 of 2</div>
+  <h2 class="title">A schema mismatch on an edge fails at build time, before any token</h2>
+  <div class="g8-main fill">
+    <div class="g8-col">
+      <div class="diagram" style="width:700px;height:300px" data-wires="g8-check>g8-reply">
+        <div class="node n-tool" id="g8-check" style="left:0;top:150px;width:250px"><span class="nt">check_policy</span><span class="ns">→ RefundCase</span></div>
+        <div class="node n-tool" id="g8-reply" style="left:400px;top:150px;width:300px"><span class="nt">write_reply</span><span class="ns">node_input: <span class="g8-sw"><span data-until="3">dict</span><span data-step="3">RefundCase</span></span></span></div>
+        <span class="g8-chip bad" style="left:178px;top:40px" data-step="1" data-until="3">RefundCase ≠ dict ✕</span>
+        <span class="g8-chip good" style="left:140px;top:40px" data-step="3">RefundCase = RefundCase ✓</span>
+      </div>
+      <div class="g8-swap">
+        <div class="code-wrap bad" data-until="3">
+          <div class="code-head">refund_flow/agent.py · write_reply as a function</div>
+          <pre class="code" data-lang="python"><code>def write_reply(node_input: dict) -&gt; str:</code></pre>
+        </div>
+        <div class="code-wrap good" data-step="3">
+          <div class="code-head">refund_flow/agent.py · fix</div>
+          <pre class="code" data-lang="python"><code>def write_reply(node_input: RefundCase) -&gt; str:</code></pre>
+        </div>
+      </div>
+    </div>
+    <div class="gotcha">
+      <b>Symptom</b><span class="em" data-step="1">GraphValidationError: Graph validation failed. Schema mismatch on edge check_policy -&gt; write_reply. Output schema &lt;class 'RefundCase'&gt; does not match input schema &lt;class 'dict'&gt;.</span>
+      <b class="why" data-step="2">Cause</b><span data-step="2">The two type hints on the edge disagree. The <code>Workflow</code> checks them when you build it.</span>
+      <b class="fix" data-step="3">Fix</b><span data-step="3">Use the same Pydantic class on both ends, or drop one hint.</span>
+    </div>
+  </div>
+  <aside class="notes">The next two errors are loud, which is good: you find them in a test, not in production. Change write_reply from the Lab 3.1 Agent into a plain function typed node_input: dict, and keep check_policy returning RefundCase. Step 1: the Workflow refuses to build, and the error names the edge and both classes: "GraphValidationError: Graph validation failed. Schema mismatch on edge check_policy -> write_reply. Output schema RefundCase does not match input schema dict." Step 2: the cause is that the producer and consumer hints disagree; the check runs where both ends declare a type, at construction time, before you spend a token. Step 3: the fix is one line: use the same Pydantic class on both ends of the edge, or drop one hint. Analogy: a schema check is a plug that will not fit the socket, and you find out before you switch the power on. A likely question: "Does it check subclasses or dict-compatible models?" Keep it simple: use the same class; that is what the validation rule compares.</aside>
+</section>

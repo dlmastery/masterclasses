@@ -1,0 +1,130 @@
+<section class="slide chapter" id="custom-c02-chapter" data-tone="model" data-title="Ch 2: SFT with TRL and LoRA">
+  <style>
+    #custom-c02-chapter { justify-content: flex-start; padding-top: 96px; padding-bottom: 76px; gap: 22px; }
+    #custom-c02-chapter .c02-eyebrow { font: 700 18px/1 var(--f-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--model); }
+    #custom-c02-chapter .lede { margin-top: -6px; max-width: 1300px; }
+    #custom-c02-chapter .c02-row { display: flex; gap: 12px; align-items: center; margin-top: auto; }
+    #custom-c02-chapter svg text { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+  </style>
+  <div class="c02-eyebrow">Chapter 02</div>
+  <h2 class="display">SFT with TRL and LoRA</h2>
+  <p class="lede" data-fx="up">Train only on assistant tokens, train all linear layers, and prove the merge kept behaviour. Step 1 runs on a CPU; steps 2–5 need one GPU.</p>
+  <svg id="c02-ch-svg" viewBox="0 0 1392 330" width="1392" height="330" aria-label="User tokens stay grey with label -100. Assistant tokens turn coral, and their gradient flows only into a small LoRA B·A pair beside the frozen Qwen3-0.6B base."></svg>
+  <div class="c02-row" data-fx="stagger">
+    <span class="tag t-model">Qwen3-0.6B + LoRA r=16</span>
+    <span class="tag t-tool">trl 1.16.0</span>
+    <a class="cite doc" href="https://huggingface.co/docs/trl/sft_trainer" target="_blank" rel="noopener"><b>Docs</b>&nbsp;TRL SFT Trainer</a>
+  </div>
+  <aside class="notes">This chapter builds one thing end to end: the Acme refunds assistant. We take the 2,992 REFUND rows of the Bitext customer-support dataset (split into train and eval later), train Qwen3-0.6B with LoRA, merge it, prove the merge kept behaviour, and serve it. Watch the loop: the grey user tokens get label -100, which is PyTorch's ignore_index, so cross-entropy skips them; only the coral assistant tokens are in the loss. That gradient updates only the small B and A matrices, so the new weight is W plus B times A, and the base W stays frozen. The 1.67% is for rank 16 on all linear layers; other settings give other numbers. Analogy: the base model is a printed textbook, and LoRA is a thin set of sticky notes you can peel off or print in. Likely question: "Why not train the user tokens too?" Because then the model learns to write customer complaints, not refund answers. After the open-weights path we use the same data on managed Gemini tuning and on Gemma 4 with Unsloth. Next: Lab 1 starts on a laptop CPU, by printing the loss mask before any GPU time.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c02-chapter";
+  let tl = null, P = null;
+
+  const el = (parent, tag, attrs, style, text) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (style) Object.assign(e.style, style);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  };
+
+  const USER = ["Where", "is", "my", "refund", "?"];
+  const ASST = ["I'm", "sorry", "for", "the", "wait.", "Let", "me", "check.", "<|im_end|>"];
+  const ROWS = [
+    { y: 48, toks: USER, label: "user · label -100 · not in the loss" },
+    { y: 168, toks: ASST, label: "assistant · in the loss" },
+  ];
+  const CW = 13.2, CH = 52, LX = 1236, LY = 140;
+
+  function build(svg) {
+    svg.innerHTML = "";
+    const rows = ROWS.map((r, ri) => {
+      el(svg, "text", { x: 0, y: r.y - 12 }, { font: "600 18px var(--f-mono)", fill: ri ? "var(--model)" : "var(--muted)" }, r.label);
+      let x = 0;
+      const toks = r.toks.map((t) => {
+        const w = Math.round(t.length * CW + 28);
+        const g = el(svg, "g", {});
+        const rect = el(g, "rect", { x, y: r.y, width: w, height: CH, rx: 10 }, { fill: "var(--surface-2)", stroke: "var(--line-2)", strokeWidth: 2 });
+        const tx = el(g, "text", { x: x + w / 2, y: r.y + 34, "text-anchor": "middle" }, { font: "500 22px var(--f-mono)", fill: "var(--muted)" }, t);
+        const tok = { g, rect, tx, cx: x + w / 2, cy: r.y + CH / 2 };
+        x += w + 10;
+        return tok;
+      });
+      return { toks };
+    });
+    el(svg, "text", { x: 0, y: 270 }, { font: "500 18px var(--f-mono)", fill: "var(--muted)" }, "-100 = ignore_index: cross-entropy skips these positions");
+    // frozen base block
+    const bx = 920, by = 40, bw = 240, bh = 200;
+    el(svg, "rect", { x: bx, y: by, width: bw, height: bh, rx: 16 }, { fill: "var(--surface-2)", stroke: "var(--line-2)", strokeWidth: 2 });
+    for (let i = 0; i < 13; i++) el(svg, "line", { x1: bx + 18, x2: bx + bw - 18, y1: by + 16 + i * 14, y2: by + 16 + i * 14 }, { stroke: "var(--line-2)", strokeWidth: 1.5 });
+    el(svg, "rect", { x: bx + 30, y: by + 70, width: bw - 60, height: 62, rx: 10 }, { fill: "var(--surface)", stroke: "var(--line-2)", strokeWidth: 1.5 });
+    el(svg, "text", { x: bx + bw / 2, y: by + 98, "text-anchor": "middle" }, { font: "700 20px var(--f-mono)", fill: "var(--ink)" }, "Qwen3-0.6B");
+    el(svg, "text", { x: bx + bw / 2, y: by + 122, "text-anchor": "middle" }, { font: "600 16px var(--f-mono)", fill: "var(--muted)" }, "28 layers");
+    el(svg, "text", { x: bx + bw / 2, y: 270, "text-anchor": "middle" }, { font: "600 20px var(--f-mono)", fill: "var(--muted)" }, "base W · frozen");
+    el(svg, "text", { x: 1188, y: 150, "text-anchor": "middle" }, { font: "700 30px var(--f-mono)", fill: "var(--muted)" }, "+");
+    // LoRA pair
+    const pair = [1214, 1250];
+    pair.forEach((x) => el(svg, "rect", { x, y: by, width: 26, height: bh, rx: 7 }, { fill: "var(--model-soft)", stroke: "var(--model)", strokeWidth: 2.5 }));
+    const glow = pair.map((x) => el(svg, "rect", { x, y: by, width: 26, height: bh, rx: 7 }, { fill: "var(--model)", opacity: 0 }));
+    el(svg, "text", { x: 1227, y: 30, "text-anchor": "middle" }, { font: "700 18px var(--f-mono)", fill: "var(--model)" }, "B");
+    el(svg, "text", { x: 1263, y: 30, "text-anchor": "middle" }, { font: "700 18px var(--f-mono)", fill: "var(--model)" }, "A");
+    el(svg, "text", { x: 1245, y: 270, "text-anchor": "middle" }, { font: "700 20px var(--f-mono)", fill: "var(--model)" }, "W' = W + B·A");
+    el(svg, "text", { x: 1245, y: 298, "text-anchor": "middle" }, { font: "700 18px var(--f-mono)", fill: "var(--model)" }, "1.67% trained");
+    el(svg, "text", { x: 1245, y: 322, "text-anchor": "middle" }, { font: "600 16px var(--f-mono)", fill: "var(--model)" }, "(r=16, all-linear)");
+    const parts = rows[1].toks.map((t) => el(svg, "circle", { cx: t.cx, cy: t.cy, r: 8 }, { fill: "var(--model)", opacity: 0 }));
+    P = { rows, glow, parts };
+  }
+
+  function play() {
+    const p = P, user = p.rows[0].toks, asst = p.rows[1].toks;
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    tl = gsap.timeline({ repeat: reduce ? 0 : -1, repeatDelay: 1.6 });
+    [...user, ...asst].forEach((t) => {
+      tl.set(t.g, { opacity: 0 }, 0)
+        .set(t.rect, { fill: "var(--surface-2)", stroke: "var(--line-2)" }, 0)
+        .set(t.tx, { fill: "var(--muted)" }, 0);
+    });
+    p.parts.forEach((c, i) => tl.set(c, { opacity: 0, attr: { cx: asst[i].cx, cy: asst[i].cy } }, 0));
+    tl.set(p.glow, { opacity: 0 }, 0);
+    user.forEach((t, i) => tl.to(t.g, { opacity: 1, duration: 0.18 }, 0.2 + i * 0.08));
+    asst.forEach((t, i) => tl.to(t.g, { opacity: 1, duration: 0.18 }, 0.7 + i * 0.07));
+    user.forEach((t) => tl.to(t.g, { opacity: 0.5, duration: 0.4 }, 1.7));
+    asst.forEach((t, i) => {
+      const at = 1.9 + i * 0.09;
+      tl.set(t.rect, { fill: "var(--model-soft)", stroke: "var(--model)" }, at)
+        .set(t.tx, { fill: "var(--model)" }, at)
+        .fromTo(t.g, { y: -6 }, { y: 0, duration: 0.3, ease: "back.out(3)" }, at);
+    });
+    // gradient: up over the frozen base, down into B and A
+    p.parts.forEach((c, i) => {
+      const at = 3.0 + i * 0.12;
+      tl.to(c, { opacity: 1, duration: 0.1 }, at)
+        .to(c, { attr: { cy: 10 }, duration: 0.3, ease: "power1.out" }, at)
+        .to(c, { attr: { cx: LX }, duration: 0.45, ease: "none" }, at + 0.3)
+        .to(c, { attr: { cy: LY }, duration: 0.25, ease: "power1.in" }, at + 0.75)
+        .to(c, { opacity: 0, duration: 0.12 }, at + 0.98)
+        .fromTo(p.glow, { opacity: 0.7 }, { opacity: 0, duration: 0.35 }, at + 0.96);
+    });
+    tl.to({}, { duration: 1.2 });
+    if (reduce) tl.progress(1);
+  }
+
+  Deck.register(ID, {
+    enter(slide) {
+      if (tl) tl.kill();
+      build(slide.querySelector("#c02-ch-svg"));
+      play();
+    },
+    step() {},
+    leave() {
+      if (tl) tl.kill();
+      tl = null;
+      if (P) gsap.killTweensOf([...P.glow, ...P.parts, ...P.rows.flatMap((r) => r.toks.flatMap((t) => [t.g, t.rect, t.tx]))]);
+    },
+  });
+})();
+</script>

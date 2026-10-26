@@ -1,0 +1,227 @@
+<section class="slide" id="custom-c11-lab10-paired" data-tone="tool" data-title="Lab 10: paired v1 vs v2">
+  <style>
+    #custom-c11-lab10-paired { gap: 20px; }
+    #custom-c11-lab10-paired .p-grid { display: grid; grid-template-columns: 760px 1fr; gap: 22px; min-height: 0; }
+    #custom-c11-lab10-paired .p-left, #custom-c11-lab10-paired .p-right { display: flex; flex-direction: column; gap: 9px; min-width: 0; }
+    #custom-c11-lab10-paired .lab-head { font-size: 13px; gap: 12px; flex-wrap: nowrap; white-space: nowrap; }
+    #custom-c11-lab10-paired .lab-head .small { font-size: 13px; }
+    #custom-c11-lab10-paired .lab-head .run { font-size: 15px; padding: 7px 11px; }
+    #custom-c11-lab10-paired .code-head { padding: 7px 14px; font-size: 13px; }
+    #custom-c11-lab10-paired .p-code pre.code { font-size: 11px; line-height: 1.3; padding: 8px 14px 9px; }
+    #custom-c11-lab10-paired .out pre.code { font-size: 11px; line-height: 1.33; padding: 7px 14px 9px; }
+    #custom-c11-lab10-paired .steps-rail { gap: 6px; }
+    #custom-c11-lab10-paired .steps-rail > * { font-size: 14.5px; line-height: 1.3; grid-template-columns: 26px 1fr; gap: 9px; align-items: center; }
+    #custom-c11-lab10-paired .steps-rail > *::before { width: 22px; height: 22px; font-size: 12px; border-radius: 7px; }
+    #custom-c11-lab10-paired .steps-rail code { font-size: .86em; }
+    #custom-c11-lab10-paired table.p-err { font-size: 12px; line-height: 1.3; }
+    #custom-c11-lab10-paired table.p-err td { padding: 3px 8px; white-space: nowrap; }
+    #custom-c11-lab10-paired table.p-err td:first-child { white-space: normal; }
+    #custom-c11-lab10-paired table.p-err td:first-child { font: 500 10.5px/1.35 var(--f-mono); color: var(--risk); width: 500px; }
+    #custom-c11-lab10-paired table.p-err td:last-child code { font-size: .9em; }
+    #custom-c11-lab10-paired .cites { display: flex; gap: 10px; flex-wrap: wrap; }
+    #custom-c11-lab10-paired .cite { font-size: 13px; padding: 5px 11px 5px 8px; white-space: nowrap; flex-direction: row; }
+    #custom-c11-lab10-paired pre.code, #custom-c11-lab10-paired pre.code *, #custom-c11-lab10-paired code, #custom-c11-lab10-paired .code-head, #custom-c11-lab10-paired svg text { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #c11p-svg text { font-family: var(--f-mono); }
+  </style>
+  <div class="kicker"><span class="pill">Lab 10</span> Acme claims-agent release · step 2 of 4</div>
+  <h2 class="title">v1 vs v2 on the same 400 cases: unpaired says no, paired says yes</h2>
+  <div class="p-grid fill">
+    <div class="p-left">
+      <div class="lab-head"><span class="run">python paired.py</span><span class="small">scipy==1.18.1 · statsmodels==0.15.0 · numpy==2.5.4 · Python 3.12+</span></div>
+      <div class="code-wrap p-code">
+        <div class="code-head">release_eval/paired.py · simulated pass/fail per golden case</div>
+        <pre class="code" data-lang="python" data-focus="1:8-10, 2:16-19, 3:24-28, 4:30-32, 5:16-19"><code>"""Lab 10 step 2 - claims agent v1 vs v2 on the SAME 400 golden cases (simulated)."""
+import numpy as np
+from scipy import stats
+from statsmodels.stats.contingency_tables import mcnemar
+
+rng = np.random.default_rng(0)
+n = 400
+difficulty = rng.normal(0, 1.5, n)                     # shared item difficulty
+a = (rng.random(n) &lt; 1 / (1 + np.exp(-(1.3 - difficulty)))).astype(float)  # v1
+b = (rng.random(n) &lt; 1 / (1 + np.exp(-(1.6 - difficulty)))).astype(float)  # v2
+print(f"v1={a.mean():.3f}  v2={b.mean():.3f}  delta={b.mean() - a.mean():+.3f}")
+
+def diff_of_means(x, y, axis=-1):
+    return np.mean(x, axis=axis) - np.mean(y, axis=axis)
+
+common = dict(n_resamples=9999, confidence_level=0.95, method="percentile", rng=rng)
+unpaired = stats.bootstrap((b, a), diff_of_means, paired=False, **common)
+paired = stats.bootstrap((b, a), diff_of_means, paired=True, **common)
+bca = stats.bootstrap((b - a,), np.mean, method="BCa", n_resamples=9999, rng=rng)
+for name, r in [("unpaired", unpaired), ("paired", paired), ("paired BCa", bca)]:
+    lo, hi = r.confidence_interval
+    print(f"{name:11s} 95% CI [{lo:+.3f}, {hi:+.3f}]  width={hi - lo:.3f}  SE={r.standard_error:.4f}")
+
+# McNemar uses only the discordant pairs (v1 right/v2 wrong vs v1 wrong/v2 right).
+table = [[np.sum((a == 1) &amp; (b == 1)), np.sum((a == 1) &amp; (b == 0))],
+         [np.sum((a == 0) &amp; (b == 1)), np.sum((a == 0) &amp; (b == 0))]]
+res = mcnemar(table, exact=True)
+print(f"discordant: v1-only={table[0][1]} v2-only={table[1][0]}  McNemar exact p={res.pvalue:.4f}")
+
+# Minimum detectable effect (alpha=0.05, power=0.8) ~ 2.8 * SE(delta)
+for name, r in [("unpaired", unpaired), ("paired", paired)]:
+    print(f"MDE {name:8s} ~ {2.8 * r.standard_error:.3f}")</code></pre>
+      </div>
+      <table class="t p-err" data-step="5">
+        <tr><td>TypeError: bootstrap() got an unexpected keyword argument 'rng'</td><td>scipy ≥ 1.15, or <code>random_state=</code></td></tr>
+        <tr><td>DegenerateDataWarning: The BCa confidence interval cannot be calculated</td><td>use <code>method="percentile"</code></td></tr>
+        <tr><td>ValueError: When `paired is True`, all samples must have the same length along `axis`</td><td>score crashes as 0, align on <code>item_id</code></td></tr>
+      </table>
+    </div>
+    <div class="p-right">
+      <svg id="c11p-svg" viewBox="0 0 610 292" width="610" height="292" role="img" aria-label="400 tiles, one per golden case, coloured by outcome: 254 both right, 45 both wrong, 40 right only for v1, 61 right only for v2. Below, two 95% confidence-interval bars for v2 minus v1: unpaired from -0.007 to +0.110 crosses zero, paired from +0.005 to +0.102 stays above zero. Then the 299 concordant tiles fade and the 40 and 61 discordant tiles stack into two piles for McNemar, p = 0.046. Last, minimum detectable effect rulers: 0.085 unpaired and 0.070 paired."></svg>
+      <div class="steps-rail">
+        <div data-step="1"><span>Both versions meet the same hard items. Pairing cancels them out.</span></div>
+        <div data-step="2"><span>Unpaired CI crosses 0. Paired CI stays above 0. Same data.</span></div>
+        <div data-step="3"><span>The 299 concordant items carry no signal. McNemar tests 40 vs 61.</span></div>
+        <div data-step="4"><span>MDE ≈ 2.8 × SE: 400 pairs detect ~7 points. Size the set first.</span></div>
+      </div>
+      <div class="code-wrap out">
+        <div class="code-head">output · real run, seed 0 · scipy &lt; 1.15 takes random_state=rng</div>
+        <pre class="code" data-lang="none"><code><span data-step="1" data-fx="fade">v1=0.735  v2=0.787  delta=<span class="ok">+0.052</span></span>
+<span data-step="2" data-fx="fade">unpaired    95% CI <span class="err">[-0.007, +0.110]</span>  width=0.118  SE=0.0302</span>
+<span data-step="2" data-fx="fade">paired      95% CI <span class="ok">[+0.005, +0.102]</span>  width=0.097  SE=0.0250</span>
+<span data-step="2" data-fx="fade"><span class="dim">paired BCa  95% CI [+0.005, +0.102]  width=0.097  SE=0.0251</span></span>
+<span data-step="3" data-fx="fade">discordant: v1-only=<span class="err">40</span> v2-only=<span class="ok">61</span>  McNemar exact <span class="ok">p=0.0460</span></span>
+<span data-step="4" data-fx="fade">MDE unpaired ~ 0.085</span>
+<span data-step="4" data-fx="fade">MDE paired   ~ <span class="ok">0.070</span></span></code></pre>
+      </div>
+      <div class="cites">
+        <a class="cite doc" href="https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.bootstrap.html" target="_blank" rel="noopener"><b>Docs</b>&nbsp;scipy.stats.bootstrap</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2609.17394" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2609.17394 McNemar: 0 of 29 pairs</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Step 1 of the lab gave us slice CIs for v2; now the question is whether v2 of the claims agent is really better than v1 on the same 400 golden cases. This is a second file: the golden set, with one pass or fail per case for each version, not the 353-question slice log from step 1. Both arrays come from one shared difficulty per case, so a hard case tends to fail for both versions; that is why the tiles in the grid cluster into both-right and both-wrong. With the same data, the unpaired bootstrap gives a CI that crosses zero, while the paired bootstrap, which resamples one index vector for both arrays, stays above zero at plus 0.5 to plus 10 points. McNemar makes the same point from the other side: the 299 concordant cases carry no information about the difference, only the 40 versus 61 discordant cases do, and the exact p is 0.046. Analogy: to compare two runners, time them on the same track on the same day instead of on two random tracks. Likely question: "Can I skip the MDE?" No: at 400 paired cases you can detect only about 7 points, so a 3-point improvement needs a bigger eval set before anyone builds it. Next step: write these numbers into the quality card.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c11-lab10-paired";
+  // real counts from the lab output: v1 294/400 right, v2 315/400 right
+  // both right 254, both wrong 45, v1 only 40, v2 only 61 (299 concordant, 101 discordant)
+  const N = 400, COLS = 25, P = 11, TS = 9, GY = 20;
+  const CAT_N = [254, 45, 40, 61];
+  const CAT_C = ["var(--faint)", "var(--muted)", "var(--risk)", "var(--state)"];
+  const CAT_L = ["both right", "both wrong", "v1 only", "v2 only"];
+  const PILE_X = [0, 0, 330, 470], PILE_B = 187;
+  const X = (d) => 70 + (d + 0.03) / 0.16 * 470;          // delta axis -0.03 .. +0.13
+  const CI = [
+    { name: "unpaired", lo: -0.007, hi: 0.110, mde: 0.085, y: 226, c: "var(--risk)", tag: "crosses 0" },
+    { name: "paired", lo: 0.005, hi: 0.102, mde: 0.070, y: 254, c: "var(--state)", tag: "above 0" }
+  ];
+  const DELTA = 0.052;
+  let S = null;
+
+  function mk(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  }
+  function cat(i) {                                          // deterministic shuffle: 137 is coprime with 400
+    const p = (i * 137 + 11) % N;
+    return p < 254 ? 0 : p < 299 ? 1 : p < 339 ? 2 : 3;
+  }
+
+  function build(slide) {
+    const svg = slide.querySelector("#c11p-svg");
+    if (svg._S) return svg._S;
+    svg.innerHTML = "";
+    const s = { prev: 0, tweens: [], tiles: [], cats: [], pile: [], legend: null, mc: null, ci: [], mde: [] };
+    mk("text", { x: 0, y: 12, "font-size": 11.5, "font-weight": 700, fill: "var(--ink-2)" }, svg, "400 golden cases · one tile per case");
+    // legend (steps 1-2)
+    s.legend = mk("g", { opacity: 0 }, svg);
+    CAT_L.forEach((l, k) => {
+      mk("rect", { x: 330, y: 34 + k * 24, width: 11, height: 11, rx: 2, fill: CAT_C[k] }, s.legend);
+      mk("text", { x: 350, y: 44 + k * 24, "font-size": 12.5, fill: "var(--ink-2)" }, s.legend, `${l}  ${CAT_N[k]}`);
+    });
+    mk("text", { x: 330, y: 146, "font-size": 11, fill: "var(--muted)" }, s.legend, "v1 294/400 · v2 315/400");
+    // McNemar annotations (step 3+)
+    s.mc = mk("g", { opacity: 0 }, svg);
+    mk("text", { x: 455, y: 40, "text-anchor": "middle", "font-size": 13.5, "font-weight": 700, fill: "var(--ink)" }, s.mc, "McNemar exact p = 0.046");
+    mk("text", { x: 455, y: 60, "text-anchor": "middle", "font-size": 11, fill: "var(--muted)" }, s.mc, "299 concordant: no signal");
+    mk("text", { x: 385, y: 146, "text-anchor": "middle", "font-size": 12, "font-weight": 700, fill: "var(--risk)" }, s.mc, "v1 only · 40");
+    mk("text", { x: 525, y: 113, "text-anchor": "middle", "font-size": 12, "font-weight": 700, fill: "var(--state)" }, s.mc, "v2 only · 61");
+    // tiles
+    const ord = [0, 0, 0, 0];
+    for (let i = 0; i < N; i++) {
+      const c = cat(i);
+      s.cats.push(c);
+      s.pile.push(ord[c]++);
+      s.tiles.push(mk("rect", { x: (i % COLS) * P, y: GY + Math.floor(i / COLS) * P, width: TS, height: TS, rx: 1.5, fill: CAT_C[c], opacity: 0 }, svg));
+    }
+    // CI section (step 2+) and MDE rulers (step 4+)
+    s.ciG = mk("g", { opacity: 0 }, svg);
+    mk("text", { x: 0, y: 214, "font-size": 11.5, "font-weight": 700, fill: "var(--ink-2)" }, s.ciG, "95% CI of v2 − v1");
+    mk("line", { x1: X(0), y1: 218, x2: X(0), y2: 280, stroke: "var(--ink-2)", "stroke-width": 1.2, "stroke-dasharray": "3 3" }, s.ciG);
+    mk("line", { x1: 70, y1: 280, x2: 545, y2: 280, stroke: "var(--line-2)", "stroke-width": 1.2 }, s.ciG);
+    [[0, "0"], [0.05, "+.05"], [0.10, "+.10"]].forEach(([d, t]) => {
+      mk("line", { x1: X(d), y1: 277, x2: X(d), y2: 283, stroke: "var(--muted)", "stroke-width": 1.2 }, s.ciG);
+      mk("text", { x: X(d), y: 291, "text-anchor": "middle", "font-size": 10, fill: "var(--muted)" }, s.ciG, t);
+    });
+    CI.forEach((r) => {
+      mk("text", { x: 0, y: r.y + 9, "font-size": 11.5, fill: "var(--ink-2)" }, s.ciG, r.name);
+      const bar = mk("rect", { x: X(DELTA), y: r.y, width: 0, height: 11, rx: 3, fill: r.c, opacity: 0.85 }, s.ciG);
+      const dot = mk("circle", { cx: X(DELTA), cy: r.y + 5.5, r: 3.6, fill: "#fff", stroke: r.c, "stroke-width": 1.5 }, s.ciG);
+      const tag = mk("text", { x: X(r.hi) + 8, y: r.y + 9.5, "font-size": 11, "font-weight": 700, fill: r.c, opacity: 0 }, s.ciG, r.tag);
+      s.ci.push({ bar, dot, tag, r });
+      const g = mk("g", { opacity: 0 }, svg);
+      const ln = mk("line", { x1: X(0), y1: r.y + 17, x2: X(0), y2: r.y + 17, stroke: r.c, "stroke-width": 2, "stroke-dasharray": "5 3" }, g);
+      const end = mk("line", { x1: X(r.mde), y1: r.y + 13, x2: X(r.mde), y2: r.y + 21, stroke: r.c, "stroke-width": 2 }, g);
+      mk("text", { x: X(r.mde) + 6, y: r.y + 21, "font-size": 10, "font-weight": 700, fill: r.c }, g, `MDE ${r.mde.toFixed(3).slice(1)}`);
+      s.mde.push({ g, ln, end, r });
+    });
+    svg._S = s;
+    return s;
+  }
+
+  function tileTarget(s, i, n) {
+    const c = s.cats[i];
+    const gx = (i % COLS) * P, gy = GY + Math.floor(i / COLS) * P;
+    if (n < 1) return { x: gx, y: gy, o: 0 };
+    if (n < 3) return { x: gx, y: gy, o: 1 };
+    if (c < 2) return { x: gx, y: gy, o: 0.13 };             // concordant fades
+    const o = s.pile[i];
+    return { x: PILE_X[c] + (o % 10) * P, y: PILE_B - Math.floor(o / 10) * P, o: 1 };
+  }
+
+  function render(s, n, animate) {
+    s.tweens.forEach((t) => t.kill()); s.tweens = [];
+    const T = (tw) => s.tweens.push(tw);
+    const fwd = animate && n > s.prev;
+    const to = (e, v, d) => (fwd ? T(gsap.to(e, Object.assign({ duration: 0.6, delay: d || 0, ease: "power2.inOut" }, v))) : gsap.set(e, v));
+    s.tiles.forEach((t, i) => {
+      const p = tileTarget(s, i, n);
+      const d = n === 1 ? ((i % COLS) + Math.floor(i / COLS)) * 0.012 : n === 3 ? (s.cats[i] >= 2 ? 0.25 + (s.pile[i] % 10) * 0.02 : 0) : 0;
+      to(t, { attr: { x: p.x, y: p.y }, opacity: p.o }, d);
+    });
+    to(s.legend, { opacity: n >= 1 && n < 3 ? 1 : 0 }, n === 1 ? 0.5 : 0);
+    to(s.mc, { opacity: n >= 3 ? 1 : 0 }, n === 3 ? 0.7 : 0);
+    to(s.ciG, { opacity: n >= 2 ? 1 : 0 });
+    s.ci.forEach(({ bar, tag, r }, k) => {
+      const on = n >= 2;
+      to(bar, { attr: { x: on ? X(r.lo) : X(DELTA), width: on ? X(r.hi) - X(r.lo) : 0 } }, 0.2 + k * 0.35);
+      to(tag, { opacity: on ? 1 : 0 }, 0.8 + k * 0.35);
+    });
+    s.mde.forEach(({ g, ln, r }, k) => {
+      const on = n >= 4;
+      to(g, { opacity: on ? 1 : 0 });
+      to(ln, { attr: { x2: on ? X(r.mde) : X(0) } }, 0.1 + k * 0.3);
+    });
+    s.prev = n;
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { S = build(slide); S.prev = step || 0; render(S, step || 0, false); },
+    step(slide, n, animate) { S = build(slide); render(S, n, animate); },
+    leave(slide) {
+      const svg = slide.querySelector("#c11p-svg");
+      if (svg && svg._S) { svg._S.tweens.forEach((t) => t.kill()); svg._S.tweens = []; }
+      if (svg) gsap.killTweensOf(svg.querySelectorAll("*"));
+    }
+  });
+})();
+</script>

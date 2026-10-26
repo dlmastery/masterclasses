@@ -1,0 +1,177 @@
+<section class="slide" id="rag-interview-c03-qa-escalate" data-tone="agent" data-title="Escalate or abstain on a signal">
+  <style>
+    #rag-interview-c03-qa-escalate .es-grid { display: grid; grid-template-columns: 560px 1fr; gap: 30px; }
+    #rag-interview-c03-qa-escalate .qa-col { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+    #rag-interview-c03-qa-escalate .qa { gap: 9px; transition: opacity .35s; }
+    #rag-interview-c03-qa-escalate .qa .q { font-size: 21px; }
+    #rag-interview-c03-qa-escalate .qa .a { font-size: 21px; line-height: 1.4; padding: 11px 15px; }
+    #rag-interview-c03-qa-escalate .right { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+    #rag-interview-c03-qa-escalate svg.viz { width: 802px; height: 236px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+    #rag-interview-c03-qa-escalate pre.code.xs { font-size: 14.5px; line-height: 1.5; padding: 12px 16px 14px; }
+    #rag-interview-c03-qa-escalate .code-wrap .code-head { padding: 7px 14px; font-size: 13.5px; }
+    #rag-interview-c03-qa-escalate .cites { gap: 8px; }
+    #rag-interview-c03-qa-escalate .cite { font-size: 13px; flex-direction: row; align-items: center; gap: 8px; padding: 6px 10px 6px 8px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); white-space: nowrap; }
+  </style>
+  <div class="kicker">Interview · escalation and abstention</div>
+  <h2 class="title">Escalate to long context only when the answer is uncertain</h2>
+  <div class="es-grid fill">
+    <div class="qa-col">
+      <div class="qa" data-on="2:dim">
+        <div class="q">When do you escalate from RAG to the full long context?</div>
+        <div class="a" data-step="1">Only on high answer entropy: <b>97.4%</b> of long-context accuracy with <b>70.7% fewer tokens</b>.</div>
+      </div>
+      <div class="qa" data-on="3:dim">
+        <div class="q">In a multi-turn chat, which query do you retrieve with?</div>
+        <div class="a" data-step="2">One standalone query that merges every turn's constraints. Sharded turns lose up to <b>21%</b>.</div>
+      </div>
+      <div class="qa">
+        <div class="q"><code>gated_search()</code> returns “insufficient”. What does the caller do?</div>
+        <div class="a" data-step="3">Abstain or ask. Generators answer <b>40–99%</b> of such questions, even when told to abstain.</div>
+      </div>
+    </div>
+    <div class="right">
+      <svg class="viz" id="esq-svg" viewBox="0 0 802 236" aria-label="Entropy-gated escalation, multi-turn query merge, and abstention"></svg>
+      <div class="code-wrap">
+        <div class="code-head">respond.py · the caller of gated_search()</div>
+        <pre class="code xs" data-lang="python" data-focus="1:10-13, 2:5, 3:7-9"><code>from gated_search import gated_search           # previous slide
+ENT_MAX = 0.5                                   # placeholder: fit on the labelled set
+# llm: your Gemini wrapper with standalone(), read(), read_long(), log_miss()
+def respond(turns: list[str], llm) -&gt; str:
+    q = llm.standalone(turns)                   # merge every turn's constraints
+    ids, status = gated_search(q)
+    if status == "insufficient":
+        llm.log_miss(q)                         # grow the labelled set
+        return "I can't find that. Which order or error code?"
+    answer, entropy = llm.read(q, ids)          # 8 chunks + answer entropy
+    if entropy &lt; ENT_MAX:
+        return answer                           # most queries stop here
+    return llm.read_long(q)                     # escalate: full documents</code></pre>
+      </div>
+      <div class="cites push">
+        <a class="cite paper" href="https://arxiv.org/abs/2609.35831" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2609.35831 entropy routing</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2609.36700" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2609.36700 multi-turn</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2609.37469" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2609.37469 RINSE</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">This slide is the expensive end of the router from the previous slide. Q1: long context is the costly branch, so gate it on uncertainty. The EDAR paper routes on answer entropy and kept 97.4% of long-context accuracy with 70.7% fewer tokens; it ships no code, so present it as a pattern, and fit ENT_MAX on your labelled set. Q2: in multi-turn chat, users spread constraints across turns ("zipper broke", "the 40L pack", "bought 3 years ago"). Retrieving with the last turn alone misses the warranty chunk; the paper measured up to a 21% relative drop for sharded queries, so merge the turns into one standalone query first. Q3: RINSE found that even when told to abstain, generators answered 40.0-99.3% of insufficient-evidence questions, so the caller must branch before the reader: abstain with a clear message or ask a clarifying question, and log the query so it joins the labelled set. Analogy: a pilot who cannot see the runway goes around; landing anyway is the failure. Likely follow-up: "Is abstaining bad for the user?" Track the abstain rate next to accuracy; a rising rate is a content gap to fix, not a model bug. Next: put normalise, hybrid, rerank and the gate together on one whiteboard.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "rag-interview-c03-qa-escalate";
+  let tweens = [], shown = -1;
+
+  function el(p, tag, attrs, style) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (style) Object.assign(e.style, style);
+    p.appendChild(e);
+    return e;
+  }
+  function text(p, x, y, s, o = {}) {
+    const t = el(p, "text", { x, y, "text-anchor": o.anchor || "middle" },
+      { fill: o.fill || "var(--ink-2)", fontFamily: "var(--f-mono)", fontSize: (o.size || 16) + "px", fontWeight: o.w || 500 });
+    t.textContent = s;
+    return t;
+  }
+  function box(p, x, y, w, h, tone, label, sub) {
+    el(p, "rect", { x, y, width: w, height: h, rx: 12 }, { fill: `var(--${tone}-soft)`, stroke: `var(--${tone})`, strokeWidth: 2 });
+    text(p, x + w / 2, y + (sub ? h / 2 - 3 : h / 2 + 6), label, { size: 17, fill: `var(--${tone})`, w: 700 });
+    if (sub) text(p, x + w / 2, y + h / 2 + 18, sub, { size: 14, fill: "var(--ink-2)" });
+  }
+  const arrow = (p, d, col, w = 2.5) => el(p, "path", { d }, { fill: "none", stroke: col, strokeWidth: w, strokeLinecap: "round" });
+  const T = (tw) => { tweens.push(tw); return tw; };
+  function kill() { tweens.forEach((t) => t.kill()); tweens = []; }
+  const fade = (nodes, animate, delay = 0) => { if (animate) T(gsap.fromTo(nodes, { opacity: 0 }, { opacity: 1, duration: 0.4, delay, stagger: 0.08 })); };
+
+  // ---------- step 0 / 1: entropy-gated escalation ----------
+  const ENT = [0.12, 0.20, 0.15, 0.24, 0.86];   // illustrative; the last query is uncertain
+  function escalate(svg, n, animate) {
+    text(svg, 16, 24, "answer entropy per query · illustrative", { anchor: "start", size: 15, fill: "var(--ink-2)" });
+    box(svg, 330, 26, 230, 80, "agent", "RAG · top 8", "default path");
+    box(svg, 330, 156, 300, 66, "model", "long context", "full documents");
+    ENT.forEach((e, i) => {
+      const y = 50 + i * 40, hot = e > 0.5;
+      el(svg, "rect", { x: 16, y: y - 9, width: 120, height: 16, rx: 4 }, { fill: "var(--line)" });
+      const w = 120 * e;
+      const b = el(svg, "rect", { x: 16, y: y - 9, width: n >= 1 && animate ? 0 : w, height: 16, rx: 4 }, { fill: hot ? "var(--risk)" : "var(--state)" });
+      if (n >= 1 && animate) T(gsap.to(b, { attr: { width: w }, duration: 0.6, delay: i * 0.08 }));
+      text(svg, 146, y + 5, e.toFixed(2), { anchor: "start", size: 16, fill: hot ? "var(--risk)" : "var(--ink-2)", w: hot ? 700 : 500 });
+      if (n < 1) return;
+      const end = hot ? [324, 189] : [324, 42 + i * 14];
+      const a = arrow(svg, `M 196 ${y} C 260 ${y} 260 ${end[1]} ${end[0]} ${end[1]}`, hot ? "var(--risk)" : "var(--state)", hot ? 3.5 : 2);
+      fade([a], animate, 0.5 + i * 0.1);
+    });
+    if (n < 1) { text(svg, 700, 120, "which path?", { size: 18, fill: "var(--muted)" }); return; }
+    const c1 = text(svg, 790, 70, "", { anchor: "end", size: 26, fill: "var(--state)", w: 700 });
+    const c2 = text(svg, 790, 98, "tokens", { anchor: "end", size: 16, fill: "var(--ink-2)" });
+    const c3 = text(svg, 790, 182, "97.4%", { anchor: "end", size: 26, fill: "var(--model)", w: 700 });
+    const c4 = text(svg, 790, 208, "of LC accuracy", { anchor: "end", size: 16, fill: "var(--ink-2)" });
+    if (animate) {
+      const o = { v: 0 };
+      c1.textContent = "−0.0%";
+      T(gsap.to(o, { v: 70.7, duration: 1.2, delay: 1.0, ease: "power2.out", onUpdate: () => { c1.textContent = "−" + o.v.toFixed(1) + "%"; } }));
+      fade([c2, c3, c4], animate, 1.4);
+    } else c1.textContent = "−70.7%";
+  }
+
+  // ---------- step 2: merge the turns into one standalone query ----------
+  const TURNS = ["zipper broke", "it's the 40L pack", "bought 3 years ago"];
+  function merge(svg, animate) {
+    text(svg, 16, 24, "three chat turns", { anchor: "start", size: 15, fill: "var(--ink-2)" });
+    const bubbles = TURNS.map((t, i) => {
+      const g = el(svg, "g", {});
+      el(g, "rect", { x: 16, y: 38 + i * 52, width: 250, height: 40, rx: 20 }, { fill: "var(--human-soft)", stroke: "var(--human)", strokeWidth: 1.5 });
+      text(g, 141, 64 + i * 52, t, { size: 16, fill: "var(--ink)" });
+      return g;
+    });
+    const arrows = TURNS.map((_, i) => arrow(svg, `M 272 ${58 + i * 52} C 320 ${58 + i * 52} 320 110 360 110`, "var(--agent)"));
+    const g = el(svg, "g", {});
+    el(g, "rect", { x: 364, y: 76, width: 424, height: 66, rx: 12 }, { fill: "var(--agent-soft)", stroke: "var(--agent)", strokeWidth: 2.5 });
+    text(g, 576, 104, "40L backpack zipper broke after", { size: 16, fill: "var(--ink)", w: 700 });
+    text(g, 576, 128, "3 years: is it under warranty?", { size: 16, fill: "var(--ink)", w: 700 });
+    const r = text(svg, 576, 172, "retrieves c09: backpacks covered 5 years", { size: 15, fill: "var(--state)", w: 700 });
+    const s = text(svg, 576, 214, "sharded turns: up to −21% relative", { size: 19, fill: "var(--risk)", w: 700 });
+    if (animate) {
+      T(gsap.fromTo(bubbles, { opacity: 0, x: -10 }, { opacity: 1, x: 0, duration: 0.35, stagger: 0.2 }));
+      fade(arrows, animate, 0.7);
+      fade([g], animate, 1.0);
+      fade([r, s], animate, 1.4);
+    }
+  }
+
+  // ---------- step 3: insufficient -> abstain, not generate ----------
+  function abstain(svg, animate) {
+    box(svg, 16, 84, 200, 66, "risk", "insufficient", "status from the gate");
+    const up = arrow(svg, "M 222 104 C 280 104 280 50 330 50", "var(--risk)");
+    const dn = arrow(svg, "M 222 130 C 280 130 280 184 330 184", "var(--state)", 3);
+    const g1 = el(svg, "g", {});
+    el(g1, "rect", { x: 334, y: 20, width: 454, height: 64, rx: 12 }, { fill: "var(--surface-2)", stroke: "var(--risk)", strokeWidth: 2, strokeDasharray: "6 5" });
+    text(g1, 352, 46, "generate anyway", { anchor: "start", size: 16, fill: "var(--risk)", w: 700 });
+    text(g1, 352, 70, "40.0–99.3% answered without evidence", { anchor: "start", size: 16, fill: "var(--ink)" });
+    const g2 = el(svg, "g", {});
+    el(g2, "rect", { x: 334, y: 152, width: 454, height: 64, rx: 12 }, { fill: "var(--state-soft)", stroke: "var(--state)", strokeWidth: 2.5 });
+    text(g2, 352, 178, "abstain or ask, then log the query", { anchor: "start", size: 16, fill: "var(--state)", w: 700 });
+    text(g2, 352, 202, "\"Which order or error code?\"", { anchor: "start", size: 16, fill: "var(--ink)" });
+    if (animate) { fade([up, g1], animate, 0.3); fade([dn, g2], animate, 0.9); }
+  }
+
+  function render(slide, n, animate) {
+    const svg = slide.querySelector("#esq-svg");
+    if (!svg) return;
+    kill();
+    svg.innerHTML = "";
+    shown = n;
+    if (n <= 1) escalate(svg, n, animate);
+    else if (n === 2) merge(svg, animate);
+    else abstain(svg, animate);
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { if (shown !== step) render(slide, step, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { kill(); shown = -1; }
+  });
+})();
+</script>

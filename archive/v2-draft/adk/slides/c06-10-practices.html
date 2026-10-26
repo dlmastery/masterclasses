@@ -1,0 +1,138 @@
+<section class="slide tight" id="adk-c06-practices" data-tone="tool" data-title="Practices: least privilege for tools">
+  <style>
+    #adk-c06-practices .pr-body { display: grid; grid-template-columns: 730px 1fr; gap: 28px; align-items: start; }
+    #adk-c06-practices .pr-left { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    #adk-c06-practices .pr-right { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+    #adk-c06-practices .pr-meter { display: grid; grid-template-columns: repeat(10, 1fr) 96px; gap: 6px; align-items: center; }
+    #adk-c06-practices .pr-cell { height: 18px; border-radius: 5px; background: var(--surface-2); border: 1.5px solid var(--line-2); }
+    #adk-c06-practices .pr-cnt { font: 700 17px/1 var(--f-mono); color: var(--ink-2); text-align: right; }
+    #adk-c06-practices .pr-grp { display: flex; flex-direction: column; gap: 6px; }
+    #adk-c06-practices .pr-grp h4 { font: 700 14px/1 var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--tool); margin: 4px 0 0; }
+    #adk-c06-practices ul.checks { gap: 9px; }
+    #adk-c06-practices ul.checks li { font-size: 17.5px; line-height: 1.38; }
+    #adk-c06-practices ul.checks li code { font-size: 14.5px; }
+    #adk-c06-practices ul.checks li .r { color: var(--muted); }
+    #adk-c06-practices ul.checks li.no { color: var(--ink); border-radius: 8px; padding: 2px 6px; margin: 0 -6px; }
+    #adk-c06-practices .code-head { padding: 7px 14px; font-size: 13.5px; }
+    #adk-c06-practices pre.code { font-size: 13px; line-height: 1.5; padding: 10px 14px 12px; }
+    #adk-c06-practices .pr-cites { display: flex; gap: 8px; flex-wrap: wrap; }
+    #adk-c06-practices .pr-cites .cite { flex-direction: row; gap: 8px; font-size: 12.5px; padding: 4px 10px 4px 8px; border-radius: 10px; border: 1px solid var(--line); background: color-mix(in oklab, var(--surface) 60%, transparent); }
+  </style>
+  <div class="kicker">Best practices</div>
+  <h2 class="title">Least privilege for MCP and REST tools in ten checks</h2>
+  <div class="pr-body fill">
+    <div class="pr-left">
+      <div class="pr-meter" id="pr-meter">
+        <i class="pr-cell"></i><i class="pr-cell"></i><i class="pr-cell"></i><i class="pr-cell"></i><i class="pr-cell"></i>
+        <i class="pr-cell"></i><i class="pr-cell"></i><i class="pr-cell"></i><i class="pr-cell"></i><i class="pr-cell"></i>
+        <span class="pr-cnt" id="pr-cnt">0 / 10</span>
+      </div>
+      <div class="pr-grp">
+        <h4 data-step="1">1 · Tool surface</h4>
+        <ul class="checks" data-step="1" data-fx="stagger">
+          <li><span><code>tool_filter</code> on every toolset. <span class="r">New server tools need review.</span></span></li>
+          <li><span><code>tool_name_prefix</code> per server. <span class="r">Merged namespaces: 154 hallucinated calls.</span></span></li>
+          <li><span><code>require_confirmation</code> on money, delete, send. <span class="r">The server checks auth too.</span></span></li>
+        </ul>
+      </div>
+      <div class="pr-grp">
+        <h4 data-step="2">2 · Identity and isolation</h4>
+        <ul class="checks" data-step="2" data-fx="stagger">
+          <li><span>Identity in headers via <code>header_provider</code>. <span class="r">Never in the prompt.</span></span></li>
+          <li><span>stdio servers in a container, one mount. <span class="r">16.4% launder filesystem access.</span></span></li>
+          <li class="no"><span><code>allow_private_network_access=True</code> in prod. <span class="r">It lifts the SSRF guard.</span></span></li>
+        </ul>
+      </div>
+      <div class="pr-grp">
+        <h4 data-step="3">3 · Operations</h4>
+        <ul class="checks" data-step="3" data-fx="stagger">
+          <li><span>Pin <code>google-adk</code>, <code>mcp</code> and server versions.</span></li>
+          <li><span>Errors say "&lt;cause&gt;. Call &lt;tool&gt; …". <span class="r">Recovery 45% → 84%.</span></span></li>
+          <li><span>Smoke-test <code>get_tools()</code>. <span class="r">Alert on "will run without the tools".</span></span></li>
+          <li class="no"><span><code>print()</code> in a stdio server. <span class="r">stdout carries JSON-RPC.</span></span></li>
+        </ul>
+      </div>
+      <div class="callout pitfall" data-step="4"><span><code>allow_private_network_access=True</code> is for a dev or internal API on 127.0.0.1 only.</span></div>
+      <div class="pr-cites" data-step="3">
+        <a class="cite paper" href="https://arxiv.org/abs/2609.19425" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2609.19425</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2610.22301" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.22301</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2609.35381" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2609.35381</a>
+        <a class="cite doc" href="https://adk.dev/tools-custom/mcp-tools/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;adk.dev MCP tools</a>
+      </div>
+    </div>
+    <div class="pr-right">
+      <div class="code-wrap good">
+        <div class="code-head">claims_agent/agent.py · the two MCP toolsets, least privilege</div>
+        <pre class="code" data-lang="python" data-focus="1:18-20, 2:21-27, 3:1"><code># pinned: google-adk==2.13.0, mcp==2.3.0
+import pathlib
+import sys
+from google.adk.agents.readonly_context import ReadonlyContext
+from google.adk.tools.mcp_tool import (
+    McpToolset, StdioConnectionParams, StreamableHTTPConnectionParams)
+from mcp import StdioServerParameters
+SERVER = pathlib.Path(__file__).parent / "claims_server.py"
+
+def payout_needs_human(**kwargs) -&gt; bool:
+    return float(kwargs.get("approved_amount", 0)) &gt; 1000
+def tenant_headers(ctx: ReadonlyContext) -&gt; dict[str, str]:
+    return {"X-Tenant-ID": ctx.state.get("user:tenant", "northwind")}
+
+claims_tools = McpToolset(
+    connection_params=StdioConnectionParams(
+        server_params=StdioServerParameters(
+            command=sys.executable, args=[str(SERVER)]),
+        timeout=10.0),
+    tool_filter=["get_claim", "approve_claim", "login"],
+    tool_name_prefix="claims",
+    require_confirmation=payout_needs_human)
+handbook_tools = McpToolset(
+    connection_params=StreamableHTTPConnectionParams(
+        url="http://127.0.0.1:3000/mcp"),
+    tool_filter=["search_policy", "list_topics"],
+    tool_name_prefix="handbook",
+    header_provider=tenant_headers,
+    tool_list_cache_ttl_seconds=300)</code></pre>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">This slide is the review list for every toolset the Northwind claims desk mounts, grouped as tool surface, identity and isolation, and operations. The surface checks decide what the model can see and do: a filter, a prefix per server so merged namespaces cannot collide, and a confirmation rule on money, delete and send tools, while the server keeps its own authorisation because other MCP clients can call it. The isolation checks come from the papers in this chapter: 16.4% of triaged servers exposed filesystem access they did not advertise, so a container with one mount is the real boundary. Think of it like a building pass: the badge lists the doors you may open, but each door still has its own lock. A likely question: "Why not just trust require_confirmation?" Because a human approves the call, not what the server process can reach on the host.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c06-practices";
+  const FILL = [0, 3, 6, 10, 10];      // checks covered after each step
+  const NO = [5, 9];                    // the two "don't" items (0-based cells)
+  let tws = [];
+  function stop() { tws.forEach((t) => t.kill()); tws = []; }
+  function render(s, n, animate) {
+    stop();
+    const cells = [...s.querySelectorAll(".pr-cell")];
+    const k = FILL[Math.min(n, 4)], prev = animate && n > 0 ? FILL[n - 1] : k;
+    cells.forEach((c, i) => {
+      const red = n >= 4 && NO.includes(i);
+      c.style.background = i < k ? (red ? "var(--risk)" : "var(--state)") : "";
+      c.style.borderColor = i < k ? (red ? "var(--risk)" : "var(--state)") : "";
+      if (animate && i >= prev && i < k) {
+        tws.push(gsap.fromTo(c, { scaleX: 0, transformOrigin: "left center" }, { scaleX: 1, duration: 0.35, delay: 0.25 + (i - prev) * 0.12, ease: "power2.out" }));
+      } else gsap.set(c, { scaleX: 1 });
+    });
+    const cnt = s.querySelector("#pr-cnt");
+    if (animate && k > prev) {
+      const o = { v: prev };
+      tws.push(gsap.to(o, { v: k, duration: 0.25 + (k - prev) * 0.12, delay: 0.25, ease: "none", onUpdate: () => { cnt.textContent = `${Math.round(o.v)} / 10`; } }));
+    } else cnt.textContent = `${k} / 10`;
+    const nos = [...s.querySelectorAll("ul.checks li.no")];
+    nos.forEach((li) => { gsap.set(li, { backgroundColor: n >= 4 ? "var(--risk-soft)" : "rgba(0,0,0,0)" }); });
+    if (animate && n === 4) {
+      tws.push(gsap.fromTo(nos, { backgroundColor: "rgba(0,0,0,0)" }, { backgroundColor: "var(--risk-soft)", duration: 0.28, repeat: 5, yoyo: true, ease: "power1.inOut",
+        onComplete: () => gsap.set(nos, { backgroundColor: "var(--risk-soft)" }) }));
+      cells.forEach((c, i) => { if (NO.includes(i)) tws.push(gsap.fromTo(c, { scale: 1 }, { scale: 1.25, duration: 0.25, repeat: 3, yoyo: true })); });
+    }
+  }
+  Deck.register(ID, {
+    enter(slide, n) { if (!tws.length) render(slide, n || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { stop(); }
+  });
+})();
+</script>

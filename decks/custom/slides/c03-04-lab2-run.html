@@ -1,0 +1,155 @@
+<section class="slide" id="custom-c03-lab2-run" data-tone="model" data-title="Lab 2 · 33M trainable">
+  <div class="kicker"><span class="pill">Lab 2</span> Acme claims extractor · step 3 of 4</div>
+  <h2 class="title">33 million trainable parameters steer a 4-billion-parameter model</h2>
+  <div class="grid fill" style="grid-template-columns:620px 1fr;gap:28px">
+    <div class="stack" style="gap:12px">
+      <div class="lab-head"><span class="run">python lab3_qlora_claims.py | tee train.log</span><span class="run">python check_params.py</span></div>
+      <div class="code-wrap">
+        <div class="code-head">check_params.py · transformers 5.20.2</div>
+        <pre class="code" data-lang="python" data-focus="1:3-6, 2:7"><code>from transformers import AutoConfig
+c = AutoConfig.from_pretrained("Qwen/Qwen3-4B-Instruct-2507")
+r, h, ff = 16, c.hidden_size, c.intermediate_size   # r from lab3_qlora_claims.py
+q, kv = c.num_attention_heads * c.head_dim, c.num_key_value_heads * c.head_dim
+per_layer = r * ((h + q) + 2 * (h + kv) + (q + h)   # q, k, v, o
+                 + 2 * (h + ff) + (ff + h))         # gate, up, down
+print(per_layer, per_layer * c.num_hidden_layers)   # 36 layers</code></pre>
+      </div>
+      <div class="code-wrap out" data-step="2">
+        <div class="code-head">output · check_params.py · illustrative</div>
+        <pre class="code" data-lang="none"><code>917504 <span class="ok">33030144</span>   <span class="dim"># must equal "trainable params" in train.log</span></code></pre>
+      </div>
+      <table class="t cq4-t" data-step="1">
+        <thead><tr><th>module</th><th>in</th><th>out</th><th>r × (in + out), r = 16</th></tr></thead>
+        <tbody>
+          <tr><td>q_proj</td><td>2,560</td><td>4,096</td><td>106,496</td></tr>
+          <tr><td>k_proj, v_proj</td><td>2,560</td><td>1,024</td><td>57,344 × 2</td></tr>
+          <tr><td>o_proj</td><td>4,096</td><td>2,560</td><td>106,496</td></tr>
+          <tr><td>gate_proj, up_proj</td><td>2,560</td><td>9,728</td><td>196,608 × 2</td></tr>
+          <tr><td>down_proj</td><td>9,728</td><td>2,560</td><td>196,608</td></tr>
+          <tr class="hot"><td>× 36 layers</td><td colspan="2">917,504 / layer</td><td><b>33,030,144</b></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="stack" style="gap:12px">
+      <svg id="cq4-viz" viewBox="0 0 744 330" width="744" height="330" aria-label="LoRA chips light up on 7 modules in each of 36 layers while a counter climbs to 33,030,144. At step 3 a loss curve draws from 0.902 down to eval_loss 0.142 at epoch 1 of 3."></svg>
+      <div class="code-wrap out" data-step="3">
+        <div class="code-head">output · head and tail of train.log · illustrative</div>
+        <pre class="code" data-lang="none"><code>trainable params: <span class="ok">33,030,144</span> || all params: ~4.06B || trainable%: <span class="ok">~0.8</span>
+{'loss': <span class="err">0.902</span>, 'mean_token_accuracy': 0.79, 'epoch': 0.1}
+{'eval_loss': <span class="ok">0.142</span>, 'eval_mean_token_accuracy': 0.957, 'epoch': 1.0}
+<span class="dim"># epochs 2 and 3 follow; the epoch-3 adapter is saved to qwen3-4b-claims-qlora/final</span></code></pre>
+      </div>
+      <div class="cq4-close" data-step="3">
+        <b>Loss is not the task metric.</b>
+        <span>eval_loss averages over all completion tokens. A weak stop token barely moves it, so prose can still follow the JSON. Step 4 scores the JSON.</span>
+      </div>
+    </div>
+  </div>
+  <style>
+    #custom-c03-lab2-run .grid > .stack { min-width: 0; }
+    #custom-c03-lab2-run pre.code { font-size: 13.5px; line-height: 19px; padding: 9px 16px 11px; }
+    #custom-c03-lab2-run .out pre.code { font-size: 13px; line-height: 19px; }
+    #custom-c03-lab2-run .code-head { font-size: 13.5px; }
+    #custom-c03-lab2-run .lab-head { gap: 8px; flex-wrap: nowrap; }
+    #custom-c03-lab2-run .lab-head .run { font-size: 12.5px; white-space: nowrap; }
+    #custom-c03-lab2-run table.cq4-t { font-size: 15px; }
+    #custom-c03-lab2-run table.cq4-t th { font-size: 13.5px; padding: 5px 10px; }
+    #custom-c03-lab2-run table.cq4-t td { padding: 5px 10px; font-family: var(--f-mono); font-size: 15px; }
+    #custom-c03-lab2-run table.cq4-t td:not(:first-child), #custom-c03-lab2-run table.cq4-t th:not(:first-child) { text-align: right; }
+    #custom-c03-lab2-run table.cq4-t tr.hot td b { color: var(--model); }
+    #custom-c03-lab2-run .cq4-close { display: flex; flex-direction: column; gap: 6px; }
+    #custom-c03-lab2-run .cq4-close b { font-size: 24px; color: var(--risk); }
+    #custom-c03-lab2-run .cq4-close span { font-size: 17px; line-height: 1.4; color: var(--ink-2); }
+  </style>
+  <aside class="notes">The first line of train.log is the one to check: 33,030,144 trainable parameters, about 0.8% of the 4.06 billion in Qwen3-4B. check_params.py recomputes that count from config.json, and the table shows the arithmetic: r times in plus out for q, k, v, o, gate, up and down gives 917,504 per layer, and 36 layers give 33,030,144. If your number is much smaller, target_modules did not match, and you know before you read any loss. The second panel is the head and tail of train.log, not output of check_params.py. The chart shows the first of three epochs: the loss falls from 0.902 to an eval_loss of 0.142; the run continues to epoch 3 and saves that adapter to final. But loss is not the business metric. eval_loss averages over every completion token, so one weak end-of-turn token hardly changes it, and the model can still write prose after the closing brace. Step 4 measures JSON validity on held-out notes. Think of the adapter as the steering wheel on a heavy truck: small, but it decides where the whole model goes. Likely question: "Why is QLoRA slower per step than LoRA?" Every forward pass dequantizes the NF4 weights. AQLoRA (arXiv 2608.23816, Aug 2026) keeps the layers with the highest NF4 error in fp16 and trains 11.3 ± 2.3% faster, at a cost of 0.1 to 1.5 accuracy points; its layer choice matches Unsloth's dynamic-4bit checkpoints.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const LAYERS = 36, MODS = ["q", "k", "v", "o", "gt", "up", "dn"];
+  const PER_LAYER = 917504;
+  const X0 = 40, Y0 = 30, CW = 28, CH = 5.5, GX = 6, GY = 2;
+  let chips = [], big, sub, spark, sparkPts, sparkLbl, built = false;
+  const cnt = { v: 0 };
+  const fmt = (v) => Math.round(v).toLocaleString("en-US");
+  const mk = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); parent.appendChild(e); return e; };
+  const txt = (s, attrs, parent) => { const e = mk("text", attrs, parent); e.textContent = s; return e; };
+  const mono = "font-family:var(--f-mono)";
+
+  function build(slide) {
+    const svg = slide.querySelector("#cq4-viz");
+    svg.innerHTML = ""; chips = [];
+    MODS.forEach((m, c) => txt(m, { x: X0 + c * (CW + GX) + CW / 2, y: 22, "text-anchor": "middle", "font-size": 13, fill: "var(--muted)", style: mono }, svg));
+    for (let l = 0; l < LAYERS; l++) {
+      const y = Y0 + l * (CH + GY);
+      if (l === 0 || l === 35 || l % 10 === 9) txt(String(l), { x: X0 - 8, y: y + 6, "text-anchor": "end", "font-size": 12, fill: "var(--muted)", style: mono }, svg);
+      for (let c = 0; c < 7; c++) chips.push({ el: mk("rect", { x: X0 + c * (CW + GX), y, width: CW, height: CH, rx: 1.5, fill: "var(--faint)", opacity: 0.35 }, svg), l, c });
+    }
+    txt("36 layers × 7 modules", { x: X0, y: Y0 + LAYERS * (CH + GY) + 18, "font-size": 13, fill: "var(--muted)", style: mono }, svg);
+    // counter
+    big = txt("0", { x: 744, y: 44, "text-anchor": "end", "font-size": 42, "font-weight": 700, fill: "var(--model)", style: mono }, svg);
+    txt("trainable params · ~0.8% of 4.06B", { x: 744, y: 70, "text-anchor": "end", "font-size": 15, fill: "var(--ink-2)", style: mono }, svg);
+    sub = txt("", { x: 744, y: 92, "text-anchor": "end", "font-size": 14, fill: "var(--muted)", style: mono }, svg);
+    // loss chart (step 3)
+    spark = mk("g", {}, svg);
+    const SX = (e) => 340 + e * 380, SY = (v) => 300 - (v / 1.0) * 170;
+    mk("line", { x1: SX(0), x2: SX(1.0), y1: 300, y2: 300, stroke: "var(--ink-2)", "stroke-width": 1.4 }, spark);
+    mk("line", { x1: SX(0), x2: SX(0), y1: 124, y2: 300, stroke: "var(--ink-2)", "stroke-width": 1.4 }, spark);
+    txt("loss", { x: SX(0) - 8, y: 130, "text-anchor": "end", "font-size": 13, fill: "var(--muted)", style: mono }, spark);
+    txt("epoch 0", { x: SX(0), y: 318, "font-size": 13, fill: "var(--muted)", style: mono }, spark);
+    txt("epoch 1 of 3", { x: SX(1.0), y: 318, "text-anchor": "end", "font-size": 13, fill: "var(--muted)", style: mono }, spark);
+    let d = "";
+    for (let i = 0; i <= 40; i++) {
+      const e = 0.1 + (i / 40) * 0.9;
+      const v = 0.142 + (0.902 - 0.142) * Math.exp(-4.2 * (e - 0.1)) * (1 + 0.04 * Math.sin(i * 1.7)) - 0.0012 * (i / 40);
+      d += (i ? " L" : "M") + SX(e).toFixed(1) + " " + SY(Math.max(v, 0.142)).toFixed(1);
+    }
+    sparkPts = mk("path", { d, fill: "none", stroke: "var(--model)", "stroke-width": 3.5, "stroke-linejoin": "round" }, spark);
+    mk("circle", { cx: SX(0.1), cy: SY(0.902), r: 6, fill: "var(--model)" }, spark);
+    txt("loss 0.902", { x: SX(0.1) + 12, y: SY(0.902) + 5, "font-size": 15, "font-weight": 700, fill: "var(--model)", style: mono }, spark);
+    sparkLbl = mk("g", {}, spark);
+    mk("circle", { cx: SX(1.0), cy: SY(0.142), r: 7, fill: "var(--agent)", stroke: "var(--bg)", "stroke-width": 2 }, sparkLbl);
+    txt("eval_loss 0.142", { x: SX(1.0), y: SY(0.142) - 18, "text-anchor": "end", "font-size": 15, "font-weight": 700, fill: "var(--agent)", style: mono }, sparkLbl);
+    txt("shape illustrative", { x: SX(1.0), y: 140, "text-anchor": "end", "font-size": 12, fill: "var(--muted)", style: mono }, spark);
+    built = true;
+  }
+
+  function setLayers(k) {
+    chips.forEach((c) => {
+      const on = c.l < k;
+      c.el.setAttribute("fill", on ? "var(--model)" : "var(--faint)");
+      c.el.setAttribute("opacity", on ? 1 : 0.35);
+    });
+    big.textContent = fmt(k * PER_LAYER);
+    sub.textContent = k >= LAYERS ? "917,504 per layer × 36 layers" : `layer ${k} of 36 · ${fmt(PER_LAYER)} per layer`;
+  }
+
+  function render(slide, n, animate) {
+    if (!built) build(slide);
+    gsap.killTweensOf([cnt, spark, sparkPts, sparkLbl]);
+    if (animate && n === 1) {
+      cnt.v = 0; setLayers(0);
+      gsap.to(cnt, { v: LAYERS, duration: 2.2, ease: "none", onUpdate: () => setLayers(Math.floor(cnt.v)), onComplete: () => setLayers(LAYERS) });
+    } else {
+      cnt.v = n >= 1 ? LAYERS : 0; setLayers(cnt.v);
+    }
+    spark.style.opacity = n >= 3 ? 1 : 0;
+    const len = sparkPts.getTotalLength();
+    sparkPts.style.strokeDasharray = len;
+    if (animate && n === 3) {
+      gsap.fromTo(sparkPts, { strokeDashoffset: len }, { strokeDashoffset: 0, duration: 1.4, ease: "power1.inOut" });
+      gsap.fromTo(sparkLbl, { opacity: 0 }, { opacity: 1, duration: 0.4, delay: 1.3 });
+    } else {
+      sparkPts.style.strokeDashoffset = n >= 3 ? 0 : len;
+      sparkLbl.style.opacity = n >= 3 ? 1 : 0;
+    }
+  }
+
+  Deck.register("custom-c03-lab2-run", {
+    enter(slide, step) { build(slide); render(slide, step, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { if (built) gsap.killTweensOf([cnt, spark, sparkPts, sparkLbl]); }
+  });
+})();
+</script>

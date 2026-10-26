@@ -1,0 +1,41 @@
+<section class="slide" id="adk-c06-openapi-key" data-tone="tool" data-title="OpenAPIToolset with a key from env">
+  <style>
+    #adk-c06-openapi-key .ok-grid { display: grid; grid-template-columns: 544px 1fr; gap: 36px; align-items: start; }
+    #adk-c06-openapi-key .ok-left { display: flex; flex-direction: column; gap: 30px; min-width: 0; }
+    #adk-c06-openapi-key .lab-head .pins { font: 500 18px/1.3 var(--f-mono); color: var(--muted); }
+    #adk-c06-openapi-key .cap { font-size: 26px; line-height: 1.35; font-weight: 700; color: var(--state); margin: 0; }
+  </style>
+  <div class="kicker">Build · Acme claims desk · REST API</div>
+  <h2 class="title">OpenAPIToolset reads the spec, and the key comes from the env</h2>
+  <div class="lab-head"><span class="run">CLAIMS_API_KEY=demo-key-123 uvicorn claims_api:app --port 8081</span><span class="pins">terminal 1</span></div>
+  <div class="ok-grid fill">
+    <div class="ok-left">
+      <div class="code-wrap bad" data-step="1">
+        <div class="code-head">claim_tool.py · hand-written</div>
+        <pre class="code sm" data-lang="python"><code>def get_claim_status(claim_id: str) -&gt; dict:
+    url = f"http://127.0.0.1:8081/claims/{claim_id}"
+    key = {"X-API-Key": "demo-key-123"}  # in git
+    return httpx.get(url, headers=key).json()
+claim_tool = FunctionTool(get_claim_status)</code></pre>
+      </div>
+      <p class="cap" data-step="4">One tool from the spec. The key never enters git.</p>
+    </div>
+    <div class="code-wrap good" data-step="2">
+      <div class="code-head">labs/adk/lab6-acme-claims-desk/claims_agent/agent.py · excerpt</div>
+      <pre class="code" data-lang="python" data-focus="2:4-5, 3:10, 4:11"><code># imports: OpenAPIToolset, token_to_scheme_credential
+SPEC_URL = "http://127.0.0.1:8081/openapi.json"
+spec = httpx.get(SPEC_URL, timeout=5).json()   # at import time
+auth_scheme, auth_credential = token_to_scheme_credential(
+    "apikey", "header", "X-API-Key", os.environ["CLAIMS_API_KEY"])
+claims_status = OpenAPIToolset(
+    spec_dict=spec,
+    auth_scheme=auth_scheme,
+    auth_credential=auth_credential,
+    tool_filter=["get_claim_status"],   # snake_case(operationId)
+    allow_private_network_access=True,  # 127.0.0.1: dev only
+)
+# root_agent: tools=[claims_tools, handbook_tools, claims_status]</code></pre>
+    </div>
+  </div>
+  <aside class="notes">Now claims_desk gets its third tool source, the claims-status REST service from terminal 1. Step 1 shows the version to avoid: a hand-written httpx tool with the URL and the API key in the source, so the key ends up in git. The service already publishes an OpenAPI spec, so let ADK build the tool. Step 2: OpenAPIToolset reads the spec, and token_to_scheme_credential turns the key from the CLAIMS_API_KEY environment variable into the X-API-Key header. os.environ with square brackets fails at startup when the key is missing, instead of falling back to a value in the code. Step 3: tool_filter uses the generated tool name, which the next slide explains. Step 4: allow_private_network_access=True is needed only because the API runs on 127.0.0.1; the gotcha after next shows the guard it lifts. agent.py downloads the spec when it is imported, so start claims_api before adk web. Think of the spec as a menu with item numbers: the agent orders by the number, not by describing the dish. A likely question: "Where should the key live in production?" In Secret Manager or the deploy environment, never in the instruction or the code.</aside>
+</section>

@@ -1,0 +1,76 @@
+<section class="slide" id="adk-c03-lab-sequence" data-tone="agent" data-title="Lab 3.1: a typed chain">
+  <style>
+    #adk-c03-lab-sequence .ch-diag .node { padding: 14px 18px; }
+    #adk-c03-lab-sequence .ch-diag .node .nt { font-size: 22px; }
+    #adk-c03-lab-sequence .ch-diag .node .ns { font-size: 16px; }
+    #adk-c03-lab-sequence .ch-ok { position: absolute; top: 112px; width: 34px; height: 34px; margin-left: -17px; border-radius: 50%; display: grid; place-items: center; z-index: 3;
+      font: 700 18px/1 var(--f-mono); color: #fff; background: var(--state); box-shadow: 0 0 0 4px var(--bg); opacity: 0; }
+    #adk-c03-lab-sequence .ch-low { display: grid; grid-template-columns: 700px 1fr; gap: 40px; align-items: start; }
+    #adk-c03-lab-sequence .ch-low pre.code { font-size: 17px; }
+    #adk-c03-lab-sequence .ch-low .hl { color: #7ee2b8; }
+    #adk-c03-lab-sequence .ch-low .cm { color: #8d96c4; }
+    #adk-c03-lab-sequence .cap { display: grid; padding-top: 6px; }
+    #adk-c03-lab-sequence .cap > * { grid-area: 1 / 1; font-size: 26px; line-height: 1.4; color: var(--ink-2); }
+    #adk-c03-lab-sequence .cap code { font-size: .82em; }
+    #adk-c03-lab-sequence, #adk-c03-lab-sequence * { font-variant-ligatures: none !important; }
+    #adk-c03-lab-sequence .out pre.code .dim { color: #a3abd6; opacity: 1; }
+    #adk-c03-lab-sequence .cites .cite { display: inline-flex; flex-direction: row; align-items: center; gap: 10px; white-space: nowrap; padding: 6px 12px 6px 10px; border-radius: 10px; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 3.1</span> Acme refund desk · 1 of 3</div>
+  <h2 class="title">A chain tuple runs four nodes in a fixed order</h2>
+  <div class="lab-head"><span class="run">adk run refund_flow "refund A-1001 arrived broken"</span><span class="tag t-agent">google-adk 2.13.0</span></div>
+  <div class="diagram ch-diag" style="width:1392px;height:170px"
+       data-wires="start>parse@1 [text]; parse>check@2 [A-1001]; check>reply@3 [RefundCase]; reply>audit@4 [reply_text]">
+    <div class="group g-agent" style="left:0;top:14px;width:1392px;height:150px" data-step="5" data-fx="fade"><span class="gl">Workflow(name="refund_flow")</span></div>
+    <div class="node n-human pill" id="start" style="left:20px;top:58px;width:110px"><span class="nt">START</span></div>
+    <div class="node n-tool" id="parse" style="left:250px;top:44px;width:210px" data-step="1" data-fx="pop"><span class="nt">parse_request</span><span class="ns">function</span></div>
+    <div class="node n-tool" id="check" style="left:580px;top:44px;width:200px" data-step="2" data-fx="pop"><span class="nt">check_policy</span><span class="ns">function</span></div>
+    <div class="node n-model" id="reply" style="left:900px;top:44px;width:180px" data-step="3" data-fx="pop"><span class="nt">write_reply</span><span class="ns">Agent · LLM</span></div>
+    <div class="node n-tool" id="audit" style="left:1200px;top:44px;width:172px" data-step="4" data-fx="pop"><span class="nt">audit_log</span><span class="ns">function</span></div>
+    <span class="ch-ok" style="left:190px">✓</span>
+    <span class="ch-ok" style="left:520px">✓</span>
+    <span class="ch-ok" style="left:840px">✓</span>
+    <span class="ch-ok" style="left:1140px">✓</span>
+  </div>
+  <div class="ch-low fill">
+    <div class="code-wrap out">
+      <div class="code-head">setup · labs/adk/c03-refund-flow/</div>
+      <pre class="code" data-lang="none"><code><span class="hl">pip install "google-adk==2.13.0"</span>   <span class="cm"># Python 3.11+</span>
+refund_flow/
+├── __init__.py   <span class="cm">from . import agent</span>
+├── agent.py      <span class="cm">the four nodes</span>
+└── .env          <span class="hl">GOOGLE_GENAI_USE_ENTERPRISE=FALSE</span>
+                  <span class="hl">GOOGLE_API_KEY=</span><span class="cm">&lt;AI Studio key&gt;</span>
+<span class="cm"># run adk from the parent folder of refund_flow/</span></code></pre>
+    </div>
+    <div class="cap">
+      <p data-until="1">Run it Monday: install the pinned version, make the folder, add the key.</p>
+      <p data-step="1" data-until="2"><b>parse_request</b> is a plain function. Its type hints become its schemas.</p>
+      <p data-step="2" data-until="3"><b>check_policy</b> applies the 30-day policy and returns a typed <code>RefundCase</code>.</p>
+      <p data-step="3" data-until="4"><b>write_reply</b> is the only LLM call in the chain.</p>
+      <p data-step="4" data-until="5"><b>audit_log</b> prints one audit line for every reply.</p>
+      <p data-step="5">The build checks each typed edge <b>before the first token</b>.</p>
+    </div>
+  </div>
+  <aside class="notes">This is Lab 3.1, the Acme refund desk: one refund ticket goes through four nodes in a fixed order. Step 0 is the setup box: install the pinned version, make the folder with an __init__.py that imports agent, and put the Gemini API key in .env; the full files are in labs/adk/c03-refund-flow. On Windows, create the empty files in your editor or with New-Item instead of touch. Press through the nodes: parse_request and check_policy are plain Python functions, write_reply is the only LLM call, and audit_log writes the audit line. The last press shows the green checks: the Workflow compares the schemas on every edge where both ends declare a type, when you build it, not when a ticket arrives. Think of the chain tuple as an assembly line that checks that each part fits before the line starts. A likely question: "Why not one agent with tools?" Because the order here is a business rule, and a graph makes the order a fact instead of a request to the model. Next slide: the two function nodes.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c03-lab-sequence";
+  let tw = [];
+  function clear() { tw.forEach((t) => t.kill()); tw = []; }
+  function render(slide, n, animate) {
+    clear();
+    const oks = slide.querySelectorAll(".ch-ok");
+    if (n >= 5) {
+      if (animate && n === 5) oks.forEach((o, i) => tw.push(gsap.fromTo(o, { opacity: 0, scale: 0.2 }, { opacity: 1, scale: 1, duration: 0.35, delay: 0.3 + i * 0.2, ease: "back.out(3)" })));
+      else gsap.set(oks, { opacity: 1, scale: 1 });
+    } else gsap.set(oks, { opacity: 0, scale: 1 });
+  }
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { clear(); if (slide) gsap.killTweensOf(slide.querySelectorAll(".ch-ok")); },
+  });
+})();
+</script>

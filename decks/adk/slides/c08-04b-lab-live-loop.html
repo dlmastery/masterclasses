@@ -1,0 +1,152 @@
+<section class="slide" id="adk-c08-lab-live-loop" data-tone="model" data-title="Lab 8.3b: the run_live loop">
+  <style>
+    #adk-c08-lab-live-loop .ll-grid { display: grid; grid-template-columns: 760px 1fr; gap: 40px; align-items: start; }
+    #adk-c08-lab-live-loop .ll-col { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+    #adk-c08-lab-live-loop #lv-svg { display: block; width: 592px; height: 340px; overflow: visible; }
+    #adk-c08-lab-live-loop #lv-svg text { font-family: var(--f-mono); }
+  </style>
+  <div class="kicker"><span class="pill">Lab 8</span> Acme billing · voice · 2 of 2</div>
+  <h2 class="title">run_live streams audio and a transcript until turn_complete</h2>
+  <div class="lab-head"><span class="run">python live_billing.py</span></div>
+  <div class="ll-grid fill">
+    <div class="code-wrap">
+      <div class="code-head">labs/adk/c08-live-voice/live_billing.py · excerpt</div>
+      <pre class="code" data-lang="python" data-focus="1:2-4, 2:6-9, 3:10-14, 4:15-16"><code># ... runner + create_session("call-1"): see the lab file
+q = LiveRequestQueue()                    # one queue per call
+q.send_content(types.Content(role="user", parts=[
+    types.Part(text="What's my balance on account A-3310?")]))
+pcm = bytearray()
+try:
+    async for ev in runner.run_live(user_id="cust-42",
+            session_id="call-1", live_request_queue=q,
+            run_config=cfg):
+        t = ev.output_transcription
+        if t and t.text: print("agent:", t.text)
+        for p in (ev.content.parts if ev.content else []):
+            if p.inline_data: pcm += p.inline_data.data
+        if ev.turn_complete: break
+finally: q.close()
+save_wav(bytes(pcm))</code></pre>
+    </div>
+    <div class="ll-col">
+      <svg id="lv-svg" viewBox="0 0 592 340" aria-label="Live stream. A text prompt, standing in for a microphone, goes through LiveRequestQueue to the Live API. The Live API calls get_balance and gets 84.20, due 11-05 back. Audio streams into an audio lane and a byte counter rises until turn_complete ends the loop."></svg>
+      <div class="code-wrap out" data-step="4">
+        <div class="code-head">output · illustrative</div>
+        <pre class="code" data-lang="text"><code><span class="ok">agent: Your balance on A-3310 is 84 dollars 20,
+       due November 5th.</span>
+answer.wav written · 153,600 bytes</code></pre>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">This is the live loop. Before it, the lab file builds the Runner and creates session "call-1", because run_live needs an existing session; without it you get "ValueError: Session not found". Press once: a LiveRequestQueue is the phone line for one call; send_content puts the text question on it, as a stand-in for the microphone; a real call streams 16 kHz PCM chunks with send_realtime. Press again: runner.run_live is an async generator; the Live model hears the question and calls get_balance. Press again: each event can carry transcript text and audio bytes; we print the text, collect the PCM and break on turn_complete. Press again: close the queue in finally, because a closed queue cannot be reused, and save 153,600 bytes, which is 3.2 seconds at 24 kHz, as answer.wav. Think of LiveRequestQueue as a phone line you hang up with close(), so you dial a new one for every call. A likely question: "Can I guard what the caller says?" Model callbacks run in live mode in 2.13, but a before_model_callback sees only the transcript, after the model already heard the audio. For a mic in the browser, run adk web --no-reload; Windows needs --no-reload.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c08-lab-live-loop";
+  const NS = "http://www.w3.org/2000/svg";
+  const BYTES = 153600, NB = 80, BW = 9;
+  let tw = [], loops = [], R = null;
+  function mk(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text !== undefined) e.textContent = text;
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function box(p, x, y, w, h, tone, l1, l2) {
+    const g = mk("g", {}, p);
+    mk("rect", { x, y, width: w, height: h, rx: 12, fill: `var(--${tone}-soft)`, stroke: `var(--${tone})`, "stroke-width": 2 }, g);
+    mk("text", { x: x + w / 2, y: l2 ? y + 26 : y + h / 2 + 6, "text-anchor": "middle", "font-size": 16, "font-weight": 700, fill: "var(--ink)" }, g, l1);
+    if (l2) mk("text", { x: x + w / 2, y: y + 48, "text-anchor": "middle", "font-size": 14, fill: "var(--ink-2)" }, g, l2);
+    return g;
+  }
+  function arrow(p, d, color, dash, mid) {
+    return mk("path", { d, fill: "none", stroke: color, "stroke-width": 2.4, "stroke-linecap": "round", "stroke-dasharray": dash || "none", "marker-end": `url(#${mid})` }, p);
+  }
+  function build(svg) {
+    svg.innerHTML = "";
+    R = {};
+    const defs = mk("defs", {}, svg);
+    [["lv-ag", "var(--line-2)"], ["lv-am", "var(--model)"], ["lv-at", "var(--tool)"]].forEach(([id, c]) => {
+      const m = mk("marker", { id, viewBox: "0 0 10 10", refX: 8, refY: 5, markerWidth: 6, markerHeight: 6, orient: "auto-start-reverse" }, defs);
+      mk("path", { d: "M0,0 L10,5 L0,10 z", fill: c }, m);
+    });
+    const clip = mk("clipPath", { id: "lv-clip" }, defs);
+    mk("rect", { x: 4, y: 218, width: 584, height: 56 }, clip);
+    R.caller = box(svg, 0, 0, 150, 66, "human", "text prompt", "mic stand-in");
+    arrow(svg, "M154,33 H186", "var(--line-2)", null, "lv-ag");
+    R.queue = box(svg, 190, 0, 200, 66, "state", "LiveRequestQueue");
+    arrow(svg, "M394,33 H418", "var(--line-2)", null, "lv-ag");
+    R.live = box(svg, 422, 0, 170, 66, "model", "Live API", "native audio");
+    R.tool = box(svg, 422, 118, 170, 52, "tool", "get_balance()");
+    R.call = arrow(svg, "M470,70 V112", "var(--tool)", "5 4", "lv-at");
+    R.ret = arrow(svg, "M544,114 V72", "var(--tool)", null, "lv-at");
+    R.res = mk("g", {}, svg);
+    mk("rect", { x: 196, y: 128, width: 200, height: 32, rx: 16, fill: "var(--bg)", stroke: "var(--tool)", "stroke-width": 1.8 }, R.res);
+    mk("text", { x: 296, y: 150, "text-anchor": "middle", "font-size": 15, "font-weight": 700, fill: "var(--tool)" }, R.res, "84.20 · due 11-05");
+    // audio lane
+    R.lane = mk("g", {}, svg);
+    mk("text", { x: 0, y: 206, "font-size": 16, "font-weight": 700, fill: "var(--model)" }, R.lane, "audio → pcm");
+    mk("rect", { x: 0, y: 216, width: 592, height: 60, rx: 10, fill: "var(--surface)", stroke: "var(--line-2)", "stroke-width": 1.4 }, R.lane);
+    const wfc = mk("g", { "clip-path": "url(#lv-clip)" }, svg);
+    R.wf = mk("g", {}, wfc);
+    for (let i = 0; i < NB; i++) {
+      const h = 8 + 38 * Math.abs(Math.sin(i * 0.71) * Math.cos(i * 0.23));
+      mk("rect", { x: 10 + i * BW, y: 246 - h / 2, width: 5, height: h, rx: 2.5, fill: "var(--model)", opacity: 0.8 }, R.wf);
+    }
+    R.cnt = mk("text", { x: 0, y: 320, "font-size": 17, "font-weight": 700, fill: "var(--model)" }, svg, "bytes: 0");
+    R.flag = mk("g", {}, svg);
+    mk("rect", { x: 330, y: 296, width: 262, height: 36, rx: 9, fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 1.8 }, R.flag);
+    mk("text", { x: 461, y: 320, "text-anchor": "middle", "font-size": 16, "font-weight": 700, fill: "var(--state)" }, R.flag, "turn_complete → break");
+    R.pkt = mk("g", {}, svg);
+    mk("rect", { x: -48, y: -14, width: 96, height: 28, rx: 14, fill: "var(--human)" }, R.pkt);
+    mk("text", { x: 0, y: 5, "text-anchor": "middle", "font-size": 14, "font-weight": 700, fill: "#fff" }, R.pkt, "A-3310?");
+  }
+  function clear() { tw.forEach((t) => t.kill()); tw = []; loops.forEach((t) => t.kill()); loops = []; }
+  function setCount(v) { R.cnt.textContent = "bytes: " + Math.round(v).toLocaleString("en-US"); }
+  function render(slide, n, animate) {
+    const svg = slide.querySelector("#lv-svg");
+    if (!R || !svg.childElementCount) build(svg);
+    clear();
+    const a = (k) => animate && n === k;
+    gsap.killTweensOf([R.pkt, R.tool, R.call, R.ret, R.res, R.lane, R.wf, R.flag, R.cnt]);
+    // step 1: the question travels caller -> queue -> Live API
+    gsap.set(R.pkt, { opacity: 0, x: 75, y: 33 });
+    if (a(1)) {
+      gsap.set(R.pkt, { opacity: 1 });
+      tw.push(gsap.to(R.pkt, { x: 290, duration: 0.6, ease: "power1.inOut" }));
+      tw.push(gsap.to(R.pkt, { x: 507, duration: 0.6, delay: 0.65, ease: "power1.inOut" }));
+      tw.push(gsap.to(R.pkt, { opacity: 0, duration: 0.2, delay: 1.3 }));
+    }
+    gsap.set([R.caller, R.queue, R.live], { opacity: n >= 1 ? 1 : 0.35 });
+    // step 2: tool call and result
+    gsap.set([R.tool, R.call, R.ret], { opacity: n >= 2 ? 1 : 0.15 });
+    gsap.set(R.res, { opacity: n >= 2 ? 1 : 0 });
+    if (a(2)) {
+      gsap.set([R.ret, R.res], { opacity: 0 });
+      tw.push(gsap.fromTo(R.tool, { scale: 1 }, { scale: 1.06, svgOrigin: "507 144", duration: 0.18, yoyo: true, repeat: 3, delay: 0.2 }));
+      tw.push(gsap.to(R.ret, { opacity: 1, duration: 0.3, delay: 0.8 }));
+      tw.push(gsap.fromTo(R.res, { opacity: 0, x: 30 }, { opacity: 1, x: 0, duration: 0.45, delay: 0.9 }));
+    }
+    // step 3: audio streams; counter rises; turn_complete
+    gsap.set(R.lane, { opacity: n >= 3 ? 1 : 0.2 });
+    gsap.set(R.wf, { x: 0, opacity: n >= 3 ? 1 : 0 });
+    gsap.set(R.flag, { opacity: n >= 3 ? 1 : 0 });
+    gsap.set(R.cnt, { opacity: n >= 3 ? 1 : 0 });
+    setCount(n >= 3 ? BYTES : 0);
+    if (a(3)) {
+      gsap.set(R.flag, { opacity: 0 });
+      setCount(0);
+      loops.push(gsap.fromTo(R.wf, { x: 0 }, { x: -18 * BW, duration: 1.4, ease: "none", repeat: 1, onComplete: () => gsap.set(R.wf, { x: 0 }) }));
+      const c = { v: 0 };
+      tw.push(gsap.to(c, { v: BYTES, duration: 2.6, ease: "none", onUpdate: () => setCount(c.v) }));
+      tw.push(gsap.fromTo(R.flag, { opacity: 0, scale: 0.85, transformOrigin: "50% 50%" }, { opacity: 1, scale: 1, duration: 0.35, delay: 2.7, ease: "back.out(2)" }));
+    }
+  }
+  Deck.register(ID, {
+    enter(slide, step) { R = null; render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { clear(); if (slide) gsap.killTweensOf(slide.querySelectorAll("#lv-svg *")); },
+  });
+})();
+</script>

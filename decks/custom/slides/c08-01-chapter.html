@@ -1,0 +1,208 @@
+<section class="slide chapter" id="custom-c08-chapter" data-tone="risk" data-title="Ch 8: Drift, leakage, cost">
+  <style>
+    #custom-c08-chapter .c08-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    #custom-c08-chapter .lede { margin-top: -8px; max-width: 960px; }
+    #custom-c08-chapter .c08-row { max-width: 980px; }
+    #custom-c08-chapter .ch-num { top: auto; bottom: 64px; }
+    #custom-c08-chapter svg { margin-bottom: -6px; }
+    #custom-c08-chapter svg text { font-family: var(--f-mono); font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+  </style>
+  <div class="ch-num" data-fx="blur">08</div>
+  <svg id="c08-ch-svg" viewBox="0 0 1300 330" width="1300" height="330" aria-label="Three panels that loop. Drift: the October refund-amount histogram moves right of the September histogram and PSI counts up to 0.243. Leakage: two ROC-AUC bars grow on the same model and data, KFold to 0.886 and GroupKFold to 0.602, with a 0.28 gap from memorized customers. Cost: a threshold slider moves along the expected-cost curve at 2 percent fraud, stops at 0.15 for 3.10 dollars per case, then settles at the minimum, 0.34 for 1.86 dollars per case."></svg>
+  <h2 class="display">Drift, leakage, cost</h2>
+  <p class="lede" data-fx="up">The same model scores 0.886 or 0.602 depending on the split. Then the threshold decides what it costs.</p>
+  <div class="c08-row" data-fx="stagger">
+    <span class="tag t-risk">Acme refund-fraud model · Lab 7</span>
+    <span class="tag t-state">numpy 2.5.4 · scipy 1.18.1</span>
+    <span class="tag t-model">scikit-learn 1.9.1</span>
+    <span class="tag t-human">$15 review · $120 paid fraud · 2% fraud</span>
+    <a class="cite doc" href="https://scikit-learn.org/stable/modules/cross_validation.html" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Cross-validation: evaluating estimator performance</a>
+  </div>
+  <aside class="notes">Chapter 8 is Lab 7 on the Acme refund-fraud model, and it answers four questions before the model holds a single refund. First, did October traffic drift away from September after the holiday promo, and which drift statistic should we believe? Second, does our validation leak customers or the future: the same model and data give ROC-AUC 0.886 with shuffled KFold and only 0.602 with GroupKFold. Third, are the scores calibrated, and fourth, which hold threshold minimizes dollars when a manual review costs $15, a paid fraud costs $120, and only 2% of production refunds are fraud. Analogy: a scale that reads the wrong weight, a ruler measured on the training set, and a price tag that nobody computed. Likely question: "Why not just pick 0.5?" Because 0.5 is a probability, not a business decision; step 5 shows the tuned threshold saves 31% and the eval-set threshold costs 66% more in production. The cost curve here is a schematic shape; only the marked points come from the lab run.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c08-chapter";
+  let tl = null, P = null, prox = null;
+
+  const el = (parent, tag, attrs, style, text) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (style) Object.assign(e.style, style);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  };
+  const font = (w, s) => ({ fontWeight: w, fontSize: s + "px" });
+
+  // standard normal CDF (Abramowitz-Stegun 7.1.26), deterministic
+  function Phi(z) {
+    const s = z < 0 ? -1 : 1, x = Math.abs(z) / Math.SQRT2, t = 1 / (1 + 0.3275911 * x);
+    const y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x);
+    return 0.5 * (1 + s * y);
+  }
+  // lognormal share of refunds in [lo, hi) dollars; 16 bins of $10, the last bin is open (+inf)
+  const BINS = 16, BW = 10;
+  function shares(mu, sig) {
+    const out = [];
+    for (let i = 0; i < BINS; i++) {
+      const lo = i * BW, hi = (i + 1) * BW;
+      const a = lo <= 0 ? 0 : Phi((Math.log(lo) - mu) / sig);
+      const b = i === BINS - 1 ? 1 : Phi((Math.log(hi) - mu) / sig);
+      out.push(b - a);
+    }
+    return out;
+  }
+  const SEPT = shares(3.6, 0.6);
+
+  // expected cost per case at 2% production fraud (marked points from the lab; the shape between is schematic)
+  const CP = [[0.04, 5.6], [0.08, 4.35], [0.152, 3.10], [0.22, 2.38], [0.28, 1.98], [0.34, 1.86], [0.45, 1.92], [0.6, 2.06], [0.8, 2.24], [1.0, 2.40]];
+  const slopes = CP.map((p, i) => {
+    if (i === 5) return 0; // the minimum at t = 0.34
+    const a = CP[Math.max(0, i - 1)], b = CP[Math.min(CP.length - 1, i + 1)];
+    return (b[1] - a[1]) / (b[0] - a[0]);
+  });
+  function cost(t) {
+    t = Math.min(1, Math.max(CP[0][0], t));
+    let i = 0;
+    while (i < CP.length - 2 && t > CP[i + 1][0]) i++;
+    const [t0, y0] = CP[i], [t1, y1] = CP[i + 1], h = t1 - t0, u = (t - t0) / h;
+    const h00 = 2 * u ** 3 - 3 * u ** 2 + 1, h10 = u ** 3 - 2 * u ** 2 + u, h01 = -2 * u ** 3 + 3 * u ** 2, h11 = u ** 3 - u ** 2;
+    return h00 * y0 + h10 * h * slopes[i] + h01 * y1 + h11 * h * slopes[i + 1];
+  }
+
+  // geometry
+  const A = { x: 10, base: 250, w: 360, maxS: 0.2, hMax: 175 };
+  const B = { x: 470, w: 360 };
+  const C = { x: 930, w: 360, top: 70, bot: 240, cMin: 1.5, cMax: 6 };
+  const cx = (t) => C.x + t * C.w;
+  const cy = (c) => C.bot - (c - C.cMin) / (C.cMax - C.cMin) * (C.bot - C.top);
+
+  function build(svg) {
+    svg.innerHTML = "";
+    // panel headers
+    [[0, "1 · drift", "refund_amount_usd"], [460, "2 · leakage", "ROC-AUC, same model + data"], [920, "3 · cost", "$ per case at 2% fraud"]].forEach(([x, h, s]) => {
+      el(svg, "text", { x, y: 18 }, { ...font(700, 15), fill: "var(--risk)" }, h);
+      el(svg, "text", { x: x + 110, y: 18 }, { ...font(500, 13), fill: "var(--muted)" }, s);
+    });
+    // ---- A: histograms
+    el(svg, "line", { x1: A.x, y1: A.base, x2: A.x + A.w, y2: A.base }, { stroke: "var(--line-2)", strokeWidth: 2 });
+    const bw = A.w / BINS;
+    const sept = SEPT.map((s, i) => {
+      const h = Math.min(A.hMax, s / A.maxS * A.hMax);
+      return el(svg, "rect", { x: A.x + i * bw + 2, y: A.base - h, width: bw - 4, height: h, rx: 3 }, { fill: "var(--agent-soft)", stroke: "var(--agent)", strokeWidth: 1.4 });
+    });
+    const oct = SEPT.map((_, i) => el(svg, "rect", { x: A.x + i * bw + 3, y: A.base, width: bw - 6, height: 0, rx: 3 }, { fill: "none", stroke: "var(--tool)", strokeWidth: 2.6 }));
+    el(svg, "text", { x: A.x, y: A.base + 20 }, { ...font(500, 12), fill: "var(--muted)" }, "$0");
+    el(svg, "text", { x: A.x + A.w, y: A.base + 20, "text-anchor": "end" }, { ...font(500, 12), fill: "var(--muted)" }, "$150+");
+    el(svg, "rect", { x: A.x, y: 286, width: 14, height: 14, rx: 3 }, { fill: "var(--agent-soft)", stroke: "var(--agent)", strokeWidth: 1.4 });
+    el(svg, "text", { x: A.x + 22, y: 298 }, { ...font(600, 13), fill: "var(--agent)" }, "September · 20,000");
+    el(svg, "rect", { x: A.x + 190, y: 286, width: 14, height: 14, rx: 3 }, { fill: "none", stroke: "var(--tool)", strokeWidth: 2.4 });
+    el(svg, "text", { x: A.x + 212, y: 298 }, { ...font(600, 13), fill: "var(--tool)" }, "October · 5,000");
+    const psiT = el(svg, "text", { x: A.x + A.w, y: 56, "text-anchor": "end" }, { ...font(700, 18), fill: "var(--risk)" }, "PSI 0.000");
+    // ---- B: AUC bars (axis 0.5 .. 1.0)
+    const bx = (v) => B.x + (v - 0.5) / 0.5 * B.w;
+    el(svg, "line", { x1: B.x, y1: 60, x2: B.x, y2: 240 }, { stroke: "var(--line-2)", strokeWidth: 2 });
+    el(svg, "text", { x: B.x, y: 260, "text-anchor": "middle" }, { ...font(500, 12), fill: "var(--muted)" }, "0.5");
+    el(svg, "text", { x: B.x + B.w, y: 260, "text-anchor": "middle" }, { ...font(500, 12), fill: "var(--muted)" }, "1.0");
+    el(svg, "line", { x1: B.x + B.w, y1: 60, x2: B.x + B.w, y2: 240 }, { stroke: "var(--line-2)", strokeWidth: 1.4, strokeDasharray: "4 5" });
+    el(svg, "text", { x: B.x + 8, y: 84 }, { ...font(600, 14), fill: "var(--ink-2)" }, "KFold · rows shuffled");
+    el(svg, "text", { x: B.x + 8, y: 164 }, { ...font(600, 14), fill: "var(--ink-2)" }, "GroupKFold · by customer");
+    const barK = el(svg, "rect", { x: B.x, y: 94, width: 0, height: 36, rx: 6 }, { fill: "var(--risk-soft)", stroke: "var(--risk)", strokeWidth: 2 });
+    const barG = el(svg, "rect", { x: B.x, y: 174, width: 0, height: 36, rx: 6 }, { fill: "var(--state-soft)", stroke: "var(--state)", strokeWidth: 2 });
+    const valK = el(svg, "text", { x: B.x + 10, y: 119 }, { ...font(700, 17), fill: "var(--risk)" }, "");
+    const valG = el(svg, "text", { x: B.x + 10, y: 199 }, { ...font(700, 17), fill: "var(--state)" }, "");
+    const gap = el(svg, "g", {}, { opacity: 0 });
+    el(gap, "line", { x1: bx(0.602), y1: 214, x2: bx(0.602), y2: 290 }, { stroke: "var(--risk)", strokeWidth: 1.6, strokeDasharray: "4 4" });
+    el(gap, "line", { x1: bx(0.886), y1: 134, x2: bx(0.886), y2: 290 }, { stroke: "var(--risk)", strokeWidth: 1.6, strokeDasharray: "4 4" });
+    el(gap, "path", { d: `M${bx(0.602)} 284 L${bx(0.886)} 284` }, { stroke: "var(--risk)", strokeWidth: 2.4, fill: "none" });
+    el(gap, "text", { x: (bx(0.602) + bx(0.886)) / 2, y: 306, "text-anchor": "middle" }, { ...font(700, 13), fill: "var(--risk)" }, "0.28 = memorized customers");
+    // ---- C: cost curve + slider
+    el(svg, "line", { x1: C.x, y1: C.bot, x2: C.x + C.w, y2: C.bot }, { stroke: "var(--line-2)", strokeWidth: 2 });
+    let d = "";
+    for (let k = 0; k <= 120; k++) {
+      const t = CP[0][0] + (1 - CP[0][0]) * k / 120;
+      d += (k ? " L" : "M") + cx(t).toFixed(1) + " " + cy(cost(t)).toFixed(1);
+    }
+    el(svg, "path", { d }, { fill: "none", stroke: "var(--tool)", strokeWidth: 3 });
+    el(svg, "text", { x: C.x + C.w, y: C.top + 4, "text-anchor": "end" }, { ...font(500, 12), fill: "var(--muted)" }, "E[cost](t)");
+    // eval-threshold mark and minimum mark
+    const mEval = el(svg, "circle", { cx: cx(0.152), cy: cy(3.10), r: 6 }, { fill: "var(--surface)", stroke: "var(--tool)", strokeWidth: 2.4, opacity: 0 });
+    const mMin = el(svg, "circle", { cx: cx(0.34), cy: cy(1.86), r: 7 }, { fill: "var(--state)", stroke: "var(--state)", strokeWidth: 2, opacity: 0 });
+    const vline = el(svg, "line", { x1: 0, y1: 0, x2: 0, y2: 0 }, { stroke: "var(--risk)", strokeWidth: 1.6, strokeDasharray: "4 4" });
+    const dot = el(svg, "circle", { cx: 0, cy: 0, r: 7 }, { fill: "var(--risk)" });
+    el(svg, "line", { x1: C.x, y1: 280, x2: C.x + C.w, y2: 280 }, { stroke: "var(--line-2)", strokeWidth: 6, strokeLinecap: "round" });
+    el(svg, "text", { x: C.x, y: 306 }, { ...font(500, 12), fill: "var(--muted)" }, "t = 0");
+    el(svg, "text", { x: C.x + C.w, y: 306, "text-anchor": "end" }, { ...font(500, 12), fill: "var(--muted)" }, "1");
+    const knob = el(svg, "rect", { x: 0, y: 270, width: 14, height: 20, rx: 5 }, { fill: "var(--risk)" });
+    const readT = el(svg, "text", { x: C.x + C.w, y: 56, "text-anchor": "end" }, { ...font(700, 18), fill: "var(--risk)" }, "");
+    P = { sept, oct, psiT, barK, barG, valK, valG, gap, mEval, mMin, vline, dot, knob, readT, bx };
+  }
+
+  function drawOct(s) {
+    const sh = shares(3.6 + 0.3 * s, 0.6 + 0.1 * s), bw = A.w / BINS;
+    P.oct.forEach((r, i) => {
+      const h = Math.min(A.hMax, sh[i] / A.maxS * A.hMax);
+      r.setAttribute("y", A.base - h); r.setAttribute("height", h);
+      r.setAttribute("x", A.x + i * bw + 3);
+    });
+    const v = 0.243 * s;
+    P.psiT.textContent = "PSI " + v.toFixed(3) + (s >= 1 ? " · moderate" : "");
+  }
+  function drawBars(k, g) {
+    const wK = P.bx(0.5 + 0.386 * k) - B.x, wG = P.bx(0.5 + 0.102 * g) - B.x;
+    P.barK.setAttribute("width", wK); P.barG.setAttribute("width", wG);
+    P.valK.textContent = k > 0 ? (0.5 + 0.386 * k).toFixed(3) : "";
+    P.valG.textContent = g > 0 ? (0.5 + 0.102 * g).toFixed(3) : "";
+    P.valK.setAttribute("x", B.x + wK + 10); P.valG.setAttribute("x", B.x + wG + 10);
+  }
+  function drawSlider(t, label) {
+    const x = cx(t), y = cy(cost(t));
+    P.knob.setAttribute("x", x - 7);
+    P.dot.setAttribute("cx", x); P.dot.setAttribute("cy", y);
+    P.vline.setAttribute("x1", x); P.vline.setAttribute("x2", x);
+    P.vline.setAttribute("y1", y); P.vline.setAttribute("y2", 272);
+    if (label === "eval") { P.readT.textContent = "t 0.15 → $3.10 / case"; P.readT.style.fill = "var(--tool)"; }
+    else if (label === "min") { P.readT.textContent = "t 0.34 → $1.86 / case · min"; P.readT.style.fill = "var(--state)"; }
+    else { P.readT.textContent = "t = " + t.toFixed(2); P.readT.style.fill = "var(--risk)"; }
+  }
+  function reset() {
+    prox.s = 0; prox.k = 0; prox.g = 0; prox.t = 0.04;
+    drawOct(0); drawBars(0, 0); drawSlider(0.04);
+    P.gap.style.opacity = 0; P.mEval.style.opacity = 0; P.mMin.style.opacity = 0;
+  }
+  function final() {
+    drawOct(1); drawBars(1, 1); drawSlider(0.34, "min");
+    P.gap.style.opacity = 1; P.mEval.style.opacity = 1; P.mMin.style.opacity = 1;
+  }
+
+  function play() {
+    prox = { s: 0, k: 0, g: 0, t: 0.04 };
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) { final(); return; }
+    reset();
+    tl = gsap.timeline({ repeat: -1, repeatDelay: 1.0 });
+    tl.call(reset, null, 0)
+      .to(prox, { s: 1, duration: 2.0, ease: "power2.inOut", onUpdate: () => drawOct(prox.s) }, 0.3)
+      .to(prox, { k: 1, duration: 0.9, ease: "power2.out", onUpdate: () => drawBars(prox.k, prox.g) }, 2.6)
+      .to(prox, { g: 1, duration: 0.9, ease: "power2.out", onUpdate: () => drawBars(prox.k, prox.g) }, 3.2)
+      .to(P.gap, { opacity: 1, duration: 0.4 }, 4.1)
+      .to(prox, { t: 0.152, duration: 1.1, ease: "power1.inOut", onUpdate: () => drawSlider(prox.t) }, 4.6)
+      .call(() => { drawSlider(0.152, "eval"); P.mEval.style.opacity = 1; }, null, 5.7)
+      .to(prox, { t: 0.34, duration: 1.2, ease: "power2.inOut", onUpdate: () => drawSlider(prox.t) }, 6.7)
+      .call(() => { drawSlider(0.34, "min"); P.mMin.style.opacity = 1; }, null, 7.9)
+      .to({}, { duration: 4.0 });
+  }
+  function stop() {
+    if (tl) { tl.kill(); tl = null; }
+    if (prox) gsap.killTweensOf(prox);
+    if (P) gsap.killTweensOf(P.gap);
+  }
+
+  Deck.register(ID, {
+    enter(slide) { stop(); build(slide.querySelector("#c08-ch-svg")); play(); },
+    step() {},
+    leave() { stop(); },
+  });
+})();
+</script>

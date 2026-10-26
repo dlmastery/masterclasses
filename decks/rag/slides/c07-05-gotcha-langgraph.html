@@ -1,0 +1,243 @@
+<section class="slide tight" id="rag-c07-gotcha-langgraph" data-tone="tool" data-title="Gotcha: LangGraph step limits">
+  <style>
+    #rag-c07-gotcha-langgraph .gl-main { display: grid; grid-template-columns: 760px 1fr; gap: 24px; align-items: start; }
+    #rag-c07-gotcha-langgraph .gl-left, #rag-c07-gotcha-langgraph .gl-right { gap: 10px; min-width: 0; }
+    #rag-c07-gotcha-langgraph .gotcha { font-size: 15px; line-height: 1.36; padding: 10px 16px; grid-template-columns: 82px 1fr; gap: 4px 12px; }
+    #rag-c07-gotcha-langgraph .gotcha > b { font-size: 12.5px; line-height: 1.7; }
+    #rag-c07-gotcha-langgraph .gotcha .gh { grid-column: 1 / -1; font: 700 14px/1.3 var(--f-mono); color: var(--ink); letter-spacing: .03em; margin-bottom: 2px; }
+    #rag-c07-gotcha-langgraph .gotcha .em { font: 600 13px/1.4 var(--f-mono); color: var(--risk); }
+    #rag-c07-gotcha-langgraph .code-wrap .code-head { padding: 7px 14px; font-size: 14px; }
+    #rag-c07-gotcha-langgraph pre.code.gl-c { font-size: 12px; line-height: 1.42; padding: 10px 14px 12px; }
+    #rag-c07-gotcha-langgraph .gl-cites { display: flex; gap: 10px; flex-wrap: wrap; }
+    #rag-c07-gotcha-langgraph .cite { white-space: nowrap; font-size: 13px; padding: 5px 10px 5px 8px; }
+    #rag-c07-gotcha-langgraph .gl-svg { display: block; width: 1392px; height: 150px; overflow: visible; }
+    #rag-c07-gotcha-langgraph .gl-svg text { font-family: var(--f-mono); }
+    #rag-c07-gotcha-langgraph .gl-svg .pn { fill: var(--surface); stroke: var(--line-2); stroke-width: 1; }
+    #rag-c07-gotcha-langgraph .gl-svg .hd { font-size: 12px; font-weight: 700; fill: var(--muted); letter-spacing: .05em; }
+    #rag-c07-gotcha-langgraph .gl-svg .lb { font-size: 12px; font-weight: 700; fill: var(--ink-2); }
+    #rag-c07-gotcha-langgraph .gl-svg .sm { font-size: 11.5px; font-weight: 600; fill: var(--muted); }
+    #rag-c07-gotcha-langgraph .gl-svg .big { font-size: 22px; font-weight: 700; }
+    #rag-c07-gotcha-langgraph .gl-svg .trk { fill: none; stroke: var(--line-2); stroke-width: 1; }
+    #rag-c07-gotcha-langgraph .gl-svg .tk { stroke: var(--ink-2); stroke-width: 1.4; }
+    #rag-c07-gotcha-langgraph .gl-svg .nd rect { fill: var(--tool-soft); stroke: var(--tool); stroke-width: 1.4; }
+    #rag-c07-gotcha-langgraph .gl-svg .nd text { font-size: 12px; font-weight: 700; fill: var(--tool); }
+    #rag-c07-gotcha-langgraph .gl-svg .ar { fill: none; stroke: var(--muted); stroke-width: 1.6; }
+    #rag-c07-gotcha-langgraph .gl-svg .cd { font-size: 13px; font-weight: 600; fill: var(--ink); }
+    #rag-c07-gotcha-langgraph .gl-svg .pfx { fill: var(--state); font-weight: 700; }
+    #rag-c07-gotcha-langgraph .gl-svg .chip-r rect { fill: var(--risk-soft); stroke: var(--risk); stroke-width: 1.8; }
+    #rag-c07-gotcha-langgraph .gl-svg .chip-r text { fill: var(--risk); font-size: 13px; font-weight: 700; }
+    #rag-c07-gotcha-langgraph .gl-svg .chip-g rect { fill: var(--state-soft); stroke: var(--state); stroke-width: 1.8; }
+    #rag-c07-gotcha-langgraph .gl-svg .chip-g text { fill: var(--state); font-size: 13px; font-weight: 700; }
+    #rag-c07-gotcha-langgraph .gl-svg .chip-r .s, #rag-c07-gotcha-langgraph .gl-svg .chip-g .s { font-size: 11px; font-weight: 600; }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> langgraph 1.2.17</div>
+  <h2 class="title">LangGraph now allows 10,007 steps: set recursion_limit and a counter</h2>
+  <svg class="gl-svg" id="gl-svg" viewBox="0 0 1392 150" aria-label="Panel 1, on a log scale: Lab 6's hop loop without a counter races past the old limit 25 to the new default 10,007, about 400 times further; with the hops counter it stops at the cap of 6 and answer() refuses. Panel 2: the provider chip google_vertexai flips to google_genai when the model string gets the google_genai prefix. Panel 3: an empty plan makes next() fall into a red StopIteration pit; the fallback list with the question catches it, the pit is struck through and the call reaches hop()."></svg>
+  <div class="gl-main fill">
+    <div class="stack gl-left">
+      <div class="code-wrap good">
+        <div class="code-head">lab6/lab6_guards.py · langchain 1.4.7 · langgraph 1.2.17</div>
+        <pre class="code gl-c" data-lang="python" data-focus="1:13-16, 2:3-7, 3:8-12"><code>from typing import Literal
+from langgraph.graph import StateGraph, START, END
+from langchain.chat_models import init_chat_model          # langchain==1.4.7 (Lab 6 pins)
+# importing Lab 6 builds its 6-passage store; hop() and answer() keep Lab 6's llm
+from lab6_multihop_register import Plan, State, hop, answer
+# without the "google_genai:" prefix, a gemini-* name infers google_vertexai
+llm = init_chat_model("google_genai:gemini-3.8-flash")      # used by plan() below
+def plan(s: State):
+    p = llm.with_structured_output(Plan).invoke(
+        f"Decompose into single-fact sub-questions: {s['question']}")
+    subqs = p.subquestions or [s["question"]]                # avoids StopIteration in hop()
+    return {"register": [{"q": q, "a": None, "src": None, "tries": 0} for q in subqs], "hops": 0}
+def next_step(s: State) -&gt; Literal["hop", "answer"]:
+    still_open = any(r["a"] is None for r in s["register"])
+    under_cap = s.get("hops", 0) &lt; 2 * len(s["register"])       # optional key: use .get
+    return "hop" if still_open and under_cap else "answer"
+g = StateGraph(State); g.add_node(plan); g.add_node(hop); g.add_node(answer)
+g.add_edge(START, "plan"); g.add_edge("plan", "hop")
+g.add_conditional_edges("hop", next_step, ["hop", "answer"]); g.add_edge("answer", END)
+app = g.compile()
+q = ("Who must approve a return of the jacket made by the supplier "
+     "that failed the March 2026 audit?")
+out = app.invoke({"question": q}, {"recursion_limit": 20})       # default is now 10007</code></pre>
+      </div>
+      <div class="gl-cites">
+        <a class="cite repo" href="https://github.com/langchain-ai/langgraph/tree/1.2.17/libs/langgraph/langgraph" target="_blank" rel="noopener"><b>Repo</b>&nbsp;langgraph @ 1.2.17 · _internal/_config.py</a>
+        <a class="cite doc" href="https://docs.langchain.com/oss/python/langgraph/agentic-rag" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Build a custom RAG agent</a>
+      </div>
+    </div>
+    <div class="stack gl-right">
+      <div class="gotcha" data-step="1">
+        <span class="gh">1 · The loop has no real ceiling</span>
+        <b>Symptom</b><span>A hop loop with no exit makes thousands of LLM calls.</span>
+        <b class="why">Cause</b><span>The default limit is now 10007, not 25.</span>
+        <b class="fix">Fix</b><span>Route on <code>hops</code>. Pass <code>{"recursion_limit": 20}</code> as the safety net.</span>
+      </div>
+      <div class="gotcha" data-step="2">
+        <span class="gh">2 · The provider is inferred</span>
+        <b>Symptom</b><span>Requests go to Vertex AI and fail with auth errors.</span>
+        <b class="why">Cause</b><span>A bare <code>gemini-*</code> name infers <code>google_vertexai</code>.</span>
+        <b class="fix">Fix</b><span>Add the <code>google_genai:</code> prefix, or use <code>ChatGoogleGenerativeAI</code>.</span>
+      </div>
+      <div class="gotcha" data-step="3">
+        <span class="gh">3 · Empty plans and missing keys</span>
+        <b>Symptom</b><span><span class="em">StopIteration</span> in <code>hop()</code>, or <span class="em">KeyError: 'hops'</span>.</span>
+        <b class="why">Cause</b><span>The plan is empty. <code>total=False</code> never fills a missing key.</span>
+        <b class="fix">Fix</b><span>Fall back to <code>[question]</code>. Read optional keys with <code>s.get()</code>.</span>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    In langgraph 1.2.17 the default recursion limit is 10007, read from LANGGRAPH_DEFAULT_RECURSION_LIMIT in _internal/_config.py, not 25. So Lab 6's hop loop without its counter does not fail fast when a row never resolves: it can burn thousands of LLM calls first. With a limit you get an error such as "langgraph.errors.GraphRecursionError: Recursion limit of 20 reached without hitting a stop condition. You can increase the limit by setting the recursion_limit config key." Treat the hops counter as the real guard and the recursion limit as the safety net: the cap is 2 times the register length, and recursion_limit 20 sits above the worst case of 10 steps. The chart in panel 1 is on a log scale; 25 and 10,007 are about 400 times apart. The second trap is init_chat_model with a bare Gemini name: it infers google_vertexai and warns "Inferred model_provider='google_vertexai' from ... This default will change to 'google_genai' in the next major release." Pass the google_genai prefix, or use ChatGoogleGenerativeAI as Lab 6 does. The guard file needs langchain 1.4.7, which the Lab 6 install line already pins; the new llm applies to plan() only, because hop() and answer() keep Lab 6's ChatGoogleGenerativeAI, which already talks to the Gemini API. Importing the Lab 6 module also builds its store, which costs six embedding calls. The third trap is an empty plan: next() finds no open row and raises StopIteration; and TypedDict with total=False never fills missing keys, so s["hops"] raises KeyError: 'hops' if a node reads it before plan() wrote it. Fall back to the question and read optional keys with get. Analogy: a fuse in the wall is the safety net, but you still switch off the heater when the room is warm. Next: the desk grows from six passages to the full supplier archive.
+  </aside>
+</section>
+<script>
+(() => {
+  const LOGMAX = Math.log10(10008);
+  const MX = 296, MW = 250;                     // meter x and width inside panel 1
+  const pos = (v) => MX + MW * Math.log10(v + 1) / LOGMAX;
+  let B = null, prev = -1, tweens = [];
+  const fmt = (v) => Math.round(v).toLocaleString("en-US");
+  function build(slide) {
+    const svg = slide.querySelector("#gl-svg");
+    svg.innerHTML = `
+      <g id="gl-p1">
+        <rect class="pn" x="0" y="0" width="560" height="150" rx="12"/>
+        <text class="hd" x="14" y="20">1 · STEPS UNTIL THE GRAPH STOPS</text>
+        <text class="sm" x="546" y="20" text-anchor="end">log scale</text>
+        <g class="nd"><rect x="14" y="34" width="64" height="26" rx="7"/><text x="46" y="51" text-anchor="middle">hop</text></g>
+        <path class="ar" d="M78 40 C 108 22, 108 72, 78 54"/>
+        <circle id="gl-tok" cx="100" cy="47" r="4.5" fill="var(--risk)"/>
+        <text class="lb" x="14" y="76" fill="var(--risk)">no counter</text>
+        <text class="big" id="gl-a" x="126" y="54" fill="var(--risk)">0</text>
+        <text class="sm" x="126" y="70">steps run</text>
+        <rect class="trk" x="${MX}" y="36" width="${MW}" height="16" rx="5"/>
+        <rect id="gl-am" x="${MX}" y="36" width="0" height="16" rx="5" fill="var(--risk)" opacity=".8"/>
+        <line class="tk" x1="${pos(25)}" x2="${pos(25)}" y1="30" y2="58"/>
+        <text class="sm" x="${pos(25)}" y="70" text-anchor="middle">25 · old</text>
+        <text class="sm" x="${MX + MW}" y="70" text-anchor="end">10,007 · new</text>
+        <g id="gl-x"><path d="M${pos(25) + 4} 27 L${MX + MW - 4} 27" stroke="var(--risk)" stroke-width="1.6" fill="none" marker-end="none"/>
+          <path d="M${MX + MW - 10} 23 L${MX + MW - 4} 27 L${MX + MW - 10} 31" stroke="var(--risk)" stroke-width="1.6" fill="none"/>
+          <rect x="${(pos(25) + MX + MW) / 2 - 24}" y="19" width="48" height="16" rx="8" fill="var(--risk)"/>
+          <text x="${(pos(25) + MX + MW) / 2}" y="31" text-anchor="middle" font-size="11.5" font-weight="700" fill="#fff">400×</text></g>
+        <line x1="14" x2="546" y1="86" y2="86" stroke="var(--line)" stroke-width="1"/>
+        <g class="nd"><rect x="14" y="96" width="64" height="26" rx="7"/><text x="46" y="113" text-anchor="middle">hop</text></g>
+        <path class="ar" d="M78 102 C 108 84, 108 134, 78 116"/>
+        <text class="lb" x="14" y="140" fill="var(--state)">hops &lt; 2 × rows</text>
+        <text class="big" id="gl-b" x="126" y="116" fill="var(--state)">0</text>
+        <text class="sm" x="146" y="116">hops</text>
+        <rect class="trk" x="${MX}" y="100" width="${MW}" height="16" rx="5"/>
+        <rect id="gl-bm" x="${MX}" y="100" width="0" height="16" rx="5" fill="var(--state)" opacity=".85"/>
+        <line class="tk" x1="${pos(6)}" x2="${pos(6)}" y1="94" y2="122"/>
+        <text class="sm" x="${pos(6)}" y="134" text-anchor="middle">cap 6</text>
+        <line class="tk" x1="${pos(20)}" x2="${pos(20)}" y1="94" y2="122"/>
+        <text class="sm" x="${pos(20) + 4}" y="134">limit 20</text>
+        <g id="gl-stop"><rect x="126" y="124" width="140" height="20" rx="10" fill="var(--state)"/><text x="196" y="138" text-anchor="middle" font-size="11.5" font-weight="700" fill="#fff">answer() refuses</text></g>
+      </g>
+      <g id="gl-p2">
+        <rect class="pn" x="576" y="0" width="380" height="150" rx="12"/>
+        <text class="hd" x="590" y="20">2 · PROVIDER INFERENCE</text>
+        <text class="cd" id="gl-s0" x="766" y="50" text-anchor="middle">init_chat_model("gemini-3.8-flash")</text>
+        <text class="cd" id="gl-s1" x="766" y="50" text-anchor="middle">init_chat_model("<tspan class="pfx">google_genai:</tspan>…")</text>
+        <path class="ar" d="M766 60 L 766 84"/><path d="M760 78 L 766 86 L 772 78" fill="none" stroke="var(--muted)" stroke-width="1.6"/>
+        <g id="gl-flip">
+          <g class="chip-r" id="gl-cr"><rect x="646" y="92" width="240" height="50" rx="12"/><text x="766" y="113" text-anchor="middle">google_vertexai</text><text class="s" x="766" y="132" text-anchor="middle">Vertex AI · auth error</text></g>
+          <g class="chip-g" id="gl-cg"><rect x="646" y="92" width="240" height="50" rx="12"/><text x="766" y="113" text-anchor="middle">google_genai</text><text class="s" x="766" y="132" text-anchor="middle">Gemini API · GOOGLE_API_KEY</text></g>
+        </g>
+      </g>
+      <g id="gl-p3">
+        <rect class="pn" x="972" y="0" width="420" height="150" rx="12"/>
+        <text class="hd" x="986" y="20">3 · EMPTY PLAN</text>
+        <rect x="986" y="34" width="190" height="30" rx="8" fill="var(--agent-soft)" stroke="var(--agent)" stroke-width="1.4"/>
+        <text class="cd" x="998" y="54">subquestions = [ ]</text>
+        <g id="gl-fb"><rect x="986" y="78" width="190" height="30" rx="8" fill="var(--state-soft)" stroke="var(--state)" stroke-width="1.8"/>
+          <text class="cd" x="998" y="98" fill="var(--state)">or [s["question"]]</text></g>
+        <g class="nd"><rect x="1290" y="34" width="88" height="30" rx="8"/><text x="1334" y="53" text-anchor="middle">hop()</text></g>
+        <text class="sm" x="1232" y="30" text-anchor="middle">next()</text>
+        <path id="gl-ok" d="M1176 93 C 1230 93, 1250 49, 1290 49" fill="none" stroke="var(--state)" stroke-width="2"/>
+        <g id="gl-pit"><ellipse cx="1232" cy="128" rx="70" ry="14" fill="var(--risk-soft)" stroke="var(--risk)" stroke-width="1.8"/>
+          <text x="1232" y="132" text-anchor="middle" font-size="12" font-weight="700" fill="var(--risk)">StopIteration</text></g>
+        <g id="gl-strike"><line x1="1180" x2="1284" y1="128" y2="128" stroke="var(--risk)" stroke-width="2.4"/>
+          <text x="1310" y="132" font-size="11.5" font-weight="700" fill="var(--state)">caught</text></g>
+        <circle id="gl-ball" cx="1190" cy="49" r="6" fill="var(--agent)"/>
+      </g>`;
+    const q = (s) => svg.querySelector(s);
+    B = { svg, p1: q("#gl-p1"), p2: q("#gl-p2"), p3: q("#gl-p3"), tok: q("#gl-tok"), a: q("#gl-a"), am: q("#gl-am"), b: q("#gl-b"), bm: q("#gl-bm"), stop: q("#gl-stop"), x: q("#gl-x"),
+          s0: q("#gl-s0"), s1: q("#gl-s1"), flip: q("#gl-flip"), cr: q("#gl-cr"), cg: q("#gl-cg"),
+          fb: q("#gl-fb"), ok: q("#gl-ok"), pit: q("#gl-pit"), strike: q("#gl-strike"), ball: q("#gl-ball") };
+  }
+  function setA(v) { B.a.textContent = fmt(v); B.am.setAttribute("width", pos(v) - MX); }
+  function setB(v) { B.b.textContent = fmt(v); B.bm.setAttribute("width", pos(v) - MX); }
+  function render(slide, n, animate) {
+    if (!B) build(slide);
+    tweens.forEach((t) => t.kill()); tweens = [];
+    const fwd = animate && n === prev + 1;
+    // panels stay hidden until their own click
+    gsap.set(B.p1, { opacity: n >= 1 ? 1 : 0 });
+    gsap.set(B.p2, { opacity: n >= 2 ? 1 : 0 });
+    gsap.set(B.p3, { opacity: n >= 3 ? 1 : 0 });
+    // panel 1: no counter runs to 10,007; the hops counter stops at the cap of 6
+    if (fwd && n === 1) {
+      setA(0); setB(0); gsap.set([B.stop, B.x], { opacity: 0 });
+      const o = { a: 0, b: 0 };
+      const tl = gsap.timeline();
+      tl.fromTo(B.p1, { opacity: 0 }, { opacity: 1, duration: 0.3 }, 0);
+      tl.to(o, { a: 10007, duration: 2.4, ease: "power2.in", onUpdate: () => setA(o.a) }, 0.2);
+      tl.to(B.tok, { attr: { cy: 60 }, duration: 0.2, yoyo: true, repeat: 11, ease: "sine.inOut" }, 0.2);
+      tl.to(B.x, { opacity: 1, duration: 0.3 }, 2.6);
+      tl.to(o, { b: 6, duration: 0.9, ease: "steps(6)", onUpdate: () => setB(o.b) }, 2.8);
+      tl.fromTo(B.stop, { opacity: 0, scale: 0.5, transformOrigin: "196px 134px" }, { opacity: 1, scale: 1, duration: 0.35, ease: "back.out(2)" }, 3.75);
+      tweens.push(tl);
+    } else {
+      gsap.set(B.tok, { attr: { cy: 47 } });
+      setA(n >= 1 ? 10007 : 0); setB(n >= 1 ? 6 : 0);
+      gsap.set([B.stop, B.x], { opacity: n >= 1 ? 1 : 0, scale: 1 });
+    }
+    // panel 2: the provider chip flips when the prefix is added
+    if (fwd && n === 2) {
+      gsap.set(B.s0, { opacity: 1 }); gsap.set(B.s1, { opacity: 0 });
+      gsap.set(B.cr, { opacity: 1 }); gsap.set(B.cg, { opacity: 0 });
+      gsap.set(B.flip, { scaleY: 1, transformOrigin: "766px 117px" });
+      const tl = gsap.timeline();
+      tl.fromTo(B.p2, { opacity: 0 }, { opacity: 1, duration: 0.3 });
+      tl.to(B.s0, { opacity: 0, duration: 0.25 }, "+=0.6").to(B.s1, { opacity: 1, duration: 0.3 }, "<0.1");
+      tl.to(B.flip, { scaleY: 0, duration: 0.22, ease: "power2.in" }, "+=0.15");
+      tl.set(B.cr, { opacity: 0 }).set(B.cg, { opacity: 1 });
+      tl.to(B.flip, { scaleY: 1, duration: 0.32, ease: "back.out(2)" });
+      tweens.push(tl);
+    } else {
+      const on = n >= 2;
+      gsap.set(B.flip, { scaleY: 1, transformOrigin: "766px 117px" });
+      gsap.set(B.s0, { opacity: on ? 0 : 1 }); gsap.set(B.s1, { opacity: on ? 1 : 0 });
+      gsap.set(B.cr, { opacity: on ? 0 : 1 }); gsap.set(B.cg, { opacity: on ? 1 : 0 });
+    }
+    // panel 3: next() falls into the pit; the fallback list catches it and the pit is struck through
+    if (fwd && n === 3) {
+      gsap.set(B.fb, { opacity: 0 }); gsap.set(B.ok, { opacity: 0 }); gsap.set(B.strike, { opacity: 0 });
+      gsap.set(B.ball, { attr: { cx: 1190, cy: 49 } });
+      const tl = gsap.timeline();
+      tl.fromTo(B.p3, { opacity: 0 }, { opacity: 1, duration: 0.3 });
+      tl.to(B.ball, { attr: { cx: 1232 }, duration: 0.35, ease: "power1.out" });
+      tl.to(B.ball, { attr: { cy: 122 }, duration: 0.45, ease: "power2.in" });
+      tl.to(B.pit, { scale: 1.08, transformOrigin: "1232px 128px", duration: 0.12, yoyo: true, repeat: 1 });
+      tl.set(B.ball, { attr: { cx: 1176, cy: 93 } });
+      tl.fromTo(B.fb, { opacity: 0, x: -20 }, { opacity: 1, x: 0, duration: 0.35, ease: "power3.out" });
+      tl.fromTo(B.strike, { opacity: 0 }, { opacity: 1, duration: 0.3 }, "<");
+      tl.to(B.ok, { opacity: 1, duration: 0.3 });
+      tl.to(B.ball, { attr: { cx: 1290, cy: 49 }, duration: 0.5, ease: "power2.inOut" }, "<");
+      tweens.push(tl);
+    } else {
+      const on = n >= 3;
+      gsap.set(B.fb, { opacity: on ? 1 : 0, x: 0 }); gsap.set(B.ok, { opacity: on ? 1 : 0 });
+      gsap.set(B.strike, { opacity: on ? 1 : 0 }); gsap.set(B.pit, { scale: 1 });
+      gsap.set(B.ball, { attr: on ? { cx: 1290, cy: 49 } : { cx: 1190, cy: 49 } });
+    }
+    prev = n;
+  }
+  Deck.register("rag-c07-gotcha-langgraph", {
+    enter(slide, step) { prev = -1; B = null; render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { tweens.forEach((t) => t.kill()); tweens = []; if (B) gsap.killTweensOf([B.tok, B.stop, B.x, B.s0, B.s1, B.flip, B.cr, B.cg, B.fb, B.ok, B.pit, B.strike, B.ball, B.p1, B.p2, B.p3]); prev = -1; }
+  });
+})();
+</script>

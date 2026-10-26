@@ -1,0 +1,124 @@
+<section class="slide chapter" id="custom-c03-chapter" data-tone="model" data-title="Ch 3: QLoRA and honest before/after evaluation">
+  <style>
+    #custom-c03-chapter .c03-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    #custom-c03-chapter .c03-eyebrow { font: 600 16px/1 var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--model); margin-bottom: -14px; }
+    #custom-c03-chapter .lede { margin-top: -8px; }
+    #custom-c03-chapter svg { margin-bottom: 4px; }
+    #custom-c03-chapter .ch-num { opacity: .5; }
+  </style>
+  <div class="ch-num" data-fx="blur">03</div>
+  <svg id="c03-ch-svg" viewBox="0 0 1100 330" width="1100" height="330" aria-label="A solid bf16 weight block (16 bits per weight, about 8.1 GB) stays on the left. A copy of its cells flies right and packs into an NF4 block that is four times narrower (4 bits per weight, about 2.3 GB). A small coral LoRA adapter with an on/off switch sits beside the NF4 block."></svg>
+  <div class="c03-eyebrow">QLoRA and honest before/after evaluation</div>
+  <h2 class="display">QLoRA, then prove it</h2>
+  <p class="lede" data-fx="up">A 4B model fits a 16 GB GPU in NF4. The adapter counts only when the same weights score better with it on.</p>
+  <div class="c03-row" data-fx="stagger">
+    <span class="tag t-model">Qwen3-4B · NF4 · LoRA r=16</span>
+  </div>
+  <aside class="notes">This chapter is Lab 2: the Acme claims desk wants free-text adjuster notes turned into strict JSON with four keys: loss_type, severity, needs_adjuster and policy_section. The picture shows the plan. The bf16 weights use 16 bits per weight, about 8.1 GB for 4.06 billion parameters. We load the same weights in 4-bit NF4, about 2.3 GB (not exactly a quarter, because some parts such as the quantization constants are extra), so the frozen base fits a 16 GB GPU. Beside it sits the LoRA adapter: a small folder with adapter_model.safetensors and adapter_config.json that loads on top of the base, and that we can switch on and off. Then comes the honest part: we score the same quantized weights twice, once with the adapter off and once with it on, so quantization noise is identical in both arms. Analogy: a clinical trial where the control group takes the same pill without the active ingredient. Likely question: "Why not compare against the bf16 base?" Because then you measure quantization and the adapter together, and you cannot tell which one moved the number.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c03-chapter";
+  const COLS = 8, ROWS = 5, PITCH = 40, CELL = 32, BX = 20, BY = 64;   // bf16 block (solid, stays)
+  const QX = 560, QPITCH = PITCH / 4, QCELL = CELL / 4;                 // NF4 block: 4x narrower
+  const AX = 760;                                                       // adapter x
+  let tl = null, P = null;
+
+  const el = (parent, tag, attrs, style, text) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (style) Object.assign(e.style, style);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  };
+  const mono = (w, s) => `${w} ${s}px var(--f-mono)`;
+  const shade = (r, c) => 0.35 + ((r * 7 + c * 5) % 9) / 14;            // deterministic texture
+
+  function build(svg) {
+    svg.innerHTML = "";
+    const H = ROWS * PITCH - (PITCH - CELL);
+    // bf16 block: solid cells that never move
+    el(svg, "text", { x: BX, y: BY - 24 }, { font: mono(700, 20), fill: "var(--ink)" }, "base W · bf16");
+    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++)
+      el(svg, "rect", { x: BX + c * PITCH, y: BY + r * PITCH, width: CELL, height: CELL, rx: 5 }, { fill: "var(--agent)", opacity: shade(r, c) });
+    el(svg, "text", { x: BX, y: BY + H + 36 }, { font: mono(600, 18), fill: "var(--muted)" }, "16 bits / weight · ≈ 8.1 GB");
+    // arrow
+    const arrow = el(svg, "g", {});
+    el(arrow, "line", { x1: 362, y1: BY + H / 2, x2: 520, y2: BY + H / 2 }, { stroke: "var(--ink-2)", strokeWidth: 3 });
+    el(arrow, "path", { d: `M520 ${BY + H / 2 - 10} L536 ${BY + H / 2} L520 ${BY + H / 2 + 10} Z` }, { fill: "var(--ink-2)" });
+    el(arrow, "text", { x: 446, y: BY + H / 2 - 16, "text-anchor": "middle" }, { font: mono(700, 18), fill: "var(--ink)" }, "16 → 4 bits");
+    // flying copy -> NF4 block
+    const fly = [];
+    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++)
+      fly.push({ r, c, e: el(svg, "rect", { x: BX + c * PITCH, y: BY + r * PITCH, width: CELL, height: CELL, rx: 4 }, { fill: "var(--agent)", opacity: 0 }) });
+    const qlab = el(svg, "g", {});
+    el(qlab, "text", { x: QX, y: BY - 24 }, { font: mono(700, 20), fill: "var(--ink)" }, "W · NF4");
+    el(qlab, "text", { x: QX, y: BY + H + 36 }, { font: mono(600, 18), fill: "var(--muted)" }, "4 bits · ≈ 2.3 GB");
+    // plus + LoRA adapter
+    el(svg, "text", { x: 700, y: BY + H / 2 + 10, "text-anchor": "middle" }, { font: mono(700, 34), fill: "var(--muted)" }, "+");
+    const ad = el(svg, "g", {});
+    const glow = [AX, AX + 40].map((x) => {
+      el(ad, "rect", { x, y: BY, width: 26, height: H, rx: 8 }, { fill: "var(--model-soft)", stroke: "var(--model)", strokeWidth: 2.5 });
+      return el(ad, "rect", { x, y: BY, width: 26, height: H, rx: 8 }, { fill: "var(--model)", opacity: 0 });
+    });
+    el(ad, "text", { x: AX + 33, y: BY - 24, "text-anchor": "middle" }, { font: mono(700, 20), fill: "var(--model)" }, "LoRA");
+    el(svg, "text", { x: AX + 110, y: BY + 40 }, { font: mono(600, 17), fill: "var(--ink-2)" }, "adapter folder:");
+    el(svg, "text", { x: AX + 110, y: BY + 66 }, { font: mono(500, 16), fill: "var(--muted)" }, "adapter_model.safetensors");
+    el(svg, "text", { x: AX + 110, y: BY + 90 }, { font: mono(500, 16), fill: "var(--muted)" }, "adapter_config.json");
+    el(svg, "text", { x: AX + 110, y: BY + 124 }, { font: mono(600, 16), fill: "var(--model)" }, "loads on top of the base");
+    // switch
+    const sw = el(svg, "g", {});
+    const track = el(sw, "rect", { x: AX - 8, y: BY + H + 14, width: 82, height: 36, rx: 18 }, { fill: "var(--surface)", stroke: "var(--line-2)", strokeWidth: 2 });
+    const knob = el(sw, "circle", { cx: AX + 10, cy: BY + H + 32, r: 13 }, { fill: "var(--muted)" });
+    const swTxt = el(sw, "text", { x: AX + 88, y: BY + H + 39 }, { font: mono(700, 18), fill: "var(--muted)" }, "OFF");
+    P = { fly, arrow, qlab, ad, glow, track, knob, swTxt };
+  }
+
+  function setSwitch(on) {
+    const p = P;
+    p.knob.setAttribute("cx", on ? AX + 56 : AX + 10);
+    p.knob.style.fill = on ? "var(--model)" : "var(--muted)";
+    p.track.style.stroke = on ? "var(--model)" : "var(--line-2)";
+    p.track.style.fill = on ? "var(--model-soft)" : "var(--surface)";
+    p.swTxt.textContent = on ? "ON" : "OFF";
+    p.swTxt.style.fill = on ? "var(--model)" : "var(--muted)";
+    p.ad.style.opacity = on ? 1 : 0.45;
+  }
+
+  function play() {
+    const p = P;
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    tl = gsap.timeline({ repeat: reduce ? 0 : -1, repeatDelay: 1.2 });
+    p.fly.forEach((c) => tl.set(c.e, { attr: { x: BX + c.c * PITCH, width: CELL }, opacity: 0 }, 0));
+    tl.set([p.arrow, p.qlab], { opacity: 0 }, 0).set(p.glow, { opacity: 0 }, 0).call(() => setSwitch(false), null, 0);
+    // 1) a copy of the bf16 cells packs into the 4x narrower NF4 block; the bf16 block stays solid
+    tl.to(p.arrow, { opacity: 1, duration: 0.4 }, 0.5);
+    p.fly.forEach((c, i) => {
+      tl.set(c.e, { opacity: shade(c.r, c.c) }, 0.8);
+      tl.to(c.e, { attr: { x: QX + c.c * QPITCH, width: QCELL }, duration: 1.0, ease: "power3.inOut" }, 0.8 + (i % COLS) * 0.05);
+    });
+    tl.to(p.qlab, { opacity: 1, duration: 0.4 }, 1.9);
+    // 2) adapter on / off / on
+    tl.call(() => setSwitch(true), null, 3.0).to(p.glow, { opacity: 0.6, duration: 0.25, yoyo: true, repeat: 1 }, 3.0);
+    tl.call(() => setSwitch(false), null, 5.0);
+    tl.call(() => setSwitch(true), null, 6.5).to(p.glow, { opacity: 0.6, duration: 0.25, yoyo: true, repeat: 1 }, 6.5).to({}, { duration: 2.0 });
+    if (reduce) tl.progress(1);
+  }
+
+  Deck.register(ID, {
+    enter(slide) {
+      if (tl) tl.kill();
+      build(slide.querySelector("#c03-ch-svg"));
+      play();
+    },
+    step() {},
+    leave() {
+      if (tl) tl.kill();
+      tl = null;
+      if (P) gsap.killTweensOf([...P.fly.map((c) => c.e), P.arrow, P.qlab, ...P.glow]);
+    },
+  });
+})();
+</script>

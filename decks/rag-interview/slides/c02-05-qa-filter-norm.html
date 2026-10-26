@@ -1,0 +1,226 @@
+<section class="slide" id="rag-interview-c02-qa-filter-norm" data-tone="state" data-title="Filtered top-k and normalisation">
+  <style>
+    #rag-interview-c02-qa-filter-norm .mf-grid { display: grid; grid-template-columns: 560px 1fr; gap: 28px; align-items: start; }
+    #rag-interview-c02-qa-filter-norm .qa-col { display: flex; flex-direction: column; gap: 26px; }
+    #rag-interview-c02-qa-filter-norm .qa { gap: 10px; transition: opacity .4s; }
+    #rag-interview-c02-qa-filter-norm .qa.dim { opacity: 0.4; }
+    #rag-interview-c02-qa-filter-norm .qa .q { font-size: 23px; }
+    #rag-interview-c02-qa-filter-norm .qa .a { font-size: 19px; line-height: 1.42; padding: 11px 16px; }
+    #rag-interview-c02-qa-filter-norm .qa .a code { font-size: 16px; }
+    #rag-interview-c02-qa-filter-norm .qa .a .big { display: block; margin-top: 6px; font: 700 20px/1.3 var(--f-display); color: var(--ink); }
+    #rag-interview-c02-qa-filter-norm .right { display: grid; gap: 12px; }
+    #rag-interview-c02-qa-filter-norm svg.viz { width: 804px; height: 300px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+    #rag-interview-c02-qa-filter-norm .slot { display: grid; }
+    #rag-interview-c02-qa-filter-norm .slot > * { grid-area: 1 / 1; align-self: start; }
+    #rag-interview-c02-qa-filter-norm pre.code { font-size: 16px; line-height: 1.5; padding: 10px 16px 12px; }
+    #rag-interview-c02-qa-filter-norm .code-wrap .code-head { padding: 7px 14px; font-size: 14px; }
+    #rag-interview-c02-qa-filter-norm code, #rag-interview-c02-qa-filter-norm pre.code, #rag-interview-c02-qa-filter-norm pre.code code { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #rag-interview-c02-qa-filter-norm .cites { gap: 8px; }
+    #rag-interview-c02-qa-filter-norm .cite { font-size: 14px; padding: 5px 9px 5px 7px; flex-direction: row; gap: 6px; border-radius: 10px; }
+  </style>
+  <div class="kicker">Interview · Filters and normalisation</div>
+  <h2 class="title">Filters and unnormalised vectors return wrong rows without an error</h2>
+  <div class="mf-grid fill">
+    <div class="qa-col">
+      <div class="qa" data-on="3:dim">
+        <div class="q">A filtered top-10 in pgvector returns only 4 rows. Why?</div>
+        <div class="a" data-step="1">The filter runs <b>after</b> the index scan: 40 candidates (<code>ef_search</code>) × 10% match = 4 rows.</div>
+        <div class="a" data-step="2"><b>Fix:</b> <code>SET LOCAL hnsw.iterative_scan</code> (0.8.0+). Assert rowcount == LIMIT.</div>
+      </div>
+      <div class="qa">
+        <div class="q">Why do cosine and dot-product rankings disagree after truncation?</div>
+        <div class="a" data-step="3">Request <code>output_dimensionality=768</code> from 001 and the vector is not unit length. Normalise it yourself. embedding-2 normalises for you.
+          <span class="big">Inner product = cosine only for unit vectors.</span></div>
+      </div>
+    </div>
+    <div class="right">
+      <svg class="viz" id="fn-svg" viewBox="0 0 804 300" aria-label="A filtered HNSW beam of 40 candidates keeps 4 matching rows; iterative scan keeps going to 10; then vector length versus angle before and after normalisation"></svg>
+      <div class="slot">
+        <div class="code-wrap" data-step="2" data-until="3">
+          <div class="code-head">search.py · pip install "psycopg[binary]==3.3.6" pgvector==0.5.1 numpy</div>
+          <pre class="code" data-lang="python" data-focus="2:9-11"><code>import os, numpy as np, psycopg
+from pgvector.psycopg import register_vector
+conn = psycopg.connect(os.environ["PG_DSN"])  # postgresql://u:pw@host/rag
+register_vector(conn)
+q = np.random.default_rng(0).standard_normal(768).astype("float32")  # demo
+TENANT = 42                            # the caller's tenant, from auth
+SQL = ("SELECT id FROM claim_chunks WHERE tenant_id = %s"
+       " ORDER BY embedding &lt;=&gt; %s LIMIT 10")
+with conn.transaction():               # SET LOCAL ends at commit
+    conn.execute("SET LOCAL hnsw.iterative_scan = relaxed_order")
+    rows = conn.execute(SQL, (TENANT, q)).fetchall()
+assert len(rows) == 10, f"filtered top-10 returned {len(rows)} rows"
+print(len(rows), "rows")               # expected: 10 rows</code></pre>
+        </div>
+        <div class="code-wrap" data-step="3">
+          <div class="code-head">normalize.py · pip install faiss-cpu==1.15.1 google-genai==2.33.0 · GEMINI_API_KEY</div>
+          <pre class="code" data-lang="python"><code>import faiss, numpy as np
+from google import genai
+from google.genai import types
+r = genai.Client().models.embed_content(model="gemini-embedding-001",
+    contents=["Refund not received", "Login loop after Okta SSO"],
+    config=types.EmbedContentConfig(output_dimensionality=768))
+xb = np.array([e.values for e in r.embeddings], dtype=np.float32)
+print(np.linalg.norm(xb, axis=1))      # not 1.0: 001 below 3,072 dims
+faiss.normalize_L2(xb)                 # in place: inner product == cosine
+assert np.allclose(np.linalg.norm(xb, axis=1), 1.0, atol=1e-3)
+# do the same to every query; in pgvector use vector_cosine_ops</code></pre>
+        </div>
+      </div>
+      <div class="cites">
+        <a class="cite repo" href="https://github.com/pgvector/pgvector/blob/master/README.md#filtering" target="_blank" rel="noopener"><b>pgvector</b>&nbsp;README · Filtering</a>
+        <a class="cite doc" href="https://github.com/facebookresearch/faiss/wiki/MetricType-and-distances" target="_blank" rel="noopener"><b>Faiss wiki</b>&nbsp;MetricType and distances</a>
+        <a class="cite doc" href="https://ai.google.dev/gemini-api/docs/embeddings" target="_blank" rel="noopener"><b>Gemini API</b>&nbsp;Embeddings</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Ask each question and give the room twenty seconds before you reveal the answer. Q1 is the most common pgvector surprise. The pgvector README says: "If a condition matches 10% of rows, with HNSW and the default hnsw.ef_search of 40, only 4 rows will match on average." The index returns its beam of 40 candidates first, and the WHERE clause runs on that beam afterwards. Iterative scan (pgvector 0.8.0 and later) keeps scanning until LIMIT rows match or hnsw.max_scan_tuples (default 20,000) is reached; in the animation it scans about 100 tuples to find 10 matches. relaxed_order can return rows slightly out of order, so re-sort in an outer query or use strict_order. SET LOCAL lasts only for the transaction, which is why the query sits inside conn.transaction(); that is also safe with connection pools. Q2: if you request output_dimensionality=768 from gemini-embedding-001, the returned vector is not unit length, so inner product ranks by length as well as by angle. Call faiss.normalize_L2 on data and queries, or use vector_cosine_ops in pgvector. gemini-embedding-2 normalises truncated output itself. Likely follow-up: "How would you catch this in CI?" Assert unit norm on a sample at write time, and assert rowcount == LIMIT on filtered queries.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "rag-interview-c02-qa-filter-norm";
+  let tweens = [], shown = -1;
+
+  function el(p, tag, attrs, style) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (style) Object.assign(e.style, style);
+    p.appendChild(e);
+    return e;
+  }
+  function text(p, x, y, s, o = {}) {
+    const t = el(p, "text", { x, y, "text-anchor": o.anchor || "middle" },
+      { fill: o.fill || "var(--ink-2)", fontFamily: o.font || "var(--f-mono)", fontSize: (o.size || 18) + "px", fontWeight: o.w || 500 });
+    t.textContent = s;
+    return t;
+  }
+  const T = (tw) => { tweens.push(tw); return tw; };
+  function kill() { tweens.forEach((t) => t.kill()); tweens = []; }
+
+  // ---------- steps 0-2: ef_search beam, post-filter, iterative scan ----------
+  function beam(svg, n, animate) {
+    const COLS = 20, GX = 25, GY = 36, X0 = 30, Y0 = 70;
+    const match = (i) => i % 10 === 3;                     // 10% of rows pass the tenant_id filter
+    const dots = Array.from({ length: 100 }, (_, i) => el(svg, "circle", { cx: X0 + (i % COLS) * GX, cy: Y0 + Math.floor(i / COLS) * GY, r: 7.5 },
+      { fill: match(i) ? "var(--state)" : "var(--line-2)", opacity: match(i) ? 1 : 0.35 }));
+    el(svg, "circle", { cx: X0, cy: 278, r: 7.5 }, { fill: "var(--state)" });
+    text(svg, X0 + 16, 284, "row of tenant 42 (10% of rows)", { anchor: "start", size: 18, fill: "var(--ink-2)", w: 600 });
+    if (n < 1) {
+      text(svg, X0 - 12, 32, "100 rows in claim_chunks, ordered by distance", { anchor: "start", size: 18, fill: "var(--ink)", w: 700 });
+      text(svg, 666, 130, "top-10 for", { size: 18, fill: "var(--ink-2)" });
+      text(svg, 666, 160, "tenant 42 = ?", { size: 22, fill: "var(--ink)", w: 700 });
+      return;
+    }
+    text(svg, X0 - 12, 32, "dashed box = 40 candidates from HNSW (ef_search 40)", { anchor: "start", size: 18, fill: "var(--agent)", w: 700 });
+    el(svg, "rect", { x: X0 - 16, y: Y0 - 17, width: COLS * GX + 6, height: GY + 34, rx: 10 }, { fill: "none", stroke: "var(--agent)", strokeWidth: 2.5, strokeDasharray: "6 5" });
+    const RX = 666;
+    text(svg, RX, 50, "default scan", { size: 18, fill: "var(--muted)" });
+    const dflt = text(svg, RX, 96, "4 / 10", { size: 44, fill: "var(--risk)", w: 700 });
+    const itl = text(svg, RX, 158, "iterative scan", { size: 18, fill: "var(--muted)" });
+    const cnt = text(svg, RX, 204, "10 / 10", { size: 44, fill: "var(--state)", w: 700 });
+    const scanned = text(svg, RX, 236, "scanned 100 rows", { size: 17, fill: "var(--ink-2)", w: 600 });
+    const until = text(svg, RX, 258, "until 10 matched", { size: 17, fill: "var(--ink-2)", w: 600 });
+    const outside = dots.slice(40);
+    if (n === 1) {
+      outside.forEach((d) => gsap.set(d, { opacity: 0.12, fill: "var(--line-2)" }));
+      gsap.set([itl, cnt, scanned, until], { opacity: 0 });
+      if (animate) {
+        const inBox = dots.slice(0, 40);
+        gsap.set(inBox, { opacity: 0.15 }); gsap.set(dflt, { opacity: 0 });
+        T(gsap.to(inBox.filter((_, i) => !match(i)), { opacity: 0.35, duration: 0.3, stagger: 0.01 }));
+        T(gsap.to(inBox.filter((_, i) => match(i)), { opacity: 1, attr: { r: 9 }, duration: 0.35, stagger: 0.15, delay: 0.5 }));
+        T(gsap.to(dflt, { opacity: 1, duration: 0.3, delay: 1.2 }));
+      }
+      return;
+    }
+    if (!animate) return;
+    // n === 2: the scan goes past the box and counts up to 10
+    gsap.set([itl, cnt, scanned, until], { opacity: 1 });
+    outside.forEach((d) => gsap.set(d, { opacity: 0.12, fill: "var(--line-2)" }));
+    cnt.textContent = "4 / 10"; cnt.style.fill = "var(--risk)"; scanned.textContent = "scanned 40 rows";
+    let found = 4;
+    for (let i = 40; i < 100; i++) {
+      const t = 0.4 + (i - 40) * 0.035;
+      T(gsap.to(dots[i], { opacity: match(i) ? 1 : 0.35, duration: 0.2, delay: t,
+        onStart: () => { dots[i].style.fill = match(i) ? "var(--state)" : "var(--line-2)"; },
+        onComplete: () => {
+          scanned.textContent = "scanned " + (i + 1) + " rows";
+          if (match(i)) { found += 1; cnt.textContent = found + " / 10"; if (found === 10) cnt.style.fill = "var(--state)"; }
+        } }));
+    }
+  }
+
+  // ---------- step 3: length vs angle, then normalize_L2 ----------
+  const O = [60, 272], R = 180, QA = 40;
+  const DOCS = [{ id: "A", ang: 50, len: 0.6, c: "var(--state)" }, { id: "B", ang: 70, len: 1.25, c: "var(--tool)" }];
+  const tip = (ang, len) => [O[0] + Math.cos(ang * Math.PI / 180) * R * len, O[1] - Math.sin(ang * Math.PI / 180) * R * len];
+  const dot = (d, len) => len * Math.cos((d.ang - QA) * Math.PI / 180);
+  function norms(svg, animate) {
+    el(svg, "path", { d: `M ${O[0] + R} ${O[1]} A ${R} ${R} 0 0 0 ${O[0]} ${O[1] - R}` }, { fill: "none", stroke: "var(--line-2)", strokeWidth: 1.5, strokeDasharray: "4 4" });
+    text(svg, O[0] + R + 8, O[1] - 4, "|v| = 1", { anchor: "start", size: 17, fill: "var(--muted)" });
+    const [qx, qy] = tip(QA, 1);
+    el(svg, "line", { x1: O[0], y1: O[1], x2: qx, y2: qy }, { stroke: "var(--human)", strokeWidth: 4 });
+    text(svg, qx + 8, qy + 16, "query", { anchor: "start", size: 18, fill: "var(--human)", w: 700 });
+    DOCS.forEach((d) => {
+      const [gx, gy] = tip(d.ang, d.len);
+      el(svg, "line", { x1: O[0], y1: O[1], x2: gx, y2: gy }, { stroke: d.c, strokeWidth: 2, strokeDasharray: "4 4", opacity: 0.4 });
+    });
+    const lab = (d, len) => { const [x, y] = tip(d.ang, len); return [x - 18, y - 4]; };
+    const vecs = DOCS.map((d) => {
+      const [x, y] = tip(d.ang, animate ? d.len : 1);
+      const ln = el(svg, "line", { x1: O[0], y1: O[1], x2: x, y2: y }, { stroke: d.c, strokeWidth: 4 });
+      const [lx, ly] = lab(d, animate ? d.len : 1);
+      const lb = text(svg, lx, ly, d.id, { size: 20, fill: d.c, w: 700, anchor: "end" });
+      return { d, ln, lb };
+    });
+    text(svg, 14, 28, "raw: |A| = 0.60, |B| = 1.25", { anchor: "start", size: 18, fill: "var(--ink-2)", w: 700 });
+    // ranking panels: header, verdict on its own line, then the bars
+    const PX = 400, BW = 250;
+    const panel = (y0, title, verdict, vc, vals) => {
+      text(svg, PX, y0, title, { anchor: "start", size: 18, fill: "var(--ink)", w: 700 });
+      const v = text(svg, PX, y0 + 24, verdict, { anchor: "start", size: 18, fill: vc, w: 700 });
+      const order = vals.slice().sort((a, b) => b.v - a.v);
+      const bars = order.map((o, r) => {
+        const y = y0 + 38 + r * 32;
+        text(svg, PX, y + 19, (r + 1) + ". " + o.d.id, { anchor: "start", size: 18, fill: o.d.c, w: 700 });
+        const bar = el(svg, "rect", { x: PX + 52, y, width: animate ? 0 : BW * o.v / 1.1, height: 24, rx: 5 }, { fill: o.d.c, opacity: 0.85 });
+        const val = text(svg, PX + 60 + BW * o.v / 1.1, y + 19, o.v.toFixed(2), { anchor: "start", size: 17, fill: "var(--ink-2)", w: 700 });
+        return { bar, val, w: BW * o.v / 1.1 };
+      });
+      return { v, bars };
+    };
+    const raw = panel(28, "raw inner product", "B wins by length", "var(--risk)", DOCS.map((d) => ({ d, v: dot(d, d.len) })));
+    const fix = panel(160, "after normalize_L2", "A wins by angle (= cosine)", "var(--state)", DOCS.map((d) => ({ d, v: dot(d, 1) })));
+    text(svg, 790, 292, "illustrative vectors", { anchor: "end", size: 15, fill: "var(--muted)" });
+    if (!animate) return;
+    gsap.set([fix.v, ...fix.bars.map((f) => f.val)], { opacity: 0 });
+    raw.bars.forEach((r, i) => T(gsap.to(r.bar, { attr: { width: r.w }, duration: 0.7, delay: 0.2 + i * 0.15 })));
+    T(gsap.fromTo([raw.v, ...raw.bars.map((r) => r.val)], { opacity: 0 }, { opacity: 1, duration: 0.3, delay: 0.8 }));
+    vecs.forEach(({ d, ln, lb }) => {
+      const [x, y] = tip(d.ang, 1), [lx, ly] = lab(d, 1);
+      T(gsap.to(ln, { attr: { x2: x, y2: y }, duration: 0.8, delay: 1.4, ease: "power2.inOut" }));
+      T(gsap.to(lb, { attr: { x: lx, y: ly }, duration: 0.8, delay: 1.4, ease: "power2.inOut" }));
+    });
+    fix.bars.forEach((f, i) => T(gsap.to(f.bar, { attr: { width: f.w }, duration: 0.7, delay: 2.3 + i * 0.15 })));
+    T(gsap.to([fix.v, ...fix.bars.map((f) => f.val)], { opacity: 1, duration: 0.3, delay: 2.9 }));
+  }
+
+  function render(slide, n, animate) {
+    const svg = slide.querySelector("#fn-svg");
+    if (!svg) return;
+    slide.querySelectorAll(".qa .a[data-step]").forEach((a) => { a.style.display = n >= +a.dataset.step ? "" : "none"; });
+    kill();
+    svg.innerHTML = "";
+    shown = n;
+    if (n <= 2) beam(svg, n, animate);
+    else norms(svg, animate);
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { if (shown !== step) render(slide, step, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { kill(); shown = -1; }
+  });
+})();
+</script>

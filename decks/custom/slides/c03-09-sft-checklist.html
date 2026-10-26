@@ -1,0 +1,153 @@
+<section class="slide" id="custom-c03-sft-checklist" data-tone="model" data-title="SFT checklist">
+  <div class="kicker">Best practices</div>
+  <h2 class="title">Ten SFT rules that each prevent a failure we saw in code</h2>
+  <div class="grid fill" style="grid-template-columns:1fr 540px;gap:32px">
+    <div class="stack" style="gap:20px">
+      <div class="sc-cols">
+        <ul class="checks sc-list" data-step="1" data-fx="stagger">
+          <li><span><b>Pin versions; pass <code>dtype</code>.</b><span class="sc-why">The float32 default doubles memory.</span></span></li>
+          <li><span><b>Prove the mask in CI.</b><span class="sc-why">Fail on <code>sum(mask)==0</code> or no stop token.</span></span></li>
+          <li><span><b><code>target_modules="all-linear"</code></b><span class="sc-why">Qwen3/Llama/Gemma3 default: q, v only.</span></span></li>
+          <li><span><b>LR 1e-4 to 2e-4; set alpha.</b><span class="sc-why">Three tools, three defaults (below).</span></span></li>
+          <li><span><b>QLoRA: <code>nf4</code>; merge into bf16.</b><span class="sc-why">Default is fp4; 4-bit merges drift.</span></span></li>
+        </ul>
+        <ul class="checks sc-list" data-step="2" data-fx="stagger">
+          <li><span><b>Select checkpoints on the task.</b><span class="sc-why">Beats NLL by 0.71-0.85 pp; gate on adapter on/off.</span></span></li>
+          <li class="no"><span><b>Do not SFT new facts.</b><span class="sc-why">Hallucination rises (2608.30987); use RAG.</span></span></li>
+          <li><span><b>Same think block in train and serve.</b><span class="sc-why">Vertex: <code>thinking_level</code> MINIMAL.</span></span></li>
+          <li><span><b>Serve with multi-LoRA.</b><span class="sc-why">Merge only for GGUF or edge.</span></span></li>
+          <li><span><b>Managed: check the limits.</b><span class="sc-why">us/eu, 5,000 val cap, no SLA.</span></span></li>
+        </ul>
+      </div>
+      <div class="sc-bottom">
+        <div class="panel k-model tight" data-step="4" data-fx="up" style="padding:12px 16px">
+          <svg id="sc-defaults" viewBox="0 0 480 236" width="480" height="236"></svg>
+        </div>
+        <div class="steps-rail sc-rail">
+          <div data-step="3"><span><code>assistant_only_loss</code>: loss on replies only. Lab 1 proves it.</span></div>
+          <div data-step="4"><span><code>all-linear</code>, and set alpha: the defaults differ by tool.</span></div>
+          <div data-step="5"><span><code>warmup_steps: 0.03</code> is a ratio. <code>warmup_ratio</code> raises TypeError in v5.</span></div>
+        </div>
+      </div>
+      <div class="row push sc-cites" style="gap:6px;flex-wrap:nowrap">
+        <a class="cite doc" href="https://huggingface.co/docs/trl/sft_trainer" target="_blank" rel="noopener"><b>TRL</b>&nbsp;SFT Trainer</a>
+        <a class="cite repo" href="https://github.com/huggingface/trl/tree/v1.16.0" target="_blank" rel="noopener"><b>Repo</b>&nbsp;trl v1.16.0</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2609.36569" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2609.36569</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2608.30987" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2608.30987</a>
+      </div>
+    </div>
+
+    <div class="stack" style="gap:14px">
+      <div class="code-wrap" data-step="3" data-fx="right">
+        <div class="code-head">refund_sft.yaml · Lab 1 config · trl 1.16.0</div>
+        <pre class="code xs" data-lang="yaml" data-focus="3:7, 4:10-12, 5:17"><code># refund_sft.yaml  - consumed by `trl sft --config`
+model_name_or_path: Qwen/Qwen3-0.6B
+dtype: bfloat16
+dataset_name: refund_msgs
+dataset_train_split: train
+dataset_test_split: test
+assistant_only_loss: true
+packing: true
+max_length: 1024
+use_peft: true
+lora_target_modules: all-linear  # not q,v only
+lora_dropout: 0.05
+num_train_epochs: 2
+per_device_train_batch_size: 8
+gradient_accumulation_steps: 2
+lr_scheduler_type: cosine
+warmup_steps: 0.03
+eval_strategy: steps
+eval_steps: 50
+logging_steps: 10
+report_to: none</code></pre>
+      </div>
+    </div>
+  </div>
+  <style>
+    #custom-c03-sft-checklist .sc-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+    #custom-c03-sft-checklist .sc-list { gap: 13px; }
+    #custom-c03-sft-checklist .sc-list li { font-size: 18px; line-height: 1.32; }
+    #custom-c03-sft-checklist .sc-list b { display: block; color: var(--ink); font-weight: 600; }
+    #custom-c03-sft-checklist .sc-list code { font-size: .86em; }
+    #custom-c03-sft-checklist .sc-why { display: block; font-size: 15.5px; color: var(--muted); }
+    #custom-c03-sft-checklist .sc-bottom { display: grid; grid-template-columns: 512px 1fr; gap: 22px; align-items: start; }
+    #custom-c03-sft-checklist .sc-rail > * { font-size: 16px; line-height: 1.38; }
+    #custom-c03-sft-checklist .sc-rail code { font-size: .86em; }
+    #custom-c03-sft-checklist .sc-cites .cite { flex: none; white-space: nowrap; }
+    #custom-c03-sft-checklist .sc-cites .cite.paper { flex-direction: row; gap: 10px; padding: 8px 14px 8px 10px; border: 1px solid var(--line); border-radius: 10px; }
+  </style>
+  <aside class="notes">Each rule on this slide maps to a bug we hit in the labs, so read it as a pre-flight list, not as theory. The first five protect the training run: pin the stack, prove the mask in CI, target all linear layers, set alpha yourself, and use nf4 explicitly because the transformers default is fp4. The next five protect the release: pick checkpoints on the task metric, keep facts in RAG, keep one think-block convention, serve adapters with multi-LoRA, and read the managed-tuning limits. The table is the reason for rule four: TRL CLI, PEFT and Unsloth ship different alpha defaults, so "r=16" gives an update scale of 2.0, 0.5 or 1.0 depending on the tool. Think of it like a recipe that says "one cup" when three kitchens use three cup sizes. A likely question: "Why not just pick the lowest eval loss?" Answer: the lowest-loss checkpoint is often not the best task score, which is why Lab 2 gates on the adapter off/on delta, and 2609.36569 shows generation-based selection beats NLL selection.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  // verified defaults: TRL CLI ModelConfig 16/32/0.05, PEFT LoraConfig 8/8/0.0, Unsloth (Lab 6) 16/16/0
+  const ROWS = [
+    { tool: "TRL CLI", r: "16", a: "32", d: "0.05", s: 32 / 16 },
+    { tool: "PEFT", r: "8", a: "8", d: "0.0", s: 8 / 16 },
+    { tool: "Unsloth", r: "16", a: "16", d: "0", s: 16 / 16 }
+  ];
+  const BX = 318, UNIT = 62;           // bar origin and px per 1.0 of alpha/r
+  let rows = [], foot, built = false;
+  const mk = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); parent.appendChild(e); return e; };
+  const txt = (s, attrs, parent) => { const e = mk("text", attrs, parent); e.textContent = s; return e; };
+
+  function build(slide) {
+    const svg = slide.querySelector("#sc-defaults");
+    svg.innerHTML = ""; rows = [];
+    const mono = "font-family:var(--f-mono)";
+    txt("Defaults differ: one “r=16”, three scales", { x: 0, y: 20, "font-size": 17, "font-weight": 600, fill: "var(--ink)" }, svg);
+    const heads = [["tool", 0], ["r", 132], ["alpha", 172], ["dropout", 236], ["alpha / r at r=16", BX]];
+    heads.forEach(([h, x]) => txt(h, { x, y: 52, "font-size": 14, fill: "var(--muted)", style: mono }, svg));
+    mk("line", { x1: 0, y1: 62, x2: 480, y2: 62, stroke: "var(--line-2)", "stroke-width": 1 }, svg);
+    ROWS.forEach((d, i) => {
+      const y = 96 + i * 44;
+      const g = mk("g", { opacity: 0 }, svg);
+      txt(d.tool, { x: 0, y: y + 6, "font-size": 17, "font-weight": 600, fill: "var(--ink-2)" }, g);
+      txt(d.r, { x: 132, y: y + 6, "font-size": 16, fill: "var(--ink-2)", style: mono }, g);
+      txt(d.a, { x: 172, y: y + 6, "font-size": 16, fill: "var(--ink-2)", style: mono }, g);
+      txt(d.d, { x: 236, y: y + 6, "font-size": 16, fill: "var(--ink-2)", style: mono }, g);
+      mk("rect", { x: BX, y: y - 10, width: UNIT * 2, height: 20, rx: 5, fill: "var(--faint)", opacity: 0.25 }, g);
+      const bar = mk("rect", { x: BX, y: y - 10, width: 0, height: 20, rx: 5, fill: d.s > 1 ? "var(--model)" : d.s < 1 ? "var(--risk)" : "var(--state)" }, g);
+      const val = txt("0.0", { x: BX + UNIT * 2 + 10, y: y + 6, "font-size": 16, "font-weight": 700, fill: "var(--ink)", style: mono }, g);
+      rows.push({ g, bar, val, d, c: { v: 0 } });
+    });
+    foot = txt("PEFT r=16, no alpha: 4x below TRL CLI", { x: 0, y: 228, "font-size": 14.5, fill: "var(--risk)", opacity: 0, style: mono }, svg);
+    built = true;
+  }
+
+  function render(slide, n, animate) {
+    if (!built) build(slide);
+    kill();
+    const on = n >= 4;
+    rows.forEach((row, i) => {
+      const w = on ? row.d.s * UNIT : 0;
+      if (on && animate) {
+        const dl = 0.35 + i * 0.5;
+        gsap.fromTo(row.g, { attr: { opacity: 0 } }, { attr: { opacity: 1 }, duration: 0.35, delay: dl });
+        gsap.fromTo(row.bar, { attr: { width: 0 } }, { attr: { width: w }, duration: 0.7, delay: dl + 0.2, ease: "power2.out" });
+        row.c.v = 0;
+        gsap.to(row.c, { v: row.d.s, duration: 0.7, delay: dl + 0.2, ease: "power2.out", onUpdate: () => { row.val.textContent = row.c.v.toFixed(1); } });
+      } else {
+        row.g.setAttribute("opacity", on ? 1 : 0);
+        row.bar.setAttribute("width", w);
+        row.val.textContent = (on ? row.d.s : 0).toFixed(1);
+      }
+    });
+    if (on && animate) gsap.fromTo(foot, { attr: { opacity: 0 } }, { attr: { opacity: 1 }, duration: 0.4, delay: 2.0 });
+    else foot.setAttribute("opacity", on ? 1 : 0);
+  }
+
+  function kill() {
+    if (!built) return;
+    gsap.killTweensOf(rows.flatMap((r) => [r.g, r.bar, r.c]).concat([foot]));
+  }
+
+  Deck.register("custom-c03-sft-checklist", {
+    enter(slide, step) { build(slide); render(slide, step, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { kill(); }
+  });
+})();
+</script>

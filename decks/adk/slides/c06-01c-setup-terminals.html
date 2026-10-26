@@ -1,0 +1,60 @@
+<section class="slide" id="adk-c06-setup-terminals" data-tone="tool" data-title="Lab 6 setup: three terminals">
+  <style>
+    #adk-c06-setup-terminals .tm { display: flex; flex-direction: column; gap: 16px; }
+    #adk-c06-setup-terminals .tm-b { position: relative; border-radius: 14px; border: 2px dashed var(--line-2); background: var(--surface);
+      padding: 14px 22px; display: grid; grid-template-columns: 170px 1fr; gap: 4px 20px; align-items: center; opacity: .35; }
+    #adk-c06-setup-terminals .tm-b b { font: 700 20px/1.3 var(--f-mono); color: var(--ink); grid-row: span 2; }
+    #adk-c06-setup-terminals .tm-b code { font: 600 19px/1.35 var(--f-mono); color: var(--ink); white-space: nowrap; background: none; border: 0; padding: 0; }
+    #adk-c06-setup-terminals .tm-b span { font: 500 17px/1.3 var(--f-mono); color: var(--muted); white-space: nowrap; }
+    #adk-c06-setup-terminals .tm-b.on { opacity: 1; border-style: solid; }
+    #adk-c06-setup-terminals .tm-b.t1.on, #adk-c06-setup-terminals .tm-b.t2.on { border-color: var(--tool); background: var(--tool-soft); }
+    #adk-c06-setup-terminals .tm-b.t3.on { border-color: var(--agent); background: var(--agent-soft); }
+    #adk-c06-setup-terminals .tm-dot { position: absolute; right: 22px; top: 50%; margin-top: -8px; width: 16px; height: 16px; border-radius: 50%; background: var(--state); opacity: 0; }
+    #adk-c06-setup-terminals .su-bot { display: grid; grid-template-columns: 700px 1fr; gap: 40px; align-items: start; }
+    #adk-c06-setup-terminals .su-note { font-size: 22px; line-height: 1.4; color: var(--ink-2); margin: 0; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 6</span> Acme claims desk · setup</div>
+  <h2 class="title">Three terminals: start both servers, then the agent</h2>
+  <div class="tm" id="su6-tm">
+    <div class="tm-b t1"><b>terminal 1</b><code>CLAIMS_API_KEY=demo-key-123 uvicorn claims_api:app --port 8081</code><span>REST service · OpenAPI spec</span><i class="tm-dot"></i></div>
+    <div class="tm-b t2"><b>terminal 2</b><code>python claims_agent/handbook_server.py</code><span>HTTP MCP server · :3000/mcp</span><i class="tm-dot"></i></div>
+    <div class="tm-b t3"><b>terminal 3</b><code>adk api_server --with_ui .</code><span>open 127.0.0.1:8000 · pick claims_agent</span><i class="tm-dot"></i></div>
+  </div>
+  <div class="su-bot fill">
+    <div class="code-wrap out" data-step="4">
+      <div class="code-head">output · illustrative · terminal 1 is up</div>
+      <pre class="code" data-lang="out"><code>$ curl -s 127.0.0.1:8081/openapi.json | head -c 40
+<span class="ok">{"openapi":"3.1.0","info":{"title":"Claims</span></code></pre>
+    </div>
+    <p class="su-note" data-step="3" style="margin-top:30px">No terminal for <code>claims_server.py</code>. McpToolset starts it over stdio.</p>
+  </div>
+  <aside class="notes">You need three terminals, and the order matters. Step 1: terminal 1 runs the claims-status REST service on port 8081 with its API key. Step 2: terminal 2 runs the handbook MCP server on port 3000; its endpoint is /mcp. Step 3: terminal 3 runs adk api_server with the dev UI on port 8000; pick claims_agent in the app list. We use api_server instead of adk web because the tenant step creates sessions over REST; adk web is fine until then. The claims MCP server has no terminal, because McpToolset starts it as a child process over stdio. Step 4: check terminal 1 with curl before you start the agent, because agent.py downloads the OpenAPI spec when it is imported. Think of a restaurant: two suppliers deliver from outside, and one cook works inside the kitchen. On Windows, use WSL, or the cmd forms in the README. A likely question: "Why must terminals 1 and 2 start first?" agent.py fetches the spec at import, and the HTTP toolset connects when the agent first runs.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c06-setup-terminals";
+  let tws = [];
+  function stop() { tws.forEach((t) => t.kill()); tws = []; }
+  function render(slide, n, animate) {
+    stop();
+    const boxes = [...slide.querySelectorAll(".tm-b")];
+    const dots = boxes.map((b) => b.querySelector(".tm-dot"));
+    boxes.forEach((b, i) => {
+      const on = n >= i + 1;
+      b.classList.toggle("on", on);
+      gsap.set(dots[i], { opacity: on ? 1 : 0, scale: 1 });
+      if (on && animate && n === i + 1) {
+        tws.push(gsap.fromTo(b, { x: -24 }, { x: 0, duration: 0.45, ease: "back.out(2)" }));
+        tws.push(gsap.fromTo(dots[i], { scale: 0.2 }, { scale: 1, duration: 0.35, delay: 0.2 }));
+      }
+      // a live server: a slow deterministic pulse on its dot
+      if (on) tws.push(gsap.to(dots[i], { scale: 1.5, duration: 0.7, yoyo: true, repeat: -1, ease: "sine.inOut", delay: 0.8 + i * 0.25 }));
+    });
+  }
+  Deck.register(ID, {
+    enter(slide, n) { render(slide, n || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { stop(); },
+  });
+})();
+</script>

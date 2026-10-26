@@ -1,0 +1,63 @@
+<section class="slide" id="adk-c01-lab-runner" data-tone="tool" data-title="Lab 1: InMemoryRunner + run_debug">
+  <style>
+    #adk-c01-lab-runner pre.code, #adk-c01-lab-runner pre.code * { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #adk-c01-lab-runner a.cite.paper { flex-direction: row; padding: 8px 14px 8px 10px; gap: 10px; border-radius: 10px; border: 1px solid var(--line); background: color-mix(in oklab, var(--surface) 60%, transparent); }
+    #adk-c01-lab-runner .gotcha code { white-space: normal; overflow-wrap: anywhere; }
+    #adk-c01-lab-runner .gotcha > span { min-width: 0; }
+    #adk-c01-lab-runner .rn-main { display: grid; grid-template-columns: 700px 1fr; gap: 36px; align-items: center; }
+    #adk-c01-lab-runner .rn-right { gap: 22px; min-width: 0; }
+    #adk-c01-lab-runner .rb { display: grid; grid-template-columns: 230px 1fr; gap: 22px; align-items: center; }
+    #adk-c01-lab-runner .rb-box { border-radius: 16px; border: 2px solid var(--agent); background: var(--agent-soft); padding: 20px 16px; text-align: center; display: grid; gap: 8px; }
+    #adk-c01-lab-runner .rb-box b { font: 700 20px/1.1 var(--f-mono); color: var(--ink); }
+    #adk-c01-lab-runner .rb-box span { font: 500 16px/1.25 var(--f-mono); color: var(--muted); }
+    #adk-c01-lab-runner .svcs { display: grid; gap: 10px; }
+    #adk-c01-lab-runner .svc { font: 600 17px/1 var(--f-mono); color: var(--state); background: var(--state-soft); border: 1.5px solid color-mix(in oklab, var(--state) 45%, transparent); border-radius: 999px; padding: 10px 16px; }
+    #adk-c01-lab-runner .svc i { font-style: normal; color: var(--muted); font-weight: 500; }
+    #adk-c01-lab-runner .rn-cap { position: relative; min-height: 60px; }
+    #adk-c01-lab-runner .rn-cap > p { position: absolute; left: 0; right: 0; top: 0; font-size: 21px; line-height: 1.4; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 1</span> Acme refund desk · step 6 of 8</div>
+  <h2 class="title">InMemoryRunner and run_debug drive the agent from Python</h2>
+  <div class="lab-head"><span class="run">python run_refund.py</span><span>next to refund_agent/</span></div>
+  <div class="rn-main fill">
+    <div class="code-wrap">
+      <div class="code-head">labs/adk/lab1-refund-tools/run_refund.py · excerpt</div>
+      <pre class="code" data-lang="python" data-focus="1:8, 2:9-11, 3:13"><code>import asyncio
+from google.adk.runners import InMemoryRunner
+from refund_agent.agent import root_agent
+
+APP = "refund_agent"   # match the folder name
+
+async def main() -> None:
+    runner = InMemoryRunner(agent=root_agent, app_name=APP)
+    await runner.run_debug(
+        "Is order A-1001 refundable? Changed my mind.",
+        verbose=True)
+    # ... run_async loop and isolation: next slides
+    await runner.close()</code></pre>
+    </div>
+    <div class="rn-right stack">
+      <div class="rb" data-step="1">
+        <div class="rb-box"><b>InMemoryRunner</b><span>app_name=<br>"refund_agent"</span></div>
+        <div class="svcs" data-fx="stagger"><span class="svc">session <i>service</i></span><span class="svc">artifact <i>service</i></span><span class="svc">memory <i>service</i></span></div>
+      </div>
+      <div class="code-wrap out" data-step="2">
+        <div class="code-head">output · illustrative</div>
+        <pre class="code sm" data-lang="none"><code>refund_agent &gt; [Calling tool: lookup_order(...)]
+refund_agent &gt; [Tool result: {'status': 'success', ...}]
+refund_agent &gt; [Calling tool: check_refund_eligibility(...)]
+refund_agent &gt; [Tool result: {..., 'eligible': True}]
+<span class="ok">refund_agent &gt; Yes. A-1001 (apparel) was delivered
+  12 days ago, inside our 30-day window.</span></code></pre>
+      </div>
+      <div class="rn-cap">
+        <p data-step="1" data-until="2">One line gives in-memory session, artifact and memory services.</p>
+        <p data-step="2" data-until="3"><code>run_debug()</code> creates a session and prints each event. It is "for debugging and experimentation only".</p>
+        <p data-step="3">Close the runner. It is also an async context manager.</p>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    InMemoryRunner bundles an in-memory session service, artifact service and memory service in one line. Its app_name must equal the folder name, or ADK warns "App name mismatch detected" and later sessions are not found. Step 2: run_debug gets or creates the session debug_session_id for user debug_user_id, wraps your string as a user message, prints every event and returns the list of events; its own docstring says it is for debugging and experimentation only. Step 3: await runner.close() closes plugins; you can also use async with. Analogy: run_debug is the test bench with the cover off; run_async, on the next slide, is the engine in the car. Likely question: "Why does my output show [Calling tool: ...] lines?" That is verbose=True, which prints tool calls and results. The output is illustrative: the shape follows the printing code, the wording will differ. Next: the production loop.
+  </aside>
+</section>

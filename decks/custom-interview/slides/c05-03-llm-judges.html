@@ -1,0 +1,209 @@
+<section class="slide" id="custom-interview-c05-llm-judges" data-tone="human" data-title="Calibrate the LLM judge">
+  <style>
+    #custom-interview-c05-llm-judges .judge-grid { display: grid; grid-template-columns: 780px 1fr; gap: 30px; align-items: start; }
+    #custom-interview-c05-llm-judges .qa-col { display: grid; gap: 16px; align-content: start; }
+    #custom-interview-c05-llm-judges .qa { gap: 8px; }
+    #custom-interview-c05-llm-judges .qa .q { font-size: 21px; }
+    #custom-interview-c05-llm-judges .qa .a { font-size: 17px; line-height: 1.42; padding: 10px 14px; }
+    #custom-interview-c05-llm-judges .qa .a .tags { margin-top: 8px; gap: 8px; align-items: center; }
+    #custom-interview-c05-llm-judges .qa .a .tag { font-size: 13px; padding: 5px 9px 5px 8px; }
+    #custom-interview-c05-llm-judges .qa .a .cite { font-size: 13px; padding: 4px 9px 4px 7px; gap: 6px; }
+    #custom-interview-c05-llm-judges .qa .a .cite.paper, #custom-interview-c05-llm-judges .qa .a .cite.doc { flex-direction: row; align-items: center; white-space: nowrap; }
+    #custom-interview-c05-llm-judges .viz { display: grid; gap: 12px; }
+    #custom-interview-c05-llm-judges .viz svg { width: 582px; height: 380px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
+    #custom-interview-c05-llm-judges .codes { display: grid; }
+    #custom-interview-c05-llm-judges .codes > * { grid-area: 1 / 1; align-self: start; }
+    #custom-interview-c05-llm-judges pre.code.xs { font-size: 14px; line-height: 1.45; padding: 12px 16px 14px; }
+  </style>
+  <div class="kicker">Interview · LLM judges · 2 of 3</div>
+  <h2 class="title">Treat the LLM judge as an instrument you calibrate</h2>
+  <div class="judge-grid fill">
+    <div class="qa-col">
+      <div class="qa">
+        <div class="q">An LLM judge scored the 400 refund cases. How do you trust it?</div>
+        <div class="a" data-step="1">Measure <b>Cohen's κ</b> against 2+ experts (κ = agreement beyond chance; 0 = chance, 1 = perfect). Expert-expert κ is the <b>ceiling</b>. Shopify went from <b>κ 0.02 to 0.61</b> under a 0.69 ceiling. A text-to-SQL judge had <b>κ 0.04</b>; Qwen3.6-27B reached <b>0.72</b> at about 1/300 of the cost.
+          <div class="tags"><span class="tag t-human">κ 0.61 vs ceiling 0.69</span><a class="cite doc" href="https://shopify.engineering/building-production-ready-agentic-systems" target="_blank" rel="noopener"><b>Shopify</b>&nbsp;Production-ready agentic systems</a><a class="cite paper" href="https://arxiv.org/abs/2609.30290" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2609.30290</a></div>
+        </div>
+      </div>
+      <div class="qa">
+        <div class="q">Is a pinned, temperature-0 judge deterministic?</div>
+        <div class="a" data-step="2">No. Pinned judges flip about <b>5%</b> of verdicts, and about <b>40%</b> on close-call items. An Arena-Hard re-run flipped <b>21.2%</b> of prompt outcomes; the aggregate moved about 1 point. Run the judge <b>3 times</b>, keep the majority, and report the flip rate.
+          <div class="tags"><span class="tag t-risk">close calls flip 40%</span><a class="cite paper" href="https://arxiv.org/abs/2609.33044" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2609.33044</a><a class="cite paper" href="https://arxiv.org/abs/2610.30512" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.30512</a></div>
+        </div>
+      </div>
+      <div class="qa">
+        <div class="q">Ten judges agree. Is that strong evidence?</div>
+        <div class="a" data-step="3">Less than it looks. Judge errors correlate (mean <b>ρ = 0.21</b>), so n_eff = 10 / (1 + 9 × 0.21) ≈ <b>3.5</b> independent judges. Five judges give about 2.7. In one study, <b>60%</b> of wrong answers sat in the high-consistency region.
+          <div class="tags"><span class="tag t-model">n / (1 + (n − 1)ρ)</span><a class="cite paper" href="https://arxiv.org/abs/2609.22512" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2609.22512</a><a class="cite paper" href="https://arxiv.org/abs/2610.21128" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.21128</a></div>
+        </div>
+      </div>
+    </div>
+    <div class="viz">
+      <svg id="cij-judge-svg" viewBox="0 0 582 380" aria-label="Step 0: the expert-expert kappa ceiling of 0.69. Step 1: judge kappa bars for Shopify and a text-to-SQL judge. Step 2: re-runs of a pinned judge; 2 of 40 verdicts flip, 2 of 5 close calls flip. Step 3: ten correlated judges collapse into about 3.5 independent votes."></svg>
+      <div class="codes">
+        <div class="small" data-until="1">Three checks before you trust a judge score: agreement, stability, independence.</div>
+        <div class="code-wrap" data-step="1" data-until="2">
+          <div class="code-head">judge_kappa.py · scikit-learn 1.9.1</div>
+          <pre class="code xs" data-lang="python"><code>from sklearn.metrics import cohen_kappa_score
+expert_a, expert_b, judge = ...  # 0/1 labels, same items
+print(cohen_kappa_score(expert_a, expert_b))  # ceiling
+print(cohen_kappa_score(expert_a, judge))     # judge</code></pre>
+        </div>
+        <div class="code-wrap" data-step="2" data-until="3">
+          <div class="code-head">judge_flips.py · numpy 2.5.4</div>
+          <pre class="code xs" data-lang="python"><code>import numpy as np
+judge, items = ...  # pinned judge: items -> 0/1 array
+runs = np.array([judge(items) for _ in range(3)])
+flip_rate = (runs.min(0) != runs.max(0)).mean()
+final = runs.sum(0) >= 2                # majority of 3</code></pre>
+        </div>
+        <div class="code-wrap" data-step="3">
+          <div class="code-head">n_eff.py · numpy 2.5.4</div>
+          <pre class="code xs" data-lang="python"><code>import numpy as np
+def n_eff(err):  # err[j, i] = 1 if judge j is wrong on item i
+    C = np.corrcoef(err)                # judge x judge
+    k = C.shape[0]; rho = (C.sum() - k) / (k * (k - 1))
+    return k / (1 + (k - 1) * rho)      # 10, 0.21 -> 3.46</code></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Ask each question, let the candidate answer, then reveal the model answer. Q1 tests whether the candidate treats the judge as a measuring instrument. Cohen's kappa is agreement beyond chance: 0 means chance level, 1 means perfect. Measure it against several experts, and use the expert-expert kappa as the ceiling, not 1.0. The two groups in the chart come from different datasets: only Shopify reported a human ceiling. Analogy: you check a new thermometer against a reference before you trust a fever reading. Q2 removes the myth that temperature 0 is deterministic: re-run the judge, keep the majority verdict, and publish the flip rate, especially when judge verdicts become DPO labels. In the grid, grey is a stable verdict and red is a verdict that changed between runs. Q3 tests independence thinking: correlated judges give fewer votes than they seem to, and consistency is not correctness. Likely follow-up: "How many human labels do I need?" Plan at least 25% human-judge overlap on a stratified sample; at 5% overlap the wrong best judge was picked 65% of the time (2609.31857). Hand-off: a calibrated score is still only a probability; the next slide turns probabilities into hold, route and defer decisions.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-interview-c05-llm-judges";
+  let tweens = [], shown = -1;
+
+  function el(p, tag, attrs, style) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (style) Object.assign(e.style, style);
+    p.appendChild(e);
+    return e;
+  }
+  function text(p, x, y, s, o = {}) {
+    const t = el(p, "text", { x, y, "text-anchor": o.anchor || "middle" },
+      { fill: o.fill || "var(--ink-2)", fontFamily: "var(--f-mono)", fontSize: (o.size || 14) + "px", fontWeight: o.w || 500 });
+    t.textContent = s;
+    return t;
+  }
+  const T = (target, vars) => { const t = gsap.to(target, vars); tweens.push(t); return t; };
+  const F = (target, from, to) => { const t = gsap.fromTo(target, from, to); tweens.push(t); return t; };
+  function kill() { tweens.forEach((t) => t.kill()); tweens = []; }
+
+  // Scene 0/1: kappa bars under the expert-expert ceiling (Shopify group only)
+  function ladder(svg, animate, withBars) {
+    const y0 = 316, k = 330;                     // kappa 0 at y0
+    const Y = (v) => y0 - v * k;
+    text(svg, 20, 30, "judge κ vs experts", { anchor: "start", w: 700, fill: "var(--ink)", size: 16 });
+    el(svg, "line", { x1: 64, y1: Y(0.8), x2: 64, y2: y0 }, { stroke: "var(--line-2)", strokeWidth: 2 });
+    el(svg, "line", { x1: 64, y1: y0, x2: 562, y2: y0 }, { stroke: "var(--line-2)", strokeWidth: 2 });
+    [0, 0.2, 0.4, 0.6, 0.8].forEach((v) => text(svg, 56, Y(v) + 5, v.toFixed(1), { anchor: "end", size: 14, fill: "var(--muted)" }));
+    // human-human ceiling, drawn only over the Shopify group
+    const ceil = el(svg, "line", { x1: 76, y1: Y(0.69), x2: 300, y2: Y(0.69) }, { stroke: "var(--human)", strokeWidth: 3, strokeDasharray: "8 6" });
+    const ceilT = text(svg, 76, Y(0.69) - 10, withBars ? "experts κ 0.69" : "Shopify experts agree only κ 0.69", { anchor: "start", fill: "var(--human)", w: 700, size: 15 });
+    el(svg, "line", { x1: 318, y1: 70, x2: 318, y2: y0 + 52 }, { stroke: "var(--line)", strokeWidth: 1.5, strokeDasharray: "3 4" });
+    text(svg, 188, 358, "Shopify Sidekick", { w: 700, size: 14, fill: "var(--ink)" });
+    text(svg, 444, 358, "text-to-SQL judge", { w: 700, size: 14, fill: "var(--ink)" });
+    text(svg, 444, 374, "no human ceiling reported", { size: 12, fill: "var(--muted)" });
+    if (!withBars) { if (animate) F([ceil, ceilT], { opacity: 0 }, { opacity: 1, duration: 0.5, delay: 0.3 }); return; }
+    const bars = [
+      { x: 136, v: 0.02, c: "var(--risk)", lab: "first prompt" },
+      { x: 244, v: 0.61, c: "var(--state)", lab: "iterated" },
+      { x: 390, v: 0.04, c: "var(--risk)", lab: "prod judge" },
+      { x: 500, v: 0.72, c: "var(--state)", lab: "Qwen3.6-27B" },
+    ];
+    bars.forEach((b, i) => {
+      const h = Math.max(4, b.v * k);
+      const r = el(svg, "rect", { x: b.x - 34, y: y0 - h, width: 68, height: h, rx: 6 }, { fill: b.c, opacity: 0.85 });
+      const vt = text(svg, b.x, y0 - h - 10, b.v.toFixed(2), { fill: "var(--ink)", w: 700, size: 16 });
+      text(svg, b.x, y0 + 20, b.lab, { size: 13, fill: "var(--muted)" });
+      if (animate) {
+        F(r, { attr: { y: y0, height: 0 } }, { attr: { y: y0 - h, height: h }, duration: 0.8, delay: 0.15 + i * 0.22, ease: "power3.out" });
+        F(vt, { opacity: 0 }, { opacity: 1, duration: 0.3, delay: 0.7 + i * 0.22 });
+      }
+    });
+    const cost = text(svg, 500, Y(0.72) - 34, "≈ 1/300 cost", { fill: "var(--state)", w: 700, size: 14 });
+    if (animate) F(cost, { opacity: 0 }, { opacity: 1, duration: 0.4, delay: 1.5 });
+  }
+
+  // Scene 2: re-run the same pinned judge; grey = stable verdict, red = verdict changed between runs
+  function grid(svg, animate) {
+    text(svg, 20, 30, "pinned judge · temp 0 · same input, re-run", { anchor: "start", size: 15, fill: "var(--ink)", w: 700 });
+    el(svg, "rect", { x: 380, y: 44, width: 16, height: 16, rx: 4 }, { fill: "var(--faint)", opacity: 0.6 });
+    text(svg, 402, 57, "stable", { anchor: "start", size: 14, fill: "var(--ink-2)" });
+    el(svg, "rect", { x: 466, y: 44, width: 16, height: 16, rx: 4 }, { fill: "var(--risk)" });
+    text(svg, 488, 57, "flipped", { anchor: "start", size: 14, fill: "var(--ink-2)" });
+    const cells = [], flips = [];
+    const mk = (x, y, flip) => {
+      const c = el(svg, "rect", { x, y, width: 34, height: 34, rx: 6 }, { fill: "var(--faint)", opacity: 0.6 });
+      cells.push(c);
+      if (flip) { const o = el(svg, "rect", { x, y, width: 34, height: 34, rx: 6 }, { fill: "var(--risk)", opacity: 1 }); flips.push(o); }
+    };
+    const FLIP = new Set([13, 29]);
+    for (let i = 0; i < 40; i++) mk(34 + (i % 8) * 42, 74 + Math.floor(i / 8) * 42, FLIP.has(i));
+    text(svg, 380, 130, "all items", { anchor: "start", size: 15, fill: "var(--ink-2)" });
+    text(svg, 380, 156, "2 / 40 flip", { anchor: "start", size: 18, w: 700, fill: "var(--ink)" });
+    text(svg, 380, 178, "(≈ 5%)", { anchor: "start", size: 15, fill: "var(--muted)" });
+    const CF = new Set([1, 3]);
+    for (let i = 0; i < 5; i++) mk(34 + i * 42, 300, CF.has(i));
+    text(svg, 270, 312, "close calls", { anchor: "start", size: 15, fill: "var(--ink-2)" });
+    text(svg, 270, 338, "2 / 5 flip (≈ 40%)", { anchor: "start", size: 18, w: 700, fill: "var(--risk)" });
+    if (animate) F(cells, { opacity: 0 }, { opacity: 0.6, duration: 0.3, stagger: 0.01 });
+    // the flipped cells blink between run 1 and run 2 (deterministic, killed in leave)
+    const loop = gsap.timeline({ repeat: -1, yoyo: true, repeatDelay: 0.8, delay: animate ? 1.0 : 0.4 });
+    loop.fromTo(flips, { opacity: 1 }, { opacity: 0.25, duration: 0.35, ease: "power1.inOut" });
+    tweens.push(loop);
+  }
+
+  // Scene 3: ten correlated judges collapse into about 3.5 independent votes
+  function panel(svg, animate) {
+    text(svg, 20, 30, "10 judges · mean error correlation ρ = 0.21", { anchor: "start", size: 15, fill: "var(--ink)", w: 700 });
+    const xs = Array.from({ length: 10 }, (_, i) => 66 + i * 50), Y1 = 96;
+    const TX = [156, 246, 336, 426], TY = 236;
+    const cluster = (i) => (i < 3 ? 0 : i < 6 ? 1 : i < 9 ? 2 : 3);
+    text(svg, 20, 72, "10 votes", { anchor: "start", size: 14, fill: "var(--muted)" });
+    const dots = xs.map((x) => el(svg, "circle", { cx: x, cy: Y1, r: 15 }, { fill: "var(--model)" }));
+    const big = TX.map((x, i) => {
+      const g = el(svg, "g", {});
+      el(g, "circle", { cx: x, cy: TY, r: 30 }, { fill: "none", stroke: "var(--model)", strokeWidth: 3 });
+      if (i < 3) el(g, "circle", { cx: x, cy: TY, r: 30 }, { fill: "var(--model)" });
+      else el(g, "path", { d: `M ${x} ${TY - 30} A 30 30 0 0 0 ${x} ${TY + 30} Z` }, { fill: "var(--model)" });
+      return g;
+    });
+    const l1 = text(svg, 20, 190, "≈ 3.5 independent votes", { anchor: "start", size: 14, fill: "var(--muted)" });
+    const f1 = text(svg, 291, 316, "10 / (1 + 9 × 0.21) = 3.46", { size: 18, w: 700, fill: "var(--ink)" });
+    const f2 = text(svg, 291, 346, "5 judges: 5 / (1 + 4 × 0.21) = 2.72", { size: 15, fill: "var(--ink-2)" });
+    if (!animate) { dots.forEach((d) => (d.style.opacity = 0.25)); return; }
+    F(dots, { opacity: 0, scale: 0, transformOrigin: "50% 50%" }, { opacity: 1, scale: 1, duration: 0.4, stagger: 0.05, ease: "back.out(2)" });
+    F([...big, l1, f1, f2], { opacity: 0 }, { opacity: 1, duration: 0.5, delay: 2.0, stagger: 0.1 });
+    // ghost copies fly down and merge into the 3.5 votes; the top row stays as a faint record
+    xs.forEach((x, i) => {
+      const g = el(svg, "circle", { cx: x, cy: Y1, r: 15 }, { fill: "var(--model)", opacity: 0 });
+      F(g, { opacity: 0.9 }, { attr: { cx: TX[cluster(i)], cy: TY }, opacity: 0, duration: 0.9, delay: 1.0 + i * 0.04, ease: "power3.inOut" });
+    });
+    T(dots, { opacity: 0.25, duration: 0.6, delay: 1.0 });
+  }
+
+  function render(slide, n, animate) {
+    const svg = slide.querySelector("#cij-judge-svg");
+    if (!svg) return;
+    kill();
+    svg.innerHTML = "";
+    shown = n;
+    const s = Math.min(n, 3);
+    if (s === 0) ladder(svg, false, false);
+    else if (s === 1) ladder(svg, animate, true);
+    else if (s === 2) grid(svg, animate);
+    else panel(svg, animate);
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { if (shown !== step) render(slide, step, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { kill(); shown = -1; }
+  });
+})();
+</script>

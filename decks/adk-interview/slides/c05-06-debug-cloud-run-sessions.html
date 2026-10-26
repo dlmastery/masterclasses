@@ -1,0 +1,237 @@
+<section class="slide" id="adk-interview-c05-debug-cloud-run-sessions" data-tone="risk" data-title="Debug: sessions lost on scale-out">
+  <style>
+    #adk-interview-c05-debug-cloud-run-sessions .cr-main { display: grid; grid-template-columns: 772px 1fr; gap: 24px; }
+    #adk-interview-c05-debug-cloud-run-sessions .cr-left, #adk-interview-c05-debug-cloud-run-sessions .cr-right { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+    #adk-interview-c05-debug-cloud-run-sessions .cr-left > .code-wrap { width: 100%; }
+    #adk-interview-c05-debug-cloud-run-sessions .cr-src pre.code { font-size: 12.5px; line-height: 1.6; padding: 10px 14px 12px 50px; }
+    #adk-interview-c05-debug-cloud-run-sessions .cr-src .ln { position: absolute; left: 0; width: 36px; text-align: right; font: 400 12.5px/1.6 var(--f-mono); color: #6f78a8; white-space: pre; z-index: 2; pointer-events: none; border-right: 1px solid #262c55; padding-right: 6px; }
+    #adk-interview-c05-debug-cloud-run-sessions .code-wrap .code-head { padding: 8px 14px; font-size: 13.5px; }
+    #adk-interview-c05-debug-cloud-run-sessions .code-wrap.out pre.code { font-size: 12.5px; line-height: 1.55; padding: 10px 16px 12px; }
+    #adk-interview-c05-debug-cloud-run-sessions .panel.k-risk { padding: 10px 16px; font-size: 16.5px; line-height: 1.4; display: block; }
+    #adk-interview-c05-debug-cloud-run-sessions .cr-slot { display: grid; }
+    #adk-interview-c05-debug-cloud-run-sessions .cr-slot > * { grid-area: 1 / 1; align-self: start; }
+    #adk-interview-c05-debug-cloud-run-sessions .steps-rail > * { font-size: 16.5px; grid-template-columns: 30px 1fr; align-items: center; }
+    #adk-interview-c05-debug-cloud-run-sessions .steps-rail > *::before { width: 26px; height: 26px; font-size: 13px; }
+    #adk-interview-c05-debug-cloud-run-sessions .steps-rail code { font-size: .88em; }
+    #adk-interview-c05-debug-cloud-run-sessions .gotcha { font-size: 15.5px; line-height: 1.4; padding: 10px 16px; grid-template-columns: 70px 1fr; gap: 4px 12px; }
+    #adk-interview-c05-debug-cloud-run-sessions .gotcha > b { font-size: 13px; }
+    #adk-interview-c05-debug-cloud-run-sessions .code-wrap.good pre.code { font-size: 12.5px; line-height: 1.5; padding: 10px 16px 12px; }
+    #adk-interview-c05-debug-cloud-run-sessions .cr-foot { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    #adk-interview-c05-debug-cloud-run-sessions .cr-foot.tk { margin-top: 6px; margin-bottom: 14px; }
+    #adk-interview-c05-debug-cloud-run-sessions .cr-foot .tag { font-size: 14px; }
+    #adk-interview-c05-debug-cloud-run-sessions .cite { font-size: 13px; padding: 6px 10px 6px 8px; }
+    #adk-interview-c05-debug-cloud-run-sessions #cr-svg text { font-family: var(--f-mono); }
+  </style>
+  <div class="kicker"><span class="pill">Debug this</span> deployment</div>
+  <h2 class="title">Some users lose their conversation after a scale-out</h2>
+  <div class="cr-main fill">
+    <div class="cr-left">
+      <div class="code-wrap term cr-src">
+        <div class="code-head">deploy.sh</div>
+        <div class="ln" aria-hidden="true">1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15</div>
+        <pre class="code" data-lang="bash" data-focus="2:8, 3:6"><code># deploy.sh: refund_agent on Cloud Run (google-adk==2.13.0)
+export PROJECT=my-proj REGION=us-central1
+pip install "google-adk[gcp]==2.13.0"
+adk deploy cloud_run --project=$PROJECT --region=$REGION \
+  --service_name=refund-agent \
+  --session_service_uri="sqlite:///./sessions.db" \
+  refund_agent \
+  -- --no-allow-unauthenticated --min-instances=1
+
+# smoke test: create session s1 (POST), then read it back (GET)
+URL=$(gcloud run services describe refund-agent \
+  --region=$REGION --format='value(status.url)')
+TOKEN=$(gcloud auth print-identity-token)
+curl -X POST -H "Authorization: Bearer $TOKEN" $URL/apps/refund_agent/users/u1/sessions/s1
+curl -H "Authorization: Bearer $TOKEN" $URL/apps/refund_agent/users/u1/sessions/s1</code></pre>
+      </div>
+      <div class="code-wrap out" data-step="1">
+        <div class="code-head">output of line 15 · illustrative</div>
+        <pre class="code" data-lang="none"><code><span># 10:02  GET /apps/refund_agent/users/u1/sessions/s1      (instance A)</span>
+<span class="ok">200  {"id": "s1", "userId": "u1", "events": [6 events]}</span>
+<span># 10:04  same GET, after a scale-out                     (instance B)</span>
+<span class="err">404  Session not found: s1</span></code></pre>
+      </div>
+      <div class="cr-foot tk">
+        <span class="tag t-tool" data-step="4">keep --no-allow-unauthenticated: private service</span>
+        <span class="tag t-human" data-step="4">curl with an identity token, not an access token</span>
+      </div>
+      <div class="cr-foot">
+        <a class="cite doc" href="https://adk.dev/deploy/cloud-run/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;ADK: deploy to Cloud Run</a>
+        <a class="cite codelab" href="https://codelabs.developers.google.com/next26/adk-deploy-scale" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;adk-deploy-scale</a>
+        <a class="cite repo" href="https://github.com/google/adk-python/tree/v2.13.0" target="_blank" rel="noopener"><b>Repo</b>&nbsp;adk-python v2.13.0</a>
+      </div>
+    </div>
+    <div class="cr-right">
+      <div class="panel k-risk" data-step="1"><b>Symptom.</b> After a traffic spike or a new revision, some users lose their conversation in the middle of a refund.</div>
+      <svg id="cr-svg" viewBox="0 0 596 180" width="596" height="180" aria-label="A load balancer sends session s1 to Cloud Run instances that keep sessions locally or in one shared store"></svg>
+      <div class="cr-slot">
+        <div class="steps-rail" data-step="2" data-until="3">
+          <div><span>Line 8: <code>--min-instances=1</code> but no maximum. How many instances can run, and where does each keep sessions?</span></div>
+        </div>
+        <div class="gotcha" data-step="3">
+          <b class="why">Cause</b><span>Line 6: <code>sessions.db</code> is on one instance's disk. A new or recycled instance starts with an empty file.</span>
+          <b class="fix">Fix</b><span>One shared session service for all instances. <code>--max-instances=1</code> is not a fix: a new revision starts empty.</span>
+        </div>
+      </div>
+      <div class="code-wrap good" data-step="4">
+        <div class="code-head">deploy.sh · lines 4-8, fixed</div>
+        <pre class="code" data-lang="bash"><code>adk deploy cloud_run --project=$PROJECT --region=$REGION \
+  --service_name=refund-agent \
+  --session_service_uri="agentengine://1234567890" \
+  refund_agent \
+  -- --no-allow-unauthenticated --min-instances=1
+# agentengine:// = managed Agent Runtime (Agent Engine) sessions;
+#   adk deploy agent_engine prints the ID (.../reasoningEngines/ID)
+# or Postgres: google-adk[db] and "postgresql+asyncpg://adk:pw@HOST/adk"</code></pre>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Show the script and the output, and ask why the same session id s1 works at 10:02 and is gone at 10:04. The hint is line 8: --min-instances=1 sets a floor, not a ceiling, so Cloud Run adds instances under load and replaces them on every new revision. The answer is line 6: sqlite:///./sessions.db is a file on one container's disk, so each new instance has its own empty file and a recycled instance takes its file with it. Some requests still reach instance A and work, which is why it looks random; Cloud Run session affinity is best effort and does not survive a new revision, so it only hides the bug. A run request that lands on instance B starts an empty conversation, which is what the user sees. No flag at all gives the same failure in memory, as the deploy Q&amp;A showed. Fix it with one shared store: agentengine://ID for managed Agent Runtime sessions, or a managed Postgres URL with google-adk[db] (for Cloud SQL, also connect the service to the instance). Analogy: a bank where each teller keeps your file in a desk drawer, so a new teller has never heard of you.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "adk-interview-c05-debug-cloud-run-sessions";
+  // geometry (viewBox 596 x 180)
+  const IN = { A: { x: 30, y: 62 }, B: { x: 250, y: 62 } }, IW = 180, IH = 60;
+  const WIRE = { A: [{ x: 214, y: 36 }, { x: 150, y: 62 }], B: [{ x: 246, y: 36 }, { x: 310, y: 62 }] };
+  const DROP = { A: [{ x: 120, y: 122 }, { x: 120, y: 144 }], B: [{ x: 340, y: 122 }, { x: 340, y: 144 }] };
+  let svg, tl = null, built = false;
+  const R = {};
+  const el = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); parent.appendChild(e); return e; };
+  const txt = (attrs, s, parent) => { const t = el("text", attrs, parent); t.textContent = s; return t; };
+  const cylPath = (cx, top, w, h) => {
+    const rx = w / 2, ry = 6, l = cx - rx, r = cx + rx, b = top + h;
+    return `M${l},${top} A${rx},${ry} 0 0 0 ${r},${top} A${rx},${ry} 0 0 0 ${l},${top} L${l},${b} A${rx},${ry} 0 0 0 ${r},${b} L${r},${top}`;
+  };
+
+  function instance(key) {
+    const { x, y } = IN[key];
+    const g = el("g", {}, svg);
+    const box = el("rect", { x, y, width: IW, height: IH, rx: 12, fill: "var(--agent-soft)", stroke: "var(--agent)", "stroke-width": 2 }, g);
+    const name = txt({ x: x + 14, y: y + 26, "font-size": 15, "font-weight": 700, fill: "var(--ink)" }, "instance " + key, g);
+    const sub = txt({ x: x + 14, y: y + 46, "font-size": 13, fill: "var(--muted)" }, "sessions.db", g);
+    const cyl = el("g", {}, g);
+    el("path", { d: cylPath(x + 150, y + 12, 44, 36), fill: "var(--surface)", stroke: "var(--tool)", "stroke-width": 1.8 }, cyl);
+    const ct = txt({ x: x + 150, y: y + 39, "font-size": 12, "font-weight": 700, "text-anchor": "middle", fill: "var(--tool)" }, "", cyl);
+    return { g, box, name, sub, cyl, ct };
+  }
+
+  function gutter(root) {
+    const pre = root.querySelector(".cr-src pre.code"), ln = root.querySelector(".cr-src .ln");
+    if (pre && ln) ln.style.top = (pre.offsetTop + parseFloat(getComputedStyle(pre).paddingTop)) + "px";
+  }
+
+  function build(root) {
+    svg = root.querySelector("#cr-svg");
+    svg.innerHTML = "";
+    R.lA = el("line", { x1: WIRE.A[0].x, y1: WIRE.A[0].y, x2: WIRE.A[1].x, y2: WIRE.A[1].y, stroke: "var(--line-2)", "stroke-width": 2.5 }, svg);
+    R.lB = el("line", { x1: WIRE.B[0].x, y1: WIRE.B[0].y, x2: WIRE.B[1].x, y2: WIRE.B[1].y, stroke: "var(--line-2)", "stroke-width": 2.5 }, svg);
+    // shared store, centred below both instances, vertical connectors (step 4)
+    R.shared = el("g", {}, svg);
+    el("line", { x1: DROP.A[0].x, y1: DROP.A[0].y, x2: DROP.A[1].x, y2: DROP.A[1].y, stroke: "var(--state)", "stroke-width": 2.5 }, R.shared);
+    el("line", { x1: DROP.B[0].x, y1: DROP.B[0].y, x2: DROP.B[1].x, y2: DROP.B[1].y, stroke: "var(--state)", "stroke-width": 2.5 }, R.shared);
+    R.sharedCyl = el("path", { d: cylPath(230, 144, 400, 28), fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 2.4 }, R.shared);
+    txt({ x: 230, y: 168, "font-size": 16, "font-weight": 700, "text-anchor": "middle", fill: "var(--state)" }, "Agent Runtime sessions · s1", R.shared);
+    // load balancer
+    el("rect", { x: 175, y: 0, width: 110, height: 36, rx: 10, fill: "var(--tool-soft)", stroke: "var(--tool)", "stroke-width": 2 }, svg);
+    txt({ x: 230, y: 23, "font-size": 13, "font-weight": 700, "text-anchor": "middle", fill: "var(--ink)" }, "load balancer", svg);
+    R.A = instance("A");
+    R.B = instance("B");
+    // history card for session s1 (appears with the output, step 1)
+    R.card = el("g", {}, svg);
+    R.panel = el("rect", { x: 456, y: 1, width: 139, height: 176, rx: 12, fill: "var(--surface)", stroke: "var(--line-2)", "stroke-width": 2 }, R.card);
+    txt({ x: 525, y: 24, "font-size": 13, "font-weight": 700, "text-anchor": "middle", fill: "var(--ink)" }, "s1 history", R.card);
+    R.bars = [0, 1, 2, 3].map((i) => el("rect", {
+      x: i % 2 ? 488 : 468, y: 38 + i * 28, width: i % 2 ? 94 : 86, height: 20, rx: 6,
+      fill: i % 2 ? "var(--agent-soft)" : "var(--human-soft)", stroke: i % 2 ? "var(--agent)" : "var(--human)", "stroke-width": 1.2
+    }, R.card));
+    R.status = txt({ x: 525, y: 165, "font-size": 13, "font-weight": 700, "text-anchor": "middle", fill: "var(--state)" }, "", R.card);
+    // the s1 request token
+    R.tok = el("g", { opacity: 0 }, svg);
+    el("circle", { cx: 0, cy: 0, r: 12, fill: "var(--human)" }, R.tok);
+    txt({ x: 0, y: 4, "font-size": 11, "font-weight": 700, "text-anchor": "middle", fill: "#fff" }, "s1", R.tok);
+    built = true;
+  }
+
+  function setPanel(ok) {
+    R.panel.setAttribute("stroke", ok ? "var(--state)" : "var(--risk)");
+    R.bars.forEach((b) => b.setAttribute("opacity", ok ? 1 : 0.08));
+    R.status.textContent = ok ? "200 · 6 events" : "404 · not found";
+    R.status.setAttribute("fill", ok ? "var(--state)" : "var(--risk)");
+  }
+
+  function kill() {
+    if (tl) { tl.kill(); tl = null; }
+    if (built) gsap.killTweensOf([R.tok, R.A.box, R.B.box, R.sharedCyl]);
+  }
+
+  function paint(n) {
+    kill();
+    const showB = n >= 2, recycled = n === 3, shared = n >= 4;
+    R.card.setAttribute("opacity", n >= 1 ? 1 : 0);
+    // instance A
+    R.A.g.setAttribute("opacity", recycled ? 0.35 : 1);
+    R.A.box.setAttribute("stroke-dasharray", recycled ? "6 5" : "none");
+    R.A.box.setAttribute("stroke", recycled ? "var(--risk)" : "var(--agent)");
+    R.A.name.textContent = recycled ? "A: recycled" : "instance A";
+    R.A.sub.textContent = recycled ? "file gone" : shared ? "no local state" : "sessions.db";
+    R.A.cyl.setAttribute("opacity", recycled || shared ? 0 : 1);
+    R.A.ct.textContent = "s1";
+    R.lA.setAttribute("stroke-dasharray", recycled ? "6 5" : "none");
+    R.lA.setAttribute("opacity", recycled ? 0.4 : 1);
+    // instance B appears on scale-out
+    R.B.g.setAttribute("opacity", showB ? 1 : 0);
+    R.lB.setAttribute("opacity", showB ? 1 : 0);
+    R.B.sub.textContent = shared ? "no local state" : "sessions.db";
+    R.B.cyl.setAttribute("opacity", showB && !shared ? 1 : 0);
+    R.B.ct.textContent = "empty";
+    R.shared.setAttribute("opacity", shared ? 1 : 0);
+    [R.A.box, R.B.box].forEach((b) => b.setAttribute("stroke-width", 2));
+    setPanel(n !== 3);
+
+    const route = n <= 1 ? ["A"] : n === 2 ? ["A", "B"] : n === 3 ? ["B"] : ["A", "B"];
+    tl = gsap.timeline({ repeat: -1, delay: 0.4 });
+    route.forEach((key) => {
+      const ok = key === "A" ? n !== 3 : shared;
+      const [w0, w1] = WIRE[key], [d0, d1] = DROP[key];
+      // the token rides the wire from the load balancer to the instance edge
+      tl.set(R.tok, { x: w0.x, y: w0.y, opacity: 0 })
+        .to(R.tok, { opacity: 1, duration: 0.15 })
+        .to(R.tok, { x: w1.x, y: w1.y, duration: 0.8, ease: "power1.inOut" }, "<")
+        .to(R.tok, { opacity: 0, duration: 0.15 })
+        .fromTo(R[key].box, { attr: { "stroke-width": 5 } }, { attr: { "stroke-width": 2 }, duration: 0.5 });
+      if (shared) {
+        tl.set(R.tok, { x: d0.x, y: d0.y })
+          .to(R.tok, { opacity: 1, duration: 0.1 })
+          .to(R.tok, { x: d1.x, y: d1.y, duration: 0.45, ease: "power1.inOut" }, "<")
+          .to(R.tok, { opacity: 0, duration: 0.15 })
+          .fromTo(R.sharedCyl, { attr: { "stroke-width": 5 } }, { attr: { "stroke-width": 2.4 }, duration: 0.5 });
+      }
+      if (n >= 1) tl.call(() => setPanel(ok));
+      tl.to({}, { duration: 0.9 });
+    });
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { build(slide); gutter(slide); paint(step || 0); },
+    step(slide, n) { if (!built) build(slide); gutter(slide); paint(n); },
+    leave() { kill(); }
+  });
+})();
+</script>

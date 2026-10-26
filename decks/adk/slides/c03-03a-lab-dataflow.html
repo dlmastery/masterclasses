@@ -1,0 +1,103 @@
+<section class="slide" id="adk-c03-lab-dataflow" data-tone="agent" data-title="Lab 3.2: three data paths">
+  <style>
+    #adk-c03-lab-dataflow .df-graph .node { padding: 14px 18px; }
+    #adk-c03-lab-dataflow .df-graph .node .nt { font-size: 22px; }
+    #adk-c03-lab-dataflow .df-graph .node .ns { font-size: 16px; }
+    #adk-c03-lab-dataflow .df-token { position: absolute; left: 0; top: 0; z-index: 3; white-space: nowrap; pointer-events: none;
+      font: 700 18px/1 var(--f-mono); padding: 10px 14px; border-radius: 999px; color: #fff; background: var(--agent);
+      box-shadow: 0 8px 22px -8px var(--agent); }
+    #adk-c03-lab-dataflow .df-token.done { background: var(--state); box-shadow: 0 8px 22px -8px var(--state); }
+    #adk-c03-lab-dataflow .df-low { display: grid; grid-template-columns: 1fr 560px; gap: 48px; align-items: start; }
+    #adk-c03-lab-dataflow .df-state { min-height: 250px; border: 2px solid var(--state); border-radius: 16px; padding: 16px 20px;
+      background: linear-gradient(180deg, var(--state-soft), transparent 160%), var(--surface-2); display: flex; flex-direction: column; gap: 8px;
+      font: 500 19px/1.5 var(--f-mono); color: var(--ink-2); }
+    #adk-c03-lab-dataflow .df-sh { display: flex; justify-content: space-between; font: 700 17px/1.4 var(--f-mono); color: var(--state); text-transform: uppercase; letter-spacing: .05em; }
+    #adk-c03-lab-dataflow .df-sh span { color: var(--muted); font-weight: 600; }
+    #adk-c03-lab-dataflow .df-kv { border-radius: 8px; padding: 2px 8px; }
+    #adk-c03-lab-dataflow .df-kv b { color: var(--state); }
+    #adk-c03-lab-dataflow .df-kv i { font-style: normal; color: var(--ink); }
+    #adk-c03-lab-dataflow .df-empty { color: var(--muted); }
+    #adk-c03-lab-dataflow .cap { display: grid; }
+    #adk-c03-lab-dataflow .cap > div { grid-area: 1 / 1; display: flex; flex-direction: column; gap: 10px; }
+    #adk-c03-lab-dataflow .cap h3 { font-size: 32px; }
+    #adk-c03-lab-dataflow .cap p { font-size: 25px; line-height: 1.4; }
+    #adk-c03-lab-dataflow .cap code { font-size: .82em; }
+    #adk-c03-lab-dataflow, #adk-c03-lab-dataflow * { font-variant-ligatures: none !important; }
+    #adk-c03-lab-dataflow .out pre.code .dim { color: #a3abd6; opacity: 1; }
+    #adk-c03-lab-dataflow .cites .cite { display: inline-flex; flex-direction: row; align-items: center; gap: 10px; white-space: nowrap; padding: 6px 12px 6px 10px; border-radius: 10px; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 3.2</span> Acme refund desk · follow the data</div>
+  <h2 class="title">Data moves on edges, through state, and by parameter name</h2>
+  <div class="diagram df-graph" style="width:1392px;height:190px" data-wires="df-start>df-parse; df-parse>df-check; df-check>df-write; df-write>df-audit">
+    <div class="node n-human pill" id="df-start" style="left:20px;top:96px;width:110px"><span class="nt">START</span></div>
+    <div class="node n-tool" id="df-parse" style="left:250px;top:82px;width:210px"><span class="nt">parse_request</span><span class="ns">function</span></div>
+    <div class="node n-tool" id="df-check" style="left:580px;top:82px;width:200px"><span class="nt">check_policy</span><span class="ns">function</span></div>
+    <div class="node n-model" id="df-write" style="left:900px;top:82px;width:180px"><span class="nt">write_reply</span><span class="ns">Agent</span></div>
+    <div class="node n-tool" id="df-audit" style="left:1200px;top:82px;width:172px"><span class="nt">audit_log</span><span class="ns">function</span></div>
+    <div class="df-token"><span class="tx">user text</span></div>
+  </div>
+  <div class="df-low fill">
+    <div class="cap">
+      <div data-until="1"><h3>Three paths</h3><p>Press through one run of <code>"refund A-1001 arrived broken"</code>.</p></div>
+      <div data-step="1" data-until="2"><h3 class="c-agent">1 · node_input</h3><p>The return value of a node rides the edge to the next node.</p></div>
+      <div data-step="2" data-until="3"><h3 class="c-state">2 · ctx.state</h3><p>The prompt reads <code>{refund_case}</code> from state, not the <code>RefundCase</code> on the edge.</p></div>
+      <div data-step="3"><h3 class="c-state">3 · state-bound parameter</h3><p><code>audit_log(reply_text)</code> gets the <code>output_key</code> value by its name.</p></div>
+    </div>
+    <div class="df-state">
+      <div class="df-sh">ctx.state <span>session</span></div>
+      <div class="df-empty">{ }  no keys yet</div>
+      <div class="df-kv" data-k="refund_case"><b>refund_case</b><br>
+        &nbsp;order_id <i>"A-1001"</i>, amount <i>89.0</i><br>
+        &nbsp;days_since_delivery <i>12</i><br>
+        &nbsp;eligible <i>true</i></div>
+      <div class="df-kv" data-k="reply_text"><b>reply_text</b> <i>"Thanks for reaching…"</i></div>
+    </div>
+  </div>
+  <aside class="notes">This slide runs the chain from Lab 3.1 and follows the data. Press through the three paths. Path 1, node_input: parse_request returns "A-1001", and the edge gives it to check_policy. Path 2, ctx.state: check_policy writes refund_case into state, and the write_reply prompt reads it with {refund_case}. The RefundCase that also rides the edge is not what the prompt template uses. Path 3, a state-bound parameter: write_reply saves its answer under output_key reply_text, and audit_log gets it only because its parameter has the same name. Think of a kitchen: the plate moves along the pass, and the order ticket hangs on the rail where every cook can read it. A likely question: "What if I misspell the parameter?" You get WorkflowDataError: Missing value for parameter "reply_txt". Next: what adk run prints for this run, and what --jsonl adds.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c03-lab-dataflow";
+  const IDS = ["df-start", "df-parse", "df-check", "df-write", "df-audit"];
+  const TARGET = [0, 2, 3, 4];               // node the token rests on at step n
+  const LABEL = ["user text", "user text", '"A-1001"', "RefundCase", "✓ reply_text"];
+  let tl = null, touched = [];
+  function render(slide, n, animate) {
+    const dg = slide.querySelector(".df-graph");
+    if (!dg) return;
+    if (tl) { tl.kill(); tl = null; }
+    const nodes = IDS.map((id) => dg.querySelector("#" + id));
+    const tok = dg.querySelector(".df-token"), tx = tok.querySelector(".tx");
+    const W = dg.offsetWidth;
+    const xOf = (i) => { const nd = nodes[i]; const w = tok.offsetWidth; return Math.max(0, Math.min(W - w, nd.offsetLeft + nd.offsetWidth / 2 - w / 2)); };
+    const setTok = (i) => { tx.textContent = LABEL[i]; tok.classList.toggle("done", i === 4); };
+    const lit = (i) => nodes.forEach((nd, k) => nd.classList.toggle("lit", n >= 1 && k === i));
+    const st = slide.querySelector(".df-state");
+    const rc = st.querySelector('[data-k="refund_case"]'), rt = st.querySelector('[data-k="reply_text"]'), em = st.querySelector(".df-empty");
+    touched = [tok, rc, rt, em];
+    gsap.killTweensOf(touched);
+    const N = Math.max(0, Math.min(3, n)), T = TARGET[N];
+    em.style.display = N >= 2 ? "none" : "";
+    rc.style.display = N >= 2 ? "" : "none";
+    rt.style.display = N >= 3 ? "" : "none";
+    gsap.set([rc, rt], { autoAlpha: 1, x: 0, backgroundColor: "rgba(0,0,0,0)" });
+    const flash = (el, delay) => gsap.fromTo(el, { autoAlpha: 0, x: 24, backgroundColor: "rgba(79,214,168,0.35)" }, { autoAlpha: 1, x: 0, backgroundColor: "rgba(79,214,168,0)", duration: 0.9, delay, ease: "power3.out" });
+    if (!animate) { setTok(T); gsap.set(tok, { x: xOf(T), y: 14 }); lit(T); return; }
+    const from = N >= 1 ? TARGET[N - 1] : 0;
+    setTok(from); gsap.set(tok, { x: xOf(from), y: 14 }); lit(from);
+    tl = gsap.timeline();
+    for (let i = from + 1; i <= T; i++) {
+      tl.call(() => setTok(i));
+      tl.to(tok, { x: () => xOf(i), duration: 0.6, ease: "power2.inOut" });
+      tl.call(() => nodes.forEach((nd, k) => nd.classList.toggle("lit", k === i)));
+    }
+    if (N === 2) flash(rc, 0.5);
+    if (N === 3) flash(rt, 0.6);
+  }
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { if (tl) { tl.kill(); tl = null; } touched.forEach((e) => e && gsap.killTweensOf(e)); }
+  });
+})();
+</script>

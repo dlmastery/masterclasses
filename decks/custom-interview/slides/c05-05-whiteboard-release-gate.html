@@ -1,0 +1,141 @@
+<section class="slide" id="custom-interview-c05-whiteboard-release-gate" data-tone="human" data-title="Whiteboard: eval and release gate">
+  <style>
+    #custom-interview-c05-whiteboard-release-gate { gap: 16px; }
+    #custom-interview-c05-whiteboard-release-gate .wb-row { display: grid; grid-template-columns: 1fr 600px; gap: 28px; align-items: start; }
+    #custom-interview-c05-whiteboard-release-gate .diagram .node { height: 70px; padding: 10px 14px; justify-content: center; }
+    #custom-interview-c05-whiteboard-release-gate .diagram .node .nt { font-size: 18px; }
+    #custom-interview-c05-whiteboard-release-gate .diagram .node .ns { font-size: 13px; }
+    #custom-interview-c05-whiteboard-release-gate .lamp { position: absolute; left: 1200px; top: 128px; width: 160px; display: flex; align-items: center; gap: 10px; font: 700 15px/1.25 var(--f-mono); color: var(--risk); }
+    #custom-interview-c05-whiteboard-release-gate .lamp i { width: 26px; height: 26px; flex: none; border-radius: 50%; background: var(--risk); box-shadow: 0 0 18px var(--risk); }
+    #custom-interview-c05-whiteboard-release-gate .lamp small { display: block; font-weight: 500; font-size: 12px; color: var(--muted); }
+    #custom-interview-c05-whiteboard-release-gate .qcard pre.code { font-size: 12.5px; padding: 12px 18px 14px; }
+    #custom-interview-c05-whiteboard-release-gate .steps-rail > * { font-size: 16px; line-height: 1.35; }
+    #custom-interview-c05-whiteboard-release-gate .wb-cites { display: flex; gap: 8px; }
+    #custom-interview-c05-whiteboard-release-gate .wb-cites .cite { flex: none; flex-direction: row; white-space: nowrap; font-size: 13px; padding: 4px 9px 4px 7px; gap: 6px; }
+  </style>
+  <div class="kicker"><span class="pill">Whiteboard</span> System design · HR-policy assistant</div>
+  <h2 class="title">Design the eval and release gate for an LLM-judged assistant</h2>
+
+  <div class="wb-row">
+    <div class="panel tight k-human">
+      <h4>Prompt</h4>
+      <p style="margin:0;font-size:19px;line-height:1.4">An HR-policy assistant ships weekly. Human review cannot scale. Design the eval and the release gate.</p>
+      <div class="tags"><span class="tag t-human">humans: anchor set only</span><span class="tag t-model">judge: LLM, pinned</span><span class="tag t-risk">gate: blocks the deploy</span></div>
+    </div>
+    <div class="code-wrap out qcard" data-step="4" data-fx="fade">
+      <div class="code-head">quality_card.md · model × eval sha256 · captured values</div>
+      <pre class="code xs" data-lang="out"><code><span class="qc-l"><span class="dim">eval set </span> sha256(file bytes) · 300 anchor · 4,000 prod</span>
+<span class="qc-l"><span class="dim">pass rate</span> 0.727  95% CI [0.628, 0.798]  <span class="dim">Rogan-Gladen</span></span>
+<span class="qc-l"><span class="dim">judge    </span> κ 0.580 vs humans 0.812 · TPR 0.946 · TNR 0.593</span>
+<span class="qc-l"><span class="dim">gate     </span> <span class="ok">CI low 0.628 ≥ 0.50   pass</span></span>
+<span class="qc-l"><span class="dim">gate     </span> <span class="err">κ 0.580 &lt; 0.60       FAIL → exit=1</span></span></code></pre>
+    </div>
+  </div>
+
+  <div class="diagram" style="width:1392px;height:250px"
+       data-wires="tr>gold@1{state}; tr>anc@1{human}:bl [2+ experts]; gold>jud@2{model}; anc>jud@2{human}:rb [κ · TPR/TNR]; jud>pst@3{tool} [N ≥ 3]; pst>card@4{state}:bl; card>gate@4{risk}:rb; gate>dep@4:dash [exit 0]">
+    <div class="node n-state" id="tr" style="left:0;top:30px;width:150px" data-step="1" data-fx="pop"><span class="nt">Traces</span><span class="ns">production</span></div>
+    <div class="node n-state" id="gold" style="left:254px;top:30px;width:150px" data-step="1" data-fx="pop"><span class="nt">Golden set</span><span class="ns">per slice</span></div>
+    <div class="node n-human" id="anc" style="left:254px;top:180px;width:150px" data-step="1" data-fx="pop"><span class="nt">Anchor set</span><span class="ns">expert labels</span></div>
+    <div class="node n-model" id="jud" style="left:508px;top:30px;width:150px" data-step="2" data-fx="pop"><span class="nt">LLM judge</span><span class="ns">version pinned</span></div>
+    <div class="node n-tool" id="pst" style="left:762px;top:30px;width:150px" data-step="3" data-fx="pop"><span class="nt">Paired stats</span><span class="ns">vs current</span></div>
+    <div class="node n-state" id="card" style="left:889px;top:180px;width:150px" data-step="4" data-fx="pop"><span class="nt">Quality card</span><span class="ns">model × hash</span></div>
+    <div class="node n-risk" id="gate" style="left:1016px;top:30px;width:150px" data-step="4" data-fx="pop" data-on="4:hot"><span class="nt">Release gate</span><span class="ns">CI job</span></div>
+    <div class="node n-agent pill" id="dep" style="left:1272px;top:30px;width:120px" data-step="4" data-fx="pop" data-on="4:dim"><span class="nt">Deploy</span></div>
+    <div class="lamp" data-step="4" data-fx="pop"><i id="c05wb-lamp"></i><span>exit 1<small>κ 0.58 &lt; 0.60</small></span></div>
+    <svg id="c05wb-tok" viewBox="0 0 1392 250" width="1392" height="250" style="position:absolute;left:0;top:0;z-index:3;pointer-events:none;overflow:visible"></svg>
+  </div>
+
+  <div class="wb-row">
+    <div class="stack" style="gap:12px">
+    <div class="steps-rail" style="gap:8px">
+      <div data-step="1"><span>Build a golden set from real traces. 2+ experts label an anchor set; human κ is the ceiling.</span></div>
+      <div data-step="2"><span>Calibrate the judge on the anchor (κ, TPR, TNR). Pin it. Run N ≥ 3 and log the flip rate.</span></div>
+      <div data-step="3"><span>Compare with the current model on the same items: paired CI. Wilson CI per slice.</span></div>
+      <div data-step="4"><span>One card per model × eval hash. <code>sys.exit(1)</code> if CI low &lt; 0.5 or κ &lt; 0.6.</span></div>
+    </div>
+      <div class="wb-cites" data-step="2" data-fx="fade" style="padding-left:46px"><a class="cite doc" href="https://shopify.engineering/building-production-ready-agentic-systems" target="_blank" rel="noopener"><b>Shopify</b>&nbsp;judge κ 0.61 vs 0.69</a><a class="cite paper" href="https://arxiv.org/abs/2609.33044" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2609.33044</a><a class="cite paper" href="https://arxiv.org/abs/2609.35815" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2609.35815</a></div>
+    </div>
+    <div class="gotcha" data-step="5" style="font-size:15.5px;padding:12px 16px;grid-template-columns:86px 1fr;gap:4px 12px">
+      <b>Symptom</b><span>Pass rate rises after a parser change. Model B scores exactly like model A.</span>
+      <b class="why">Cause</b><span>Unscorable answers leave the denominator (<a href="https://github.com/EleutherAI/lm-evaluation-harness/issues/4062" target="_blank" rel="noopener">lm-eval #4062</a>). The cache key omits the model name (<a href="https://github.com/EleutherAI/lm-evaluation-harness/issues/4063" target="_blank" rel="noopener">#4063</a>).</span>
+      <b class="fix">Fix</b><span>Score unscorable as 0 and report the counts. Key the cache by <code>model@sha</code>.</span>
+    </div>
+  </div>
+
+  <aside class="notes">Read the prompt and let the candidate draw before you reveal anything. The strong answer has four parts: a golden set from real traces plus a human anchor set labelled by two or more experts, an LLM judge calibrated on that anchor with kappa, TPR and TNR against the human-human ceiling, a paired comparison against the current model with per-slice Wilson intervals, and a quality card per model and eval hash that a CI job turns into a pass or exit 1. The card values are the captured HR-policy judge run: kappa 0.58 against 0.81 between humans, TNR 0.593, and a corrected pass rate of 0.727 with CI 0.628 to 0.798, so the CI-low rule passes but the kappa rule fails and the deploy is blocked. Analogy: the judge is a scale in a shop, and the anchor set is the reference weight you check it against before every weekly sale. Likely follow-up: "Can we reuse last release's judge calibration?" No: reusing an old version's calibration raised comparison error from 3.8 to 19.5 points (arXiv 2609.34198), so re-measure kappa on the new model's own answers every release. Hand-off: the paired step of this gate is where most teams slip, and the debug drill shows how.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-interview-c05-whiteboard-release-gate";
+  const CX = [75, 329, 583, 837, 1091, 1332];         // node centres, top row
+  const CARD = [964, 215];                            // quality card centre (bottom row)
+  const LANE = 12;                                    // token lane above the nodes
+  const END = [-1, 1, 2, 3, 4, 4];                    // last node the token reaches per step
+  let tl = null, lampTw = null, cardTw = null, tok = null;
+
+  function build(slide) {
+    const svg = slide.querySelector("#c05wb-tok");
+    if (svg._tok) { tok = svg._tok; return; }
+    svg.innerHTML = "";
+    const g = document.createElementNS(NS, "g");
+    const c = document.createElementNS(NS, "circle");
+    c.setAttribute("r", 12); c.setAttribute("cx", 0); c.setAttribute("cy", 0);
+    c.setAttribute("fill", "var(--model)");
+    const t = document.createElementNS(NS, "text");
+    t.setAttribute("x", 0); t.setAttribute("y", 4); t.setAttribute("text-anchor", "middle");
+    t.setAttribute("style", "font:700 11px var(--f-mono);fill:#fff");
+    t.textContent = "new";
+    g.appendChild(c); g.appendChild(t); svg.appendChild(g);
+    tok = { g, c };
+    svg._tok = tok;
+  }
+
+  function kill() {
+    if (tl) { tl.kill(); tl = null; }
+    if (lampTw) { lampTw.kill(); lampTw = null; }
+    if (cardTw) { cardTw.kill(); cardTw = null; }
+  }
+
+  function render(slide, n, animate) {
+    build(slide);
+    kill();
+    const lines = slide.querySelectorAll(".qc-l");
+    const lamp = slide.querySelector("#c05wb-lamp");
+    gsap.set(lamp, { scale: 1, opacity: 1 });
+    if (n < 1) { gsap.set(tok.g, { x: CX[0], y: LANE, opacity: 0 }); gsap.set(lines, { opacity: 1 }); return; }
+    const end = END[Math.min(n, END.length - 1)];
+    const blocked = n >= 4;
+    // card fields fill one by one when step 4 is entered; correct state otherwise
+    if (blocked && animate) cardTw = gsap.fromTo(lines, { opacity: 0 }, { opacity: 1, duration: 0.3, stagger: 0.35, delay: 0.4 });
+    else gsap.set(lines, { opacity: 1 });
+    // token loop: Traces -> last built node; at the gate it turns red and stops
+    const dur = Math.max(0.5, (CX[end] - CX[0]) / 420);
+    tl = gsap.timeline({ repeat: -1, repeatDelay: 0.9 });
+    tl.set(tok.g, { x: CX[0], y: LANE, opacity: 0 }, 0);
+    tl.set(tok.c, { attr: { fill: "var(--model)" } }, 0);
+    tl.to(tok.g, { opacity: 1, duration: 0.2 }, 0);
+    if (!blocked) {
+      tl.to(tok.g, { x: CX[end], duration: dur, ease: "power1.inOut" }, 0.2);
+    } else {
+      // Traces -> Paired stats on the lane, down into the quality card, up into the gate
+      const d1 = (CX[3] - CX[0]) / 420;
+      tl.to(tok.g, { x: CX[3], duration: d1, ease: "power1.inOut" }, 0.2);
+      tl.to(tok.g, { x: CARD[0], y: CARD[1], duration: 0.5, ease: "power1.inOut" }, 0.2 + d1);
+      tl.to(tok.g, { x: CX[4], y: LANE, duration: 0.5, ease: "power1.inOut" }, 0.9 + d1);
+      tl.set(tok.c, { attr: { fill: "var(--risk)" } }, 1.4 + d1);
+      tl.to(tok.g, { x: CX[4] - 6, duration: 0.06, repeat: 5, yoyo: true }, 1.45 + d1);
+    }
+    const tEnd = blocked ? 1.2 + (CX[3] - CX[0]) / 420 : dur;
+    tl.to(tok.g, { opacity: 0, duration: 0.4 }, 0.9 + tEnd);
+    if (blocked) lampTw = gsap.to(lamp, { opacity: 0.35, duration: 0.6, repeat: -1, yoyo: true, ease: "sine.inOut" });
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { kill(); if (tok) gsap.killTweensOf([tok.g, tok.c]); }
+  });
+})();
+</script>

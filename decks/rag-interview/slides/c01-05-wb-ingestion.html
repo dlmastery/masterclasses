@@ -1,0 +1,73 @@
+<section class="slide" id="rag-interview-c01-wb-ingestion" data-tone="tool" data-title="Whiteboard: incremental PDF ingestion">
+  <style>
+    #rag-interview-c01-wb-ingestion .diagram .node { min-width: 0; padding: 12px 14px; height: 88px; justify-content: center; overflow: visible; }
+    #rag-interview-c01-wb-ingestion .diagram .node .nt { font-size: 19px; }
+    #rag-interview-c01-wb-ingestion .diagram .node .ns { font-size: 14px; }
+    #rag-interview-c01-wb-ingestion .diagram .node.ghost { opacity: .7; }
+    #rag-interview-c01-wb-ingestion .diagram #guard { border-style: dashed; }
+    #rag-interview-c01-wb-ingestion .diagram #index { height: 124px; }
+    #rag-interview-c01-wb-ingestion .nb { position: absolute; left: -13px; top: -13px; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font: 700 15px/1 var(--f-mono); color: #1a1300; background: #f6c350; box-shadow: 0 0 0 3px var(--bg); }
+    #rag-interview-c01-wb-ingestion .meta-row { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+    #rag-interview-c01-wb-ingestion .meta-row span { font: 600 12.5px/1 var(--f-mono); padding: 4px 6px; border-radius: 6px; background: var(--state-soft); color: var(--state); }
+    #rag-interview-c01-wb-ingestion .prompt-card { padding: 12px 16px; gap: 4px; }
+    #rag-interview-c01-wb-ingestion .prompt-card p { font-size: 16.5px; line-height: 1.4; margin: 0; }
+    #rag-interview-c01-wb-ingestion .prompt-card .lbl { font: 700 13px/1 var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--human); }
+    #rag-interview-c01-wb-ingestion ol.seq { gap: 9px; }
+    #rag-interview-c01-wb-ingestion ol.seq > li { font-size: 15.5px; line-height: 1.36; padding-left: 42px; color: var(--ink-2); }
+    #rag-interview-c01-wb-ingestion ol.seq > li::before { width: 28px; height: 28px; font-size: 14px; background: #f6c350; color: #1a1300; }
+    #rag-interview-c01-wb-ingestion ol.seq code { font-size: .82em; }
+    #rag-interview-c01-wb-ingestion .math p { font-size: 15.5px; line-height: 1.4; margin: 0; color: var(--ink-2); }
+    #rag-interview-c01-wb-ingestion .math { gap: 4px; padding: 10px 14px; }
+    #rag-interview-c01-wb-ingestion .cites { flex: none; flex-wrap: nowrap; gap: 8px; }
+    #rag-interview-c01-wb-ingestion .cites .cite { font-size: 13px; white-space: nowrap; flex: none; padding: 6px 10px 6px 8px; gap: 7px; }
+    #rag-interview-c01-wb-ingestion .cites .cite.paper { flex-direction: row; border-radius: 10px; border: 1px solid var(--line); background: color-mix(in oklab, var(--surface) 60%, transparent); }
+  </style>
+  <div class="kicker"><span class="pill">Whiteboard</span> system design</div>
+  <h2 class="title">Ingest 2M changing policy PDFs with page citations</h2>
+  <div class="grid fill" style="grid-template-columns: 900px 1fr; gap: 32px">
+    <div class="stack" style="gap:14px">
+      <div class="diagram" id="c01-wb-dg" style="width:900px;height:560px"
+           data-wires="bucket>detect@1:rl [1% / day]; detect>ghost@1:bt:dash [99%]; detect>parse@2:rl [changed]; parse>chunk@3:bt [pages kept]; chunk>enrich@4:rl; enrich>embed@5:bt; embed>index@5:lr [upsert + delete]; guard--parse@6:lr:dash{risk}">
+        <div class="node n-tool" id="bucket" style="left:0;top:30px;width:150px" data-step="1" data-fx="pop"><span class="nt">Bucket</span><span class="ns">GCS / S3</span></div>
+        <div class="node n-state" id="detect" style="left:250px;top:30px;width:170px" data-step="1" data-fx="pop" data-on="1:hot 2:lit"><span class="nb">1</span><span class="nt">Change detector</span><span class="ns">sha256 per file</span></div>
+        <div class="node n-tool" id="parse" style="left:520px;top:30px;width:150px" data-step="2" data-fx="pop" data-on="2:hot 3:lit"><span class="nb">2</span><span class="nt">Parser</span><span class="ns">Docling + OCR</span></div>
+        <div class="node n-risk ghost" id="guard" style="left:760px;top:30px;width:140px" data-step="6" data-fx="pop" data-on="6:hot"><span class="nb">6</span><span class="nt">CI test</span><span class="ns">canary PDF + page count</span></div>
+        <div class="node n-state pill ghost" id="ghost" style="left:250px;top:250px;width:170px" data-step="1" data-fx="fade"><span class="nt">Unchanged</span><span class="ns">keep vectors, no write</span></div>
+        <div class="node n-tool" id="chunk" style="left:520px;top:250px;width:150px" data-step="3" data-fx="pop" data-on="3:hot 4:lit"><span class="nb">3</span><span class="nt">Chunker</span><span class="ns">HybridChunker</span></div>
+        <div class="node n-model" id="enrich" style="left:760px;top:250px;width:140px" data-step="4" data-fx="pop" data-on="4:hot 5:lit"><span class="nb">4</span><span class="nt">Enricher</span><span class="ns">heading path or LLM context</span></div>
+        <div class="node n-model" id="embed" style="left:760px;top:440px;width:140px" data-step="5" data-fx="pop" data-on="5:hot"><span class="nb">5</span><span class="nt">Embedder</span><span class="ns">sha256 per chunk, new only</span></div>
+        <div class="node n-state" id="index" style="left:300px;top:422px;width:250px" data-step="5" data-fx="pop" data-on="5:hot"><span class="nt">Index</span>
+          <div class="meta-row"><span>doc_id</span><span>page</span><span>acl_groups</span><span>embedding_model</span><span>embedding_version</span></div>
+        </div>
+      </div>
+      <div class="cites" data-step="6">
+        <a class="cite repo" href="https://github.com/docling-project/docling/tree/main/docs/examples" target="_blank" rel="noopener"><b>Docling</b>&nbsp;examples</a>
+        <a class="cite doc" href="https://www.notion.com/blog/two-years-of-vector-search-at-notion" target="_blank" rel="noopener"><b>Notion</b>&nbsp;vector search</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2608.20845" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2608.20845</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2610.31019" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.31019</a>
+        <a class="cite repo" href="https://github.com/Unstructured-IO/unstructured/issues/4377" target="_blank" rel="noopener"><b>unstructured</b>&nbsp;#4377</a>
+      </div>
+    </div>
+
+    <div class="stack" style="gap:12px">
+      <div class="panel k-human tight prompt-card">
+        <span class="lbl">Prompt</span>
+        <p>Acme Insurance: <b>2M policy PDFs</b> (some scanned), <b>1% change a day</b>. Cite the page. Budget: re-embedding cost.</p>
+      </div>
+      <ol class="seq">
+        <li data-step="1"><b>Hash each file.</b> Skip the 99% that did not change.</li>
+        <li data-step="2"><b>Parse with layout.</b> Keep <code>prov.page_no</code>. OCR only scans.</li>
+        <li data-step="3"><b>Chunk by structure</b>, in embedder tokens.</li>
+        <li data-step="4"><b>Enrich once, at ingest.</b> Compiled claims (LLM-extracted facts): <b>85.2%</b> at 2.2k tokens vs 72.5% at 16.3k.</li>
+        <li data-step="5"><b>Hash each chunk.</b> Embed new hashes. Delete the doc_id's stale ids.</li>
+        <li data-step="6"><b>Test in CI.</b> Hidden white text (injection) never reaches a chunk. Pages out = pages in.</li>
+      </ol>
+      <div class="panel k-state tight math push" data-step="5">
+        <p><b>Back of envelope:</b> 2M × 1% = <b>20k</b> PDFs a day × ~40 chunks (assumed) = 800k hashed. Embed only new hashes; fixed-size re-embeds 57-68%.</p>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    Read the prompt aloud and ask the candidate for the day-2 plan before they draw the first load. A strong answer starts with change detection at two levels: a cheap hash of the file bytes before parsing, because with 1% daily churn the cheapest embedding is the one you never compute, and then a sha256 per chunk at the embedder, because spans and chunks exist only after parsing. Unchanged files are skipped and their vectors stay as they are; nothing is written. Parse with layout and keep page numbers as provenance: Docling stores them in each item's prov list, and that page goes into the chunk metadata. Chunk by structure in the embedder's tokens, enrich once at write time, and store doc_id, page, acl_groups and the embedding version on every vector. For an edited file, delete the ids of that doc_id that the new version no longer produces, then upsert the new ones, so stale wording cannot be cited. Analogy: the change detector is a library's returns desk; only the books that came back changed go back to the bindery. The CI test catches the silent failures: hidden PDF text that becomes a prompt-injection path, and parsers that drop pages without an error. Hand-off: the debug drill takes one stage of this pipeline, chunk then embed, and shows how it loses text without an error.
+  </aside>
+</section>

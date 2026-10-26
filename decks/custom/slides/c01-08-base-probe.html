@@ -1,0 +1,133 @@
+<section class="slide" id="custom-c01-base-probe" data-tone="model" data-title="Probe the base model">
+  <div class="kicker">Build · Acme refunds · base-model probe</div>
+  <h2 class="title">Probe the base model 8 times per prompt before you pay for RL</h2>
+  <div class="grid fill" style="grid-template-columns:800px 1fr;gap:32px">
+    <div class="stack" style="gap:12px">
+      <div class="lab-head"><span class="run">cd refunds &amp;&amp; python probe.py</span><span class="tag">openai==3.37.0</span><span class="tag">vllm==0.31.0 server</span></div>
+      <div class="code-wrap">
+        <div class="code-head">refunds/probe.py</div>
+        <pre class="code sm" data-lang="python" data-focus="1:8-10, 2:11-13, 3:14-15"><code>import json
+from openai import OpenAI      # any OpenAI-compatible server, e.g. vLLM
+from grade import grade        # refunds/grade.py, the portable grader
+
+client, MODEL = OpenAI(), "Qwen/Qwen3-4B-Instruct-2507"
+rows = [json.loads(l) for l in open("eval_set.jsonl")]   # 20-50 prompts
+passes = solved = 0
+for row in rows:
+    r = client.chat.completions.create(model=MODEL, messages=row["messages"],
+                                       temperature=1.0, n=8)
+    s = [grade({"output_text": c.message.content}, row) for c in r.choices]
+    passes += sum(x == 1.0 for x in s)
+    solved += any(x == 1.0 for x in s)
+print(f"pass rate {passes / (8 * len(rows)):.2f}")
+print(f"pass@8 > 0 on {solved}/{len(rows)} prompts")</code></pre>
+      </div>
+      <div class="code-wrap out" data-step="3">
+        <div class="code-head">output · illustrative, 4 prompts shown</div>
+        <pre class="code xs" data-lang="bash"><code><span class="ok">pass rate 0.41</span>
+<span class="ok">pass@8 > 0 on 4/4 prompts</span>   <span class="dim"># not 0, not > 95%: RFT is in range</span></code></pre>
+      </div>
+    </div>
+
+    <div class="pb-right">
+      <div class="diagram" id="pb-tree" style="width:560px;height:290px"
+           data-wires="pbq>pbsft:bt{risk}; pbq>pbstop:bt{state}; pbq>pbrft@3:bt:flow{model}">
+        <div class="node n-agent" id="pbq" style="left:110px;top:0;width:340px;align-items:center;text-align:center"><span class="nt">Probe the base model</span><span class="ns">8 samples per prompt, temperature 1.0</span></div>
+        <div class="node n-model" id="pbsft" style="left:0;top:170px;width:160px" data-on="3:dim"><span class="cond">always 0</span><span class="nt">SFT first</span><span class="ns">no RL signal</span></div>
+        <div class="node n-state" id="pbstop" style="left:190px;top:170px;width:150px" data-on="3:dim"><span class="cond">&gt; 95%</span><span class="nt">Stop</span><span class="ns">ship the prompt</span></div>
+        <div class="node n-model" id="pbrft" style="left:370px;top:170px;width:190px" data-on="3:hot"><span class="cond">otherwise</span><span class="nt">RFT</span><span class="ns">GRPO: RL on sample groups</span></div>
+        <div class="pb-here" data-step="3" data-fx="pop">you are here</div>
+      </div>
+      <div class="panel k-agent tight pb-dots" style="padding:14px 18px">
+        <svg id="pb-svg" viewBox="0 0 524 230" width="524" height="230"></svg>
+      </div>
+      <svg class="pb-ptr" width="560" height="560" style="position:absolute;left:0;top:0;overflow:visible;pointer-events:none;z-index:6"></svg>
+    </div>
+  </div>
+  <style>
+    #custom-c01-base-probe .pb-right { position: relative; display: flex; flex-direction: column; gap: 26px; }
+    #custom-c01-base-probe .node .ns { font-size: 16px; }
+    #custom-c01-base-probe .node .cond { font: 700 15px/1 var(--f-mono); color: var(--muted); text-transform: uppercase; letter-spacing: .03em; margin-bottom: 2px; }
+    #custom-c01-base-probe #pbrft.hot { outline: 4px solid var(--model); outline-offset: 3px; }
+    #custom-c01-base-probe .pb-here { position: absolute; left: 370px; top: 128px; width: 190px; text-align: center; font: 700 16px/1 var(--f-mono); color: #fff; background: var(--model); border-radius: 8px; padding: 6px 0; z-index: 3; }
+    #custom-c01-base-probe svg text { font-family: var(--f-mono); }
+    #custom-c01-base-probe pre.code, #custom-c01-base-probe pre.code *, #custom-c01-base-probe .lab-head * { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+  </style>
+  <aside class="notes">This is check 3 as code. The probe samples the Acme base model 8 times per eval prompt at temperature 1.0, scores every sample with the same grade() function we keep portable, and counts two numbers. The pass rate is the share of samples that score a full 1.0; pass@8 greater than zero means at least one of the 8 samples is fully correct for that prompt. The tree is the decision. If the reward is always 0, RL has no signal: do SFT first. If the reward is already above 95%, Bedrock says RFT might be unnecessary: ship the prompt. Otherwise RFT is in range; GRPO, the usual RFT algorithm, compares the samples in a group, so it needs some passes and some fails. On the right, 4 of the 20 to 50 eval prompts are shown; the dots are illustrative: 13 of 32 samples pass, so the pass rate is 0.41, and every prompt has at least one pass. Analogy: a coach tests whether the athlete can do the move at least sometimes before planning drills. Likely question: "why temperature 1.0?" With low temperature all 8 samples are the same answer, so the probe and GRPO both see no variety. Next: chapter 2 takes the format failure to SFT with TRL and LoRA in Lab 1.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const PASS = [3, 2, 5, 3];             // passes per prompt, 13 of 32 = 0.41 (illustrative)
+  let dots = [], counts = [], rateEl, solvedEl, ptr, built = false, cnt = { v: 0 };
+  const isPass = (r, i) => ((i * 3 + r * 5) % 8) < PASS[r];
+  const mk = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); parent.appendChild(e); return e; };
+  const txt = (s, attrs, parent) => { const e = mk("text", attrs, parent); e.textContent = s; return e; };
+
+  function build(slide) {
+    const svg = slide.querySelector("#pb-svg");
+    svg.innerHTML = ""; dots = []; counts = [];
+    txt("4 of the eval prompts · illustrative", { x: 0, y: 18, "font-size": 18, fill: "var(--muted)" }, svg);
+    for (let r = 0; r < 4; r++) {
+      const y = 54 + r * 36;
+      txt("p" + (r + 1), { x: 0, y: y + 6, "font-size": 18, fill: "var(--ink-2)" }, svg);
+      for (let i = 0; i < 8; i++) {
+        dots.push({ el: mk("circle", { cx: 50 + i * 30, cy: y, r: 11, fill: "var(--faint)", opacity: 0.35 }, svg), ok: isPass(r, i) });
+      }
+      counts.push(txt("0/8", { x: 290, y: y + 6, "font-size": 18, fill: "var(--ink-2)" }, svg));
+    }
+    txt("pass rate", { x: 372, y: 56, "font-size": 18, fill: "var(--muted)" }, svg);
+    rateEl = txt("0.00", { x: 372, y: 104, "font-size": 44, "font-weight": 700, fill: "var(--model)" }, svg);
+    txt("= 13/32", { x: 372, y: 132, "font-size": 18, fill: "var(--ink-2)" }, svg);
+    solvedEl = txt("pass@8>0: 4/4", { x: 360, y: 168, "font-size": 17, "font-weight": 700, fill: "var(--state)", opacity: 0 }, svg);
+    txt("green = 1.0, red = below 1.0", { x: 0, y: 222, "font-size": 16, fill: "var(--muted)" }, svg);
+    built = true;
+  }
+
+  function pointer(slide, on, animate) {
+    const svg = slide.querySelector(".pb-ptr"), host = slide.querySelector(".pb-right");
+    svg.innerHTML = "";
+    if (!on) return;
+    const hr = host.getBoundingClientRect(), sc = host.offsetWidth / hr.width;
+    const a = rateEl.getBoundingClientRect(), b = slide.querySelector("#pbrft").getBoundingClientRect();
+    const x1 = (a.right - hr.left) * sc + 8, y1 = (a.top + a.height / 2 - hr.top) * sc;
+    const x2 = (b.left + b.width / 2 - hr.left) * sc, y2 = (b.bottom - hr.top) * sc + 10;
+    const p = mk("path", { d: `M${x1},${y1} C${x1 + 70},${y1} ${x2},${y2 + 90} ${x2},${y2}`, fill: "none", stroke: "var(--model)", "stroke-width": 3 }, svg);
+    const head = mk("path", { d: `M${x2},${y2 - 2} L${x2 - 7},${y2 + 10} L${x2 + 7},${y2 + 10} Z`, fill: "var(--model)" }, svg);
+    if (animate) {
+      const L = p.getTotalLength();
+      gsap.fromTo(p, { strokeDasharray: L, strokeDashoffset: L }, { strokeDashoffset: 0, duration: 0.8, delay: 0.3, ease: "power2.inOut" });
+      gsap.fromTo(head, { opacity: 0 }, { opacity: 1, duration: 0.2, delay: 1.05 });
+    }
+  }
+
+  function render(slide, n, animate) {
+    if (!built) build(slide);
+    gsap.killTweensOf(dots.map((d) => d.el).concat(counts, [rateEl, solvedEl, cnt]));
+    const on = n >= 2;
+    dots.forEach((d, k) => {
+      const fill = on ? (d.ok ? "var(--state)" : "var(--risk)") : "var(--faint)";
+      const op = on ? 1 : 0.35;
+      if (on && animate && n === 2) gsap.fromTo(d.el, { attr: { r: 0, fill, opacity: op } }, { attr: { r: 11 }, duration: 0.35, delay: 0.15 + k * 0.03, ease: "back.out(2)" });
+      else { d.el.setAttribute("fill", fill); d.el.setAttribute("r", 11); d.el.setAttribute("opacity", op); }
+    });
+    counts.forEach((c, r) => { c.textContent = (on ? PASS[r] : 0) + "/8"; });
+    const target = on ? 13 / 32 : 0;
+    if (on && animate && n === 2) {
+      cnt.v = 0;
+      gsap.to(cnt, { v: target, duration: 1.1, delay: 0.3, ease: "power2.out", onUpdate: () => { rateEl.textContent = cnt.v.toFixed(2); } });
+    } else rateEl.textContent = target.toFixed(2);
+    solvedEl.setAttribute("opacity", on ? 1 : 0);
+    pointer(slide, n >= 3, animate && n === 3);
+  }
+
+  Deck.register("custom-c01-base-probe", {
+    enter(slide, step) { build(slide); render(slide, step, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) {
+      gsap.killTweensOf(dots.map((d) => d.el).concat(counts, [rateEl, solvedEl, cnt].filter(Boolean)));
+      const s = slide && slide.querySelector(".pb-ptr"); if (s) gsap.killTweensOf(s.querySelectorAll("path"));
+    }
+  });
+})();
+</script>

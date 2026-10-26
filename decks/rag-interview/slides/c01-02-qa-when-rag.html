@@ -1,0 +1,215 @@
+<section class="slide" id="rag-interview-c01-qa-when-rag" data-tone="tool" data-title="When RAG, and what to check first">
+  <style>
+    #rag-interview-c01-qa-when-rag .cites .cite { font-size: 14.5px; flex-direction: row; gap: 8px; padding: 6px 10px 6px 8px; border-radius: 10px; border: 1px solid var(--line); background: color-mix(in oklab, var(--surface) 60%, transparent); }
+    #rag-interview-c01-qa-when-rag .qa .a { font-size: 20px; line-height: 1.42; }
+    #rag-interview-c01-qa-when-rag svg text { font-family: var(--f-mono); }
+    #rag-interview-c01-qa-when-rag .defs { font-size: 15.5px; line-height: 1.45; color: var(--ink-2); margin: 0; }
+    #rag-interview-c01-qa-when-rag .defs b { color: var(--ink); }
+    #rag-interview-c01-qa-when-rag pre.code.xs { font-size: 15px; padding: 12px 16px 14px; }
+    #rag-interview-c01-qa-when-rag .cost { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    #rag-interview-c01-qa-when-rag .cost .stat .n { font-size: 44px; }
+    #rag-interview-c01-qa-when-rag .cost .stat .l { font-size: 15px; }
+    #rag-interview-c01-qa-when-rag .cost-h { font: 700 14px/1 var(--f-mono); letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+  </style>
+  <div class="kicker">Interview · Foundations</div>
+  <h2 class="title">Choose RAG for facts, tuning for behaviour, and check recall first</h2>
+  <div class="grid g-32 fill" style="gap:36px">
+    <div class="stack" style="gap:26px">
+      <div class="qa">
+        <div class="q">When do you choose RAG over fine-tuning or one long prompt?</div>
+        <div class="a" data-step="1"><b>Facts → RAG. Behaviour → fine-tune.</b> A small, static, one-ACL corpus fits one cached prompt. Only RAG filters per user at query time.</div>
+      </div>
+      <div class="qa">
+        <div class="q">Your RAG bot gives wrong answers. What do you check first?</div>
+        <div class="a" data-step="2"><b>Recall@k on a golden set.</b> No gold chunk in the top-k: no fix downstream. Then split retrieval failures from reasoning failures.</div>
+      </div>
+      <div class="qa">
+        <div class="q">Can an agent with grep and file tools replace the index?</div>
+        <div class="a" data-step="3"><b>Not at scale.</b> BM25 overtakes a file-system agent above ~10M corpus tokens. Rank first, then let the agent reason.</div>
+      </div>
+      <div class="cites push" style="flex-direction:column;align-items:flex-start;gap:8px">
+        <a class="cite paper" href="https://arxiv.org/abs/2610.26951" target="_blank" rel="noopener"><b>arXiv 2610.26951</b>&nbsp;The Bottleneck Is Retrieval, Not Reading</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2609.33778" target="_blank" rel="noopener"><b>arXiv 2609.33778</b>&nbsp;Evidence-Inference Reconstruction</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2607.26497" target="_blank" rel="noopener"><b>arXiv 2607.26497</b>&nbsp;BM25 Wins at Scale</a>
+        <a class="cite doc" href="https://dropbox.tech/machine-learning/vp-josh-clemm-knowledge-graphs-mcp-and-dspy-dash" target="_blank" rel="noopener"><b>Dropbox</b>&nbsp;VP Josh Clemm: knowledge graphs, MCP and DSPy in Dash</a>
+      </div>
+    </div>
+
+    <div style="display:grid;min-height:0">
+      <!-- step 0: the scenario -->
+      <div class="panel k-tool tight" data-until="1" style="grid-area:1/1;align-self:start;gap:14px">
+        <h4>Acme Insurance claims knowledge base</h4>
+        <div class="row" style="gap:10px;flex-wrap:wrap"><span class="tag t-tool">policy PDFs</span><span class="tag t-tool">adjuster manual</span><span class="tag t-tool">support FAQ</span></div>
+        <p class="small">The documents change every week. Answer each question aloud before the reveal: one mechanism, one number, one fix.</p>
+      </div>
+
+      <!-- step 1: decision cascade, tested top to bottom -->
+      <div class="wr-fig" data-step="1" data-until="2" data-fx="fade" style="grid-area:1/1;align-self:start">
+        <svg class="wr-tree" viewBox="0 0 540 478" width="540" height="478" aria-label="Decision cascade: small static one-ACL corpus goes to a cached prompt; otherwise fresh private or cited facts go to RAG; otherwise behaviour goes to fine-tuning; otherwise a plain prompt">
+          <!-- question boxes -->
+          <g class="wr-n"><rect x="0" y="10" width="236" height="70" rx="14" fill="var(--bg)" stroke="var(--ink-2)" stroke-width="2"/>
+            <text x="16" y="39" font-size="18" font-weight="700" fill="var(--ink)">1 Small, static,</text><text x="36" y="64" font-size="18" font-weight="700" fill="var(--ink)">one ACL?</text></g>
+          <g class="wr-n"><rect x="0" y="150" width="236" height="70" rx="14" fill="var(--bg)" stroke="var(--ink-2)" stroke-width="2"/>
+            <text x="16" y="179" font-size="18" font-weight="700" fill="var(--ink)">2 Fresh, private</text><text x="36" y="204" font-size="18" font-weight="700" fill="var(--ink)">or cited facts?</text></g>
+          <g class="wr-n"><rect x="0" y="290" width="236" height="70" rx="14" fill="var(--bg)" stroke="var(--ink-2)" stroke-width="2"/>
+            <text x="16" y="319" font-size="18" font-weight="700" fill="var(--ink)">3 Behaviour, format</text><text x="36" y="344" font-size="18" font-weight="700" fill="var(--ink)">or style?</text></g>
+          <!-- "no" spine: evaluation order -->
+          <g class="wr-no">
+            <path class="wr-w" d="M118 80 L118 142" fill="none" stroke="var(--ink-2)" stroke-width="3"/><path d="M110 136 L118 148 L126 136 Z" fill="var(--ink-2)"/>
+            <path class="wr-w" d="M118 220 L118 282" fill="none" stroke="var(--ink-2)" stroke-width="3"/><path d="M110 276 L118 288 L126 276 Z" fill="var(--ink-2)"/>
+            <path class="wr-w" d="M118 360 L118 396" fill="none" stroke="var(--ink-2)" stroke-width="3"/><path d="M110 390 L118 402 L126 390 Z" fill="var(--ink-2)"/>
+            <text x="132" y="119" font-size="16" font-weight="600" fill="var(--muted)">no</text>
+            <text x="132" y="259" font-size="16" font-weight="600" fill="var(--muted)">no</text>
+            <text x="132" y="388" font-size="16" font-weight="600" fill="var(--muted)">no</text>
+            <text x="0" y="424" font-size="16" fill="var(--muted)">→ plain prompt + examples</text>
+          </g>
+          <!-- "yes" exits -->
+          <g class="wr-yes">
+            <path d="M236 45 L320 45" fill="none" stroke="var(--agent)" stroke-width="3"/><path d="M314 37 L328 45 L314 53 Z" fill="var(--agent)"/>
+            <path d="M236 185 L320 185" fill="none" stroke="var(--state)" stroke-width="3"/><path d="M314 177 L328 185 L314 193 Z" fill="var(--state)"/>
+            <path d="M236 325 L320 325" fill="none" stroke="var(--model)" stroke-width="3"/><path d="M314 317 L328 325 L314 333 Z" fill="var(--model)"/>
+            <text x="280" y="34" text-anchor="middle" font-size="16" font-weight="600" fill="var(--muted)">yes</text>
+            <text x="280" y="174" text-anchor="middle" font-size="16" font-weight="600" fill="var(--muted)">yes</text>
+            <text x="280" y="314" text-anchor="middle" font-size="16" font-weight="600" fill="var(--muted)">yes</text>
+          </g>
+          <g class="wr-o"><rect x="332" y="8" width="206" height="74" rx="14" fill="var(--agent-soft)" stroke="var(--agent)" stroke-width="2.5"/>
+            <text x="350" y="40" font-size="21" font-weight="700" fill="var(--ink)">Cached prompt</text><text x="350" y="68" font-size="15" fill="var(--agent)">min 512 tok cached</text></g>
+          <g class="wr-o"><rect x="332" y="148" width="206" height="74" rx="14" fill="var(--state-soft)" stroke="var(--state)" stroke-width="2.5"/>
+            <text x="350" y="180" font-size="21" font-weight="700" fill="var(--ink)">RAG</text><text x="350" y="208" font-size="15" fill="var(--state)">update = re-index</text></g>
+          <g class="wr-o"><rect x="332" y="288" width="206" height="74" rx="14" fill="var(--model-soft)" stroke="var(--model)" stroke-width="2.5"/>
+            <text x="350" y="320" font-size="21" font-weight="700" fill="var(--ink)">Fine-tune</text><text x="350" y="348" font-size="15" fill="var(--model)">how it answers</text></g>
+          <text x="0" y="450" font-size="15" fill="var(--ink-2)">ACL = access-control list: who may read a doc.</text><text x="0" y="472" font-size="15" fill="var(--ink-2)">Acme: policy PDFs change weekly → RAG.</text>
+        </svg>
+      </div>
+
+      <!-- step 2: recall@5 = 0, and how to compute it -->
+      <div class="wr-fig stack" data-step="2" data-until="3" data-fx="fade" style="grid-area:1/1;align-self:start;gap:12px">
+        <svg class="wr-topk" viewBox="0 0 540 300" width="540" height="300" aria-label="Top-5 list for the appeal deadline query; the gold chunk is at rank 23, below the cut; recall at 5 is zero">
+          <text x="0" y="20" font-size="16" fill="var(--muted)">top-5 for "appeal deadline?"</text>
+          <g class="wr-bar"><rect x="0" y="34" width="340" height="34" rx="8" fill="var(--ink-2)" fill-opacity=".10" stroke="var(--ink-2)" stroke-opacity=".4"/><text x="14" y="57" font-size="17" fill="var(--ink-2)">1 · FAQ claim status</text></g>
+          <g class="wr-bar"><rect x="0" y="74" width="340" height="34" rx="8" fill="var(--ink-2)" fill-opacity=".10" stroke="var(--ink-2)" stroke-opacity=".4"/><text x="14" y="97" font-size="17" fill="var(--ink-2)">2 · manual photos</text></g>
+          <g class="wr-bar"><rect x="0" y="114" width="340" height="34" rx="8" fill="var(--ink-2)" fill-opacity=".10" stroke="var(--ink-2)" stroke-opacity=".4"/><text x="14" y="137" font-size="17" fill="var(--ink-2)">3 · policy scope</text></g>
+          <g class="wr-bar"><rect x="0" y="154" width="340" height="34" rx="8" fill="var(--ink-2)" fill-opacity=".10" stroke="var(--ink-2)" stroke-opacity=".4"/><text x="14" y="177" font-size="17" fill="var(--ink-2)">4 · FAQ contacts</text></g>
+          <g class="wr-bar"><rect x="0" y="194" width="340" height="34" rx="8" fill="var(--ink-2)" fill-opacity=".10" stroke="var(--ink-2)" stroke-opacity=".4"/><text x="14" y="217" font-size="17" fill="var(--ink-2)">5 · glossary</text></g>
+          <g class="wr-gold">
+            <path d="M0 238 L340 238" stroke="var(--risk)" stroke-width="2" stroke-dasharray="6 5"/>
+            <text x="346" y="243" font-size="14" font-weight="700" fill="var(--risk)">k = 5 cut</text>
+            <text x="150" y="258" font-size="20" fill="var(--muted)">⋯</text>
+            <rect x="0" y="264" width="340" height="34" rx="8" fill="var(--state-soft)" stroke="var(--state)" stroke-width="2" stroke-dasharray="6 5"/>
+            <text x="14" y="287" font-size="17" font-weight="700" fill="var(--state)">23 · policy §3 appeals (gold)</text>
+          </g>
+          <g class="wr-badge">
+            <rect x="370" y="110" width="168" height="46" rx="23" fill="var(--risk)"/>
+            <text x="454" y="140" text-anchor="middle" font-size="18" font-weight="700" fill="#fff">recall@5 = 0</text>
+          </g>
+        </svg>
+        <div class="code-wrap">
+          <div class="code-head">evalkit.py · stdlib only</div>
+          <pre class="code xs" data-lang="python"><code>def recall_at_k(ranked, gold, k):   # share of gold ids in top k
+    return len(set(ranked[:k]) &amp; gold) / len(gold)
+
+def hit_at_k(ranked, gold, k):      # 1.0 if any gold id in top k
+    return float(bool(set(ranked[:k]) &amp; gold))
+
+golden = [("appeal deadline?", {"policy#3"})]   # human-labelled</code></pre>
+        </div>
+        <p class="defs"><b>Gold chunk</b>: the chunk a human marked as the answer. <b>Golden set</b>: real user questions with their gold chunks.</p>
+      </div>
+
+      <!-- step 3: BM25 vs file-system agent crossover -->
+      <div class="wr-fig stack" data-step="3" data-fx="fade" style="grid-area:1/1;align-self:start;gap:12px">
+        <svg class="wr-cross" viewBox="0 0 540 368" width="540" height="368" aria-label="Accuracy against corpus tokens on a log axis: the agent line falls below BM25 at about 10 million tokens">
+          <text x="0" y="20" font-size="16" fill="var(--muted)">accuracy vs corpus size (2607.26497)</text>
+          <text transform="translate(22 200) rotate(-90)" text-anchor="middle" font-size="15" font-weight="600" fill="var(--ink-2)">accuracy</text>
+          <path d="M44 46 L44 316 L530 316" fill="none" stroke="var(--ink-2)" stroke-width="2"/>
+          <g font-size="15" fill="var(--muted)" text-anchor="middle">
+            <text x="60" y="340">1M</text><text x="213" y="340">10M</text><text x="366" y="340">100M</text><text x="510" y="340">1B</text>
+          </g>
+          <text x="290" y="360" text-anchor="middle" font-size="14" fill="var(--muted)">corpus tokens (log)</text>
+          <path d="M213 120 L213 316" fill="none" stroke="var(--line-2)" stroke-width="1.5" stroke-dasharray="5 6"/>
+          <path class="wr-l" d="M80 90 L213 160 L486 282" fill="none" stroke="var(--agent)" stroke-width="4" stroke-linecap="round"/>
+          <path class="wr-l" d="M80 140 L213 160 L486 200" fill="none" stroke="var(--tool)" stroke-width="4" stroke-linecap="round"/>
+          <text class="wr-lt" x="86" y="74" font-size="16" font-weight="600" fill="var(--agent)">file-system agent</text>
+          <text class="wr-lt" x="420" y="186" font-size="16" font-weight="600" fill="var(--tool)">BM25</text>
+          <g class="wr-x">
+            <circle cx="213" cy="160" r="9" fill="var(--bg)" stroke="var(--ink)" stroke-width="3"/>
+            <text x="226" y="128" font-size="15" fill="var(--ink)">BM25 overtakes</text>
+          </g>
+          <g class="wr-gap">
+            <path d="M500 200 L500 282" fill="none" stroke="var(--ink-2)" stroke-width="2"/>
+            <path d="M494 200 L506 200 M494 282 L506 282" stroke="var(--ink-2)" stroke-width="2"/>
+            <text x="538" y="306" text-anchor="end" font-size="15" fill="var(--ink-2)">~20 pts</text>
+          </g>
+        </svg>
+        <span class="cost-h">Cost of the agent-only approach</span>
+        <div class="cost">
+          <div class="stat"><div class="n" data-to="39" data-suf="x">39x</div><div class="l">query tokens vs BM25 (2607.26497)</div></div>
+          <div class="stat"><div class="n" data-to="45" data-suf=" s">45 s</div><div class="l">Dropbox: federated MCP queries, worst case</div></div>
+        </div>
+        <p class="defs"><b>BM25</b>: classic keyword ranking. <b>MCP</b>: Model Context Protocol tool calls to each source app.</p>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    Read each question aloud and give the room ten seconds before you reveal the answer. Pause after each reveal. Q1 is the most common screening question. Test the cascade in order: a small, static corpus with one access-control list fits one cached prompt (Claude Haiku 5.5 caches prompts of 512 tokens or more); fresh, private or cited facts go to RAG, because only retrieval can filter by user permissions at query time; behaviour, format and style go to fine-tuning. Analogy: fine-tuning teaches the doctor how to talk; retrieval hands the doctor today's lab results. Q2 tests whether the candidate measures retrieval before touching the prompt. Recall@k is the share of gold chunks in the top k; hit@k only asks whether at least one gold chunk is there, and arXiv 2610.26951 shows that retrieval finds any relevant chunk far more reliably than all of them. arXiv 2609.33778 covers the other half: the evidence is retrieved, but the reasoning goes wrong. Q3 is the 2026 question: agents do not remove the index, they reason over its ranked output. Likely follow-up: "How big must the golden set be?" Start with real user questions, label every chunk that holds the answer, version the set, and grow it until a change of one query does not move the metric. Hand-off: the next drill asks why the gold chunk was missing in the first place, which is usually chunking.
+  </aside>
+</section>
+<script>
+(() => {
+  let tw = [];
+  const kill = () => { tw.forEach((t) => t.kill()); tw = []; };
+
+  function tree(slide, animate) {
+    const qs = slide.querySelectorAll(".wr-tree .wr-n");
+    const no = slide.querySelector(".wr-tree .wr-no");
+    const yes = slide.querySelector(".wr-tree .wr-yes");
+    const os = slide.querySelectorAll(".wr-tree .wr-o");
+    if (!animate) { gsap.set([qs, no, yes, os], { opacity: 1, x: 0, y: 0 }); return; }
+    tw.push(gsap.fromTo(qs, { opacity: 0, y: -12 }, { opacity: 1, y: 0, duration: 0.4, stagger: 0.25, delay: 0.1 }));
+    tw.push(gsap.fromTo(no, { opacity: 0 }, { opacity: 1, duration: 0.4, delay: 0.8 }));
+    tw.push(gsap.fromTo(yes, { opacity: 0 }, { opacity: 1, duration: 0.3, delay: 1.0 }));
+    tw.push(gsap.fromTo(os, { opacity: 0, x: 16 }, { opacity: 1, x: 0, duration: 0.45, stagger: 0.2, delay: 1.1, ease: "back.out(1.6)" }));
+  }
+
+  function topk(slide, animate) {
+    const bars = slide.querySelectorAll(".wr-topk .wr-bar");
+    const gold = slide.querySelector(".wr-topk .wr-gold");
+    const badge = slide.querySelector(".wr-topk .wr-badge");
+    if (!animate) { gsap.set([bars, gold, badge], { opacity: 1, x: 0, y: 0, scale: 1 }); return; }
+    tw.push(gsap.fromTo(bars, { opacity: 0, x: -30 }, { opacity: 1, x: 0, duration: 0.35, stagger: 0.1, delay: 0.1 }));
+    tw.push(gsap.fromTo(gold, { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.45, delay: 0.8 }));
+    tw.push(gsap.fromTo(badge, { opacity: 0, scale: 0.4, transformOrigin: "50% 50%" }, { opacity: 1, scale: 1, duration: 0.45, ease: "back.out(2.4)", delay: 1.3 }));
+  }
+
+  function cross(slide, animate) {
+    const lines = slide.querySelectorAll(".wr-cross .wr-l");
+    const rest = slide.querySelectorAll(".wr-cross .wr-lt, .wr-cross .wr-x, .wr-cross .wr-gap");
+    if (!animate) {
+      lines.forEach((l) => gsap.set(l, { strokeDasharray: "none", strokeDashoffset: 0 }));
+      gsap.set(rest, { opacity: 1, scale: 1 });
+      return;
+    }
+    lines.forEach((l, i) => {
+      const L = l.getTotalLength();
+      tw.push(gsap.fromTo(l, { strokeDasharray: L, strokeDashoffset: L }, { strokeDashoffset: 0, duration: 1.2, ease: "power1.inOut", delay: 0.15 + i * 0.1 }));
+    });
+    const [lt1, lt2, x, gap] = rest;
+    tw.push(gsap.fromTo([lt1, lt2], { opacity: 0 }, { opacity: 1, duration: 0.3, delay: 0.3 }));
+    tw.push(gsap.fromTo(x, { opacity: 0, scale: 0.5, transformOrigin: "213px 160px" }, { opacity: 1, scale: 1, duration: 0.4, ease: "back.out(2)", delay: 0.8 }));
+    tw.push(gsap.fromTo(gap, { opacity: 0 }, { opacity: 1, duration: 0.3, delay: 1.4 }));
+  }
+
+  function render(slide, n, animate) {
+    kill();
+    if (n === 1) tree(slide, animate);
+    else if (n === 2) topk(slide, animate);
+    else if (n >= 3) cross(slide, animate);
+  }
+
+  Deck.register("rag-interview-c01-qa-when-rag", {
+    enter(slide, step) { render(slide, step, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { kill(); }
+  });
+})();
+</script>

@@ -1,0 +1,37 @@
+<section class="slide" id="adk-c08-industry-uber-adk" data-tone="state" data-title="Industry: Uber levers in ADK">
+  <style>
+    #adk-c08-industry-uber-adk .ua-grid { display: grid; grid-template-columns: 790px 1fr; gap: 48px; align-items: start; }
+    #adk-c08-industry-uber-adk ul.checks { gap: 22px; }
+    #adk-c08-industry-uber-adk ul.checks li { font-size: 22px; }
+  </style>
+  <div class="kicker"><span class="pill">In production</span> Uber → Acme</div>
+  <h2 class="title">The same four levers in ADK: effort, model, TTL, compaction</h2>
+  <div class="ua-grid fill">
+    <div class="code-wrap">
+      <div class="code-head">labs/adk/c08-cost-levers/acme_costs.py · excerpt</div>
+      <pre class="code" data-lang="python" data-focus="1:5-8, 2:1-3, 3:10-11, 4:12-14"><code>ROOT_MODEL = "gemini-3.5-flash"       # re-benchmark every few weeks
+SUB_MODEL = "gemini-3.1-flash-lite"   # cheaper, if evals pass
+bill_lookup = Agent(name="bill_lookup", model=SUB_MODEL)
+support = Agent(name="handbook_agent", model=ROOT_MODEL,
+    sub_agents=[bill_lookup],
+    generate_content_config=types.GenerateContentConfig(
+        thinking_config=types.ThinkingConfig(
+            thinking_level="medium")))
+app = App(name="acme_support", root_agent=support,
+    context_cache_config=ContextCacheConfig(
+        min_tokens=4096, ttl_seconds=3600),    # 5 min -&gt; 1 h
+    events_compaction_config=EventsCompactionConfig(
+        token_threshold=400_000, event_retention_size=10))
+run_config = RunConfig(max_llm_calls=25)   # loop guard, not a budget</code></pre>
+    </div>
+    <ul class="checks">
+      <li data-step="1">Set reasoning effort to medium.</li>
+      <li data-step="2">Give subagents a cheaper model that passes evals.</li>
+      <li data-step="3">Set the cache TTL near the p90 pause.</li>
+      <li data-step="4">Compact at 400K, not at the window limit.</li>
+      <li class="no" data-step="5"><span>Do not treat <code>max_llm_calls</code> as a budget.</span></li>
+    </ul>
+  </div>
+  <div class="cites"><a class="cite doc" href="https://uber.com/us/en/blog/efficient-software-factory" target="_blank" rel="noopener"><b>Post</b>&nbsp;Running a Software Factory Efficiently at Uber Scale</a></div>
+  <aside class="notes">Here are Uber's levers as ADK settings for the Acme support agent; the full file is in labs/adk/c08-cost-levers. Press once: thinking_level sets the reasoning effort, because Gemini 3 defaults to high; Uber defaults to Medium. Press again: SUB_MODEL is a Flash-Lite model for the bill_lookup subagent, kept only if your evals pass, and you re-benchmark the root model every few weeks. Press again: the cache TTL goes from 5 minutes to 1 hour, tuned to the pauses your customers really make. Press again: compaction at 400K tokens with the last ten raw events kept. Press again: max_llm_calls=25 is only a guard against runaway loops, which you pass to run_async; it is not a cost budget, and Uber uses nudges, not hard caps. Think of it as four dials on one mixing desk: turn them one at a time and measure each change. A likely question: "How do I know a cheaper model did not break the answers?" With evals, which is exactly what chapter 9 builds.</aside>
+</section>

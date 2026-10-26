@@ -1,0 +1,54 @@
+<section class="slide" id="adk-c03-gotcha-output" data-tone="risk" data-title="Gotcha: two terminal outputs">
+  <style>
+    #adk-c03-gotcha-output .g9-main { display: grid; grid-template-columns: 740px 1fr; gap: 44px; align-items: start; }
+    #adk-c03-gotcha-output .g9-col { display: flex; flex-direction: column; gap: 26px; min-width: 0; }
+    #adk-c03-gotcha-output .diagram .node { padding: 14px 20px; }
+    #adk-c03-gotcha-output .diagram .node .nt { font-size: 23px; white-space: nowrap; }
+    #adk-c03-gotcha-output .diagram .node .ns { font-size: 18px; white-space: nowrap; }
+    #adk-c03-gotcha-output .g9-chip { position: absolute; font: 700 19px/1 var(--f-mono); padding: 10px 14px; border-radius: 10px; white-space: nowrap; z-index: 3; }
+    #adk-c03-gotcha-output .g9-chip.bad { color: var(--risk); background: var(--risk-soft); border: 2px solid var(--risk); }
+    #adk-c03-gotcha-output .g9-chip.good { color: var(--state); background: var(--state-soft); border: 2px solid var(--state); }
+    #adk-c03-gotcha-output .gotcha { font-size: 23px; line-height: 1.45; padding: 24px 26px; gap: 14px 18px; }
+    #adk-c03-gotcha-output .gotcha > b { font-size: 16px; }
+    #adk-c03-gotcha-output pre.code { font-size: 18px; }
+    #adk-c03-gotcha-output .gotcha .em { font: 500 20px/1.5 var(--f-mono); color: #b0123b; }
+    #adk-c03-gotcha-output .g9-swap { display: grid; }
+    #adk-c03-gotcha-output .g9-swap > * { grid-area: 1 / 1; }
+    #adk-c03-gotcha-output, #adk-c03-gotcha-output * { font-variant-ligatures: none !important; }
+    #adk-c03-gotcha-output .out pre.code .dim { color: #a3abd6; opacity: 1; }
+    #adk-c03-gotcha-output .cites .cite { display: inline-flex; flex-direction: row; align-items: center; gap: 10px; white-space: nowrap; padding: 6px 12px 6px 10px; border-radius: 10px; }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> Graph validation · 2 of 2</div>
+  <h2 class="title">Two branches that both end with output stop the run with an error</h2>
+  <div class="g9-main fill">
+    <div class="g9-col">
+      <div class="diagram" style="width:700px;height:230px" data-wires="g9-rt>g9-bill [billing]; g9-rt>g9-page [outage]">
+        <div class="node n-tool" id="g9-rt" style="left:0;top:76px;width:210px"><span class="nt">route_ticket</span><span class="ns">list route</span></div>
+        <div class="node n-agent" id="g9-bill" style="left:350px;top:0;width:190px"><span class="nt">billing</span><span class="ns">Agent</span></div>
+        <div class="node n-tool" id="g9-page" style="left:350px;top:150px;width:190px"><span class="nt">page_oncall</span><span class="ns">function</span></div>
+        <span class="g9-chip good" style="left:560px;top:22px" data-step="1">output</span>
+        <span class="g9-chip bad" style="left:560px;top:172px" data-step="1" data-until="3">output ✕</span>
+        <span class="g9-chip good" style="left:560px;top:172px" data-step="3">message ✓</span>
+      </div>
+      <div class="g9-swap">
+        <div class="code-wrap bad" data-until="3">
+          <div class="code-head">ticket_triage/agent.py · page_oncall returns a value</div>
+          <pre class="code" data-lang="python"><code>def page_oncall(node_input: dict):
+  return {"paged": node_input["priority"]}</code></pre>
+        </div>
+        <div class="code-wrap good" data-step="3">
+          <div class="code-head">ticket_triage/agent.py · fix (Lab 3.3)</div>
+          <pre class="code" data-lang="python"><code>def page_oncall(node_input: dict):
+  yield Event(message=f"PAGED on-call "
+                      f"(priority={node_input['priority']}).")</code></pre>
+        </div>
+      </div>
+    </div>
+    <div class="gotcha">
+      <b>Symptom</b><span class="em" data-step="1">WorkflowConfigurationError: Workflow ticket_triage: multiple terminal nodes produced output (2). A workflow must have at most one terminal output.</span>
+      <b class="why" data-step="2">Cause</b><span data-step="2">Both branches ran. A plain <code>return</code> value is node output, so two end nodes gave output.</span>
+      <b class="fix" data-step="3">Fix</b><span data-step="3">End nodes emit only a <code>message</code>, or add a <code>JoinNode</code> before one final node.</span>
+    </div>
+  </div>
+  <aside class="notes">The second loud error is about terminal outputs. A list route ran two branches, billing and page_oncall. Step 1: in this variant page_oncall returns a dict, and a plain return value becomes the node output. Now two terminal nodes produced output and the run stops: "WorkflowConfigurationError: Workflow ticket_triage: multiple terminal nodes produced output (2). A workflow must have at most one terminal output." Step 2: the cause is the return value, not the routing. Step 3: this is why the Lab 3.3 version works: page_oncall yields only a message, so billing gives the one terminal output. The other fix is a JoinNode before one final node, which Chapter 4 builds. Two more errors you will meet: "from google.adk import START" raises ImportError, because the top-level package exports only Agent, Context, Event, Runner and Workflow; import START from google.adk.workflow, or use the string "START" in a chain tuple. And "WorkflowDataError: Missing value for parameter reply_txt" means a parameter name does not match the output_key. Analogy: a relay race may have only one runner who crosses the finish line with the baton. Next: an October paper on what the routing decision costs.</aside>
+</section>

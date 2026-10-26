@@ -1,0 +1,207 @@
+<section class="slide tight" id="rag-c03-lab3-gemini-embed" data-tone="state" data-title="Lab 3: Gemini ticket embeddings">
+  <style>
+    #rag-c03-lab3-gemini-embed .ge-grid { display: grid; grid-template-columns: 874px 1fr; gap: 22px; align-items: start; }
+    #rag-c03-lab3-gemini-embed .ge-left, #rag-c03-lab3-gemini-embed .ge-right { gap: 10px; }
+    #rag-c03-lab3-gemini-embed .code-wrap .code-head { padding: 8px 14px; font-size: 13.5px; }
+    #rag-c03-lab3-gemini-embed pre.code.ge-c { font-size: 12.5px; line-height: 1.36; padding: 10px 18px 12px; }
+    #rag-c03-lab3-gemini-embed pre.code.ge-t { font-size: 11.5px; line-height: 1.4; padding: 8px 14px 10px; }
+    #rag-c03-lab3-gemini-embed .lab-head .run { font-size: 14px; }
+    #rag-c03-lab3-gemini-embed .lab-head .tiny { font-size: 14px; }
+    #rag-c03-lab3-gemini-embed .ge-svg { display: block; overflow: visible; }
+    #rag-c03-lab3-gemini-embed .ge-svg text { font-family: var(--f-mono); }
+    #rag-c03-lab3-gemini-embed .ge-svg .hd { font-size: 12px; font-weight: 600; fill: var(--muted); letter-spacing: .04em; }
+    #rag-c03-lab3-gemini-embed .ge-svg .tk { fill: var(--surface); stroke: var(--state); stroke-width: 1.4; }
+    #rag-c03-lab3-gemini-embed .ge-svg .tid { font-size: 11.5px; font-weight: 700; fill: var(--ink); }
+    #rag-c03-lab3-gemini-embed .ge-svg .ttl { font: 500 11px/1 var(--f-body); fill: var(--ink-2); }
+    #rag-c03-lab3-gemini-embed .ge-svg .bar { fill: var(--state); }
+    #rag-c03-lab3-gemini-embed .ge-svg .nm { font-size: 13px; font-weight: 700; }
+    #rag-c03-lab3-gemini-embed .ge-svg .sc { font-size: 13px; font-weight: 700; fill: var(--state); }
+    #rag-c03-lab3-gemini-embed .ge-svg .sbar { fill: color-mix(in oklab, var(--state) 70%, transparent); }
+    #rag-c03-lab3-gemini-embed .ge-svg .qc rect { fill: var(--human-soft); stroke: var(--human); stroke-width: 1.4; }
+    #rag-c03-lab3-gemini-embed .ge-svg .qc text { font-size: 11px; font-weight: 600; fill: var(--human); }
+    #rag-c03-lab3-gemini-embed .ge-svg .qarr { stroke: var(--human); stroke-width: 2; fill: none; }
+    #rag-c03-lab3-gemini-embed .ge-svg .rt rect { stroke-width: 1.3; }
+    #rag-c03-lab3-gemini-embed .ge-svg .rt text { font-size: 11px; font-weight: 600; fill: var(--ink); }
+    #rag-c03-lab3-gemini-embed .ge-svg .rt.bad rect { fill: var(--risk-soft); stroke: var(--risk); }
+    #rag-c03-lab3-gemini-embed .ge-svg .rt.ok rect { fill: var(--state-soft); stroke: var(--state); }
+    #rag-c03-lab3-gemini-embed .ge-svg .rt.wait rect { fill: none; stroke: var(--line-2); stroke-dasharray: 4 3; }
+    #rag-c03-lab3-gemini-embed .ge-svg .rt.wait text { fill: var(--muted); }
+    #rag-c03-lab3-gemini-embed .ge-rail { position: relative; height: 50px; }
+    #rag-c03-lab3-gemini-embed .ge-rail > p { position: absolute; left: 0; right: 0; top: 0; font-size: 15.5px; line-height: 1.36; }
+    #rag-c03-lab3-gemini-embed .ge-rail code { font-size: .88em; }
+    #rag-c03-lab3-gemini-embed pre.code.ge-o { font-size: 11.5px; line-height: 1.4; padding: 8px 14px 10px; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 3</span> Northwind Mutual index · step 1 of 4</div>
+  <h2 class="title">Embed tickets with Gemini: task types, 768 dims, retry, normalise</h2>
+  <div class="ge-grid fill">
+    <div class="stack ge-left">
+      <div class="code-wrap">
+        <div class="code-head">northwind_index/lab4_gemini_tickets.py</div>
+        <pre class="code ge-c" data-lang="python" data-focus="1:29-30, 2:17-25, 3:27-28, 4:31-33"><code>import time
+import numpy as np
+from google import genai
+from google.genai import errors, types
+client = genai.Client()                       # GEMINI_API_KEY / GOOGLE_API_KEY
+MODEL, DIM, BATCH = "gemini-embedding-001", 768, 100
+TICKETS = [
+    ("TKT-1042", "Login loop after Okta SSO", "Clear the stale session cookie; re-sync the SAML clock skew."),
+    ("TKT-1077", "Claim PDF upload fails", "Files over 20 MB are rejected; compress or split the PDF."),
+    ("TKT-1103", "Refund not received", "Refunds post 5-7 business days after approval to the original card."),
+    ("TKT-1150", "Duplicate premium charge", "Void the second authorization in Billing &gt; Transactions."),
+]
+def embed(texts: list[str], task_type: str) -&gt; np.ndarray:
+    vecs = []
+    for i in range(0, len(texts), BATCH):
+        cfg = types.EmbedContentConfig(task_type=task_type, output_dimensionality=DIM)
+        for attempt in range(5):
+            try:
+                resp = client.models.embed_content(model=MODEL, contents=texts[i:i + BATCH], config=cfg)
+                break
+            except errors.APIError as err:
+                if err.code in (429, 500, 503) and attempt &lt; 4:
+                    time.sleep(2 ** attempt)
+                    continue
+                raise
+        vecs.extend(emb.values for emb in resp.embeddings)
+    v = np.asarray(vecs, dtype=np.float32)
+    return v / np.linalg.norm(v, axis=1, keepdims=True)   # REQUIRED for 001 below 3072 dims
+D = embed([f"{title}\n{body}" for _, title, body in TICKETS], "RETRIEVAL_DOCUMENT")
+q = embed(["customer says money from cancelled policy never arrived"], "RETRIEVAL_QUERY")
+scores = (D @ q.T).ravel()
+for idx in np.argsort(-scores):
+    print(f"{scores[idx]:.3f}  {TICKETS[idx][0]}  {TICKETS[idx][1]}")
+print("shape:", D.shape, "norm[0]:", round(float(np.linalg.norm(D[0])), 4))</code></pre>
+      </div>
+    </div>
+    <div class="stack ge-right">
+      <div class="lab-head"><span class="run">python lab4_gemini_tickets.py</span><span class="tiny">tested on google-genai 2.33.0</span></div>
+      <div class="code-wrap term">
+        <div class="code-head">run it Monday</div>
+        <pre class="code ge-t" data-lang="bash"><code>$ pip install "google-genai==2.33.0" numpy
+$ export GEMINI_API_KEY="..."
+# PowerShell: $env:GEMINI_API_KEY="..."
+northwind_index/  lab4_gemini_tickets.py  lab5_st_claims.py
+  lab6_faiss_bench.py  lab7_pgvector_claims.py  lab9_incremental_ingest.py
+  out/claims_chunks.jsonl   # copy of Lab 2 northwind_intake/out</code></pre>
+      </div>
+      <svg class="ge-svg" id="ge-svg" viewBox="0 0 496 214" width="496" height="214" aria-label="Four tickets become 768-dimension vectors, get normalised, and are ranked by cosine against the query"></svg>
+      <div class="steps-rail ge-rail">
+        <p data-step="1" data-until="2"><span><code>RETRIEVAL_DOCUMENT</code> for tickets, <code>RETRIEVAL_QUERY</code> for questions (001 only). <code>title</code> covers the whole request, so put titles in the text.</span></p>
+        <p data-step="2" data-until="3"><span>Retry only 429, 500 and 503. Sleep 1, 2, 4, 8 s, then raise.</span></p>
+        <p data-step="3" data-until="4"><span>Truncated 001 vectors are not unit length. Divide by the norm yourself.</span></p>
+        <p data-step="4"><span>Unit rows make <code>D @ q.T</code> the cosine. Store MODEL and DIM with the index.</span></p>
+      </div>
+      <div class="code-wrap out" data-step="4">
+        <div class="code-head">output · illustrative</div>
+        <pre class="code ge-o" data-lang="output"><code><span class="ok">0.742  TKT-1103  Refund not received</span>
+0.611  TKT-1150  Duplicate premium charge
+0.503  TKT-1077  Claim PDF upload fails
+0.455  TKT-1042  Login loop after Okta SSO
+<span class="dim">shape: (4, 768) norm[0]: 1.0</span></code></pre>
+      </div>
+      <div class="cites">
+        <a class="cite doc" href="https://ai.google.dev/gemini-api/docs/embeddings" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Gemini API: Embeddings</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    This is the run-it-Monday slide for Lab 3: pin google-genai 2.33.0, export GEMINI_API_KEY, and run lab4_gemini_tickets.py inside northwind_index. If both GOOGLE_API_KEY and GEMINI_API_KEY are set, the client warns and uses GOOGLE_API_KEY, so remove the one you do not mean. Walk the four bands: asymmetric task types (gemini-embedding-001 only, and title applies to the whole request), retry on 429/500/503 with 1, 2, 4, 8 second sleeps and then raise, the normalisation the Embeddings guide requires below 3072 dimensions, and the dot product that is only a cosine because rows are unit length. Analogy: a vector without its norm is a compass needle of random length; you can still read the direction only after you make every needle the same length. Likely question: "How do I embed 100k tickets cheaply?" Use the Batch API, which the guide prices at 50% of the default, and pin MODEL and DIM in config so a query from another model is refused. Hand-off: the tickets may go to Google, but the claims policy may not, so step 2 embeds the Lab 2 claims chunks on our own machines.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const T = [["TKT-1042", "Login loop after Okta SSO"], ["TKT-1077", "Claim PDF upload fails"], ["TKT-1103", "Refund not received"], ["TKT-1150", "Duplicate premium charge"]];
+  const SCORE = [0.455, 0.503, 0.742, 0.611];
+  const RANK = [3, 2, 0, 1];                  // slot of each ticket after sorting by score
+  const K = [1.8, 0.5, 1.35, 0.7];           // raw (unnormalised) length per vector
+  const NB = 24, BX = 190, BW = 5, BS = 8, ROW0 = 26, ROWH = 40;
+  const raw = (i, j) => Math.sin(i * 1.7 + j * 0.9) * 0.6 + Math.cos(j * 2.3 + i) * 0.4;
+  const rms = T.map((_, i) => Math.sqrt(Array.from({ length: NB }, (_, j) => raw(i, j) ** 2).reduce((a, b) => a + b, 0) / NB));
+  const hRaw = (i, j) => Math.max(-15, Math.min(15, raw(i, j) * K[i] * 9));
+  const hNorm = (i, j) => Math.max(-15, Math.min(15, (raw(i, j) / rms[i]) * 6));
+  let built = null, prev = -1, tweens = [];
+  const mk = (p, tag, attrs, cls) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (cls) e.setAttribute("class", cls);
+    p.appendChild(e); return e;
+  };
+  function build(slide) {
+    const svg = slide.querySelector("#ge-svg");
+    svg.innerHTML = "";
+    const hd0 = mk(svg, "text", { x: 0, y: 13 }, "hd"); hd0.textContent = "4 RESOLVED TICKETS";
+    const hd1 = mk(svg, "text", { x: 0, y: 13 }, "hd"); hd1.textContent = "RETRIEVAL_DOCUMENT · 768 DIMS";
+    const qc = mk(svg, "g", {}, "qc");
+    mk(qc, "rect", { x: 0, y: 0, width: 330, height: 19, rx: 9.5 });
+    mk(qc, "text", { x: 10, y: 13.5 }).textContent = "q: money from cancelled policy never arrived";
+    const qa = mk(svg, "path", { d: "M330,10 C372,10 380,18 380,24" }, "qarr");
+    const rows = T.map(([id, ttl], i) => {
+      const g = mk(svg, "g", {});
+      mk(g, "rect", { x: 0, y: 0, width: 178, height: 32, rx: 8 }, "tk");
+      mk(g, "text", { x: 10, y: 13 }, "tid").textContent = id;
+      mk(g, "text", { x: 10, y: 26 }, "ttl").textContent = ttl;
+      const bars = Array.from({ length: NB }, (_, j) => mk(g, "rect", { x: BX + j * BS, y: 16, width: BW, height: 0, rx: 1 }, "bar"));
+      const nm = mk(g, "text", { x: 396, y: 21 }, "nm");
+      const sbar = mk(g, "rect", { x: BX, y: 12, width: 0, height: 8, rx: 4 }, "sbar");
+      const sc = mk(g, "text", { x: 440, y: 21 }, "sc");
+      return { g, bars, nm, sbar, sc };
+    });
+    const strip = mk(svg, "g", {});
+    const R = [["bad", "try 1 · 429"], ["wait", "sleep 1 s"], ["bad", "try 2 · 503"], ["wait", "sleep 2 s"], ["ok", "try 3 · 200"]];
+    const chips = R.map(([k, t], c) => {
+      const g = mk(strip, "g", {}, "rt " + k);
+      mk(g, "rect", { x: c * 99.2, y: 188, width: 93, height: 24, rx: 7 });
+      mk(g, "text", { x: c * 99.2 + 46.5, y: 204, "text-anchor": "middle" }).textContent = t;
+      return g;
+    });
+    built = { hd0, hd1, qc, qa, rows, chips };
+  }
+  const barAttr = (h) => ({ y: 16 - Math.max(h, 0), height: Math.max(Math.abs(h), 0.6) });
+  function render(slide, n, animate) {
+    if (!built) build(slide);
+    tweens.forEach((t) => t.kill()); tweens = [];
+    const fwd = animate && n === prev + 1;
+    const { hd0, hd1, qc, qa, rows, chips } = built;
+    const A = (el, to, opt) => { if (fwd) tweens.push(gsap.to(el, { ...to, ...opt })); else gsap.set(el, to); };
+    gsap.set(hd0, { opacity: n === 0 ? 1 : 0 });
+    gsap.set(hd1, { opacity: n >= 1 && n < 4 ? 1 : 0 });
+    A([qc, qa], { opacity: n >= 4 ? 1 : 0 }, { duration: 0.4 });
+    rows.forEach((r, i) => {
+      A(r.g, { y: ROW0 + (n >= 4 ? RANK[i] : i) * ROWH }, { duration: 0.7, ease: "power3.inOut", delay: n === 4 ? 0.9 : 0 });
+      r.bars.forEach((b, j) => {
+        const h = n >= 3 ? hNorm(i, j) : hRaw(i, j);
+        if (n === 0) gsap.set(b, { attr: barAttr(0) });
+        else A(b, { attr: barAttr(h) }, { duration: 0.5, ease: "power2.out", delay: n === 1 ? i * 0.12 + j * 0.01 : 0 });
+        A(b, { opacity: n >= 4 ? 0.2 : 1 }, { duration: 0.4 });
+      });
+      r.nm.textContent = n >= 3 ? "‖v‖ 1.0" : "‖v‖ ≠ 1";
+      r.nm.style.fill = n >= 3 ? "var(--state)" : "var(--risk)";
+      gsap.set(r.nm, { opacity: n >= 1 && n < 4 ? 1 : 0 });
+      if (n === 3 && fwd) tweens.push(gsap.fromTo(r.nm, { scale: 1.4, transformOrigin: "left center" }, { scale: 1, duration: 0.4, ease: "back.out(2)" }));
+      // scores count up in ranked order at step 4
+      const w = SCORE[i] * 240;
+      gsap.set(r.sc, { opacity: n >= 4 ? 1 : 0 });
+      if (n >= 4 && fwd) {
+        const o = { v: 0 }, d = 0.2 + RANK[i] * 0.18;
+        r.sc.textContent = "0.000";
+        tweens.push(gsap.fromTo(r.sbar, { attr: { width: 0 } }, { attr: { width: w }, duration: 0.6, delay: d, ease: "power2.out" }));
+        tweens.push(gsap.to(o, { v: SCORE[i], duration: 0.6, delay: d, ease: "power2.out", onUpdate: () => (r.sc.textContent = o.v.toFixed(3)) }));
+      } else {
+        gsap.set(r.sbar, { attr: { width: n >= 4 ? w : 0 } });
+        r.sc.textContent = SCORE[i].toFixed(3);
+      }
+    });
+    chips.forEach((c, k) => {
+      if (n >= 2 && fwd && n === 2) tweens.push(gsap.fromTo(c, { opacity: 0, x: -10 }, { opacity: 1, x: 0, duration: 0.35, delay: k * 0.3 }));
+      else gsap.set(c, { opacity: n >= 2 ? 1 : 0, x: 0 });
+    });
+    prev = n;
+  }
+  Deck.register("rag-c03-lab3-gemini-embed", {
+    enter(slide, step) { prev = -1; built = null; render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { tweens.forEach((t) => t.kill()); tweens = []; prev = -1; }
+  });
+})();
+</script>

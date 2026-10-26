@@ -1,0 +1,281 @@
+<section class="slide" id="custom-c05-grpo-first-run" data-tone="risk" data-title="First GRPO run errors">
+  <div class="kicker"><span class="pill">Gotcha</span> TRL 1.16.0 GRPO · first run</div>
+  <h2 class="title sm">First GRPO run errors: batch divisibility, float32 OOM, vLLM pin</h2>
+  <div class="fr-top">
+    <div class="stack fr-left">
+      <div class="panel tight fr-panel">
+        <svg id="fr-svg" viewBox="0 0 700 262" width="690" height="258" aria-label="Top: completion slots in groups of 8 per prompt. With 6 slots the first group is missing 2 completions, a ValueError. With 8 per device times 4 accumulation steps, 32 slots form 4 whole groups of 8. Bottom: a memory bar for a 4B model in float32: weights 16.1 GB, gradients 16.1 GB, AdamW states 32.2 GB, about 64 GB, then activations cross the 80 GB line of an H100 and the run goes out of memory. In bfloat16 with LoRA the weights are 8.1 GB and the gradient and optimizer states cover only the adapter."></svg>
+      </div>
+      <div class="code-wrap term" data-step="5">
+        <div class="code-head">install · trl 1.16.0 pins vLLM</div>
+        <pre class="code xs" data-lang="bash"><code>$ pip install "trl[peft,math_verify]==1.16.0" "vllm==0.31.0"
+# not vllm==0.32.0: trl[vllm] needs vllm&gt;=0.22.0,&lt;=0.31.0</code></pre>
+      </div>
+    </div>
+    <div class="code-wrap good fr-code">
+      <div class="code-head">claims_rl/lab2_grpo_claims.py · the three fixes · trl 1.16.0</div>
+      <pre class="code xs" data-lang="python" data-focus="2:8-10, 4:7, 5:11-12"><code>from peft import LoraConfig
+from trl import GRPOConfig, GRPOTrainer
+from trl.rewards import accuracy_reward
+from claims_data import claims_dataset
+args = GRPOConfig(
+    output_dir="qwen-claims-grpo",
+    model_init_kwargs={"dtype": "bfloat16"},  # string ids load in float32
+    per_device_train_batch_size=8,            # 8 x 1 GPU x 4 accum
+    gradient_accumulation_steps=4,            # = 32 = 4 prompts x 8
+    num_generations=8,
+    use_vllm=True, vllm_mode="colocate",      # needs vllm==0.31.0
+)                                             # no auto_find_batch_size
+trainer = GRPOTrainer(
+    model="Qwen/Qwen2.5-0.5B-Instruct",
+    reward_funcs=[accuracy_reward],
+    args=args,
+    train_dataset=claims_dataset(2000, seed=7),
+    peft_config=LoraConfig(r=16, lora_alpha=32, target_modules="all-linear",
+                           task_type="CAUSAL_LM"),
+)
+trainer.train()</code></pre>
+    </div>
+  </div>
+  <div class="fr-cards">
+    <div class="gotcha fr-card" data-step="1">
+      <div class="fr-h">1 · Batch divisibility</div>
+      <b>Symptom</b><span><span class="fr-err">ValueError: generation_batch_size (6) must be divisible by num_generations (8).</span> <span class="fr-err">GRPO requires at least 2 generations per prompt to calculate the advantages.</span></span>
+      <b class="why">Cause</b><span>Advantages are computed within a group. A batch must hold whole groups.</span>
+      <b class="fix">Fix</b><span>per-device × GPUs × grad-accum = a multiple of <code>num_generations</code>: 1 GPU × 8 × 1, or 4 GPUs × 4 × 1 with <code>num_generations=16</code>.</span>
+    </div>
+    <div class="gotcha fr-card" data-step="3">
+      <div class="fr-h">2 · float32 OOM · TRL #6684</div>
+      <b>Symptom</b><span><span class="fr-err">torch.OutOfMemoryError … Tried to allocate 3.81 GiB</span> for a 4B model on an 80 GB H100.</span>
+      <b class="why">Cause</b><span>A string model id loads in float32: 16.1 GB weights + 16.1 GB grads + 32.2 GB AdamW ≈ 64 GB before activations.</span>
+      <b class="fix">Fix</b><span><code>model_init_kwargs={"dtype": "bfloat16"}</code>. Log <code>next(model.parameters()).dtype</code> at step 0.</span>
+    </div>
+    <div class="gotcha fr-card" data-step="5">
+      <div class="fr-h">3 · vLLM pin and rollout sampling</div>
+      <b>Symptom</b><span>pip resolver conflict: vllm 0.32.0 is outside <code>trl[vllm]</code> <code>vllm&gt;=0.22.0,&lt;=0.31.0</code>.</span>
+      <b class="why">Cause</b><span>TRL 1.16.0 pins the range. Truncated sampling (top_p, top_k) also biases the IS ratio.</span>
+      <b class="fix">Fix</b><span>Pin <code>vllm==0.31.0</code>. Sample rollouts with <code>top_p=1.0, top_k=-1</code>. Remove <code>auto_find_batch_size</code>: <span class="fr-err">ValueError: auto_find_batch_size is not supported by GRPO</span>.</span>
+    </div>
+  </div>
+  <div class="row fr-cites" data-step="1">
+    <a class="cite repo" href="https://github.com/huggingface/trl/blob/main/trl/trainer/grpo_config.py" target="_blank" rel="noopener"><b>Repo</b>&nbsp;trl grpo_config.py</a>
+    <a class="cite repo" href="https://github.com/huggingface/trl/issues/6684" target="_blank" rel="noopener"><b>Issue</b>&nbsp;TRL #6684 float32 OOM</a>
+    <a class="cite repo" href="https://github.com/huggingface/trl/issues/6789" target="_blank" rel="noopener"><b>Issue</b>&nbsp;TRL #6789 IS-ratio bias</a>
+    <a class="cite doc" href="https://huggingface.co/docs/trl/main/en/grpo_trainer" target="_blank" rel="noopener"><b>Docs</b>&nbsp;TRL GRPO Trainer</a>
+  </div>
+  <style>
+    #custom-c05-grpo-first-run { gap: 16px; }
+    #custom-c05-grpo-first-run .fr-top { display: grid; grid-template-columns: 714px 1fr; gap: 22px; align-items: start; }
+    #custom-c05-grpo-first-run .fr-left { gap: 10px; }
+    #custom-c05-grpo-first-run .fr-panel { padding: 6px 12px; }
+    #custom-c05-grpo-first-run .code-head { font-size: 12.5px; padding: 7px 12px; }
+    #custom-c05-grpo-first-run pre.code.xs { font-size: 13px; line-height: 15px; padding: 8px 14px 10px; }
+    #custom-c05-grpo-first-run .fr-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; align-items: start; }
+    #custom-c05-grpo-first-run .fr-card { grid-template-columns: 76px 1fr; gap: 2px 10px; padding: 8px 14px; font-size: 13.5px; line-height: 1.3; }
+    #custom-c05-grpo-first-run .fr-card > b { font-size: 11.5px; line-height: 1.7; }
+    #custom-c05-grpo-first-run .fr-card code { font-size: .82em; }
+    #custom-c05-grpo-first-run .fr-err { font: 600 12px/1.3 var(--f-mono); color: var(--risk); }
+    #custom-c05-grpo-first-run .fr-h { grid-column: 1 / -1; font: 700 13.5px/1.3 var(--f-mono); color: var(--ink); margin-bottom: 2px; }
+    #custom-c05-grpo-first-run .fr-cites { gap: 8px; flex-wrap: wrap; margin-top: -4px; }
+    #custom-c05-grpo-first-run .fr-cites .cite { font-size: 12.5px; }
+  </style>
+  <aside class="notes">These three errors stop most first GRPO runs, so fix them before you look at any reward curve. GRPO computes each advantage inside a group of completions for one prompt, so the batch must hold whole groups: 6 slots cannot hold a group of 8, and 8 per device times 4 accumulation steps gives 32, which is 4 prompts times 8. The OOM comes from a silent default: a model given as a string loads in float32, and for a 4B model the weights, gradients and AdamW states already need about 64 GB before activations, so one line with bfloat16 fixes it. The vLLM pin is a packaging trap: the newest vLLM is outside the range TRL 1.16 accepts, and when you do use vLLM, keep top_p at 1 and top_k at -1 so the importance-sampling ratio is not biased. Analogy: a relay race needs every runner of a team on the track; half a team cannot score. Likely question: "Does the eval batch also have to be divisible?" Yes, the same rule applies to the eval batch.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c05-grpo-first-run";
+  // batch geometry: 4 prompt groups x 8 completions (lab-rl Lab 2: 8 per device x 4 accum = 32)
+  const SW = 16, SP = 19, GP = 8 * SP + 14, SY = 34, SH = 30;
+  const slotX = (i) => Math.floor(i / 8) * GP + (i % 8) * SP;
+  // memory: 0..96 GB over 650 px; 4B model in float32 (TRL #6684): 16.1 + 16.1 + 32.2 GB
+  const PX = 650 / 96, MY = 170, MH = 40;
+  const FP32 = [
+    { k: "w", gb: 16.1, label: "weights 16.1", fill: "var(--model)" },
+    { k: "g", gb: 16.1, label: "grads 16.1", fill: "color-mix(in oklab, var(--model) 62%, var(--surface))" },
+    { k: "a", gb: 32.2, label: "AdamW 32.2", fill: "color-mix(in oklab, var(--model) 38%, var(--surface))" },
+  ];
+  const ACT_FP32 = 24, ACT_BF16 = 15;            // schematic widths only, no number is shown
+  const BF16_W = 16.1 / 2, LORA_W = 1.6;          // bf16 weights = 16.1 / 2; adapter states drawn as a sliver
+  let P = null, tl = null;
+
+  const el = (p, tag, a, st, txt) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in a) e.setAttribute(k, a[k]);
+    if (st) Object.assign(e.style, st);
+    if (txt !== undefined) e.textContent = txt;
+    p.appendChild(e); return e;
+  };
+  const mono = (w, s) => `${w} ${s}px var(--f-mono)`;
+
+  function build(svg) {
+    svg.innerHTML = "";
+    // ---- batch ----
+    const bHead = el(svg, "text", { x: 0, y: 16 }, { font: mono(700, 13.5), fill: "var(--ink-2)" }, "one step = whole groups of num_generations=8");
+    const slots = Array.from({ length: 32 }, (_, i) =>
+      el(svg, "rect", { x: slotX(i), y: SY, width: SW, height: SH, rx: 4 }, { strokeWidth: 1.6 }));
+    const brackets = [0, 1, 2, 3].map((g) => {
+      const x0 = g * GP, x1 = g * GP + 7 * SP + SW;
+      const bg = el(svg, "g", {});
+      el(bg, "path", { d: `M${x0} ${SY + SH + 6} v6 H${x1} v-6` }, { fill: "none", stroke: "var(--line-2)", strokeWidth: 1.6 });
+      const t = el(bg, "text", { x: (x0 + x1) / 2, y: SY + SH + 28, "text-anchor": "middle" }, { font: mono(600, 12.5), fill: "var(--muted)" }, `prompt ${g + 1}`);
+      return { bg, t };
+    });
+    const miss = el(svg, "text", { x: slotX(6), y: SY - 6 }, { font: mono(700, 12), fill: "var(--risk)" }, "missing");
+    const bCap = el(svg, "text", { x: 0, y: 112 }, { font: mono(700, 13.5) }, "");
+    el(svg, "line", { x1: 0, y1: 126, x2: 700, y2: 126 }, { stroke: "var(--line)", strokeWidth: 1.5, strokeDasharray: "4 5" });
+    // ---- memory ----
+    const mHead = el(svg, "text", { x: 0, y: 150 }, { font: mono(700, 13.5), fill: "var(--ink-2)" }, "");
+    el(svg, "rect", { x: 0, y: MY, width: 650, height: MH, rx: 8 }, { fill: "var(--surface-2)", stroke: "var(--line-2)", strokeWidth: 1.5 });
+    const lx = 80 * PX;
+    el(svg, "line", { x1: lx, y1: MY - 12, x2: lx, y2: MY + MH + 10 }, { stroke: "var(--risk)", strokeWidth: 2.5, strokeDasharray: "6 4" });
+    el(svg, "text", { x: lx + 6, y: MY - 2 }, { font: mono(700, 12.5), fill: "var(--risk)" }, "H100 80 GB");
+    const blocks = FP32.map((b) => {
+      const g = el(svg, "g", {});
+      const r = el(g, "rect", { x: 0, y: MY, width: 0, height: MH, rx: 6 }, { fill: b.fill, stroke: "var(--surface)", strokeWidth: 2 });
+      const t = el(g, "text", { x: 0, y: MY + 25, "text-anchor": "middle" }, { font: mono(700, 13), fill: b.k === "w" ? "#fff" : "var(--ink)" }, b.label);
+      return { ...b, g, r, t };
+    });
+    const act = el(svg, "rect", { x: 0, y: MY, width: 0, height: MH, rx: 6 }, { fill: "var(--risk-soft)", stroke: "var(--risk)", strokeWidth: 2, strokeDasharray: "5 4" });
+    const actT = el(svg, "text", { x: 0, y: MY + 25, "text-anchor": "middle" }, { font: mono(700, 12.5), fill: "var(--risk)" }, "activations");
+    const mCap = el(svg, "text", { x: 0, y: MY + MH + 26 }, { font: mono(700, 13.5) }, "");
+    const mCap2 = el(svg, "text", { x: 0, y: MY + MH + 46 }, { font: mono(500, 12.5), fill: "var(--muted)" }, "");
+    P = { bHead, slots, brackets, miss, bCap, mHead, blocks, act, actT, mCap, mCap2 };
+  }
+
+  // ---------- batch states ----------
+  function slot(i, mode) {
+    const r = P.slots[i];
+    const M = {
+      empty: ["transparent", "var(--line-2)", "4 3", 1],
+      bad: ["var(--risk-soft)", "var(--risk)", "", 1],
+      hole: ["transparent", "var(--risk)", "4 3", 1],
+      ok: ["var(--state)", "var(--state)", "", 1],
+      off: ["transparent", "var(--line)", "4 3", 0.35],
+    }[mode];
+    r.style.fill = M[0]; r.style.stroke = M[1]; r.style.strokeDasharray = M[2]; r.style.opacity = M[3];
+  }
+  function batch(n) {
+    const p = P;
+    if (n < 1) {
+      p.slots.forEach((_, i) => slot(i, "empty"));
+      p.brackets.forEach((b) => { b.bg.style.opacity = 1; b.t.style.fill = "var(--muted)"; });
+      p.miss.style.opacity = 0;
+      p.bCap.textContent = "advantage = reward - mean of its own group";
+      p.bCap.style.fill = "var(--muted)";
+    } else if (n === 1) {
+      p.slots.forEach((_, i) => slot(i, i < 6 ? "bad" : i < 8 ? "hole" : "off"));
+      p.brackets.forEach((b, g) => { b.bg.style.opacity = g === 0 ? 1 : 0.25; b.t.style.fill = g === 0 ? "var(--risk)" : "var(--muted)"; });
+      p.miss.style.opacity = 1;
+      p.bCap.textContent = "6 completions, groups of 8 -> ValueError";
+      p.bCap.style.fill = "var(--risk)";
+    } else {
+      p.slots.forEach((_, i) => slot(i, "ok"));
+      p.brackets.forEach((b) => { b.bg.style.opacity = 1; b.t.style.fill = "var(--state)"; });
+      p.miss.style.opacity = 0;
+      p.bCap.textContent = "8 per device x 1 GPU x 4 accum = 32 = 4 prompts x 8";
+      p.bCap.style.fill = "var(--state)";
+    }
+  }
+
+  // ---------- memory states: 0 = empty, 1 = float32 OOM, 2 = bf16 + LoRA ----------
+  function layout(phase) {
+    const p = P;
+    const widths = phase === 0 ? [0, 0, 0] : phase === 1 ? FP32.map((b) => b.gb * PX) : [BF16_W * PX, LORA_W * PX, 0];
+    let x = 0;
+    p.blocks.forEach((b, i) => {
+      b.r.setAttribute("x", x); b.r.setAttribute("width", widths[i]);
+      b.t.setAttribute("x", x + widths[i] / 2);
+      b.t.textContent = phase === 2 && i === 0 ? "8.1" : b.label;
+      b.t.style.opacity = phase === 1 || (phase === 2 && i === 0) ? 1 : 0;
+      x += widths[i];
+    });
+    const aw = phase === 0 ? 0 : (phase === 1 ? ACT_FP32 : ACT_BF16) * PX;
+    p.act.setAttribute("x", x); p.act.setAttribute("width", aw);
+    p.act.style.fill = phase === 2 ? "var(--surface-2)" : "var(--risk-soft)";
+    p.act.style.stroke = phase === 2 ? "var(--line-2)" : "var(--risk)";
+    p.actT.setAttribute("x", x + aw / 2); p.actT.style.opacity = phase === 0 ? 0 : 1;
+    p.actT.style.fill = phase === 2 ? "var(--muted)" : "var(--risk)";
+    const head = ["4B model on one H100: memory per run", "4B model, float32 by default", "4B model, bfloat16 + LoRA"];
+    p.mHead.textContent = head[phase];
+    p.mCap.textContent = ["", "OOM: Tried to allocate 3.81 GiB", "bf16 weights 8.1 GB (16.1 / 2) + adapter-only grads and AdamW"][phase];
+    p.mCap.style.fill = phase === 1 ? "var(--risk)" : "var(--state)";
+    p.mCap2.textContent = ["", "16.1 + 16.1 + 32.2 GB = about 64 GB before activations", "LoRA trains the adapter only, so the big states are gone"][phase];
+  }
+  function memPhase(n) { return n >= 4 ? 2 : n >= 3 ? 1 : 0; }
+
+  function animFp32() {
+    layout(0);
+    P.mHead.textContent = "4B model, float32 by default";
+    const st = { w: 0, g: 0, a: 0, act: 0 };
+    const draw = () => {
+      let x = 0;
+      P.blocks.forEach((b) => {
+        const w = st[b.k] * PX;
+        b.r.setAttribute("x", x); b.r.setAttribute("width", w);
+        b.t.setAttribute("x", x + w / 2); b.t.style.opacity = w > 60 ? 1 : 0;
+        x += w;
+      });
+      const aw = st.act * PX;
+      P.act.setAttribute("x", x); P.act.setAttribute("width", aw);
+      P.actT.setAttribute("x", x + aw / 2); P.actT.style.opacity = aw > 70 ? 1 : 0;
+    };
+    tl = gsap.timeline({ onComplete: () => layout(1) });
+    tl.to(st, { w: 16.1, duration: 0.5, ease: "power2.out", onUpdate: draw }, 0.2)
+      .to(st, { g: 16.1, duration: 0.5, ease: "power2.out", onUpdate: draw }, 0.8)
+      .to(st, { a: 32.2, duration: 0.7, ease: "power2.out", onUpdate: draw }, 1.4)
+      .call(() => { P.mCap2.textContent = "16.1 + 16.1 + 32.2 GB = about 64 GB before activations"; }, null, 2.1)
+      .to(st, { act: ACT_FP32, duration: 0.8, ease: "power1.in", onUpdate: draw }, 2.4)
+      .call(() => { P.mCap.textContent = "OOM: Tried to allocate 3.81 GiB"; P.mCap.style.fill = "var(--risk)"; }, null, 3.2)
+      .fromTo(P.act, { opacity: 0.4 }, { opacity: 1, duration: 0.18, repeat: 3, yoyo: true }, 3.2);
+  }
+  function animBf16() {
+    layout(1);
+    const st = { w: 16.1, g: 16.1, a: 32.2, act: ACT_FP32 };
+    const draw = () => {
+      let x = 0;
+      [["w", 0], ["g", 1], ["a", 2]].forEach(([k, i]) => {
+        const b = P.blocks[i], w = st[k] * PX;
+        b.r.setAttribute("x", x); b.r.setAttribute("width", w);
+        b.t.setAttribute("x", x + w / 2); b.t.style.opacity = w > 90 ? 1 : 0;
+        x += w;
+      });
+      const aw = st.act * PX;
+      P.act.setAttribute("x", x); P.act.setAttribute("width", aw); P.actT.setAttribute("x", x + aw / 2);
+    };
+    tl = gsap.timeline({ onComplete: () => layout(2) });
+    tl.call(() => { P.mCap.textContent = ""; P.mCap2.textContent = ""; P.mHead.textContent = "4B model, bfloat16 + LoRA"; }, null, 0.1)
+      .to(st, { a: 0, g: LORA_W, duration: 0.7, ease: "power2.inOut", onUpdate: draw }, 0.2)
+      .to(st, { w: BF16_W, act: ACT_BF16, duration: 0.6, ease: "power2.inOut", onUpdate: draw }, 0.9)
+      .call(() => layout(2), null, 1.6);
+  }
+
+  function kill() { if (tl) { tl.kill(); tl = null; } if (P) gsap.killTweensOf(P.act); }
+
+  function render(n, animate) {
+    kill();
+    gsap.killTweensOf(P.slots);
+    gsap.set(P.slots, { scale: 1 });
+    gsap.set(P.act, { opacity: 1 });
+    batch(n);
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (animate && !reduce && n === 3) animFp32();
+    else if (animate && !reduce && n === 4) animBf16();
+    else layout(memPhase(n));
+    if (animate && !reduce && (n === 1 || n === 2)) {
+      const idx = n === 1 ? [0, 1, 2, 3, 4, 5, 6, 7] : P.slots.map((_, i) => i);
+      gsap.fromTo(idx.map((i) => P.slots[i]), { scale: 0.6, transformOrigin: "50% 50%" }, { scale: 1, duration: 0.3, stagger: 0.025, ease: "back.out(2)" });
+    }
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) {
+      kill();
+      build(slide.querySelector("#fr-svg"));
+      render(step || 0, false);
+    },
+    step(slide, n, animate) { if (P) render(n, animate); },
+    leave() { kill(); if (P) gsap.killTweensOf(P.slots); },
+  });
+})();
+</script>

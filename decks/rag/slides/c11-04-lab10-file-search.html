@@ -1,0 +1,187 @@
+<section class="slide tight" id="rag-c11-lab10-file-search" data-tone="tool" data-title="Lab 10: File Search byte citations">
+  <style>
+    #rag-c11-lab10-file-search .fs-grid { display: grid; grid-template-columns: 812px 1fr; gap: 26px; align-items: start; }
+    #rag-c11-lab10-file-search .fs-left, #rag-c11-lab10-file-search .fs-right { gap: 10px; min-width: 0; }
+    #rag-c11-lab10-file-search .lab-head { gap: 10px; font-size: 13px; flex-wrap: nowrap; }
+    #rag-c11-lab10-file-search .lab-head .run { font-size: 12.5px; padding: 7px 10px; white-space: nowrap; flex: none; }
+    #rag-c11-lab10-file-search .code-wrap .code-head { padding: 7px 14px; font-size: 13.5px; }
+    #rag-c11-lab10-file-search pre.code.fs-c { font-size: 11px; line-height: 1.36; padding: 9px 14px 11px; font-variant-ligatures: none; }
+    #rag-c11-lab10-file-search pre.code.fs-o { font-size: 11px; line-height: 1.45; padding: 7px 14px 9px; font-variant-ligatures: none; }
+    #rag-c11-lab10-file-search pre.code.fs-o code { white-space: pre-wrap; }
+    #rag-c11-lab10-file-search .fs-viz { border: 1px solid var(--line-2); border-radius: 14px; background: var(--surface); padding: 10px 12px 6px; }
+    #rag-c11-lab10-file-search .fs-viz svg { display: block; overflow: visible; }
+    #rag-c11-lab10-file-search .fs-viz text { font-family: var(--f-mono); }
+    #rag-c11-lab10-file-search .steps-rail { gap: 6px; }
+    #rag-c11-lab10-file-search .steps-rail > * { font-size: 14.5px; line-height: 1.32; grid-template-columns: 28px 1fr; gap: 9px; }
+    #rag-c11-lab10-file-search .steps-rail > *::before { width: 24px; height: 24px; font-size: 12.5px; }
+    #rag-c11-lab10-file-search .steps-rail code { font-size: .86em; }
+    #rag-c11-lab10-file-search .fs-facts { display: flex; flex-wrap: wrap; gap: 6px; }
+    #rag-c11-lab10-file-search .fs-facts { flex-wrap: nowrap; } #rag-c11-lab10-file-search .fs-facts .tag { font-size: 11.5px; white-space: nowrap; }
+    #rag-c11-lab10-file-search .fs-cite { display: flex; gap: 8px; flex-wrap: wrap; }
+    #rag-c11-lab10-file-search .fs-cite .cite { font-size: 13px; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 10</span> GlobalCorp people team · step 3 of 4</div>
+  <h2 class="title">File Search: upload with region metadata, cite with byte offsets</h2>
+  <div class="fs-grid fill">
+    <div class="stack fs-left">
+      <div class="lab-head"><span class="run">pip install "google-genai==2.33.0"</span><span class="run">python lab10_file_search_eu.py</span><span>env: <code>GOOGLE_API_KEY</code>, <code>MODEL=gemini-3.8-flash</code></span></div>
+      <div class="code-wrap">
+        <div class="code-head">lab10_file_search_eu.py · Gemini Developer API only</div>
+        <pre class="code fs-c" data-lang="python" data-focus="1:9-17, 2:19-21, 3:22-24, 4:25-25, 5:26-28"><code>import os, pathlib, time
+from google import genai
+MODEL = os.getenv("MODEL", "gemini-3.8-flash")
+client = genai.Client()
+pathlib.Path("benefits_eu_2026.txt").write_text(
+    "Gym subsidy (EU): GlobalCorp reimburses 50% of a gym membership, up to EUR 40 per month.\n"
+    "To claim it, upload the monthly invoice in Workday &gt; Expenses &gt; Wellbeing before the 10th of the next month.\n",
+    encoding="utf-8")
+store = client.file_search_stores.create(config={"display_name": "globalcorp-benefits-2026"})
+op = client.file_search_stores.upload_to_file_search_store(
+    file="benefits_eu_2026.txt", file_search_store_name=store.name,
+    config={"display_name": "Benefits Handbook EU 2026",
+            "custom_metadata": [{"key": "region", "string_value": "EU"}],
+            "chunking_config": {"white_space_config": {"max_tokens_per_chunk": 200, "max_overlap_tokens": 20}}})
+while not op.done:                          # indexing is async: query only after done
+    time.sleep(5)
+    op = client.operations.get(op)
+try:
+    inter = client.interactions.create(model=MODEL, input="How much is the gym subsidy and how do I claim it?",
+        tools=[{"type": "file_search", "file_search_store_names": [store.name],
+                "metadata_filter": 'region="EU"', "top_k": 5}])
+    texts = [b for s in inter.steps or [] if s.type == "model_output" for b in s.content or [] if b.type == "text"]
+    for block in texts:
+        cites = [a for a in (block.annotations or []) if a.type == "file_citation" and a.end_index is not None]
+        raw = block.text.encode("utf-8")                         # offsets are BYTES, not characters
+        for a in sorted(cites, key=lambda a: a.end_index, reverse=True):   # insert right-to-left
+            raw = raw[:a.end_index] + f" [{a.file_name or a.document_uri}]".encode("utf-8") + raw[a.end_index:]
+        print(raw.decode("utf-8"))
+        for a in cites:
+            print(f"  - {a.file_name} p.{a.page_number}: {(a.source or '')[:80]}")
+finally:
+    client.file_search_stores.delete(name=store.name, config={"force": True})</code></pre>
+      </div>
+      <div class="fs-facts tags" data-fx="stagger">
+        <span class="tag t-tool">indexing $0.15/1M tokens</span>
+        <span class="tag t-state">1 GB Free · store &lt; 20 GB</span>
+        <span class="tag t-tool">raw files gone after 48 h</span>
+        <span class="tag t-risk">no Google Search</span>
+      </div>
+    </div>
+    <div class="stack fs-right">
+      <div class="fs-viz"><svg id="fs-bytes" viewBox="0 0 530 236" width="530" height="236" aria-label="Character cells above UTF-8 byte cells; a citation placed by character index lands wrong, by byte index lands right"></svg></div>
+      <div class="steps-rail">
+        <div data-step="1"><span>Poll the operation. An early query gives no grounding and no error.</span></div>
+        <div data-step="2"><span><code>metadata_filter</code> is AIP-160: <code>region="EU"</code>.</span></div>
+        <div data-step="3"><span>Citations: <code>model_output</code> → <code>text</code> → <code>file_citation</code>.</span></div>
+        <div data-step="4"><span>Offsets are "measured in bytes": slice UTF-8, not the <code>str</code>.</span></div>
+        <div data-step="5"><span>Insert right-to-left, so earlier offsets stay valid.</span></div>
+      </div>
+      <div class="code-wrap out" data-step="5">
+        <div class="code-head">output · illustrative</div>
+        <pre class="code fs-o" data-lang="none"><code>GlobalCorp reimburses 50% of your gym membership, up to EUR 40 per month <span class="ok">[Benefits Handbook EU 2026]</span>. Upload the monthly invoice in Workday &gt; Expenses &gt; Wellbeing before the 10th of the following month <span class="ok">[Benefits Handbook EU 2026]</span>.
+<span class="dim">  - Benefits Handbook EU 2026 p.None: Gym subsidy (EU): GlobalCorp reimburses 50% of a gym membership, up to EUR 40 ...</span></code></pre>
+      </div>
+      <div class="fs-cite">
+        <a class="cite doc" href="https://ai.google.dev/gemini-api/docs/file-search" target="_blank" rel="noopener"><b>Docs</b>&nbsp;File search</a>
+        <a class="cite codelab" href="https://codelabs.developers.google.com/gemini-file-search-for-rag" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;Using Google Gemini File Search Tool for RAG</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    The EU benefits handbook goes into a Gemini File Search store with a region tag, and every answer comes back with file citations. Upload returns an operation, and if you query before it is done you get an answer with no grounding and no error, so always poll. The citation offsets count UTF-8 bytes, not Python characters: the euro sign is 3 bytes and u-umlaut is 2, so a marker placed by character index drifts to the right. Think of a ruler marked in millimetres that you read as centimetres. We insert from the right end first, so the offsets on the left do not move. A likely question is "why not RAG Engine here?": File Search works only with the Gemini Developer API key, storage is free and indexing is billed at embedding rates, but it cannot run in the same call as Google Search grounding. Next: step 4 puts a semantic cache in front of these answers, so repeated questions stay inside the 3 s budget.
+  </aside>
+</section>
+<script>
+(() => {
+  const ID = "rag-c11-lab10-file-search";
+  const NS = "http://www.w3.org/2000/svg";
+  const TEXT = "Up to 40 € in München.";
+  const CHARS = [...TEXT];
+  const BYTES = CHARS.map((c) => new TextEncoder().encode(c).length);    // € = 3, ü = 2
+  const W = 19, X0 = 15, YC = 40, HC = 34, YB = 80, HB = 22;
+  const START = []; { let b = 0; BYTES.forEach((n) => { START.push(b); b += n; }); }
+  const NB = BYTES.reduce((s, n) => s + n, 0);                          // 25 bytes, 22 characters
+  const CUT = 12;                                                         // end_index of cite 1: the byte right after "€"
+  const bx = (b) => X0 + b * W;
+  const charX = (i) => bx(i < CHARS.length ? START[i] : NB);              // where str[:i] would cut
+  const CAPS = ["str: 22 characters · UTF-8: 25 bytes (€ = 3, ü = 2)", "str: 22 characters · UTF-8: 25 bytes (€ = 3, ü = 2)",
+    "str: 22 characters · UTF-8: 25 bytes (€ = 3, ü = 2)", "file_citation: end_index = 12 and 25 (bytes)",
+    "the same number 12 in two units", "insert at 25 first: offset 12 does not move"];
+  const mk = (tag, a, p, t) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); if (t !== undefined) e.textContent = t; p.appendChild(e); return e; };
+  let svg = null, S = null;
+
+  function build(slide) {
+    svg = slide.querySelector("#fs-bytes");
+    if (svg._S) { S = svg._S; return; }
+    svg.innerHTML = "";
+    S = {};
+    S.cap = mk("text", { x: 0, y: 16, style: "font-size:12.5px;font-weight:700;fill:var(--ink-2)" }, svg, CAPS[0]);
+    // character cells (width = bytes of the character)
+    CHARS.forEach((c, i) => {
+      const multi = BYTES[i] > 1;
+      mk("rect", { x: bx(START[i]) + 1, y: YC, width: BYTES[i] * W - 2, height: HC, rx: 5,
+        style: `fill:${multi ? "var(--tool-soft)" : "var(--surface-2)"};stroke:${multi ? "var(--tool)" : "var(--line-2)"};stroke-width:1.3` }, svg);
+      mk("text", { x: bx(START[i]) + BYTES[i] * W / 2, y: YC + 22, "text-anchor": "middle", style: `font-size:15px;font-weight:700;fill:${multi ? "var(--tool)" : "var(--ink)"}` }, svg, c === " " ? "·" : c);
+    });
+    // byte strip
+    for (let b = 0; b < NB; b++) {
+      const ci = START.findIndex((s, i) => b >= s && b < s + BYTES[i]);
+      const multi = BYTES[ci] > 1;
+      mk("rect", { x: bx(b) + 1, y: YB, width: W - 2, height: HB, rx: 3, style: `fill:${multi ? "var(--tool)" : "var(--line-2)"};opacity:${multi ? 0.75 : 0.6}` }, svg);
+    }
+    [0, 5, 10, 12, 15, 20, 25].forEach((b) => mk("text", { x: bx(b), y: YB + HB + 14, "text-anchor": "middle", style: "font-size:10px;font-weight:600;fill:var(--muted)" }, svg, String(b)));
+    mk("text", { x: bx(NB) + 4, y: YC + 22, style: "font-size:10px;font-weight:700;fill:var(--muted)" }, svg, "str");
+    mk("text", { x: bx(NB) + 4, y: YB + 15, style: "font-size:10px;font-weight:700;fill:var(--muted)" }, svg, "bytes");
+    // step 3: two citation spans under the byte strip
+    S.spans = [[0, CUT], [CUT + 1, NB]].map(([a, b], k) => {
+      const g = mk("g", {}, svg);
+      mk("path", { d: `M${bx(a) + 2} 124 L${bx(a) + 2} 130 L${bx(b) - 2} 130 L${bx(b) - 2} 124`, style: "fill:none;stroke:var(--human);stroke-width:2" }, g);
+      mk("text", { x: (bx(a) + bx(b)) / 2, y: 145, "text-anchor": "middle", style: "font-size:10.5px;font-weight:700;fill:var(--human)" }, g, `cite ${k + 1}: end_index=${b}`);
+      return g;
+    });
+    // step 4: wrong (str index) vs right (byte index) marker for cite 1
+    const marker = (x, col, label, y, side) => {
+      const g = mk("g", {}, svg);
+      mk("line", { x1: x, y1: YC - 6, x2: x, y2: YB + HB + 2, style: `stroke:${col};stroke-width:3` }, g);
+      mk("text", { x: x + side * 7, y: y, "text-anchor": side > 0 ? "start" : "end", style: `font-size:11.5px;font-weight:700;fill:${col}` }, g, label);
+      return g;
+    };
+    S.bad = marker(charX(CUT), "var(--risk)", "✕ str[:12] → after 'i'", 172, 1);
+    S.good = marker(bx(CUT), "var(--state)", "✓ raw[:12] → after '€'", 172, -1);
+    // step 5: insertion order, right to left
+    const chip = (x, order) => {
+      const g = mk("g", {}, svg);
+      mk("rect", { x: x - 54, y: 200, width: 108, height: 22, rx: 11, style: "fill:var(--state-soft);stroke:var(--state);stroke-width:1.4" }, g);
+      mk("text", { x, y: 215, "text-anchor": "middle", style: "font-size:10.5px;font-weight:700;fill:var(--state)" }, g, `${order} [Handbook]`);
+      return g;
+    };
+    S.ins2 = chip(bx(NB) - 40, "1st");
+    S.ins1 = chip(bx(CUT), "2nd");
+    svg._S = S;
+  }
+
+  function render(n, animate) {
+    if (!S) return;
+    const d = animate ? 0.45 : 0;
+    const op = (el, v, delay) => gsap.to(el, { autoAlpha: v, duration: d, delay: animate && v ? (delay || 0) : 0, overwrite: true });
+    S.cap.textContent = CAPS[Math.min(n, CAPS.length - 1)];
+    S.spans.forEach((g, k) => op(g, n >= 3 ? 1 : 0, 0.15 * k));
+    op(S.bad, n >= 4 ? (n >= 5 ? 0.35 : 1) : 0, 0);
+    op(S.good, n >= 4 ? 1 : 0, 0.5);
+    op(S.ins2, n >= 5 ? 1 : 0, 0.1);
+    op(S.ins1, n >= 5 ? 1 : 0, 0.7);
+    if (animate && n === 4) gsap.fromTo(S.bad, { x: bx(CUT) - charX(CUT) }, { x: 0, duration: 0.6, ease: "power2.out" });
+    else gsap.set(S.bad, { x: 0 });
+    if (animate && n === 5) {
+      gsap.fromTo(S.ins2, { y: -16 }, { y: 0, duration: 0.45, delay: 0.1, ease: "back.out(2)" });
+      gsap.fromTo(S.ins1, { y: -16 }, { y: 0, duration: 0.45, delay: 0.7, ease: "back.out(2)" });
+    } else gsap.set([S.ins1, S.ins2], { y: 0 });
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { build(slide); render(step || 0, false); },
+    step(slide, n, animate) { build(slide); render(n, animate); },
+    leave() { if (svg) gsap.killTweensOf(svg.querySelectorAll("*")); }
+  });
+})();
+</script>

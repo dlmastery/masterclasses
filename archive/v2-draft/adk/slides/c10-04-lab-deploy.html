@@ -1,0 +1,194 @@
+<section class="slide tight" id="adk-c10-lab-deploy" data-tone="risk" data-title="Lab 10.3: adk deploy x3">
+  <style>
+    #adk-c10-lab-deploy .lab-head { gap: 8px 14px; }
+    #adk-c10-lab-deploy .lab-head .run { font-size: 14px; padding: 7px 11px; white-space: nowrap; }
+    #adk-c10-lab-deploy .lab-head .pins { font: 500 13.5px/1.3 var(--f-mono); color: var(--muted); white-space: nowrap; }
+    #adk-c10-lab-deploy .lab-head .pins b { color: var(--ink-2); font-weight: 700; }
+    #adk-c10-lab-deploy .lab-head .cite { font-size: 12.5px; padding: 4px 9px; white-space: nowrap; margin-left: auto; }
+    #adk-c10-lab-deploy .dp-body { display: grid; grid-template-columns: 650px minmax(0, 1fr); gap: 22px; align-items: start; }
+    #adk-c10-lab-deploy .dp-col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    #adk-c10-lab-deploy .code-head { padding: 7px 14px; font-size: 13px; }
+    #adk-c10-lab-deploy pre.code { font-size: 11.2px; line-height: 1.42; padding: 9px 14px 10px; }
+    #adk-c10-lab-deploy #dp-svg { display: block; overflow: visible; }
+    #adk-c10-lab-deploy #dp-svg text { font-family: var(--f-mono); }
+    #adk-c10-lab-deploy .dp-rail { grid-template-columns: 1fr 1fr; gap: 10px 16px; }
+    #adk-c10-lab-deploy .dp-rail > * { font-size: 14.5px; line-height: 1.35; grid-template-columns: 26px 1fr; gap: 9px; }
+    #adk-c10-lab-deploy .dp-rail > *::before { width: 24px; height: 24px; font-size: 13px; border-radius: 7px; }
+    #adk-c10-lab-deploy .dp-rail code { font-size: 12.3px; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 10</span> Contoso HR assistant · step 3 of 3</div>
+  <h2 class="title">Ship one agent to Agent Runtime, Cloud Run or GKE with adk deploy</h2>
+  <div class="lab-head">
+    <span class="run">pip install "google-adk[gcp]==2.13.0"</span>
+    <span class="pins"><b>needs</b> gcloud CLI, billing; kubectl for GKE</span>
+    <a class="cite codelab" href="https://codelabs.developers.google.com/next26/adk-deploy-scale" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;Stateful Data Science Agent on Agent Runtime</a>
+  </div>
+  <div class="dp-body fill">
+    <div class="dp-col">
+      <div class="code-wrap">
+        <div class="code-head">ship.sh · run in the parent of hr_agent/</div>
+        <pre class="code" data-lang="bash" data-focus="1:4-9, 2:11-13, 3:15-16, 4:19-33"><code>gcloud auth application-default login
+export PROJECT=my-proj REGION=us-central1 &amp;&amp; gcloud config set project $PROJECT
+# A) Agent Runtime: managed sessions + Memory Bank, traces without content
+adk deploy agent_engine --project=$PROJECT --region=$REGION \
+  --display_name="contoso-hr" --otel_to_cloud \
+  --service_account=contoso-hr@$PROJECT.iam.gserviceaccount.com hr_agent
+export AGENT_ENGINE_ID=1234567890              # printed by the first deploy
+adk deploy agent_engine --project=$PROJECT --region=$REGION \
+  --agent_engine_id=$AGENT_ENGINE_ID hr_agent  # later: update in place
+# B) Cloud Run: private, one warm instance; flags after "--" go to gcloud
+adk deploy cloud_run --project=$PROJECT --region=$REGION \
+  --service_name=contoso-hr --session_service_uri="agentengine://$AGENT_ENGINE_ID" \
+  hr_agent -- --no-allow-unauthenticated --min-instances=1
+# C) GKE: ClusterIP by default, no public IP
+adk deploy gke --project=$PROJECT --region=$REGION \
+  --cluster_name=agents-prod --service_type=ClusterIP hr_agent
+# also: --extra_packages (2.13), --validate-agent-import; --trace_to_cloud is deprecated
+
+# smoke test Cloud Run: identity token, not access token
+URL=$(gcloud run services describe contoso-hr --region=$REGION \
+  --format='value(status.url)')
+TOKEN=$(gcloud auth print-identity-token)
+curl -X POST -H "Authorization: Bearer $TOKEN" $URL/apps/hr_agent/users/E-1001/sessions/s1
+curl -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  $URL/run_sse -d '{"app_name":"hr_agent","user_id":"E-1001","session_id":"s1",
+    "new_message":{"role":"user","parts":[{"text":"What is my salary band?"}]},
+    "state_delta":{"employee_id":"E-1001"},"streaming":false}'
+# smoke test Agent Runtime: REST :query
+RE=projects/$PROJECT/locations/$REGION/reasoningEngines/$AGENT_ENGINE_ID
+curl -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+  -H "Content-Type: application/json" \
+  "https://$REGION-aiplatform.googleapis.com/v1/$RE:query" \
+  -d '{"class_method":"async_create_session","input":{"user_id":"E-1001"}}'</code></pre>
+      </div>
+    </div>
+    <div class="dp-col">
+      <svg id="dp-svg" viewBox="0 0 720 312" width="720" height="312" aria-label="One hr_agent package in the centre with three deploy targets below it: Agent Runtime reached through :query, Cloud Run reached through /run_sse, and GKE behind a ClusterIP service. The targets light one at a time. At the last step a short table under each target says what to pick it for."></svg>
+      <div class="code-wrap out">
+        <div class="code-head">A) agent_engine · output illustrative · strings from cli_deploy.py</div>
+        <pre class="code" data-lang="none"><code><span class="dim">Initializing Agent Platform client...</span>
+<span data-step="1" data-fx="fade">Created a new instance: projects/my-proj/locations/us-central1/reasoningEngines/1234567890
+Creating Dockerfile...
+<span class="ok">Deployed to Agent Platform: projects/my-proj/locations/us-central1/reasoningEngines/1234567890</span></span></code></pre>
+      </div>
+      <div class="steps-rail dp-rail">
+        <div data-step="1"><span>Pass <code>--agent_engine_id</code> on updates, or each deploy makes a new instance.</span></div>
+        <div data-step="2"><span>Keep it private. Without <code>--session_service_uri</code>, sessions die with the instance.</span></div>
+        <div data-step="3"><span><code>ClusterIP</code> is the default. <code>LoadBalancer</code> gives a public IP.</span></div>
+        <div data-step="4"><span>Cloud Run wants an identity token and <code>roles/run.invoker</code>. An access token gets 403.</span></div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">This is the last step of the Contoso HR lab: the same hr_agent folder goes to three targets with one CLI. On Agent Runtime, remember the agent_engine_id: without it every deploy creates a new instance, and your client keeps talking to the old one. On Cloud Run, everything after the double dash goes to gcloud run deploy, so we keep the service private, keep one warm instance, and store sessions in Agent Runtime instead of instance memory. GKE gives a ClusterIP service by default, so nothing is public until you choose a LoadBalancer. An analogy: the package is one shipping container, and the three targets are a managed port, a self-service dock and your own warehouse. A likely question is "which one do I pick?": Agent Runtime when you want managed sessions, Memory Bank and publishing to Gemini Enterprise; Cloud Run when you want the ADK FastAPI routes, revisions and your own database; GKE when you need GPUs or self-hosted models. Next: agents-cli wraps these same deploy steps into CI/CD and publishes $RE to Gemini Enterprise.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c10-lab-deploy";
+  const NS = "http://www.w3.org/2000/svg";
+  const TW = 186, TY = 128, TH = 62;
+  const T = [
+    { x: 0, name: "Agent Runtime", verb: "agent_engine", ep: ":query · :streamQuery", rows: ["managed sessions", "Memory Bank, identity", "publish to Gemini Ent."] },
+    { x: 267, name: "Cloud Run", verb: "cloud_run", ep: "/run · /run_sse", rows: ["ADK FastAPI routes", "revisions + traffic", "your session DB"] },
+    { x: 534, name: "GKE", verb: "gke", ep: "ClusterIP service", rows: ["GPUs", "self-hosted models", "you run kubectl"] },
+  ];
+  const PX = 360, PY = 58;   // package bottom centre
+  let R = null, loop = null, tw = [];
+
+  function mk(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+    if (text !== undefined) e.textContent = text;
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+
+  function build(svg) {
+    svg.innerHTML = "";
+    R = { svg, t: [] };
+    // package
+    R.pkg = mk("g", {}, svg);
+    mk("rect", { x: 262, y: 2, width: 196, height: 56, rx: 12, fill: "var(--agent-soft)", stroke: "var(--agent)", "stroke-width": 2 }, R.pkg);
+    mk("text", { x: 360, y: 26, "font-size": 15, "font-weight": 800, fill: "var(--agent)", "text-anchor": "middle" }, R.pkg, "hr_agent/");
+    mk("text", { x: 360, y: 45, "font-size": 11, fill: "var(--muted)", "text-anchor": "middle" }, R.pkg, "app = App(plugins=[…])");
+    T.forEach((t, i) => {
+      const cx = t.x + TW / 2;
+      const o = {};
+      o.d = `M${PX},${PY} C${PX},${PY + 44} ${cx},${TY - 44} ${cx},${TY}`;
+      o.wire = mk("path", { d: o.d, fill: "none", stroke: "var(--line-2)", "stroke-width": 2.4 }, svg);
+      o.lab = mk("text", { x: i === 1 ? cx + 10 : (cx + PX) / 2, y: i === 1 ? 98 : 88, "font-size": 11, "font-weight": 700, fill: "var(--muted)", "text-anchor": i === 1 ? "start" : "middle" }, svg, t.verb);
+      o.g = mk("g", {}, svg);
+      o.box = mk("rect", { x: t.x + 1, y: TY, width: TW - 2, height: TH, rx: 12, fill: "var(--tool-soft)", stroke: "var(--tool)", "stroke-width": 2 }, o.g);
+      o.nt = mk("text", { x: cx, y: TY + 27, "font-size": 15, "font-weight": 800, fill: "var(--ink)", "text-anchor": "middle" }, o.g, t.name);
+      o.ns = mk("text", { x: cx, y: TY + 46, "font-size": 11, fill: "var(--muted)", "text-anchor": "middle" }, o.g, `adk deploy ${t.verb}`);
+      o.epG = mk("g", {}, svg);
+      mk("rect", { x: t.x + 14, y: TY + TH + 12, width: TW - 28, height: 26, rx: 8, fill: "#0f1430" }, o.epG);
+      mk("text", { x: cx, y: TY + TH + 29, "font-size": 11.5, "font-weight": 700, fill: "#7ee2b8", "text-anchor": "middle" }, o.epG, t.ep);
+      o.tab = mk("g", {}, svg);
+      mk("line", { x1: t.x + 8, y1: 244, x2: t.x + TW - 8, y2: 244, stroke: "var(--line-2)", "stroke-width": 1.4 }, o.tab);
+      t.rows.forEach((r, k) => mk("text", { x: t.x + 12, y: 266 + k * 20, "font-size": 12, "font-weight": 600, fill: "var(--ink-2)" }, o.tab, `· ${r}`));
+      o.dot = mk("circle", { cx: PX, cy: PY, r: 6, fill: "var(--risk)", opacity: 0 }, svg);
+      R.t.push(o);
+    });
+  }
+
+  function clear() {
+    tw.forEach((x) => x.kill()); tw = [];
+    if (loop) { loop.kill(); loop = null; }
+    if (R) R.t.forEach((o) => gsap.killTweensOf([o.g, o.dot, o.tab, o.epG, o.wire, o.box]));
+  }
+
+  function along(o, p) {
+    const L = o.wire.getTotalLength();
+    const pt = o.wire.getPointAtLength(L * p);
+    o.dot.setAttribute("cx", pt.x); o.dot.setAttribute("cy", pt.y);
+  }
+
+  function render(slide, n, animate) {
+    const svg = slide.querySelector("#dp-svg");
+    if (!svg) return;
+    if (!R || R.svg !== svg || !svg.childElementCount) build(svg);
+    clear();
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const table = n >= 4;
+    R.t.forEach((o, i) => {
+      const k = i + 1;              // target k lights at step k
+      const active = n === k;
+      const shown = n >= k;
+      gsap.set(o.g, { opacity: shown ? 1 : 0.32 });
+      gsap.set(o.box, { attr: { fill: active ? "var(--tool)" : "var(--tool-soft)", "stroke-dasharray": shown ? "none" : "6 5" } });
+      o.nt.setAttribute("fill", active ? "#fff" : "var(--ink)");
+      o.ns.setAttribute("fill", active ? "#fff" : "var(--muted)");
+      gsap.set(o.wire, { attr: { stroke: active ? "var(--risk)" : shown ? "var(--tool)" : "var(--line-2)", "stroke-dasharray": shown ? "none" : "5 6" } });
+      o.lab.setAttribute("fill", active ? "var(--risk)" : "var(--muted)");
+      gsap.set(o.epG, { opacity: shown ? 1 : 0 });
+      gsap.set(o.tab, { opacity: table ? 1 : 0, y: 0 });
+      gsap.set(o.dot, { opacity: 0 });
+      if (animate && active && !reduce) {
+        gsap.set(o.epG, { opacity: 0, y: -6 });
+        tw.push(gsap.to(o.epG, { opacity: 1, y: 0, duration: 0.4, delay: 0.7 }));
+        tw.push(gsap.fromTo(o.g, { scale: 0.92, transformOrigin: "50% 50%" }, { scale: 1, duration: 0.5, ease: "back.out(2)", delay: 0.55 }));
+      }
+      if (animate && table && !reduce) {
+        gsap.set(o.tab, { opacity: 0, y: 8 });
+        tw.push(gsap.to(o.tab, { opacity: 1, y: 0, duration: 0.4, delay: 0.2 + i * 0.18 }));
+      }
+    });
+    // a package token travels to the active target (all three at the last step)
+    const live = table ? R.t : n >= 1 ? [R.t[n - 1]] : [];
+    if (!live.length || reduce) return;
+    loop = gsap.timeline({ repeat: -1, repeatDelay: 0.7 });
+    live.forEach((o, i) => {
+      const s = { p: 0 };
+      loop.set(o.dot, { opacity: 1 }, i * 0.25)
+        .fromTo(s, { p: 0 }, { p: 1, duration: 1.1, ease: "power1.inOut", onUpdate: () => along(o, s.p) }, i * 0.25)
+        .to(o.dot, { opacity: 0, duration: 0.2 }, i * 0.25 + 1.1);
+    });
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { clear(); },
+  });
+})();
+</script>

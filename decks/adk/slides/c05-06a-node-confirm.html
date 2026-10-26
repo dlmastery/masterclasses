@@ -1,0 +1,109 @@
+<section class="slide tight" id="adk-c05-node-confirm" data-tone="human" data-title="Build: node-level require_confirmation">
+  <style>
+    #adk-c05-node-confirm pre.code, #adk-c05-node-confirm code { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #adk-c05-node-confirm .nc-body { display: grid; grid-template-columns: 800px minmax(0, 1fr); gap: 36px; align-items: start; }
+    #adk-c05-node-confirm .nc-col { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+    #adk-c05-node-confirm #nc-svg { display: block; overflow: visible; }
+    #adk-c05-node-confirm #nc-svg text { font-family: var(--f-mono); }
+    #adk-c05-node-confirm .callout { font-size: 19px; line-height: 1.4; }
+    #adk-c05-node-confirm .callout code { font-size: 17px; }
+  </style>
+  <div class="kicker">Build</div>
+  <h2 class="title">Swap the hand-written gate for one require_confirmation decorator</h2>
+  <div class="nc-body fill">
+    <div class="code-wrap good">
+      <div class="code-head">labs/adk/lab5a-refund-approval/refund_confirm/agent.py · excerpt</div>
+      <pre class="code" data-lang="python" data-focus="1:6-7, 2:6, 3:8-11"><code>AUTO_APPROVE_LIMIT = 500.0
+def intake(node_input: str):     # "A-2040 820"
+  order_id, amount = node_input.split()[:2]
+  yield Event(state={"order_id": order_id, "amount": float(amount)})
+# The predicate gets `amount` by name from state. Return a real bool.
+@node(require_confirmation=lambda amount: amount &gt; AUTO_APPROVE_LIMIT)
+def issue_refund(order_id: str, amount: float):  # args = state keys
+  key = f"refund-{order_id}"                     # idempotency key
+  yield Event(message=f"REFUNDED ${amount:.2f} on {order_id} "
+                      f"(key {key})")
+root_agent = Workflow(name="refund_confirm",
+                      edges=[("START", intake, issue_refund)])</code></pre>
+    </div>
+    <div class="nc-col">
+      <svg id="nc-svg" viewBox="0 0 556 380" width="556" height="380" aria-label="The manager_gate node, 19 lines with 3 routes, collapses into a pause badge on issue_refund; the predicate 820.0 > 500.0 pauses the node"></svg>
+      <div class="callout tip" data-step="3"><span><b>Trade-off:</b> yes or no only. No draft, no revise loop, no partial amount.</span></div>
+    </div>
+  </div>
+  <aside class="notes">This build slide replaces the hand-written manager_gate from Lab 5A with one decorator on issue_refund. The first click collapses the gate node into a pause badge on issue_refund: the graph is now START, intake, issue_refund. The second click is the predicate: lambda amount: amount > AUTO_APPROVE_LIMIT uses the same 500-dollar constant as the old gate, and amount is bound by name from the state key that intake wrote; for 820 it returns True, so the node pauses before its body runs. The third click is the honest part: the line count drops from 19 to one decorator because the decorator is a yes/no gate. The draft, the revise loop and the partial amount go away, so keep the RequestInput gate with ManagerDecision when a manager approves 700 instead of 820 or adds a note. It is like a door with a built-in badge reader instead of a guard who stands in front of it. This needs google-adk 2.12 or newer; the lab is tested against 2.13.0 source. A likely question: "Can the predicate see other state?" It gets the node's bound args by name, plus ctx, node_input and any state key with a matching name. Next: what the reply must look like.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c05-node-confirm";
+  const NS = "http://www.w3.org/2000/svg";
+  let tl = null, loop = null, R = null;
+  function mk(tag, attrs, parent) {
+    const e = document.createElementNS(NS, tag);
+    for (const [a, v] of Object.entries(attrs)) e.setAttribute(a, v);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function txt(parent, x, y, s, attrs) { const t = mk("text", Object.assign({ x, y, "font-size": 16, fill: "var(--ink-2)" }, attrs || {}), parent); t.textContent = s; return t; }
+  function box(parent, x, y, w, tone, name, sub) {
+    const g = mk("g", {}, parent);
+    mk("rect", { x, y, width: w, height: 70, rx: 12, fill: `var(--${tone}-soft)`, stroke: `var(--${tone})`, "stroke-width": 2 }, g);
+    txt(g, x + 18, y + 30, name, { "font-size": 19, "font-weight": 700, fill: "var(--ink)" });
+    const s = txt(g, x + 18, y + 54, sub, { "font-size": 15, fill: `var(--${tone})` });
+    g._s = s;
+    return g;
+  }
+  function build(svg) {
+    svg.innerHTML = "";
+    const defs = mk("defs", {}, svg);
+    const m = mk("marker", { id: "nc-ah", viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto-start-reverse" }, defs);
+    mk("path", { d: "M0,0 L10,5 L0,10 z", fill: "var(--muted)" }, m);
+    R = {};
+    box(svg, 0, 0, 240, "tool", "intake", "state amount=820.0");
+    R.wa = mk("path", { d: "M120 72 V136", stroke: "var(--muted)", "stroke-width": 2, fill: "none", "marker-end": "url(#nc-ah)" }, svg);
+    R.gate = box(svg, 0, 140, 240, "human", "manager_gate", "19 lines · 3 routes");
+    R.wb = mk("path", { d: "M120 212 V276", stroke: "var(--muted)", "stroke-width": 2, fill: "none", "marker-end": "url(#nc-ah)" }, svg);
+    R.wd = mk("path", { d: "M120 72 V276", stroke: "var(--muted)", "stroke-width": 2, fill: "none", "marker-end": "url(#nc-ah)" }, svg);
+    R.node = box(svg, 0, 280, 240, "tool", "issue_refund", "function node");
+    R.badge = mk("g", {}, svg);
+    mk("circle", { cx: 236, cy: 284, r: 20, fill: "var(--human)" }, R.badge);
+    mk("rect", { x: 228, y: 274, width: 5, height: 20, rx: 1, fill: "#fff" }, R.badge);
+    mk("rect", { x: 239, y: 274, width: 5, height: 20, rx: 1, fill: "#fff" }, R.badge);
+    R.pred = mk("g", {}, svg);
+    mk("rect", { x: 284, y: 296, width: 272, height: 40, rx: 20, fill: "var(--bg)", stroke: "var(--human)", "stroke-width": 2 }, R.pred);
+    txt(R.pred, 420, 322, "820.0 > 500.0 → pause", { "font-size": 17, "font-weight": 700, "text-anchor": "middle", fill: "var(--human)" });
+    R.delta = mk("g", {}, svg);
+    txt(R.delta, 300, 160, "19 lines", { "font-size": 30, "font-weight": 800, fill: "var(--risk)" });
+    txt(R.delta, 300, 200, "→ 1 decorator", { "font-size": 30, "font-weight": 800, fill: "var(--state)" });
+  }
+  function clear() { if (tl) { tl.kill(); tl = null; } if (loop) { loop.kill(); loop = null; } }
+  function render(slide, n, animate) {
+    const svg = slide.querySelector("#nc-svg");
+    if (!svg) return;
+    if (!svg.childElementCount) build(svg);
+    clear();
+    gsap.killTweensOf(Object.values(R));
+    const vis = (e, on) => gsap.set(e, { opacity: on ? 1 : 0, x: 0, y: 0, scale: 1 });
+    vis(R.gate, n < 1); vis(R.wa, n < 1); vis(R.wb, n < 1); vis(R.wd, n >= 1); vis(R.badge, n >= 1);
+    vis(R.pred, n >= 2); vis(R.delta, n >= 3);
+    R.node._s.textContent = n >= 2 ? "paused" : "function node";
+    if (n >= 2) loop = gsap.to(R.badge, { scale: 1.15, svgOrigin: "236 284", duration: 0.55, repeat: -1, yoyo: true, ease: "sine.inOut" });
+    if (!animate) return;
+    tl = gsap.timeline();
+    if (n === 1) {
+      vis(R.gate, true); vis(R.wa, true); vis(R.wb, true); vis(R.wd, false); vis(R.badge, false);
+      tl.to(R.gate, { scale: 0.1, svgOrigin: "236 284", duration: 0.8, ease: "power2.in" })
+        .to(R.gate, { opacity: 0, duration: 0.15 })
+        .to([R.wa, R.wb], { opacity: 0, duration: 0.3 }, "<")
+        .to(R.wd, { opacity: 1, duration: 0.3 }, "<")
+        .fromTo(R.badge, { opacity: 0, scale: 0.2, svgOrigin: "236 284" }, { opacity: 1, scale: 1, duration: 0.4, ease: "back.out(3)" });
+    } else if (n === 2) tl.fromTo(R.pred, { opacity: 0, x: -30 }, { opacity: 1, x: 0, duration: 0.45, ease: "power2.out" });
+    else if (n === 3) tl.fromTo(R.delta, { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.45 });
+  }
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { clear(); if (slide) gsap.killTweensOf(slide.querySelectorAll("#nc-svg *")); },
+  });
+})();
+</script>

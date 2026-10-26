@@ -1,0 +1,256 @@
+<section class="slide" id="rag-interview-c02-debug-embed-batch" data-tone="state" data-title="Debug: 4 tickets, 1 row">
+  <style>
+    #rag-interview-c02-debug-embed-batch .eb-main { display: grid; grid-template-columns: 724px 1fr; gap: 24px; }
+    #rag-interview-c02-debug-embed-batch .eb-col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    #rag-interview-c02-debug-embed-batch .eb-slot { display: grid; }
+    #rag-interview-c02-debug-embed-batch .eb-slot > * { grid-area: 1 / 1; align-self: start; }
+    #rag-interview-c02-debug-embed-batch .eb-col pre.code { font-size: 12px; line-height: 1.5; padding: 10px 16px 12px 48px; }
+    #rag-interview-c02-debug-embed-batch pre.code, #rag-interview-c02-debug-embed-batch pre.code code { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    /* line-number gutter */
+    #rag-interview-c02-debug-embed-batch pre.code.ln::before { position: absolute; left: 0; top: 10px; width: 34px; text-align: right;
+      white-space: pre; color: #7c86b8; font: inherit; line-height: inherit; }
+    #rag-interview-c02-debug-embed-batch pre.code.ln21::before { content: "1\A 2\A 3\A 4\A 5\A 6\A 7\A 8\A 9\A 10\A 11\A 12\A 13\A 14\A 15\A 16\A 17\A 18\A 19\A 20\A 21"; }
+    #rag-interview-c02-debug-embed-batch pre.code.ln22::before { content: "1\A 2\A 3\A 4\A 5\A 6\A 7\A 8\A 9\A 10\A 11\A 12\A 13\A 14\A 15\A 16\A 17\A 18\A 19\A 20\A 21\A 22"; }
+    /* brighter focus band */
+    #rag-interview-c02-debug-embed-batch .code-wrap .band { background: rgba(246, 195, 80, 0.15); border-left: 3px solid #f6c350; }
+    #rag-interview-c02-debug-embed-batch .code-wrap .code-head { padding: 7px 14px; font-size: 13.5px; }
+    #rag-interview-c02-debug-embed-batch .code-wrap.out pre.code { font-size: 13.5px; line-height: 1.5; padding: 10px 16px 12px; }
+    #rag-interview-c02-debug-embed-batch .code-wrap.out .cmd { color: #cbd5e1; }
+    #rag-interview-c02-debug-embed-batch .code-wrap.out .dim { color: #94a3b8; }
+    #rag-interview-c02-debug-embed-batch .lab-head { flex-direction: column; align-items: flex-start; gap: 4px; }
+    #rag-interview-c02-debug-embed-batch .lab-head .pins { font: 500 13px/1.3 var(--f-mono); color: var(--muted); white-space: nowrap; }
+    #rag-interview-c02-debug-embed-batch .panel.k-risk { padding: 11px 16px; font-size: 17px; line-height: 1.4; }
+    #rag-interview-c02-debug-embed-batch .steps-rail { gap: 8px; }
+    #rag-interview-c02-debug-embed-batch .steps-rail > * { font-size: 16px; grid-template-columns: 30px 1fr; align-items: center; }
+    #rag-interview-c02-debug-embed-batch .steps-rail > *::before { width: 26px; height: 26px; font-size: 13px; }
+    #rag-interview-c02-debug-embed-batch .steps-rail code { font-size: .88em; }
+    #rag-interview-c02-debug-embed-batch .gotcha { font-size: 15px; padding: 10px 16px; grid-template-columns: 84px 1fr; gap: 4px 12px; }
+    #rag-interview-c02-debug-embed-batch .gotcha > b { font-size: 12.5px; }
+    #rag-interview-c02-debug-embed-batch .eb-cites { display: flex; gap: 8px; flex-wrap: wrap; }
+    #rag-interview-c02-debug-embed-batch #eb-anim text { font-family: var(--f-mono); }
+  </style>
+  <div class="kicker"><span class="pill">Debug this</span> embeddings</div>
+  <h2 class="title">Debug this: four tickets embedded, one row in the index</h2>
+  <div class="eb-main fill">
+    <div class="eb-col">
+      <div class="eb-slot">
+        <div class="code-wrap bad" data-until="4">
+          <div class="code-head">index_tickets.py</div>
+          <pre class="code ln ln21" data-lang="python" data-focus="2:17, 3:19"><code># index_tickets.py -- embed resolved Northwind tickets into Chroma
+import chromadb
+from google import genai
+from google.genai import types
+client = genai.Client()                                # reads GEMINI_API_KEY
+col = chromadb.PersistentClient(path="kb").get_or_create_collection(
+    "tickets", embedding_function=None)   # we pass Gemini vectors ourselves
+TICKETS = {
+    "TKT-1042": "Login loop after Okta SSO: clear the stale session cookie.",
+    "TKT-1077": "Claim PDF upload fails: files over 20 MB are rejected.",
+    "TKT-1103": "Refund not received: refunds post 5-7 business days after approval.",
+    "TKT-1150": "Duplicate premium charge: void the second authorization.",
+}
+ids, texts = list(TICKETS), list(TICKETS.values())
+resp = client.models.embed_content(
+    model="gemini-embedding-2",
+    contents=texts,
+    config=types.EmbedContentConfig(output_dimensionality=768))
+for tid, emb in zip(ids, resp.embeddings):
+    col.upsert(ids=[tid], embeddings=[emb.values], documents=[TICKETS[tid]])
+print("indexed", col.count())</code></pre>
+        </div>
+        <div class="code-wrap good" data-step="4">
+          <div class="code-head">index_tickets.py · fixed: lines 17–21</div>
+          <pre class="code ln ln22" data-lang="python" data-focus="4:17-21"><code># index_tickets.py -- embed resolved Northwind tickets into Chroma
+import chromadb
+from google import genai
+from google.genai import types
+client = genai.Client()                                # reads GEMINI_API_KEY
+col = chromadb.PersistentClient(path="kb").get_or_create_collection(
+    "tickets", embedding_function=None)   # we pass Gemini vectors ourselves
+TICKETS = {
+    "TKT-1042": "Login loop after Okta SSO: clear the stale session cookie.",
+    "TKT-1077": "Claim PDF upload fails: files over 20 MB are rejected.",
+    "TKT-1103": "Refund not received: refunds post 5-7 business days after approval.",
+    "TKT-1150": "Duplicate premium charge: void the second authorization.",
+}
+ids, texts = list(TICKETS), list(TICKETS.values())
+resp = client.models.embed_content(                    # still one API call
+    model="gemini-embedding-2",
+    contents=[types.Content(parts=[types.Part.from_text(text=t)]) for t in texts],
+    config=types.EmbedContentConfig(output_dimensionality=768))
+assert len(resp.embeddings) == len(texts)
+for tid, emb in zip(ids, resp.embeddings, strict=True):   # Python 3.10+
+    col.upsert(ids=[tid], embeddings=[emb.values], documents=[TICKETS[tid]])
+print("indexed", col.count())</code></pre>
+        </div>
+      </div>
+      <div class="code-wrap out" data-step="1">
+        <div class="code-head">output · illustrative</div>
+        <pre class="code" data-lang="none"><code><span class="cmd">$ python index_tickets.py</span>
+<span class="err">indexed 1</span>      <span class="dim"># no exception, no warning</span>
+<span class="ok" data-step="4">indexed 4</span>      <span class="dim" data-step="4"># after the fix</span></code></pre>
+      </div>
+    </div>
+    <div class="eb-col">
+      <div class="lab-head"><span class="run">python index_tickets.py</span><span class="pins">pip install google-genai==2.33.0 chromadb==1.5.9 · export GEMINI_API_KEY=…</span></div>
+      <div class="panel k-risk"><span><b>Prompt.</b> The script indexes 4 tickets and prints <code>indexed 1</code>. No exception. Find the bug.</span></div>
+      <svg id="eb-anim" viewBox="0 0 644 196" width="644" height="196" aria-label="Four tickets go into embed_content; one or four vectors come out"></svg>
+      <div class="steps-rail">
+        <div data-step="2"><span>Line 17: a list of strings in <code>contents</code> gives one aggregated vector.</span></div>
+        <div data-step="3"><span>Line 19: <code>zip()</code> stops at the shorter list. Three tickets drop.</span></div>
+      </div>
+      <div class="gotcha" data-step="3">
+        <b>Symptom</b><span>One vector comes back for four strings. <code>zip()</code> stops after the first pair, so 3 tickets drop with no error.</span>
+        <b class="why">Cause</b><span><code>gemini-embedding-2</code>: a list of strings in <code>contents</code> gives <b>one aggregated embedding</b> (Gemini API docs). <code>gemini-embedding-001</code> returns one vector per string.</span>
+        <b class="fix">Fix</b><span>Wrap each input in its own <code>Content</code> (still one call). Assert the count. Use <code>zip(strict=True)</code>.</span>
+      </div>
+      <div class="eb-cites">
+        <a class="cite repo" href="https://github.com/run-llama/llama_index/issues/21658" target="_blank" rel="noopener"><b>Issue</b>&nbsp;llama_index #21658</a>
+        <a class="cite doc" href="https://ai.google.dev/gemini-api/docs/embeddings" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Gemini API: Embeddings</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Show the code and the output, and ask the room why four tickets give one row with no error. The first clue is line 17: for gemini-embedding-2, the Gemini API docs say that a plain list of strings in contents produces one aggregated embedding for all inputs, so resp.embeddings has length 1. gemini-embedding-001 behaves differently: a list of strings gives one vector per string, so the same code works on 001 and breaks after the upgrade. The second clue is line 19: zip() stops at the shorter list, so TKT-1042 gets the merged vector and the other three tickets disappear silently. The fix wraps each text in its own types.Content (still one API call with four inputs), asserts that the vector count equals the input count, and uses zip(strict=True) on Python 3.10 or later. With strict=True the original bug becomes loud: ValueError: zip() argument 2 is shorter than argument 1. The collection has embedding_function=None, so every later query must pass query_embeddings from the same Gemini model. Analogy: you hand a clerk four letters and get back one envelope, and nobody counts the envelopes.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "rag-interview-c02-debug-embed-batch";
+  const NAMES = ["TKT-1042", "TKT-1077", "TKT-1103", "TKT-1150"];
+  const CY = [26, 74, 122, 170];               // card centres
+  const BOX = { x: 226, y: 58, w: 212, h: 80 };
+  const SX = 488, CELL = 18, NCELL = 8;        // vector strips
+  let svg, outLine, cards = [], inLines = [], merged, mergedLabel, zipLabel, dropLabel,
+      boxRect, boxSub, fan = [], strips = [], badge, dots = [], built = false;
+  const el = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); parent.appendChild(e); return e; };
+
+  function strip(parent, y, tone) {
+    const g = el("g", {}, parent);
+    for (let i = 0; i < NCELL; i++) {
+      el("rect", { x: SX + i * CELL, y: y - 9, width: CELL - 3, height: 18, rx: 3,
+        fill: tone, opacity: (0.35 + ((i * 37) % 60) / 100).toFixed(2) }, g);
+    }
+    return g;
+  }
+
+  function build(root) {
+    svg = root.querySelector("#eb-anim");
+    svg.innerHTML = "";
+    cards = []; inLines = []; fan = []; strips = []; dots = [];
+    // input wires: each card to the box
+    NAMES.forEach((_, i) => {
+      inLines.push(el("path", { d: `M114 ${CY[i]} C 170 ${CY[i]}, 180 98, ${BOX.x} 98`, fill: "none",
+        stroke: "var(--line-2)", "stroke-width": 2 }, svg));
+    });
+    // ticket cards
+    NAMES.forEach((name, i) => {
+      const g = el("g", {}, svg);
+      const r = el("rect", { x: 6, y: CY[i] - 15, width: 108, height: 30, rx: 8, fill: "var(--surface)",
+        stroke: "var(--human)", "stroke-width": 2 }, g);
+      el("text", { x: 60, y: CY[i] + 5, "font-size": 13, "font-weight": 700, "text-anchor": "middle", fill: "var(--ink)" }, g).textContent = name;
+      g._r = r;
+      cards.push(g);
+    });
+    // the model call box
+    boxRect = el("rect", { x: BOX.x, y: BOX.y, width: BOX.w, height: BOX.h, rx: 14, fill: "var(--model-soft)",
+      stroke: "var(--model)", "stroke-width": 2 }, svg);
+    el("text", { x: BOX.x + BOX.w / 2, y: BOX.y + 34, "font-size": 15, "font-weight": 700, "text-anchor": "middle", fill: "var(--ink)" }, svg).textContent = "embed_content";
+    boxSub = el("text", { x: BOX.x + BOX.w / 2, y: BOX.y + 58, "font-size": 12.5, "text-anchor": "middle", fill: "var(--muted)" }, svg);
+    // merged output (bug)
+    outLine = el("path", { d: `M${BOX.x + BOX.w} 98 L${SX - 6} 98`, fill: "none", stroke: "var(--line-2)", "stroke-width": 2 }, svg);
+    merged = strip(svg, 98, "var(--state)");
+    mergedLabel = el("text", { x: SX + (NCELL * CELL) / 2, y: 128, "font-size": 12.5, "font-weight": 700, "text-anchor": "middle", fill: "var(--muted)" }, svg);
+    zipLabel = el("text", { x: SX + (NCELL * CELL) / 2, y: 74, "font-size": 12.5, "font-weight": 700, "text-anchor": "middle", fill: "var(--state)", opacity: 0 }, svg);
+    zipLabel.textContent = "zip: TKT-1042 only";
+    dropLabel = el("text", { x: 128, y: 192, "font-size": 13, "font-weight": 700, fill: "var(--risk)", opacity: 0 }, svg);
+    dropLabel.textContent = "3 dropped by zip()";
+    // fix: four outputs
+    CY.forEach((y) => {
+      fan.push(el("path", { d: `M${BOX.x + BOX.w} 98 C 462 98, 462 ${y}, ${SX - 6} ${y}`, fill: "none",
+        stroke: "var(--state)", "stroke-width": 2, opacity: 0 }, svg));
+      strips.push(strip(svg, y, "var(--state)"));
+    });
+    badge = el("g", { opacity: 0 }, svg);
+    el("rect", { x: BOX.x + 16, y: 152, width: BOX.w - 32, height: 32, rx: 16, fill: "var(--state)" }, badge);
+    el("text", { x: BOX.x + BOX.w / 2, y: 173, "font-size": 14, "font-weight": 700, "text-anchor": "middle", fill: "#fff" }, badge).textContent = "assert 4 == 4";
+    // flying dots (one per ticket)
+    NAMES.forEach((_, i) => dots.push(el("circle", { cx: 114, cy: CY[i], r: 6, fill: "var(--human)", opacity: 0 }, svg)));
+    built = true;
+  }
+
+  function all() { return [...cards, ...inLines, merged, mergedLabel, zipLabel, dropLabel, boxRect, outLine, ...fan, ...strips, badge, ...dots]; }
+  function kill() { if (built) gsap.killTweensOf(all()); }
+
+  function fly(delay) {
+    dots.forEach((d, i) => {
+      gsap.set(d, { attr: { cx: 114, cy: CY[i] }, opacity: 1 });
+      gsap.to(d, { attr: { cx: BOX.x + 20, cy: 98 }, duration: 0.6, delay: delay + i * 0.08, ease: "power2.in" });
+      gsap.to(d, { opacity: 0, duration: 0.15, delay: delay + 0.6 + i * 0.08 });
+    });
+  }
+
+  function paint(n, animate) {
+    kill();
+    const bug = n >= 1 && n < 4, blame = n >= 2 && n < 4, zipped = n === 3, fixed = n >= 4;
+    dots.forEach((d) => gsap.set(d, { opacity: 0 }));
+    // box
+    boxRect.setAttribute("stroke", blame ? "var(--risk)" : fixed ? "var(--state)" : "var(--model)");
+    boxSub.textContent = fixed ? "contents = 4 × Content" : "contents = texts";
+    boxSub.setAttribute("fill", blame ? "var(--risk)" : fixed ? "var(--state)" : "var(--muted)");
+    // input wires: at the zip step the TKT-1042 wire and the output wire light up green, the rest go red
+    inLines.forEach((l, i) => {
+      l.setAttribute("stroke", fixed ? "var(--tool)" : zipped ? (i === 0 ? "var(--state)" : "var(--risk)") : "var(--line-2)");
+      l.setAttribute("stroke-width", zipped && i === 0 ? 3.5 : 2);
+      l.setAttribute("stroke-dasharray", zipped && i > 0 ? "5 4" : "none");
+    });
+    outLine.setAttribute("opacity", fixed ? 0 : 1);
+    outLine.setAttribute("stroke", zipped ? "var(--state)" : "var(--line-2)");
+    outLine.setAttribute("stroke-width", zipped ? 3.5 : 2);
+    // merged vector
+    mergedLabel.textContent = blame ? "1 aggregated vector" : bug ? "1 vector" : "";
+    mergedLabel.setAttribute("fill", blame ? "var(--risk)" : "var(--muted)");
+    if (bug && animate && n === 1) {
+      gsap.set(merged, { opacity: 0, scaleX: 0, transformOrigin: `${SX}px 98px` });
+      fly(0.1);
+      gsap.to(merged, { opacity: 1, scaleX: 1, duration: 0.5, delay: 0.95, ease: "power2.out" });
+    } else gsap.set(merged, { opacity: bug ? 1 : 0, scaleX: 1 });
+    // zip + drop
+    cards.forEach((c, i) => {
+      const dropped = zipped && i > 0;
+      c._r.setAttribute("stroke", fixed ? "var(--tool)" : zipped ? (i === 0 ? "var(--state)" : "var(--risk)") : "var(--human)");
+      c._r.setAttribute("fill", fixed ? "var(--tool-soft)" : "var(--surface)");
+      const target = { y: dropped ? 6 : 0, rotation: dropped ? 5 : 0, opacity: dropped ? 0.35 : 1, svgOrigin: `60 ${CY[i]}` };
+      if (animate && zipped) gsap.to(c, { ...target, duration: 0.5, delay: 0.5 + i * 0.1, ease: "bounce.out" });
+      else gsap.set(c, target);
+    });
+    if (zipped) {
+      gsap.set([zipLabel, dropLabel], { opacity: animate ? 0 : 1 });
+      if (animate) gsap.to([zipLabel, dropLabel], { opacity: 1, duration: 0.3, delay: 0.9, stagger: 0.2 });
+    } else gsap.set([zipLabel, dropLabel], { opacity: 0 });
+    // fix: four Content pills in, four vectors out
+    fan.forEach((f) => gsap.set(f, { opacity: fixed ? 1 : 0 }));
+    if (fixed && animate) {
+      fly(0.15);
+      strips.forEach((s, i) => {
+        gsap.set(s, { opacity: 0, scaleX: 0, transformOrigin: `${SX}px ${CY[i]}px` });
+        gsap.to(s, { opacity: 1, scaleX: 1, duration: 0.45, delay: 0.95 + i * 0.12, ease: "power2.out" });
+      });
+      gsap.set(badge, { opacity: 0, scale: 0.4, svgOrigin: `${BOX.x + BOX.w / 2} 168` });
+      gsap.to(badge, { opacity: 1, scale: 1, duration: 0.45, delay: 1.5, ease: "back.out(2.4)" });
+    } else {
+      strips.forEach((s) => gsap.set(s, { opacity: fixed ? 1 : 0, scaleX: 1 }));
+      gsap.set(badge, { opacity: fixed ? 1 : 0, scale: 1, svgOrigin: `${BOX.x + BOX.w / 2} 168` });
+    }
+    if (fixed) {
+      gsap.to(badge, { scale: 1.06, svgOrigin: `${BOX.x + BOX.w / 2} 168`, duration: 0.8, repeat: -1, yoyo: true,
+        ease: "sine.inOut", delay: animate ? 2 : 0 });
+    }
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { build(slide); paint(step || 0, false); },
+    step(slide, n, animate) { if (!built) build(slide); paint(n, animate); },
+    leave() { kill(); }
+  });
+})();
+</script>

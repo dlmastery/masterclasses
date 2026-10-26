@@ -1,0 +1,172 @@
+<section class="slide" id="custom-c05-lab4-metrics" data-tone="model" data-title="Lab 4: four GRPO metrics">
+  <style>
+    #custom-c05-lab4-metrics { gap: 20px; }
+    #custom-c05-lab4-metrics .g-met { display: grid; grid-template-columns: 556px 1fr; gap: 26px; min-height: 0; }
+    #custom-c05-lab4-metrics .met-left, #custom-c05-lab4-metrics .met-right { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    #custom-c05-lab4-metrics .lab-head { font-size: 14.5px; gap: 12px; }
+    #custom-c05-lab4-metrics .lab-head .run { font-size: 15px; padding: 7px 11px; }
+    #custom-c05-lab4-metrics .code-head { padding: 7px 14px; font-size: 13.5px; }
+    #custom-c05-lab4-metrics .met-out { background: #070b22; }
+    #custom-c05-lab4-metrics .met-out pre.code { font-size: 12px; line-height: 1.42; padding: 10px 14px 10px; background: transparent; }
+    #custom-c05-lab4-metrics .steps-rail { gap: 7px; }
+    #custom-c05-lab4-metrics .steps-rail > * { font-size: 15.5px; line-height: 1.34; grid-template-columns: 30px 1fr; gap: 10px; }
+    #custom-c05-lab4-metrics .steps-rail > *::before { width: 26px; height: 26px; font-size: 14px; }
+    #custom-c05-lab4-metrics .paper { padding: 12px 16px; gap: 6px; }
+    #custom-c05-lab4-metrics .paper h4 { font-size: 16px; line-height: 1.25; }
+    #custom-c05-lab4-metrics .paper .find { font-size: 15px; line-height: 1.35; }
+    #custom-c05-lab4-metrics .paper .so { font-size: 15px; }
+    #custom-c05-lab4-metrics .callout { font-size: 15px; line-height: 1.38; padding: 10px 14px; }
+    #custom-c05-lab4-metrics code { font-size: .88em; }
+    #custom-c05-lab4-metrics pre.code, #custom-c05-lab4-metrics pre.code *, #custom-c05-lab4-metrics code { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #custom-c05-lab4-metrics a.cite.paper { display: inline-flex; flex-direction: row; gap: 10px; padding: 6px 12px 6px 8px; border-radius: 10px; border-color: var(--line); font-size: 14.5px; }
+    #custom-c05-lab4-metrics #c05met-svg { flex: none; }
+    #c05met-svg text { font-family: var(--f-mono); }
+  </style>
+  <div class="kicker"><span class="pill">Lab 4</span> Acme claims payout calculator · step 3 of 5</div>
+  <h2 class="title">Four GRPO metrics tell you if RL is learning, stuck or truncating</h2>
+  <div class="g-met fill">
+    <div class="met-left">
+      <div class="lab-head"><span class="run">python lab2_grpo_claims.py</span><a class="cite paper" href="https://arxiv.org/abs/2610.25325" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.25325 Where Groups Split</a></div>
+      <div class="code-wrap out met-out">
+        <div class="code-head">output · illustrative · keys verified in grpo_trainer.py</div>
+        <pre class="code" data-lang="none" data-focus="1:1, 2:2, 3:3, 4:4"><code>{'rewards/accuracy_reward/mean': 0.31, 'reward': 0.29,
+ 'frac_reward_zero_std': 0.25, 'reward_std': 0.38,
+ 'completions/clipped_ratio': 0.06, 'completions/mean_length': 141.2,
+ 'entropy': 0.62,
+ 'rewards/soft_overlong_punishment_reward/mean': -0.04, ...}
+<span class="dim">...</span>
+<span class="ok">{'rewards/accuracy_reward/mean': 0.66,</span> 'completions/mean_length': 118.5,
+ 'frac_reward_zero_std': 0.47, ...}</code></pre>
+      </div>
+      <div class="steps-rail">
+        <div data-step="1"><span>Accuracy reward must rise. Flat = no learning.</span></div>
+        <div data-step="2"><span>Share of groups where all 8 scored the same: zero advantage. Near 1.0, re-mix difficulty.</span></div>
+        <div data-step="3"><span>Clipped ratio rising: answers hit 256. Raise the cap or the length penalty.</span></div>
+        <div data-step="4"><span>Entropy falling fast: collapse risk.</span></div>
+      </div>
+      <div class="paper" data-step="5">
+        <div class="pid">arXiv:2610.25325 <span>18 Oct 2026</span></div>
+        <h4>Where Groups Split: A Probe Prior for Nonzero Within-Group Variance in RL Post-Training</h4>
+        <div class="find">Zero-variance groups waste rollouts. A short probe run predicts which prompts stay informative <b>better than the base pass rate</b>.</div>
+        <div class="so">Sample the base model 8x per prompt; drop 0/8 and 8/8 prompts</div>
+      </div>
+    </div>
+    <div class="met-right">
+      <svg id="c05met-svg" viewBox="0 0 810 568" width="790" height="554" role="img" aria-label="Four GRPO metric curves over 300 steps, illustrative"></svg>
+      <div class="callout pitfall" data-step="5"><b>Windows:</b> math-verify uses multiprocessing timeouts there, a "huge performance penalty". Run RL on Linux, WSL2 or Colab.</div>
+    </div>
+  </div>
+  <aside class="notes">These are the four numbers to watch in the GRPO log of the Acme claims run; the key names are the real ones from TRL 1.16.0, and the values are illustrative. Step 1: rewards/accuracy_reward/mean must rise, here from 0.31 to 0.66; if it stays flat, the policy is not learning. Step 2: frac_reward_zero_std is the share of groups where all 8 answers got the same score, so their advantage is zero and they give no gradient; if it climbs toward 1.0, the prompts became too easy or stayed too hard, and you re-mix the difficulty in the generator. Step 3: completions/clipped_ratio counts answers that hit the 256-token cap; if it rises, raise the cap or make the length penalty stronger. Step 4: entropy should fall slowly; a fast drop means the policy collapses onto one answer pattern. Analogy: frac_reward_zero_std is a class where every student got the same mark, so the teacher learns nothing about who needs help. Likely question: how do I keep that fraction low before training? Sample the base model 8 times per prompt and drop prompts at 0/8 and 8/8; the October paper "Where Groups Split" shows a short probe run predicts informative prompts even better than the base pass rate.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c05-lab4-metrics";
+  const PW = 385, PH = 256, GAPX = 40, GAPY = 26, TOP = 30;
+  const PX0 = 54, PX1 = PW - 16, PY0 = 64, PY1 = PH - 40;
+  const N = 31; // one point every 10 steps, 0..300
+  const wig = (t, f, a) => a * Math.sin(t * f) * 4 * t * (1 - t); // zero at both ends: exact start and end values
+  const PANELS = [
+    { key: "rewards/accuracy_reward/mean", hint: "should rise", lo: 0, hi: 1, ticks: [0, .5, 1],
+      f: (t) => .31 + .35 * (1 - Math.exp(-3 * t)) / (1 - Math.exp(-3)) + wig(t, 29, .02), a: "0.31", b: "0.66", aBelow: true },
+    { key: "frac_reward_zero_std", hint: "toward 1.0 = no signal", lo: 0, hi: 1, ticks: [0, .5, 1], band: [.75, 1],
+      f: (t) => .25 + .22 * t + wig(t, 23, .03), a: "0.25", b: "0.47" },
+    { key: "completions/clipped_ratio", hint: "stays low", lo: 0, hi: .2, ticks: [0, .1, .2], alert: .1,
+      f: (t) => .06 + wig(t, 31, .012) - .01 * t * t, a: "0.06", b: "", note: "mean_length 141.2 -> 118.5" },
+    { key: "entropy", hint: "falls slowly", lo: 0, hi: 1, ticks: [0, .5, 1],
+      f: (t) => .62 - .1 * t + wig(t, 19, .015), a: "0.62", b: "",
+      bad: (t) => .08 + .54 * Math.exp(-9 * t) }
+  ];
+  let S = null;
+
+  function mk(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  }
+
+  function build(slide) {
+    const svg = slide.querySelector("#c05met-svg");
+    if (svg._S) return svg._S;
+    svg.innerHTML = "";
+    const s = { panels: [] };
+    mk("text", { x: 0, y: 16, "font-size": 13.5, fill: "var(--muted)" }, svg, "illustrative curves · 300 steps · start and end values from the log");
+    PANELS.forEach((p, i) => {
+      const ox = (i % 2) * (PW + GAPX), oy = TOP + Math.floor(i / 2) * (PH + GAPY);
+      const g = mk("g", { transform: `translate(${ox},${oy})` }, svg);
+      const frame = mk("rect", { x: 0, y: 0, width: PW, height: PH, rx: 14, fill: "var(--surface)", stroke: "var(--line-2)", "stroke-width": 1.5 }, g);
+      mk("circle", { cx: 22, cy: 24, r: 11, fill: "var(--model)" }, g);
+      mk("text", { x: 22, y: 28.5, "text-anchor": "middle", "font-size": 12.5, "font-weight": 700, fill: "#fff" }, g, String(i + 1));
+      mk("text", { x: 40, y: 29, "font-size": 13, "font-weight": 700, fill: "var(--ink)" }, g, p.key);
+      mk("text", { x: 40, y: 48, "font-size": 12, fill: "var(--muted)" }, g, p.hint);
+      const Y = (v) => PY1 - (v - p.lo) / (p.hi - p.lo) * (PY1 - PY0);
+      const X = (t) => PX0 + t * (PX1 - PX0);
+      if (p.band) {
+        mk("rect", { x: PX0, y: Y(p.band[1]), width: PX1 - PX0, height: Y(p.band[0]) - Y(p.band[1]), fill: "var(--tool-soft)", stroke: "none" }, g);
+        mk("text", { x: PX1 - 6, y: Y(p.band[1]) + 16, "text-anchor": "end", "font-size": 11.5, "font-weight": 700, fill: "var(--tool)" }, g, "re-mix difficulty");
+      }
+      p.ticks.forEach((v) => {
+        mk("line", { x1: PX0, x2: PX1, y1: Y(v), y2: Y(v), stroke: "var(--line)", "stroke-width": 1 }, g);
+        mk("text", { x: PX0 - 8, y: Y(v) + 4, "text-anchor": "end", "font-size": 11, fill: "var(--muted)" }, g, String(v));
+      });
+      mk("text", { x: PX0, y: PH - 16, "font-size": 11, fill: "var(--muted)" }, g, "0");
+      mk("text", { x: PX1, y: PH - 16, "text-anchor": "end", "font-size": 11, fill: "var(--muted)" }, g, "step 300");
+      if (p.alert !== undefined) {
+        mk("line", { x1: PX0, x2: PX1, y1: Y(p.alert), y2: Y(p.alert), stroke: "var(--risk)", "stroke-width": 1.5, "stroke-dasharray": "6 5" }, g);
+        mk("text", { x: PX1 - 4, y: Y(p.alert) - 6, "text-anchor": "end", "font-size": 11.5, "font-weight": 700, fill: "var(--risk)" }, g, "example alert 0.10");
+      }
+      const pts = (fn) => Array.from({ length: N }, (_, k) => { const t = k / (N - 1); return `${X(t).toFixed(1)},${Y(fn(t)).toFixed(1)}`; }).join(" ");
+      let bad = null, badLbl = null;
+      if (p.bad) {
+        bad = mk("polyline", { points: pts(p.bad), fill: "none", stroke: "var(--risk)", "stroke-width": 2, "stroke-dasharray": "5 5", opacity: 0 }, g);
+        badLbl = mk("text", { x: X(.35), y: Y(.22), "font-size": 11.5, "font-weight": 700, fill: "var(--risk)", opacity: 0 }, g, "fast drop = collapse");
+      }
+      const line = mk("polyline", { points: pts(p.f), fill: "none", stroke: "var(--model)", "stroke-width": 3, "stroke-linecap": "round", "stroke-linejoin": "round" }, g);
+      const len = line.getTotalLength ? line.getTotalLength() || 900 : 900;
+      line.setAttribute("stroke-dasharray", len);
+      line.setAttribute("stroke-dashoffset", len);
+      const dot = mk("circle", { cx: X(1), cy: Y(p.f(1)), r: 5, fill: "var(--model)", opacity: 0 }, g);
+      const la = mk("text", { x: X(0) + 4, y: Y(p.f(0)) + (p.aBelow ? 22 : -10), "font-size": 12.5, "font-weight": 700, fill: "var(--model)", opacity: 0 }, g, p.a);
+      const lb = mk("text", { x: X(1) - 4, y: Y(p.f(1)) - 12, "text-anchor": "end", "font-size": 12.5, "font-weight": 700, fill: "var(--model)", opacity: 0 }, g, p.b);
+      const note = p.note ? mk("text", { x: PX0 + 6, y: PY0 + 8, "font-size": 11.5, fill: "var(--ink-2)", opacity: 0 }, g, p.note) : null;
+      s.panels.push({ frame, line, len, dot, la, lb, note, bad, badLbl });
+    });
+    svg._S = s;
+    return s;
+  }
+
+  function render(s, n, animate) {
+    const focus = n === 5 ? 2 : n; // the paper card is about panel 2
+    s.panels.forEach((p, k) => {
+      const i = k + 1, on = n >= i, fresh = animate && n === i;
+      gsap.killTweensOf([p.line, p.dot, p.la, p.lb, p.note, p.bad, p.badLbl].filter(Boolean));
+      if (fresh) {
+        gsap.fromTo(p.line, { attr: { "stroke-dashoffset": p.len } }, { attr: { "stroke-dashoffset": 0 }, duration: 1.4, ease: "power1.inOut" });
+        gsap.fromTo([p.la], { opacity: 0 }, { opacity: 1, duration: .3 });
+        gsap.fromTo([p.dot, p.lb], { opacity: 0 }, { opacity: 1, duration: .3, delay: 1.3 });
+        if (p.note) gsap.fromTo(p.note, { opacity: 0 }, { opacity: 1, duration: .3, delay: 1.3 });
+        if (p.bad) {
+          gsap.fromTo(p.bad, { opacity: 0 }, { opacity: 1, duration: .5, delay: 1.5 });
+          gsap.fromTo(p.badLbl, { opacity: 0 }, { opacity: 1, duration: .5, delay: 1.7 });
+        }
+      } else {
+        gsap.set(p.line, { attr: { "stroke-dashoffset": on ? 0 : p.len } });
+        gsap.set([p.dot, p.la, p.lb, p.note, p.bad, p.badLbl].filter(Boolean), { opacity: on ? 1 : 0 });
+      }
+      const hot = i === focus;
+      gsap.set(p.frame, { attr: { stroke: hot ? "var(--model)" : "var(--line-2)", "stroke-width": hot ? 2.5 : 1.5 } });
+    });
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { S = build(slide); render(S, step, false); },
+    step(slide, n, animate) { S = build(slide); render(S, n, animate); },
+    leave(slide) {
+      const svg = slide.querySelector("#c05met-svg");
+      if (svg) gsap.killTweensOf(svg.querySelectorAll("*"));
+    }
+  });
+})();
+</script>

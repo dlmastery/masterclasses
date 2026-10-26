@@ -1,0 +1,111 @@
+<section class="slide" id="adk-c08-build-compaction" data-tone="state" data-title="Build: compaction at 400K">
+  <style>
+    #adk-c08-build-compaction .bc-grid { display: grid; grid-template-columns: 720px 1fr; gap: 44px; align-items: start; }
+    #adk-c08-build-compaction .bc-col { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+    #adk-c08-build-compaction #bc-svg { display: block; width: 628px; height: 504px; overflow: visible; }
+    #adk-c08-build-compaction #bc-svg text { font-family: var(--f-mono); }
+  </style>
+  <div class="kicker">Build</div>
+  <h2 class="title">Compact at 400K tokens, long before the 1M window fills</h2>
+  <div class="bc-grid fill">
+    <div class="bc-col">
+      <div class="code-wrap good">
+        <div class="code-head">labs/adk/c08-context-cache/handbook_app_tuned.py · excerpt</div>
+        <pre class="code" data-lang="python" data-focus="1:6, 2:7"><code>from google.adk.apps.app import App, EventsCompactionConfig
+
+app = App(name="acme_support", root_agent=agent,
+    # context_cache_config=...: previous slide
+    events_compaction_config=EventsCompactionConfig(
+        token_threshold=400_000,   # Uber: 400K on 1M models
+        event_retention_size=10),  # keep the last 10 raw events
+)</code></pre>
+      </div>
+      <div class="code-wrap term" data-step="3">
+        <div class="code-head">measure it · telemetry counters</div>
+        <pre class="code" data-lang="bash"><code>$ export ADK_EXPERIMENTAL_TELEMETRY_FEATURES=\
+    context_cache,compaction,token_usage</code></pre>
+      </div>
+    </div>
+    <svg id="bc-svg" viewBox="0 0 628 504" aria-label="A context gauge for a 1M-token window. Event blocks pile up turn by turn until they reach the token_threshold line at 400K. Then the older events fold into one green summary block and the last 10 raw events stay. Counters show one compaction event."></svg>
+  </div>
+  <div class="cites"><a class="cite repo" href="https://github.com/google/adk-python/blob/v2.13.0/src/google/adk/apps/_configs.py" target="_blank" rel="noopener"><b>Repo</b>&nbsp;apps/_configs.py · v2.13.0</a></div>
+  <aside class="notes">Compaction keeps a long Acme chat cheap: when the prompt reaches token_threshold, ADK summarises older events and keeps the most recent raw ones. Press once: events pile up until they reach 400K tokens; Uber compacts at 400K even on 1M-context models, because quality and cost both get worse long before the window is full. Press again: the older events fold into one summary event and the last ten raw events stay, which is what event_retention_size sets. Press again: turn on the experimental telemetry features context_cache, compaction and token_usage, and the ADK telemetry spans get cache and compaction counters, so you can prove the change worked. Import EventsCompactionConfig from google.adk.apps.app; the package google.adk.apps exports only App and ResumabilityConfig. Think of compaction as minutes of a long meeting: keep the last few comments word for word and summarise the rest. A likely question: "Can I compact every N turns instead?" Yes, with the other pair, compaction_interval plus overlap_size; set one full pair, as the gotcha slide shows.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c08-build-compaction";
+  const NS = "http://www.w3.org/2000/svg";
+  const GX = 0, GW = 620, GY = 110, GH = 90;
+  const N = 20, BW = Math.floor((GW * 0.4) / N);     // 20 events fill 40% = 400K
+  const SUMW = 46;
+  let R = null, tw = [];
+  function mk(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text !== undefined) e.textContent = text;
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  const evX = (i) => GX + 6 + i * BW;
+  const keptX = (i) => GX + 6 + SUMW + 4 + (i - 10) * BW;
+  function build(svg) {
+    svg.innerHTML = "";
+    R = {};
+    mk("text", { x: 0, y: 22, "font-size": 17, "font-weight": 700, fill: "var(--ink)" }, svg, "prompt size per request · 1M-token window");
+    mk("rect", { x: GX, y: GY, width: GW, height: GH, rx: 14, fill: "var(--surface)", stroke: "var(--line-2)", "stroke-width": 2 }, svg);
+    const tx = GX + GW * 0.4 + 6;
+    mk("line", { x1: tx, y1: GY - 18, x2: tx, y2: GY + GH + 18, stroke: "var(--risk)", "stroke-width": 3, "stroke-dasharray": "7 5" }, svg);
+    mk("text", { x: tx, y: GY - 28, "text-anchor": "middle", "font-size": 16, "font-weight": 800, fill: "var(--risk)" }, svg, "token_threshold 400K");
+    mk("text", { x: GW, y: GY + GH + 34, "text-anchor": "end", "font-size": 15, fill: "var(--muted)" }, svg, "1M");
+    mk("text", { x: 0, y: GY + GH + 34, "font-size": 15, fill: "var(--muted)" }, svg, "0");
+    R.ev = Array.from({ length: N }, (_, i) => mk("rect", { x: evX(i), y: GY + 12, width: BW - 3, height: GH - 24, rx: 3, fill: i % 2 ? "var(--agent)" : "var(--human)", opacity: 0.8 }, svg));
+    R.sum = mk("g", {}, svg);
+    mk("rect", { x: GX + 6, y: GY + 12, width: SUMW, height: GH - 24, rx: 6, fill: "var(--state)" }, R.sum);
+    R.legend = mk("g", {}, svg);
+    mk("rect", { x: 0, y: 270, width: 28, height: 28, rx: 6, fill: "var(--state)" }, R.legend);
+    mk("text", { x: 42, y: 290, "font-size": 17, "font-weight": 700, fill: "var(--ink)" }, R.legend, "1 summary event (author 'user')");
+    mk("rect", { x: 0, y: 314, width: 28, height: 28, rx: 6, fill: "var(--agent)", opacity: 0.8 }, R.legend);
+    mk("text", { x: 42, y: 334, "font-size": 17, "font-weight": 700, fill: "var(--ink)" }, R.legend, "last 10 raw events stay");
+    R.cnt = mk("g", {}, svg);
+    [["compaction events", "1", 0], ["cache hits / turn", "8,960 tok", 318]].forEach(([l, v, x]) => {
+      mk("rect", { x, y: 380, width: 302, height: 96, rx: 14, fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 2 }, R.cnt);
+      mk("text", { x: x + 20, y: 414, "font-size": 16, "font-weight": 700, fill: "var(--ink-2)" }, R.cnt, l);
+      mk("text", { x: x + 20, y: 456, "font-size": 30, "font-weight": 800, fill: "var(--state)" }, R.cnt, v);
+    });
+    mk("text", { x: 0, y: 498, "font-size": 14, fill: "var(--muted)" }, R.cnt, "counter values illustrative");
+  }
+  function clear() { tw.forEach((t) => t.kill()); tw = []; }
+  function place(n) {
+    R.ev.forEach((r, i) => {
+      if (n >= 2) { r.setAttribute("x", i < 10 ? GX + 6 : keptX(i)); r.setAttribute("opacity", i < 10 ? 0 : 0.8); }
+      else { r.setAttribute("x", evX(i)); r.setAttribute("opacity", n >= 1 ? 0.8 : (i < 6 ? 0.8 : 0)); }
+    });
+    R.sum.setAttribute("opacity", n >= 2 ? 1 : 0);
+  }
+  function render(slide, n, animate) {
+    const svg = slide.querySelector("#bc-svg");
+    if (!R || !svg.childElementCount) build(svg);
+    clear();
+    gsap.killTweensOf([...R.ev, R.sum]);
+    place(n);
+    gsap.set(R.legend, { opacity: n >= 2 ? 1 : 0 });
+    gsap.set(R.cnt, { opacity: n >= 3 ? 1 : 0 });
+    if (animate && n === 1) {
+      R.ev.forEach((r, i) => { if (i >= 6) { r.setAttribute("opacity", 0); tw.push(gsap.to(r, { attr: { opacity: 0.8 }, duration: 0.15, delay: (i - 6) * 0.1 })); } });
+    }
+    if (animate && n === 2) {
+      place(1);
+      R.ev.forEach((r, i) => tw.push(gsap.to(r, { attr: { x: i < 10 ? GX + 6 : keptX(i), opacity: i < 10 ? 0 : 0.8 }, duration: 0.8, delay: 0.2, ease: "power3.inOut" })));
+      R.sum.setAttribute("opacity", 0);
+      tw.push(gsap.to(R.sum, { attr: { opacity: 1 }, duration: 0.4, delay: 0.7 }));
+      tw.push(gsap.fromTo(R.legend, { opacity: 0 }, { opacity: 1, duration: 0.4, delay: 1.0 }));
+    }
+    if (animate && n === 3) tw.push(gsap.fromTo(R.cnt, { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.45 }));
+  }
+  Deck.register(ID, {
+    enter(slide, step) { R = null; render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { clear(); },
+  });
+})();
+</script>

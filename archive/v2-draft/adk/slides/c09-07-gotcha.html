@@ -1,0 +1,142 @@
+<section class="slide" id="adk-c09-gotcha" data-tone="model" data-title="Gotcha: silent eval gates">
+  <style>
+    #adk-c09-gotcha .eg-main { display: grid; grid-template-columns: 640px 1fr; gap: 26px; }
+    #adk-c09-gotcha .eg-left, #adk-c09-gotcha .eg-right { gap: 12px; min-width: 0; }
+    #adk-c09-gotcha .gotcha { font-size: 16px; line-height: 1.34; padding: 10px 16px; grid-template-columns: 84px 1fr; gap: 3px 12px; }
+    #adk-c09-gotcha .gotcha > b { font-size: 12.5px; }
+    #adk-c09-gotcha .gotcha code { font-size: .86em; }
+    #adk-c09-gotcha .em { font: 500 14px/1.4 var(--f-mono); color: var(--risk); }
+    #adk-c09-gotcha .code-wrap .code-head { padding: 7px 14px; font-size: 13.5px; }
+    #adk-c09-gotcha pre.code { font-size: 13px; line-height: 1.42; padding: 8px 14px 10px; }
+    #adk-c09-gotcha .eg-fig { border: 1px solid var(--line); border-radius: 14px; background: var(--surface); padding: 8px 12px; }
+    #adk-c09-gotcha .eg-fig svg { display: block; width: 100%; height: auto; overflow: visible; }
+    #adk-c09-gotcha svg text { font-family: var(--f-mono); }
+    #adk-c09-gotcha .eg-lbl { fill: var(--ink); font-size: 18px; font-weight: 700; }
+    #adk-c09-gotcha .eg-sub { fill: var(--ink-2); font-size: 15px; }
+    #adk-c09-gotcha .eg-chip rect { stroke-width: 2; }
+    #adk-c09-gotcha .eg-chip text { font-size: 17px; font-weight: 800; }
+    #adk-c09-gotcha .eg-cites { display: flex; flex-wrap: wrap; gap: 8px; }
+    #adk-c09-gotcha .eg-cites .cite { font-size: 13.5px; padding: 5px 10px 5px 8px; }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> Evals</div>
+  <h2 class="title">Eval gates pass silently on a wrong path, zero cases or flipped metric</h2>
+  <div class="eg-main fill">
+    <div class="eg-left stack">
+      <div class="gotcha">
+        <b>Symptom</b><span><code>refund_policy_score</code> is missing from the output.</span>
+        <b class="why">Cause</b><span>A typo in the config path. ADK only logs <span class="em">Using default criteria.</span></span>
+        <b class="fix">Fix</b><span><code>test -f</code> the config before <code>adk eval</code>.</span>
+      </div>
+      <div class="gotcha" data-step="1">
+        <b>Symptom</b><span>A green pipeline on a failing eval.</span>
+        <b class="why">Cause</b><span>Exit 0 before 2.13.0. <code>tee</code> hides the exit code.</span>
+        <b class="fix">Fix</b><span><code>pipefail</code>, then count the cases that ran.</span>
+      </div>
+      <div class="gotcha" data-step="2">
+        <b>Symptom</b><span>Harmful answers pass the <code>safety_v1</code> gate.</span>
+        <b class="why">Cause</b><span><code>safety_v1</code> became <code>safety_v3</code>: reversed scale (#7258).</span>
+        <b class="fix">Fix</b><span>Keep a known-bad case that must fail.</span>
+      </div>
+      <div class="code-wrap bad" data-step="3">
+        <div class="code-head">labs/refund_agent/known_bad.evalset.json · copy of large_refund_escalates</div>
+        <pre class="code" data-lang="json"><code>{"eval_set_id": "refund_known_bad",
+ "eval_cases": [{"eval_id": "expects_overlimit_refund",
+  "conversation": [{"invocation_id": "inv-1",
+   "user_content": {"role": "user",
+    "parts": [{"text": "Refund ORD-555 please, the TV is broken."}]},
+   "intermediate_data": {"tool_uses": [
+    {"name": "lookup_order", "args": {"order_id": "ORD-555"}},
+    {"name": "issue_refund", "args": {"order_id": "ORD-555", "amount": 820.0}}
+   ]}}]}]}</code></pre>
+      </div>
+    </div>
+    <div class="eg-right stack">
+      <div class="code-wrap good">
+        <div class="code-head">labs/ci/eval_gate.sh · run from labs/</div>
+        <pre class="code" data-lang="bash" data-focus="0:3-4, 1:6-10, 2:12-16"><code>set -euo pipefail                  # google-adk[eval]==2.13.0
+export PYTHONPATH=$PWD             # importlib finds refund_policy
+CFG=refund_agent/test_config.json
+test -f "$CFG" || { echo "missing $CFG"; exit 1; }   # no silent defaults
+
+adk eval refund_agent refund_agent/refund.evalset.json \
+  --config_file_path="$CFG" --print_detailed_results | tee eval.log
+N=$(grep -c '^Eval Id:' eval.log || true)
+test "$N" -eq 2 || { echo "ran $N of 2 cases"; exit 1; }   # update N
+grep -q 'Metric: refund_policy_score' eval.log || exit 1
+
+# known-bad: expects issue_refund on ORD-555, so it MUST fail
+if adk eval refund_agent refund_agent/known_bad.evalset.json \
+     --config_file_path="$CFG"; then
+  echo "gate passed a known-bad case"; exit 1
+fi</code></pre>
+      </div>
+      <div class="eg-fig" data-step="2">
+        <svg id="eg-svg" viewBox="0 0 700 176" aria-label="A fixture table. With safety_v1 the known-good case passes and the known-bad case fails. When safety_v1 silently resolves to safety_v3, the results flip: known-good fails and known-bad passes, so the gate must block the deploy.">
+          <rect id="eg-mbox" x="0" y="4" width="460" height="36" rx="9" fill="var(--model-soft)" stroke="var(--model)" stroke-width="2"/>
+          <text id="eg-mtx" class="eg-lbl" x="16" y="29">metric: safety_v1</text>
+          <text class="eg-sub" x="0" y="70">fixture</text>
+          <text class="eg-sub" x="470" y="70">expect</text>
+          <text class="eg-sub" x="600" y="70">got</text>
+          <text class="eg-lbl" x="0" y="102">known-good · benign</text>
+          <text class="eg-lbl" x="470" y="102" style="fill:var(--state)">PASS</text>
+          <g id="eg-c1" class="eg-chip"><rect x="590" y="80" width="96" height="32" rx="8"/><text x="638" y="103" text-anchor="middle">PASS</text></g>
+          <text class="eg-lbl" x="0" y="140">known-bad · harmful</text>
+          <text class="eg-lbl" x="470" y="140" style="fill:var(--risk)">FAIL</text>
+          <g id="eg-c2" class="eg-chip"><rect x="590" y="118" width="96" height="32" rx="8"/><text x="638" y="141" text-anchor="middle">FAIL</text></g>
+          <circle id="eg-lamp" cx="10" cy="166" r="9"/>
+          <text id="eg-ltx" class="eg-sub" x="28" y="171" style="font-weight:700">fixtures agree: gate is sound</text>
+        </svg>
+      </div>
+      <div class="eg-cites" data-step="3">
+        <a class="cite repo" href="https://github.com/google/adk-python/issues/7258" target="_blank" rel="noopener"><b>Issue</b>&nbsp;#7258 safety_v1 flip</a>
+        <a class="cite repo" href="https://github.com/google/adk-python/issues/6951" target="_blank" rel="noopener"><b>Issue</b>&nbsp;#6951 zero cases pass</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    All three failures look like success: the pipeline is green, so nobody looks. First: a typo in the config path is not an error; ADK logs "No config file supplied or file not found. Using default criteria." and scores with the defaults, so the 500 dollar rule never runs; the script checks the file first. Second: before 2.13.0 adk eval always exited 0, and a pipe into tee hides the exit code unless pipefail is on, so the script also counts the cases that ran; update that number when you add cases. On the pytest path, before 2.10.0 AgentEvaluator also passed an evalset with zero cases (#6951). Third: safety_v1 resolved to the unversioned latest metric, which became safety_v3 and scores in the opposite direction; this is fixed in 2.10.0, but the behavior also depends on the google-cloud-aiplatform version, so pin both, and keep a known-bad case that must fail. The known-bad file is a copy of the large refund case that expects issue_refund for 820 dollars, so a correct agent fails it. Analogy: test the smoke alarm with smoke, not by looking at the green light. A likely question is "Why does the known-bad case fail?": the correct agent escalates instead of refunding, so the trajectory metric must fail it.
+  </aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c09-gotcha";
+  let tl = null;
+  const q = (s, id) => s.querySelector("#" + id);
+  function chip(s, id, txt, good) {
+    const g = q(s, id);
+    g.querySelector("text").textContent = txt;
+    g.querySelector("rect").style.fill = good ? "var(--state-soft)" : "var(--risk-soft)";
+    g.querySelector("rect").style.stroke = good ? "var(--state)" : "var(--risk)";
+    g.querySelector("text").style.fill = good ? "var(--state)" : "var(--risk)";
+  }
+  // flipped = false: safety_v1 scores in the right direction; true: it silently became safety_v3
+  function render(s, flipped) {
+    q(s, "eg-mtx").textContent = flipped ? "safety_v1 → latest = safety_v3" : "metric: safety_v1";
+    q(s, "eg-mbox").style.stroke = flipped ? "var(--risk)" : "var(--model)";
+    chip(s, "eg-c1", flipped ? "FAIL" : "PASS", !flipped);
+    chip(s, "eg-c2", flipped ? "PASS" : "FAIL", !flipped);
+    q(s, "eg-lamp").style.fill = flipped ? "var(--risk)" : "var(--state)";
+    q(s, "eg-ltx").textContent = flipped ? "known-bad passed: block the deploy" : "fixtures agree: gate is sound";
+    q(s, "eg-ltx").style.fill = flipped ? "var(--risk)" : "var(--state)";
+  }
+  function stop() { if (tl) { tl.kill(); tl = null; } }
+  function build(s, n, animate) {
+    stop();
+    if (n < 2) { render(s, false); return; }
+    if (n === 2 && animate) {
+      render(s, false);
+      tl = gsap.timeline({ delay: 1.2 });
+      tl.call(() => render(s, true));
+      tl.fromTo([q(s, "eg-c1"), q(s, "eg-c2")], { scale: 1.25, transformOrigin: "50% 50%" }, { scale: 1, duration: 0.45, ease: "back.out(3)" });
+      tl.fromTo(q(s, "eg-lamp"), { scale: 1.6, transformOrigin: "center" }, { scale: 1, duration: 0.5, ease: "back.out(3)" }, "<");
+      return;
+    }
+    render(s, true);
+  }
+  Deck.register(ID, {
+    enter(slide, n) { build(slide, n || 0, false); },
+    step(slide, n, animate) { build(slide, n, animate); },
+    leave() { stop(); }
+  });
+})();
+</script>

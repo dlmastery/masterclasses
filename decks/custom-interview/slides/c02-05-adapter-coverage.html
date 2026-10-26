@@ -1,0 +1,135 @@
+<section class="slide" id="custom-interview-c02-adapter-coverage" data-tone="risk" data-title="Adapter coverage on a hybrid model">
+  <style>
+    #custom-interview-c02-adapter-coverage .ac-grid { display: grid; grid-template-columns: 560px 1fr; gap: 32px; }
+    #custom-interview-c02-adapter-coverage .qa { gap: 10px; }
+    #custom-interview-c02-adapter-coverage .qa .q { font-size: 22px; }
+    #custom-interview-c02-adapter-coverage .qa .a { font-size: 18.5px; line-height: 1.42; padding: 10px 16px; }
+    #custom-interview-c02-adapter-coverage .right { gap: 14px; min-width: 0; }
+    #custom-interview-c02-adapter-coverage .ac-slot { display: grid; }
+    #custom-interview-c02-adapter-coverage .ac-slot > * { grid-area: 1 / 1; align-self: start; }
+    #custom-interview-c02-adapter-coverage pre.code { font-size: 16.5px; line-height: 1.45; padding: 10px 16px 12px; }
+    #custom-interview-c02-adapter-coverage .code-wrap .code-head { padding: 7px 14px; font-size: 14px; }
+    #custom-interview-c02-adapter-coverage svg text, #custom-interview-c02-adapter-coverage code, #custom-interview-c02-adapter-coverage pre.code * { font-family: var(--f-mono); font-variant-ligatures: none; }
+    #custom-interview-c02-adapter-coverage .tags .tag { font-size: 15px; }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> PEFT targets on a hybrid model</div>
+  <h2 class="title">A DPO loss stuck at ln 2 means the policy never moved</h2>
+  <div class="ac-grid fill">
+    <div class="stack" style="gap:16px">
+      <div class="qa">
+        <div class="q">A DPO-LoRA run on Nemotron-Nano-9B-v2 finishes 25/25 steps. Loss is 0.6931 at every step. Why?</div>
+        <div class="a" data-step="1">DPO loss = −log σ(β · margin). The margin compares policy and reference log-ratios. At step 0 the margin is 0, so the loss is ln 2 = 0.6931. A flat ln 2 means the margin never changed.</div>
+        <div class="a" data-step="2">Reported cause: PEFT's default targets match attention projections only. That is 4 of 56 layers. PEFT raises only when nothing matches (#3658).</div>
+        <div class="a" data-step="3">Fix: name the Mamba and MLP modules, and assert coverage. Also check that gradients reach the adapter.</div>
+      </div>
+      <div class="tags" data-step="2"><span class="tag t-risk">HumanEval 0/164</span><span class="tag t-tool">27 Mamba · 25 MLP · 4 attention</span></div>
+      <div class="row push" style="gap:10px; flex-wrap:wrap">
+        <a class="cite repo" href="https://github.com/huggingface/peft/issues/3554" target="_blank" rel="noopener"><b>Repo</b>&nbsp;PEFT issue #3554</a>
+        <a class="cite repo" href="https://github.com/huggingface/peft/issues/3658" target="_blank" rel="noopener"><b>Repo</b>&nbsp;PEFT issue #3658</a>
+      </div>
+    </div>
+    <div class="stack right">
+      <svg id="ac-layers" viewBox="0 0 800 150" width="800" height="150" aria-label="56 Nemotron-H layers; default LoRA targets hit the 4 attention layers"></svg>
+      <div class="ac-slot">
+        <svg id="ac-loss" data-until="3" viewBox="0 0 800 300" width="800" height="300" aria-label="DPO loss flat at ln 2 for 25 steps"></svg>
+        <div class="code-wrap good" data-step="3">
+          <div class="code-head">check_coverage.py · CPU, no 9B download</div>
+          <pre class="code" data-lang="python" data-focus="3:8-11, 4:13-15"><code># pip install peft==0.21.2 transformers==5.20.2 accelerate==1.15.0
+from accelerate import init_empty_weights
+from peft import LoraConfig, get_peft_model
+from transformers import AutoConfig, AutoModelForCausalLM
+cfg = AutoConfig.from_pretrained("nvidia/NVIDIA-Nemotron-Nano-9B-v2",
+                                 trust_remote_code=True)
+with init_empty_weights():  # meta device: no weights loaded
+    model = AutoModelForCausalLM.from_config(cfg, trust_remote_code=True)
+lora = LoraConfig(task_type="CAUSAL_LM", target_modules=[
+    "in_proj", "out_proj",                    # Mamba (M)
+    "up_proj", "down_proj",                   # MLP (-)
+    "q_proj", "k_proj", "v_proj", "o_proj"])  # attention (*)
+m = get_peft_model(model, lora)
+layers = {int(n.split("layers.")[1].split(".")[0])
+          for n, _ in m.named_parameters() if "lora_A" in n}
+assert len(layers) == cfg.num_hidden_layers, f"{len(layers)} of 56"</code></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Ask the question and let the candidate reason from the number. First, the DPO loss: it is minus log sigmoid of beta times the margin, and the margin compares how much more the policy prefers the chosen answer than the reference does. At step 0 the policy equals the reference, so the margin is 0 and the loss is ln 2, 0.6931. A loss that stays at exactly ln 2 for 25 steps means the margin never moved. In the reported run (PEFT issue 3554), the cause was adapter coverage: Nemotron-Nano-9B-v2 is a hybrid with 56 layers, 27 Mamba layers, 25 MLP layers and only 4 attention layers, at indices 14, 21, 30 and 39 of the hybrid_override_pattern. PEFT's default targets are the attention projections, so only those 4 layers got an adapter, and the model scored 0 of 164 on HumanEval. Be precise: partial coverage makes learning weak, it does not by itself freeze the loss. A loss pinned at exactly ln 2 also asks you to check that gradients reach the adapter, and that the reference is not the same object as the policy. The fix lists the Mamba projections in_proj and out_proj, the MLP projections up_proj and down_proj, and the attention projections, or uses target_modules="all-linear". The check builds the model on the meta device, so it runs on a laptop without the 9B download. Analogy: you wired 4 of 56 rooms and wonder why the house stays dark. Next: serve the refund adapter to 200 tenants.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-interview-c02-adapter-coverage";
+  // nvidia/NVIDIA-Nemotron-Nano-9B-v2 config.json hybrid_override_pattern (M = Mamba, - = MLP, * = attention)
+  const PAT = "M-M-M-MM-M-M-M*-M-M-M*-M-M-M-M*-M-M-M-M*-M-MM-M-M-M-M-M-";
+  const ATT = [14, 21, 30, 39];
+  let P = null;
+  const el = (parent, tag, attrs, style, text) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (style) Object.assign(e.style, style);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  };
+
+  function build(slide) {
+    const sv = slide.querySelector("#ac-layers"), lv = slide.querySelector("#ac-loss");
+    sv.innerHTML = ""; lv.innerHTML = "";
+    el(sv, "text", { x: 0, y: 16 }, { fontSize: "16px", fontWeight: 700, fill: "var(--ink-2)" }, "56 layers · default LoRA targets");
+    const cnt = el(sv, "text", { x: 800, y: 16, "text-anchor": "end" }, { fontSize: "16px", fontWeight: 700, fill: "var(--risk)", opacity: 0 }, "LoRA on 4 of 56 layers");
+    const cells = [];
+    [...PAT].forEach((ch, i) => {
+      const x = (i % 28) * 28.5, y = 30 + Math.floor(i / 28) * 50;
+      const r = el(sv, "rect", { x, y, width: 24, height: 30, rx: 4 }, { fill: "var(--surface-2)", stroke: "var(--line-2)", strokeWidth: 1.2 });
+      const t = el(sv, "text", { x: x + 12, y: y + 21, "text-anchor": "middle" }, { fontSize: "15px", fontWeight: 700, fill: "var(--muted)", opacity: 0 }, ch === "-" ? "–" : ch);
+      let idx = null;
+      if (ch === "*") idx = el(sv, "text", { x: x + 12, y: y + 46, "text-anchor": "middle" }, { fontSize: "14px", fontWeight: 700, fill: "var(--risk)", opacity: 0 }, String(i));
+      cells.push({ r, t, att: ch === "*", idx });
+    });
+    const key = el(sv, "text", { x: 0, y: 146 }, { fontSize: "15px", fill: "var(--ink-2)", opacity: 0 }, "M = Mamba (in_proj, out_proj) · – = MLP (up_proj, down_proj) · * = attention");
+
+    // DPO loss panel: y axis with a tick at ln 2, a flat line over 25 steps
+    const X0 = 70, X1 = 780, Y = (v) => 250 - (v - 0.55) * 900; // 0.55..0.75 on the axis
+    el(lv, "line", { x1: X0, y1: 30, x2: X0, y2: 250 }, { stroke: "var(--line-2)", strokeWidth: 2 });
+    el(lv, "line", { x1: X0, y1: 250, x2: X1, y2: 250 }, { stroke: "var(--line-2)", strokeWidth: 2 });
+    el(lv, "text", { x: 0, y: 22 }, { fontSize: "16px", fontWeight: 700, fill: "var(--ink-2)" }, "DPO loss");
+    el(lv, "text", { x: X1, y: 280, "text-anchor": "end" }, { fontSize: "16px", fill: "var(--ink-2)" }, "step 25 / 25");
+    el(lv, "text", { x: X0, y: 280, "text-anchor": "middle" }, { fontSize: "16px", fill: "var(--ink-2)" }, "0");
+    el(lv, "line", { x1: X0 - 8, y1: Y(0.6931), x2: X0, y2: Y(0.6931) }, { stroke: "var(--ink-2)", strokeWidth: 2 });
+    const tick = el(lv, "text", { x: X0 - 12, y: Y(0.6931) + 6, "text-anchor": "end" }, { fontSize: "16px", fontWeight: 700, fill: "var(--ink-2)" }, "ln 2");
+    const flat = el(lv, "line", { x1: X0, y1: Y(0.6931), x2: X1, y2: Y(0.6931) }, { stroke: "var(--model)", strokeWidth: 4, strokeDasharray: 710, strokeDashoffset: 710 });
+    const dots = [];
+    for (let s = 1; s <= 25; s++) dots.push(el(lv, "circle", { cx: X0 + s * 28.4, cy: Y(0.6931), r: 4 }, { fill: "var(--model)", opacity: 0 }));
+    const fl = el(lv, "text", { x: 425, y: Y(0.6931) - 16, "text-anchor": "middle" }, { fontSize: "18px", fontWeight: 700, fill: "var(--model)", opacity: 0 }, "0.6931 at every step: margin = 0");
+    const want = el(lv, "path", { d: `M ${X0} ${Y(0.6931)} C 300 ${Y(0.66)}, 500 ${Y(0.6)}, ${X1} ${Y(0.57)}`, fill: "none" }, { stroke: "var(--state)", strokeWidth: 2.5, strokeDasharray: "7 6", opacity: 0 });
+    const wl = el(lv, "text", { x: X1, y: Y(0.57) - 12, "text-anchor": "end" }, { fontSize: "16px", fill: "var(--state)", opacity: 0 }, "a run that learns: loss falls below ln 2");
+    P = { cells, cnt, key, flat, dots, fl, tick, want, wl };
+  }
+
+  function render(n, animate) {
+    const p = P, d = animate ? 0.45 : 0;
+    gsap.to(p.flat, { strokeDashoffset: 0, duration: animate && n === 0 ? 1.4 : 0, delay: animate && n === 0 ? 0.4 : 0, ease: "none", overwrite: "auto" });
+    gsap.to(p.dots, { opacity: 1, duration: d, stagger: animate && n === 0 ? 0.04 : 0, delay: animate && n === 0 ? 0.5 : 0, overwrite: "auto" });
+    gsap.to(p.fl, { opacity: 1, duration: d, delay: animate && n === 0 ? 1.6 : 0, overwrite: "auto" });
+    gsap.to([p.want, p.wl], { opacity: n >= 1 ? 1 : 0, duration: d, overwrite: "auto" });
+    gsap.to(p.tick, { fill: n >= 1 ? "var(--model)" : "var(--ink-2)", duration: d, overwrite: "auto" });
+    const on = n >= 2, fixed = n >= 3;
+    p.cells.forEach((c, i) => {
+      const lit = fixed || (on && c.att);
+      gsap.to(c.r, { fill: lit ? (c.att && !fixed ? "var(--risk)" : "var(--state)") : "var(--surface-2)", stroke: lit ? "none" : "var(--line-2)", duration: d, delay: animate && lit ? (c.att ? ATT.indexOf(i) * 0.12 : i * 0.012) : 0, overwrite: "auto" });
+      gsap.to(c.t, { opacity: on ? 1 : 0, fill: lit ? "#fff" : "var(--muted)", duration: d, overwrite: "auto" });
+      if (c.idx) gsap.to(c.idx, { opacity: on ? 1 : 0, duration: d, overwrite: "auto" });
+    });
+    gsap.to(p.key, { opacity: on ? 1 : 0, duration: d, overwrite: "auto" });
+    p.cnt.textContent = fixed ? "fixed targets: LoRA on 56 of 56 layers" : "LoRA on 4 of 56 layers";
+    gsap.to(p.cnt, { opacity: on ? 1 : 0, fill: fixed ? "var(--state)" : "var(--risk)", duration: d, overwrite: "auto" });
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { build(slide); render(step || 0, (step || 0) === 0); },
+    step(slide, n, animate) { if (!P) build(slide); render(n, animate); },
+    leave() { if (P) gsap.killTweensOf([P.flat, P.fl, P.want, P.wl, P.tick, P.cnt, P.key, ...P.dots, ...P.cells.map((c) => c.r), ...P.cells.map((c) => c.t)]); },
+  });
+})();
+</script>

@@ -1,0 +1,200 @@
+<section class="slide chapter" id="adk-interview-c02-chapter" data-tone="human" data-title="Ch 2: Durable execution and HITL">
+  <style>
+    #adk-interview-c02-chapter { padding-bottom: 72px; gap: 18px; }
+    #adk-interview-c02-chapter .ch-num { font-size: 210px; top: auto; bottom: 92px; right: 104px; }
+    #adk-interview-c02-chapter .display { font-size: 58px; max-width: 1100px; }
+    #adk-interview-c02-chapter .lede { font-size: 24px; max-width: 1000px; }
+    #adk-interview-c02-chapter .c2-stage { position: relative; height: 420px; margin-bottom: auto; }
+    #adk-interview-c02-chapter .c2-cnts { position: absolute; left: 1040px; top: 0; display: grid; gap: 14px; }
+    #adk-interview-c02-chapter .c2-cnt { font: 700 20px/1 var(--f-mono); padding: 12px 16px; border-radius: 10px; border: 2px solid var(--line-2); background: var(--surface); color: var(--ink); white-space: nowrap; }
+    #adk-interview-c02-chapter .c2-cnt b { font-size: 26px; margin-left: 8px; }
+    #adk-interview-c02-chapter .c2-cnt.ok { border-color: var(--state); color: var(--state); background: var(--state-soft); }
+    #adk-interview-c02-chapter .c2-cnt.bad { border-color: var(--risk); color: var(--risk); background: var(--risk-soft); }
+    #adk-interview-c02-chapter .c2-slot { position: absolute; left: 150px; top: 82px; width: 860px; display: grid; }
+    #adk-interview-c02-chapter .c2-slot > * { grid-area: 1 / 1; font-size: 22px; line-height: 1.35; color: var(--ink-2); margin: 0; }
+    #adk-interview-c02-chapter .c2-slot code { font-size: .9em; }
+    #adk-interview-c02-chapter .c2-row { display: flex; gap: 14px; align-items: center; }
+    #adk-interview-c02-chapter svg text, #adk-interview-c02-chapter .c2-slot *, #adk-interview-c02-chapter .c2-cnt { font-variant-ligatures: none !important; }
+  </style>
+  <div class="ch-num" data-fx="blur">02</div>
+  <div class="c2-stage">
+    <svg id="adk-c02-ch-svg" viewBox="0 0 1000 310" width="1000" height="310" aria-label="Process 1 runs kyc_lookup and pauses at analyst_review. Process 2 replays kyc_lookup, gets the answer and crashes inside pay before its event is saved. Process 3 replays both saved steps and runs pay again."></svg>
+    <div class="c2-cnts">
+      <span class="c2-cnt" id="adk-c02-ch-kyc">kyc_lookup runs:<b>0</b></span>
+      <span class="c2-cnt" id="adk-c02-ch-pay">pay runs:<b>0</b></span>
+    </div>
+    <div class="c2-slot" id="adk-c02-ch-slot">
+      <p data-until="1">Process 1 starts the payouts run.</p>
+      <p data-step="1" data-until="2">kyc_lookup runs once. Its output is saved as an <b>event</b>: one row in the session store.</p>
+      <p data-step="2" data-until="3">analyst_review asks for input. Process 1 exits. The pause stays in SQLite.</p>
+      <p data-step="3" data-until="4">Process 2 replays kyc_lookup from its event. analyst_review gets the answer. pay calls the gateway, then crashes <b>before its event is saved</b>.</p>
+      <p data-step="4">Process 3 replays both saved steps. pay has no saved event, so <b>pay runs again</b>. Only the step in flight at the crash repeats: give it an idempotency key.</p>
+    </div>
+  </div>
+  <h2 class="display">Durable execution and human&#8209;in&#8209;the&#8209;loop</h2>
+  <p class="lede" data-fx="up">Saved steps replay from events. A step that crashed before its event was saved runs again. Make every write safe to repeat.</p>
+  <div class="c2-row" data-fx="stagger">
+    <a class="cite doc" href="https://adk.dev/runtime/resume/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;ADK resume</a>
+    <a class="cite doc" href="https://adk.dev/graphs/human-input/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Graph human input</a>
+  </div>
+  <aside class="notes">This is the payouts flow from the durable-resume lab: kyc_lookup, then analyst_review (a human pause), then pay. Setup: SqliteSessionService("payouts.db") and App(resumability_config=ResumabilityConfig(is_resumable=True)) on google-adk 2.13.0. Demo it with two shell commands: python -m payouts.app start "ACME-GmbH" (process 1 pauses and exits), then python -m payouts.app resume yes (process 2 reads payouts.db). Click 1: kyc_lookup runs once; its output is saved as an event, a row in the session store. Click 2: analyst_review yields RequestInput and process 1 exits; the pause is data in SQLite. Click 3: process 2 opens the same session and fast-forwards kyc_lookup from its event without running it. analyst_review gets the answer. pay calls the gateway, but the process dies before pay's event is saved. Click 4: process 3 replays kyc_lookup and analyst_review, but pay has no saved event, so it runs again. That is at-least-once, and ADK's own docstring says the "tool call to resume needs to be idempotent". Only the step that was in flight at the crash repeats, so that is the one that needs an idempotency key. Likely question: "Does is_resumable=True switch resume on?" No. Replay works inside one invocation anyway; the flag adds cross-process durability and checkpoint events. Analogy: a bank teller who replays the receipt book after a power cut must not pay a cheque twice. The chapter uses this payouts flow for retry and resume, then a refund_approval flow for the human pause.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "adk-interview-c02-chapter";
+  let P = null, tl = null;
+
+  const el = (parent, tag, attrs, style, text) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (style) Object.assign(e.style, style);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  };
+
+  const XS = [150, 450, 750], W = 240, H = 70, YS = [0, 120, 240];
+  const NAMES = ["kyc_lookup", "analyst_review", "pay"];
+  const KIND = {
+    ghost: { fill: "var(--surface-2)", stroke: "var(--line-2)", dash: "7 6", st: "var(--faint)" },
+    done: { fill: "var(--state-soft)", stroke: "var(--state)", dash: "none", st: "var(--state)" },
+    wait: { fill: "var(--human-soft)", stroke: "var(--human)", dash: "none", st: "var(--human)" },
+    replay: { fill: "var(--surface-2)", stroke: "var(--muted)", dash: "none", st: "var(--muted)" },
+    crash: { fill: "var(--risk-soft)", stroke: "var(--risk)", dash: "none", st: "var(--risk)" },
+    again: { fill: "var(--tool-soft)", stroke: "var(--tool)", dash: "none", st: "var(--tool)" },
+  };
+
+  function build(svg) {
+    svg.innerHTML = "";
+    const rows = YS.map((y, r) => {
+      const g = el(svg, "g", {});
+      el(g, "text", { x: 0, y: y + 43 }, { font: "600 22px var(--f-mono)", fill: "var(--muted)" }, `process ${r + 1}`);
+      const edges = [0, 1].map((i) => el(g, "line", { x1: XS[i] + W, y1: y + H / 2, x2: XS[i + 1], y2: y + H / 2 }, { stroke: "var(--line-2)", strokeWidth: 3 }));
+      const blocks = NAMES.map((name, i) => {
+        const rect = el(g, "rect", { x: XS[i], y, width: W, height: H, rx: 14 }, { strokeWidth: 2.5 });
+        el(g, "text", { x: XS[i] + W / 2, y: y + 31, "text-anchor": "middle" }, { font: "600 22px var(--f-mono)", fill: "var(--ink)" }, name);
+        const st = el(g, "text", { x: XS[i] + W / 2, y: y + 57, "text-anchor": "middle" }, { font: "700 18px var(--f-mono)" }, "");
+        return { rect, st };
+      });
+      const dot = el(g, "circle", { cx: XS[0], cy: y + H / 2, r: 9 }, { fill: "var(--human)", opacity: 0 });
+      return { g, edges, blocks, dot, y };
+    });
+    // the break: process 1 exits between analyst_review and pay
+    const brk = el(svg, "g", {}, { opacity: 0 });
+    const gx = (XS[1] + W + XS[2]) / 2;
+    [-8, 8].forEach((dx) => el(brk, "line", { x1: gx + dx, y1: H / 2 - 20, x2: gx + dx, y2: H / 2 + 20 }, { stroke: "var(--human)", strokeWidth: 3.5 }));
+    el(brk, "text", { x: gx + 2, y: H + 30, "text-anchor": "start" }, { font: "700 20px var(--f-mono)", fill: "var(--human)" }, "process 1 exits");
+    // crash mark on process 2 pay
+    const crash = el(svg, "g", {}, { opacity: 0 });
+    const cx = XS[2] + W - 14, cy = YS[1] + 6;
+    el(crash, "circle", { cx, cy, r: 15 }, { fill: "var(--risk)" });
+    el(crash, "path", { d: `M${cx - 6},${cy - 6} L${cx + 6},${cy + 6} M${cx + 6},${cy - 6} L${cx - 6},${cy + 6}` }, { stroke: "#fff", strokeWidth: 3.5, strokeLinecap: "round" });
+    // same session links: row r analyst_review / pay down to row r+1
+    const link = (x, y1, y2) => {
+      const g = el(svg, "g", {}, { opacity: 0 });
+      el(g, "line", { x1: x, y1: y1 + 4, x2: x, y2: y2 - 12 }, { stroke: "var(--state)", strokeWidth: 3, strokeDasharray: "6 5" });
+      el(g, "path", { d: `M${x - 7},${y2 - 16} L${x},${y2 - 4} L${x + 7},${y2 - 16} Z` }, { fill: "var(--state)" });
+      return g;
+    };
+    const res1 = link(XS[1] + 40, YS[0] + H, YS[1]);
+    const res2 = link(XS[2] + 40, YS[1] + H, YS[2]);
+    P = { svg, rows, brk, crash, res1, res2, kyc: null, pay: null, slot: null };
+  }
+
+  function setBlock(b, kind, text) {
+    const S = KIND[kind];
+    b.rect.style.fill = S.fill; b.rect.style.stroke = S.stroke; b.rect.style.strokeDasharray = S.dash;
+    b.st.style.fill = S.st; b.st.textContent = text;
+  }
+  function counter(elm, label, v, cls) {
+    elm.classList.remove("ok", "bad");
+    if (cls) elm.classList.add(cls);
+    elm.innerHTML = `${label}:<b>${v}</b>`;
+  }
+  const slotTop = (n) => YS[n >= 4 ? 2 : n >= 3 ? 1 : 0] + H + 14;
+
+  // the full picture at step n (pure: correct when jumping to any step)
+  function paint(n) {
+    const [r1, r2, r3] = P.rows;
+    setBlock(r1.blocks[0], n >= 1 ? "done" : "ghost", n >= 1 ? "done" : "not run");
+    setBlock(r1.blocks[1], n >= 2 ? "wait" : "ghost", n >= 2 ? "WAITING" : "not run");
+    setBlock(r1.blocks[2], "ghost", "not run");
+    r1.edges[1].style.opacity = n >= 2 ? 0 : 1;
+    P.brk.style.opacity = n >= 2 ? 1 : 0;
+    r1.g.style.opacity = n >= 3 ? 0.45 : 1;
+    r2.g.style.opacity = n >= 4 ? 0.45 : n >= 3 ? 1 : 0;
+    r3.g.style.opacity = n >= 4 ? 1 : 0;
+    P.res1.style.opacity = n >= 3 ? 1 : 0;
+    P.res2.style.opacity = n >= 4 ? 1 : 0;
+    P.crash.style.opacity = n >= 3 ? 1 : 0;
+    setBlock(r2.blocks[0], "replay", "replayed");
+    setBlock(r2.blocks[1], "done", "answer: yes");
+    setBlock(r2.blocks[2], "crash", "event not saved");
+    setBlock(r3.blocks[0], "replay", "replayed");
+    setBlock(r3.blocks[1], "replay", "replayed");
+    setBlock(r3.blocks[2], "again", "runs again");
+    P.rows.forEach((r) => (r.dot.style.opacity = 0));
+    counter(P.kyc, "kyc_lookup runs", n >= 1 ? 1 : 0, n >= 3 ? "ok" : "");
+    counter(P.pay, "pay runs", n >= 4 ? 2 : n >= 3 ? 1 : 0, n >= 4 ? "bad" : "");
+    gsap.set(P.slot, { top: slotTop(n) });
+  }
+
+  function stop() { if (tl) { tl.kill(); tl = null; } }
+
+  function play(n) {
+    const [r1, r2, r3] = P.rows;
+    tl = gsap.timeline({ delay: 0.25 });
+    const pulse = (rect, at) => tl.fromTo(rect, { scale: 1 }, { scale: 1.06, transformOrigin: "50% 50%", duration: 0.25, yoyo: true, repeat: 1 }, at);
+    const travel = (row, from, to, dur) => tl.set(row.dot, { attr: { cx: from }, opacity: 1 }).to(row.dot, { attr: { cx: to }, duration: dur, ease: "power1.inOut" });
+    if (n === 1) {
+      paint(0);
+      travel(r1, XS[0] + 14, XS[0] + W - 14, 0.7);
+      tl.call(() => paint(1)).set(r1.dot, { opacity: 0 });
+      pulse(r1.blocks[0].rect, ">");
+    } else if (n === 2) {
+      paint(1);
+      travel(r1, XS[0] + W - 14, XS[1] + W / 2, 0.7);
+      tl.call(() => paint(2)).set(r1.dot, { opacity: 0 });
+      pulse(r1.blocks[1].rect, ">");
+      tl.from(P.brk, { opacity: 0, duration: 0.4 }, ">");
+    } else if (n === 3) {
+      paint(3);
+      gsap.set(P.slot, { top: slotTop(2) });
+      tl.to(P.slot, { top: slotTop(3), duration: 0.4, ease: "power2.out" }, 0);
+      tl.from(r2.g, { opacity: 0, duration: 0.4 }, 0).from(P.res1, { opacity: 0, duration: 0.4 }, 0).set(P.crash, { opacity: 0 }, 0);
+      travel(r2, XS[0] + 14, XS[1] + W / 2, 0.5);
+      tl.to(r2.dot, { attr: { cx: XS[2] + W / 2 }, duration: 0.7, ease: "power1.inOut" }, "+=0.3").set(r2.dot, { opacity: 0 });
+      tl.fromTo(P.crash, { opacity: 0, scale: 0.3, transformOrigin: "50% 50%" }, { opacity: 1, scale: 1, duration: 0.35, ease: "back.out(2.5)" });
+      tl.fromTo(P.pay, { scale: 1.12 }, { scale: 1, duration: 0.4, ease: "back.out(2)" }, "<");
+    } else if (n === 4) {
+      paint(4);
+      gsap.set(P.slot, { top: slotTop(3) });
+      tl.to(P.slot, { top: slotTop(4), duration: 0.4, ease: "power2.out" }, 0);
+      tl.from(r3.g, { opacity: 0, duration: 0.4 }, 0).from(P.res2, { opacity: 0, duration: 0.4 }, 0);
+      travel(r3, XS[0] + 14, XS[2] + 14, 0.8);
+      tl.set(r3.dot, { opacity: 0 });
+      pulse(r3.blocks[2].rect, ">");
+      tl.fromTo(P.pay, { scale: 1.15 }, { scale: 1, duration: 0.4, ease: "back.out(2)" }, "<");
+    }
+  }
+
+  function init(slide) {
+    build(slide.querySelector("#adk-c02-ch-svg"));
+    P.kyc = slide.querySelector("#adk-c02-ch-kyc");
+    P.pay = slide.querySelector("#adk-c02-ch-pay");
+    P.slot = slide.querySelector("#adk-c02-ch-slot");
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { stop(); init(slide); paint(step || 0); },
+    step(slide, n, animate) {
+      if (!P) init(slide);
+      stop();
+      if (animate && n >= 1 && n <= 4 && !matchMedia("(prefers-reduced-motion: reduce)").matches) play(n);
+      else paint(n);
+    },
+    leave() { stop(); },
+  });
+})();
+</script>

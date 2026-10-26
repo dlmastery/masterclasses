@@ -1,0 +1,254 @@
+<section class="slide tight" id="custom-c05-lab4-kl-tripwire" data-tone="model" data-title="Lab 4: KL on/off and tripwire">
+  <style>
+    #custom-c05-lab4-kl-tripwire .kt-grid { display: grid; grid-template-columns: 744px 1fr; gap: 24px; min-height: 0; }
+    #custom-c05-lab4-kl-tripwire .kt-left, #custom-c05-lab4-kl-tripwire .kt-right { display: flex; flex-direction: column; gap: 9px; min-width: 0; }
+    #custom-c05-lab4-kl-tripwire .kt-left pre.code { font-size: 11px; line-height: 1.42; padding: 9px 14px 10px; }
+    #custom-c05-lab4-kl-tripwire .code-head { padding: 7px 14px; font-size: 13px; }
+    #custom-c05-lab4-kl-tripwire .lab-head { font-size: 14px; gap: 8px; }
+    #custom-c05-lab4-kl-tripwire .lab-head .run { font-size: 13.5px; padding: 6px 10px; }
+    #custom-c05-lab4-kl-tripwire .kt-rail { gap: 6px; }
+    #custom-c05-lab4-kl-tripwire .kt-rail > * { font-size: 15px; line-height: 1.32; grid-template-columns: 28px 1fr; gap: 9px; }
+    #custom-c05-lab4-kl-tripwire .kt-rail > *::before { width: 24px; height: 24px; font-size: 12.5px; }
+    #custom-c05-lab4-kl-tripwire .kt-rail code { font-size: .84em; }
+    #custom-c05-lab4-kl-tripwire .kt-out pre.code { font-size: 11.5px; line-height: 1.36; padding: 7px 14px 9px; }
+    #custom-c05-lab4-kl-tripwire .gotcha { grid-template-columns: 62px 1fr; gap: 2px 10px; padding: 8px 14px; font-size: 13.5px; line-height: 1.38; }
+    #custom-c05-lab4-kl-tripwire .gotcha code { white-space: normal; overflow-wrap: anywhere; }
+    #custom-c05-lab4-kl-tripwire .gotcha > b { font-size: 12px; line-height: 1.6; }
+    #custom-c05-lab4-kl-tripwire .kt-out .code-head { display: flex; align-items: center; gap: 8px; }
+    #custom-c05-lab4-kl-tripwire .kt-out .cite { font-size: 12px; padding: 2px 9px 2px 6px; gap: 6px; background: transparent; border-color: rgba(255,255,255,.18); color: #b9c2ee; }
+    #custom-c05-lab4-kl-tripwire .kt-out .cite b { color: #e8ebff; }
+    #custom-c05-lab4-kl-tripwire .kt-out .cite::before { width: 16px; height: 16px; -webkit-mask-size: 12px, auto; background: #b9c2ee; }
+    #custom-c05-lab4-kl-tripwire pre.code, #custom-c05-lab4-kl-tripwire pre.code *, #custom-c05-lab4-kl-tripwire code, #custom-c05-lab4-kl-tripwire svg text { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 4</span> Acme claims payout calculator · step 5 of 5</div>
+  <h2 class="title">Run KL on and off, and stop training when accuracy falls</h2>
+  <div class="kt-grid fill">
+    <div class="kt-left">
+      <div class="code-wrap">
+        <div class="code-head">claims_rl/lab4_kl_length.py · trl 1.16.0 · transformers 5.20.2 · peft 0.21.2</div>
+        <pre class="code" data-lang="python" data-focus="1:25, 2:26-27, 3:12-20, 4:25-26"><code>import sys
+from peft import LoraConfig
+from transformers import TrainerCallback
+from trl import GRPOConfig, GRPOTrainer
+from trl.rewards import accuracy_reward
+from claims_data import claims_dataset
+from lab4_rewards import gated_brevity_reward
+BETA = float(sys.argv[1]) if len(sys.argv) > 1 else 0.0   # run once with 0.0, once with 0.04
+class HackTripwire(TrainerCallback):   # stop when accuracy falls, whatever the total does
+    def __init__(self, patience=3):
+        self.best_acc, self.bad, self.patience = -1.0, 0, patience
+    def on_log(self, args, state, control, logs=None, **kwargs):
+        acc = (logs or {}).get("rewards/accuracy_reward/mean")
+        if acc is None: return
+        if acc &gt; self.best_acc:
+            self.best_acc, self.bad = acc, 0
+        elif acc &lt; self.best_acc - 0.05:
+            self.bad += 1
+            print(f"[tripwire] step {state.global_step}: accuracy {acc:.3f} &lt; best {self.best_acc:.3f}")
+            control.should_training_stop = self.bad &gt;= self.patience
+args = GRPOConfig(
+    output_dir=f"claims-kl{BETA}", model_init_kwargs={"dtype": "bfloat16"},
+    learning_rate=1e-5, per_device_train_batch_size=8, gradient_accumulation_steps=4,
+    num_generations=8, max_completion_length=384,
+    beta=BETA,  # &gt; 0 adds KL to the start model and logs `kl` (LoRA: adapter-off = reference)
+    reward_weights=[1.0, 0.3],
+    multi_objective_aggregation="normalize_then_sum",   # GDPO-style per-reward normalisation
+    max_steps=300, logging_steps=5, report_to="trackio", run_name=f"kl{BETA}",
+)
+trainer = GRPOTrainer(
+    model="Qwen/Qwen2.5-0.5B-Instruct",
+    reward_funcs=[accuracy_reward, gated_brevity_reward],
+    args=args, train_dataset=claims_dataset(2000, seed=7),
+    peft_config=LoraConfig(r=16, lora_alpha=32, target_modules="all-linear", task_type="CAUSAL_LM"),
+    callbacks=[HackTripwire()],
+)
+trainer.train()</code></pre>
+      </div>
+    </div>
+    <div class="kt-right">
+      <div class="lab-head"><span class="run">python lab4_kl_length.py 0.0</span><span class="run">python lab4_kl_length.py 0.04</span></div>
+      <svg id="c05kt-svg" viewBox="0 0 624 256" width="624" height="256" aria-label="Three small charts over 300 steps, illustrative: accuracy rises to 0.71 without KL and 0.68 with KL 0.04; mean length falls to 96 without KL and 121 with KL; entropy falls to 0.31 without KL and 0.47 with KL. Below, a synthetic hacking run: total reward keeps rising while accuracy peaks at 0.690 at step 150 and then falls. The tripwire fires at steps 180, 185 and 190, its counter goes 1 of 3, 2 of 3, 3 of 3, and a red STOP flag drops at step 190."></svg>
+      <div class="steps-rail kt-rail">
+        <div data-step="1"><span><code>beta=0.04</code> adds KL. LoRA reference = adapter off: almost no extra memory.</span></div>
+        <div data-step="2"><span><code>normalize_then_sum</code> z-scores each reward in its group, then applies the weights.</span></div>
+        <div data-step="3"><span>Three logs 0.05 under the best accuracy set <code>should_training_stop</code>.</span></div>
+      </div>
+      <div class="code-wrap out kt-out" data-step="2">
+        <div class="code-head">output · illustrative · keys from<a class="cite repo" href="https://github.com/huggingface/trl/blob/v1.16.0/trl/trainer/grpo_trainer.py" target="_blank" rel="noopener"><b>Repo</b>&nbsp;grpo_trainer.py @ v1.16.0</a></div>
+        <pre class="code" data-lang="none"><code>run kl0.0  step 300: rewards/accuracy_reward/mean <span class="ok">0.71</span>
+                     completions/mean_length 96   entropy 0.31
+run kl0.04 step 300: rewards/accuracy_reward/mean <span class="ok">0.68</span>
+                     completions/mean_length 121  entropy 0.47  kl 0.012
+<span class="err" data-step="3">[tripwire] step 180: accuracy 0.612 &lt; best 0.690</span></code></pre>
+      </div>
+      <div class="gotcha" data-step="4">
+        <b>Error</b><span><code>ValueError: Number of reward weights (3) must match number of reward functions (2)</code></span>
+        <b>OOM</b><span><code>beta</code> &gt; 0 without LoRA loads a full reference model.</span>
+        <b class="fix">Fix</b><span>One weight per reward. Use LoRA, or <code>beta=0</code> for a verifiable reward.</span>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">The last step of the claims lab runs the same job twice, once with beta 0.0 and once with beta 0.04, and adds a tripwire. Step 1: beta above zero adds a KL penalty to the start model, and with LoRA TRL does not load a second model, because the reference is the same weights with the adapter disabled; the kl metric only appears when beta is not zero. The curves are illustrative: without KL the run gains faster and gets shorter, with KL entropy stays higher and length falls more slowly. Step 2: normalize_then_sum z-scores each reward inside its group before the 1.0 and 0.3 weights, so a low-variance brevity reward cannot be drowned out or dominate by scale. Step 3: the tripwire is like a smoke detector that ignores the thermostat; total reward can rise, but if accuracy sits 0.05 under its best for three logs, training stops. Rule of thumb: a verifiable reward starts at beta 0.0, a learned or judge reward keeps beta above zero. Likely question: "Why patience 3?" One bad log can be noise; three bad logs at logging_steps 5 span at least 15 steps of real decline. Both runs use the same seed-7 training set as step 2, so the only change is beta and the brevity reward.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c05-lab4-kl-tripwire";
+  // illustrative end values from lab-rl Lab 4 (step 300); start values from the Lab 2 log (step ~0)
+  const PANELS = [
+    { name: "accuracy", lo: 0.25, hi: 0.8, a: 0.31, b0: 0.71, b1: 0.68, f: (v) => v.toFixed(2) },
+    { name: "mean_length", lo: 80, hi: 150, a: 141, b0: 96, b1: 121, f: (v) => String(Math.round(v)) },
+    { name: "entropy", lo: 0.25, hi: 0.7, a: 0.62, b0: 0.31, b1: 0.47, f: (v) => v.toFixed(2) },
+  ];
+  const PX = [0, 214, 428], PW = 146, PY0 = 24, PY1 = 98;
+  const HX0 = 34, HX1 = 480, HY0 = 154, HY1 = 240;
+  const hx = (t) => HX0 + (t / 200) * (HX1 - HX0);
+  const hy = (v) => HY1 - ((v - 0.3) / 0.7) * (HY1 - HY0);
+  // synthetic hacking run, logged every 5 steps: accuracy peaks at 0.690 (step 150), then falls
+  const TAIL = { 155: 0.68, 160: 0.672, 165: 0.662, 170: 0.655, 175: 0.645, 180: 0.612, 185: 0.6, 190: 0.59 };
+  const accAt = (t) => (t <= 150 ? 0.31 + 0.38 * (1 - Math.exp(-t / 50)) / (1 - Math.exp(-3)) : TAIL[t]);
+  const totAt = (t) => 0.28 + 0.7 * (t / 190) + 0.012 * Math.sin(t * 0.37);
+  const FIRES = [180, 185, 190];
+  let S = null, tl = null;
+
+  const el = (parent, tag, attrs, style, text) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (style) Object.assign(e.style, style);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  };
+  const mono = (w, s) => `${w} ${s}px var(--f-mono)`;
+
+  function curve(p, b, k) {
+    const pts = [];
+    for (let i = 0; i <= 30; i++) {
+      const t = i * 10;
+      const base = p.a + (b - p.a) * (1 - Math.exp(-t / 90)) / (1 - Math.exp(-300 / 90));
+      const wig = i === 0 || i === 30 ? 0 : 0.025 * (p.hi - p.lo) * Math.sin(i * 1.9 + k * 2.3);
+      const v = base + wig;
+      pts.push([t, v]);
+    }
+    return pts;
+  }
+
+  function build(svg) {
+    svg.innerHTML = "";
+    const minis = PANELS.map((p, pi) => {
+      const x0 = PX[pi];
+      const X = (t) => x0 + 4 + (t / 300) * PW;
+      const Y = (v) => PY1 - ((v - p.lo) / (p.hi - p.lo)) * (PY1 - PY0);
+      el(svg, "text", { x: x0, y: 12 }, { font: mono(700, 12.5), fill: "var(--ink-2)" }, p.name);
+      el(svg, "line", { x1: x0 + 4, y1: PY1, x2: x0 + 4 + PW, y2: PY1 }, { stroke: "var(--line-2)", strokeWidth: 1.5 });
+      el(svg, "line", { x1: x0 + 4, y1: PY0, x2: x0 + 4, y2: PY1 }, { stroke: "var(--line-2)", strokeWidth: 1.5 });
+      el(svg, "text", { x: x0 + 4 + PW, y: PY1 + 13, "text-anchor": "end" }, { font: mono(500, 10.5), fill: "var(--muted)" }, "300");
+      el(svg, "text", { x: x0 + 4, y: PY1 + 13 }, { font: mono(500, 10.5), fill: "var(--muted)" }, "0");
+      const runs = [[p.b0, "var(--model)"], [p.b1, "var(--agent)"]].map(([b, col], k) => {
+        const pts = curve(p, b, k + pi);
+        const line = el(svg, "polyline", { points: pts.map(([t, v]) => `${X(t).toFixed(1)},${Y(v).toFixed(1)}`).join(" ") }, { fill: "none", stroke: col, strokeWidth: 2.6, strokeLinejoin: "round", strokeLinecap: "round" });
+        const len = line.getTotalLength ? line.getTotalLength() : 300;
+        line.style.strokeDasharray = len;
+        const ey = Y(b);
+        const tag = el(svg, "text", { x: X(300) + 6, y: ey + 4 }, { font: mono(700, 12), fill: col }, p.f(b));
+        return { line, len, tag, ey };
+      });
+      // keep the two end tags apart
+      const [r0, r1] = runs;
+      if (Math.abs(r0.ey - r1.ey) < 14) {
+        const up = r0.ey < r1.ey ? r0 : r1, dn = up === r0 ? r1 : r0;
+        up.tag.setAttribute("y", (up.ey + dn.ey) / 2 - 3);
+        dn.tag.setAttribute("y", (up.ey + dn.ey) / 2 + 11);
+      }
+      return runs;
+    }).flat();
+    // legend + rule of thumb
+    el(svg, "line", { x1: 0, y1: 124, x2: 22, y2: 124 }, { stroke: "var(--model)", strokeWidth: 3 });
+    el(svg, "text", { x: 28, y: 128 }, { font: mono(700, 12), fill: "var(--model)" }, "kl0.0");
+    el(svg, "line", { x1: 82, y1: 124, x2: 104, y2: 124 }, { stroke: "var(--agent)", strokeWidth: 3 });
+    el(svg, "text", { x: 110, y: 128 }, { font: mono(700, 12), fill: "var(--agent)" }, "kl0.04");
+    el(svg, "text", { x: 170, y: 128 }, { font: mono(500, 11), fill: "var(--muted)" }, "illustrative");
+    const rule = el(svg, "text", { x: 624, y: 128, "text-anchor": "end" }, { font: mono(700, 12), fill: "var(--ink-2)" }, "verifiable → beta 0.0 · judge → beta > 0");
+    // hacking panel
+    const hack = el(svg, "g", {});
+    el(hack, "text", { x: 0, y: 144 }, { font: mono(700, 12.5), fill: "var(--risk)" }, "hacking run (synthetic)");
+    el(hack, "line", { x1: 196, y1: 140, x2: 216, y2: 140 }, { stroke: "var(--tool)", strokeWidth: 3 });
+    el(hack, "text", { x: 221, y: 144 }, { font: mono(700, 11.5), fill: "var(--tool)" }, "total reward");
+    el(hack, "line", { x1: 318, y1: 140, x2: 338, y2: 140 }, { stroke: "var(--state)", strokeWidth: 3 });
+    el(hack, "text", { x: 343, y: 144 }, { font: mono(700, 11.5), fill: "var(--state)" }, "accuracy");
+    el(hack, "line", { x1: HX0, y1: HY1, x2: HX1, y2: HY1 }, { stroke: "var(--line-2)", strokeWidth: 1.5 });
+    el(hack, "line", { x1: HX0, y1: hy(0.69), x2: HX1, y2: hy(0.69) }, { stroke: "var(--state)", strokeWidth: 1.2, strokeDasharray: "4 4", opacity: 0.8 });
+    el(hack, "line", { x1: HX0, y1: hy(0.64), x2: HX1, y2: hy(0.64) }, { stroke: "var(--risk)", strokeWidth: 1.2, strokeDasharray: "4 4", opacity: 0.8 });
+    el(hack, "text", { x: HX0 - 4, y: hy(0.69) - 3, "text-anchor": "end" }, { font: mono(600, 10), fill: "var(--state)" }, "best");
+    el(hack, "text", { x: HX0 - 4, y: hy(0.64) + 12, "text-anchor": "end" }, { font: mono(600, 10), fill: "var(--risk)" }, "-0.05");
+    el(hack, "text", { x: HX1, y: HY1 + 13, "text-anchor": "end" }, { font: mono(500, 10.5), fill: "var(--muted)" }, "step 200");
+    const tot = el(hack, "polyline", { points: "" }, { fill: "none", stroke: "var(--tool)", strokeWidth: 2.6, strokeLinejoin: "round" });
+    const acc = el(hack, "polyline", { points: "" }, { fill: "none", stroke: "var(--state)", strokeWidth: 2.6, strokeLinejoin: "round" });
+    const fires = FIRES.map((t) => el(hack, "circle", { cx: hx(t), cy: hy(accAt(t)), r: 4.5 }, { fill: "var(--risk)", stroke: "var(--surface)", strokeWidth: 1.5 }));
+    const flag = el(hack, "g", {});
+    el(flag, "line", { x1: hx(190), y1: HY1, x2: hx(190), y2: HY0 }, { stroke: "var(--risk)", strokeWidth: 2.5 });
+    el(flag, "path", { d: `M${hx(190)} ${HY0} L${hx(190) + 46} ${HY0 + 9} L${hx(190)} ${HY0 + 18} Z` }, { fill: "var(--risk)" });
+    el(flag, "text", { x: hx(190) + 5, y: HY0 + 13 }, { font: mono(800, 9.5), fill: "#fff" }, "STOP");
+    const counter = el(hack, "text", { x: 624, y: 206, "text-anchor": "end" }, { font: mono(700, 13), fill: "var(--risk)" }, "");
+    const counter2 = el(hack, "text", { x: 624, y: 224, "text-anchor": "end" }, { font: mono(500, 11), fill: "var(--muted)" }, "");
+    S = { svg, minis, rule, hack, tot, acc, fires, flag, counter, counter2, p: { t: 0 } };
+  }
+
+  function drawHack(tMax) {
+    const tp = [], ap = [];
+    for (let t = 0; t <= tMax; t += 5) { tp.push(`${hx(t).toFixed(1)},${hy(totAt(t)).toFixed(1)}`); ap.push(`${hx(t).toFixed(1)},${hy(accAt(t)).toFixed(1)}`); }
+    S.tot.setAttribute("points", tp.join(" "));
+    S.acc.setAttribute("points", ap.join(" "));
+    let bad = 0;
+    FIRES.forEach((t, i) => { const on = tMax >= t; S.fires[i].style.opacity = on ? 1 : 0; if (on) bad = i + 1; });
+    S.counter.textContent = bad ? `bad ${bad}/3` : "";
+    S.counter2.textContent = bad === 3 ? "should_training_stop" : bad ? `step ${FIRES[bad - 1]}` : "";
+  }
+
+  function kill() {
+    if (tl) { tl.kill(); tl = null; }
+    if (S) gsap.killTweensOf([S.p, S.flag, S.hack, S.rule, ...S.minis.flatMap((m) => [m.line, m.tag])]);
+  }
+
+  function render(n, animate) {
+    if (!S) return;
+    kill();
+    const anim = animate && !matchMedia("(prefers-reduced-motion: reduce)").matches;
+    tl = gsap.timeline();
+    // step 1: both runs draw in the three panels
+    S.minis.forEach((m, i) => {
+      if (anim && n === 1) {
+        gsap.set(m.line, { strokeDashoffset: m.len });
+        tl.to(m.line, { strokeDashoffset: 0, duration: 1.6, ease: "power1.inOut" }, (i % 2) * 0.15 + Math.floor(i / 2) * 0.2);
+      } else gsap.set(m.line, { strokeDashoffset: n >= 1 ? 0 : m.len });
+      // step 2: end-of-run values pop
+      if (anim && n === 2) {
+        gsap.set(m.tag, { opacity: 0, scale: 0.5, transformOrigin: "0% 50%" });
+        tl.to(m.tag, { opacity: 1, scale: 1, duration: 0.35, ease: "back.out(2.4)" }, 0.1 + i * 0.08);
+      } else gsap.set(m.tag, { opacity: n >= 2 ? 1 : 0, scale: 1 });
+    });
+    gsap.set(S.rule, { opacity: n >= 2 ? 1 : 0 });
+    // step 3: the hacking run draws to step 190, the tripwire fires 3 times, the flag drops
+    gsap.set(S.hack, { opacity: n >= 3 ? 1 : 0.35 });
+    if (anim && n === 3) {
+      S.p.t = 0; drawHack(0);
+      gsap.set(S.flag, { opacity: 0, y: -40 });
+      tl.to(S.p, { t: 190, duration: 2.4, ease: "none", onUpdate: () => drawHack(S.p.t) }, 0.1)
+        .to(S.flag, { opacity: 1, y: 0, duration: 0.5, ease: "bounce.out" }, 2.55);
+    } else {
+      S.p.t = n >= 3 ? 190 : 0;
+      drawHack(S.p.t);
+      gsap.set(S.flag, { opacity: n >= 3 ? 1 : 0, y: 0 });
+    }
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { kill(); build(slide.querySelector("#c05kt-svg")); render(step || 0, false); },
+    step(slide, n, animate) {
+      if (!S || !slide.contains(S.svg)) build(slide.querySelector("#c05kt-svg"));
+      render(n, animate);
+    },
+    leave() { kill(); },
+  });
+})();
+</script>

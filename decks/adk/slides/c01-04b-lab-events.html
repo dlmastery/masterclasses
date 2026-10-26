@@ -1,0 +1,91 @@
+<section class="slide" id="adk-c01-lab-events" data-tone="tool" data-title="Lab 1: run_async event stream">
+  <style>
+    #adk-c01-lab-events pre.code, #adk-c01-lab-events pre.code * { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #adk-c01-lab-events a.cite.paper { flex-direction: row; padding: 8px 14px 8px 10px; gap: 10px; border-radius: 10px; border: 1px solid var(--line); background: color-mix(in oklab, var(--surface) 60%, transparent); }
+    #adk-c01-lab-events .gotcha code { white-space: normal; overflow-wrap: anywhere; }
+    #adk-c01-lab-events .gotcha > span { min-width: 0; }
+    #adk-c01-lab-events .ev-main { display: grid; grid-template-columns: 850px 1fr; gap: 34px; align-items: center; }
+    #adk-c01-lab-events .ev-right { gap: 18px; min-width: 0; }
+    #adk-c01-lab-events .ev-hd { font: 600 15px/1 var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); display: flex; justify-content: space-between; }
+    #adk-c01-lab-events .ev-list { display: grid; gap: 12px; }
+    #adk-c01-lab-events .evt { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 12px; font: 500 17px/1.2 var(--f-mono); color: var(--ink); opacity: 0; visibility: hidden; }
+    #adk-c01-lab-events .evt.c-call { background: var(--tool-soft); border: 2px solid var(--tool); }
+    #adk-c01-lab-events .evt.c-resp { background: var(--surface-2); border: 2px solid color-mix(in oklab, var(--tool) 50%, transparent); }
+    #adk-c01-lab-events .evt.c-text { background: var(--model-soft); border: 2px solid var(--model); }
+    #adk-c01-lab-events .evt .k { font-weight: 700; font-size: 15px; text-transform: uppercase; letter-spacing: .04em; color: var(--tool); width: 66px; flex: none; }
+    #adk-c01-lab-events .evt.c-text .k { color: var(--model); }
+    #adk-c01-lab-events .evt .fin { margin-left: auto; font-size: 15px; font-weight: 700; color: var(--muted); padding: 5px 8px; border-radius: 6px; background: var(--line); }
+    #adk-c01-lab-events .evt .fin.lit { color: #fff; background: var(--model); }
+    #adk-c01-lab-events .ev-cap { position: relative; min-height: 92px; }
+    #adk-c01-lab-events .ev-cap > p { position: absolute; left: 0; right: 0; top: 0; font-size: 20px; line-height: 1.4; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 1</span> Acme refund desk · step 7 of 8</div>
+  <h2 class="title">Log every event from run_async: the trajectory is where agents fail</h2>
+  <div class="ev-main fill">
+    <div class="code-wrap">
+      <div class="code-head">labs/adk/lab1-refund-tools/run_refund.py · excerpt</div>
+      <pre class="code" data-lang="python" data-focus="1:1-4, 2:5-6, 3:7-10, 4:11-14"><code>    session = await runner.session_service.create_session(
+        app_name=APP, user_id="cust-dana")
+    msg = types.UserContent(parts=[types.Part(
+        text="Is A-1003 refundable? It arrived damaged.")])
+    async for event in runner.run_async(
+            user_id="cust-dana", session_id=session.id, new_message=msg):
+        for call in event.get_function_calls():
+            print(f"  TOOL CALL  {call.name}({call.args})")
+        for resp in event.get_function_responses():
+            print(f"  TOOL RESULT {resp.name} -> {resp.response}")
+        final = event.is_final_response()
+        if final and event.content and event.content.parts:
+            text = "".join(p.text or "" for p in event.content.parts)
+            print(f"[{event.author}] {text}")</code></pre>
+    </div>
+    <div class="ev-right stack">
+      <div class="ev-hd"><span>event stream · illustrative</span><span>is_final_response()</span></div>
+      <div class="ev-list">
+        <div class="evt c-call"><span class="k">call</span>lookup_order<span class="fin">False</span></div>
+        <div class="evt c-resp"><span class="k">result</span>lookup_order<span class="fin">False</span></div>
+        <div class="evt c-call"><span class="k">call</span>check_refund_…<span class="fin">False</span></div>
+        <div class="evt c-resp"><span class="k">result</span>defect_override<span class="fin">False</span></div>
+        <div class="evt c-text"><span class="k">text</span>A-1003 is refundable<span class="fin lit">True</span></div>
+      </div>
+      <div class="ev-cap">
+        <p data-step="1" data-until="2">Create the session first, under the same <code>app_name</code>.</p>
+        <p data-step="2" data-until="3"><code>run_async()</code> is the production entry point. It yields events as they happen.</p>
+        <p data-step="3" data-until="4">Log every call and result. <code>is_final_response()</code> stays false while calls are pending.</p>
+        <p data-step="4">CXBench: <b>55.5%</b> of runs had the right outcome with a non-compliant process.</p>
+      </div>
+    </div>
+  </div>
+  <div class="cites">
+    <a class="cite paper" href="https://arxiv.org/abs/2610.25954" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.25954 CXBench</a>
+    <a class="cite repo" href="https://github.com/google/adk-python/tree/v2.13.0" target="_blank" rel="noopener"><b>Repo</b>&nbsp;google/adk-python v2.13.0 · runner_debug_example</a>
+  </div>
+  <aside class="notes">
+    This is the production loop. Step 1: create the session explicitly with the same app_name as the runner, then wrap the text as a types.UserContent. Step 2: run_async is the production entry point; run() is a sync wrapper that is only for local testing. Step 3: each event can carry function calls or function responses; print both, because that is your trajectory log. Step 4: is_final_response() is false while calls are pending and true for the last text event. The CXBench paper (arXiv 2610.25954) found that 55.5% of runs had the right outcome with a non-compliant process, so outcome-only checks pass bad runs. Analogy: the event stream is a flight recorder; you read it after the landing, not only the arrival time. Variation: pass abort_signal=asyncio.Event() to run_async (since 2.11.0) and set() it from a timeout task to cancel a runaway turn. Likely question: "Do I need the event loop for adk web?" No, adk web runs it for you; your own service needs it.
+  </aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c01-lab-events";
+  let cards = [];
+  function render(slide, n, animate) {
+    cards = [...slide.querySelectorAll(".evt")];
+    const fin = slide.querySelector(".evt .fin.lit");
+    cards.forEach((c, i) => {
+      const on = (i < 4 && n >= 3) || (i === 4 && n >= 4);
+      gsap.killTweensOf(c);
+      const isNew = animate && ((n === 3 && i < 4) || (n === 4 && i === 4));
+      if (isNew) gsap.fromTo(c, { autoAlpha: 0, x: -60 }, { autoAlpha: 1, x: 0, duration: 0.45, delay: 0.2 + (n === 3 ? i * 0.3 : 0), ease: "power3.out" });
+      else gsap.set(c, { autoAlpha: on ? 1 : 0, x: 0 });
+    });
+    gsap.killTweensOf(fin);
+    gsap.set(fin, { scale: 1 });
+    if (animate && n === 4) gsap.fromTo(fin, { scale: 1 }, { scale: 1.25, duration: 0.22, repeat: 3, yoyo: true, delay: 0.7, ease: "power1.inOut" });
+  }
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { cards.forEach((c) => gsap.killTweensOf(c)); }
+  });
+})();
+</script>

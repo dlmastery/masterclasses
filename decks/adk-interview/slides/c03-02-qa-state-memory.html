@@ -1,0 +1,234 @@
+<section class="slide" id="adk-interview-c03-qa-state-memory" data-tone="state" data-title="Q&amp;A: state scope and memory deletion">
+  <style>
+    #adk-interview-c03-qa-state-memory .qcol { gap: 16px; }
+    #adk-interview-c03-qa-state-memory .qa { gap: 8px; padding-left: 14px; border-left: 4px solid transparent; transition: opacity .4s; }
+    #adk-interview-c03-qa-state-memory .qa .q { font-size: 22px; }
+    #adk-interview-c03-qa-state-memory .qa .a { font-size: 20px; line-height: 1.4; padding: 10px 16px; display: grid; gap: 8px; }
+    #adk-interview-c03-qa-state-memory .qa .a .snip { display: block; font: 500 15px/1.45 var(--f-mono); color: #d5dbf7; background: #0f1430; border-radius: 8px; padding: 7px 12px; white-space: pre; font-variant-ligatures: none; }
+    #adk-interview-c03-qa-state-memory .qa .a .snip i { font-style: normal; color: #8d96c4; }
+    #adk-interview-c03-qa-state-memory .qa .a .tags { gap: 8px; }
+    #adk-interview-c03-qa-state-memory .qa .a .tag { font-size: 14px; padding: 5px 10px 5px 8px; }
+    #adk-interview-c03-qa-state-memory .qa.cur { border-left-color: var(--state); }
+    #adk-interview-c03-qa-state-memory .qa.past { opacity: .55; border-left-color: transparent; }
+    #adk-interview-c03-qa-state-memory .prog > i { width: var(--v, 0%); transition: width .3s ease-out; }
+    #adk-interview-c03-qa-state-memory .prog.s1 > i { --v: 25%; }
+    #adk-interview-c03-qa-state-memory .prog.s2 > i { --v: 50%; }
+    #adk-interview-c03-qa-state-memory .prog.s3 > i { --v: 75%; }
+    #adk-interview-c03-qa-state-memory .prog.s4 > i { --v: 100%; }
+    #adk-interview-c03-qa-state-memory .cite.paper { flex-direction: row; gap: 10px; padding: 8px 14px 8px 10px; border-radius: 10px; border: 1px solid var(--line); }
+    #adk-interview-c03-qa-state-memory .sm-svg { display: block; overflow: visible; }
+    #adk-interview-c03-qa-state-memory .sm-svg text { font-family: var(--f-mono); }
+    #adk-interview-c03-qa-state-memory .box { fill: none; stroke-width: 2.5; }
+    #adk-interview-c03-qa-state-memory .b-app { stroke: var(--agent); fill: var(--agent-soft); }
+    #adk-interview-c03-qa-state-memory .b-user { stroke: var(--human); fill: var(--human-soft); }
+    #adk-interview-c03-qa-state-memory .b-ses { stroke: var(--state); fill: var(--surface-2); }
+    #adk-interview-c03-qa-state-memory .b-mem { stroke: var(--state); fill: var(--state-soft); }
+    #adk-interview-c03-qa-state-memory .b-dead { stroke: var(--faint); fill: var(--surface); stroke-dasharray: 7 6; }
+    #adk-interview-c03-qa-state-memory .bl { font: 700 16px var(--f-mono); fill: var(--ink); }
+    #adk-interview-c03-qa-state-memory .bs { font: 500 14px var(--f-mono); fill: var(--muted); }
+    #adk-interview-c03-qa-state-memory .chip { fill: var(--surface-2); stroke: var(--line-2); stroke-width: 1.5; }
+    #adk-interview-c03-qa-state-memory .chip-t { font: 600 14px var(--f-mono); fill: var(--ink-2); }
+    #adk-interview-c03-qa-state-memory .tmp { fill: var(--surface-2); stroke: var(--tool); stroke-width: 2; stroke-dasharray: 5 4; }
+    #adk-interview-c03-qa-state-memory .bad { fill: var(--risk-soft); stroke: var(--risk); stroke-width: 2; }
+    #adk-interview-c03-qa-state-memory .bad-t { font: 700 16px var(--f-mono); fill: var(--risk); }
+    #adk-interview-c03-qa-state-memory .strike { stroke: var(--state); stroke-width: 3; }
+    #adk-interview-c03-qa-state-memory .x { stroke: var(--risk); stroke-width: 4; stroke-linecap: round; }
+    #adk-interview-c03-qa-state-memory .dot { fill: var(--model); }
+    #adk-interview-c03-qa-state-memory .dot.off { fill: var(--line-2); }
+    #adk-interview-c03-qa-state-memory .ray { stroke: var(--state); stroke-width: 2.5; }
+    #adk-interview-c03-qa-state-memory .cap { font: 600 15px var(--f-mono); fill: var(--ink-2); }
+    #adk-interview-c03-qa-state-memory .cap.g { fill: var(--state); }
+    #adk-interview-c03-qa-state-memory .cap.r { fill: var(--risk); }
+  </style>
+  <div class="kicker">Interview · state and memory</div>
+  <h2 class="title">State scope and memory deletion are where privacy bugs hide</h2>
+  <div class="fill" style="display:grid;grid-template-columns:1fr 430px;gap:34px;min-height:0">
+    <div class="stack qcol">
+      <div class="qa" data-on="0:cur 2:past">
+        <div class="q">Which state prefix holds a user's language, an app-wide setting (company name) and scratch data?</div>
+        <div class="a" data-step="1" data-fx="up">
+          <span><b>user:language</b> follows the user. <b>app:company_name</b> is shared by every user of the app. <b>temp:</b> lasts one invocation (one user message).</span>
+          <span class="snip">tool_context.state["user:language"] = "de"   <i># saved through the tool's event</i></span>
+          <div class="tags"><span class="tag t-risk">per-tenant data: one app_name per tenant, never app:</span></div>
+        </div>
+      </div>
+      <div class="qa" data-on="2:cur 3:past">
+        <div class="q"><span>Memory is a store searched across sessions. <code>preload_memory</code> or <code>load_memory</code>?</span></div>
+        <div class="a" data-step="2" data-fx="up">
+          <span><b>preload_memory</b> searches on every turn. <b>load_memory</b> is a tool: the model searches only when needed. Neither one writes memory.</span>
+          <span class="snip">Agent(..., tools=[load_memory], after_agent_callback=save)
+async def save(callback_context):
+    await callback_context.add_session_to_memory()   <i># InMemoryRunner has a memory service</i></span>
+        </div>
+      </div>
+      <div class="qa" data-on="3:cur">
+        <div class="q"><span>A user asks you to erase their data. You call <code>delete_session()</code>. Are you done?</span></div>
+        <div class="a" data-step="3" data-fx="up">
+          <span><b>No.</b> Memory keeps its own copy: <code>search_memory()</code> still finds it (#7109).</span>
+          <span data-step="4" data-fx="up">Call <b>delete_memory()</b> with the <code>MemoryEntry.id</code> (2.13+). RAG memory sets no id: delete in that backend.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="stack" style="gap:16px;min-height:0">
+      <svg class="sm-svg interactive" id="c03-sm-svg" viewBox="0 0 430 420" width="430" height="420" aria-label="Scope boxes for Q1, memory search per turn for Q2, and a deleted session whose memory entry survives for Q3"></svg>
+      <div class="cites" style="flex-direction:column;align-items:flex-start;gap:8px">
+        <a class="cite doc" href="https://adk.dev/sessions/state/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;State</a>
+        <a class="cite repo" href="https://github.com/google/adk-python/issues/7109" target="_blank" rel="noopener"><b>Issue</b>&nbsp;adk-python #7109</a>
+      </div>
+      <div class="bar prog push" data-on="1:s1 2:s2 3:s3 4:s4" style="height:8px;background:var(--line)"><i style="--aurora:var(--state)"></i></div>
+    </div>
+  </div>
+  <aside class="notes">Read each question, pause, and let the student answer before you reveal the model answer. Q1 tests the scopes: user: for the language, app: for an app-wide value such as the company name, temp: for scratch data that lives for one invocation (one run_async call for one user message), and no prefix for this conversation. The trap: app: is shared by every user of that app_name, so per-tenant data under app: leaks across tenants; use one app_name per tenant or a tenant-keyed store. A write persists only through an event: state_delta, tool_context.state or callback_context.state; get_session() returns a copy, which is the debug drill at the end of this chapter. Q2: memory is a searchable store across sessions; preload_memory costs tokens on every turn, load_memory lets the model decide, and you write memory yourself with add_session_to_memory(). Q3, click 3: deleting the session does not delete what memory copied. Click 4: wire delete_memory into the erasure path; it is set up for InMemory, Firestore and Memory Bank, which set MemoryEntry.id. Follow-up for strong candidates: CarryoverBench (arXiv 2610.28425) shows that injections planted in memory re-fire across five rounds, so treat recalled memory as untrusted. Analogy: shredding the meeting notes does not shred the photocopy in the archive. Never store secrets in state, because adk web prints it.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-interview-c03-qa-state-memory";
+  const NS = "http://www.w3.org/2000/svg";
+  let p = null, tl = null;
+
+  function el(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    Object.entries(attrs).forEach(([k, v]) => e.setAttribute(k, v));
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  }
+  function chip(parent, x, y, w, text, cls) {
+    const g = el("g", {}, parent);
+    el("rect", { class: cls || "chip", x, y, width: w, height: 30, rx: 8 }, g);
+    el("text", { class: "chip-t", x: x + 12, y: y + 20 }, g, text);
+    return g;
+  }
+
+  function build(svg) {
+    svg.innerHTML = "";
+    const q = {};
+    /* scene A: nested scopes (Q1) */
+    q.A = el("g", {}, svg);
+    el("rect", { class: "box b-app", x: 0, y: 0, width: 430, height: 420, rx: 18 }, q.A);
+    el("text", { class: "bl", x: 18, y: 32 }, q.A, "app:");
+    chip(q.A, 80, 12, 210, "app:company_name");
+    el("rect", { class: "box b-user", x: 22, y: 60, width: 386, height: 340, rx: 16 }, q.A);
+    el("text", { class: "bl", x: 40, y: 92 }, q.A, "user: emp-17");
+    el("text", { class: "bs", x: 40, y: 114 }, q.A, "every session of this user");
+    chip(q.A, 40, 126, 190, "user:language");
+    el("rect", { class: "box b-ses", x: 44, y: 180, width: 342, height: 200, rx: 14 }, q.A);
+    el("text", { class: "bl", x: 62, y: 212 }, q.A, "session s1");
+    el("text", { class: "bs", x: 62, y: 234 }, q.A, "no prefix: this session only");
+    chip(q.A, 62, 248, 180, "last_hr_answer");
+    q.tmp = chip(q.A, 62, 296, 170, "temp:last_topic", "tmp");
+    q.tmpCap = el("text", { class: "cap r", x: 246, y: 316 }, q.A, "not persisted");
+    /* scene B: preload vs load (Q2) */
+    q.B = el("g", {}, svg);
+    el("text", { class: "bl", x: 0, y: 22 }, q.B, "preload_memory");
+    el("text", { class: "bs", x: 0, y: 44 }, q.B, "searches on every turn");
+    el("rect", { class: "box b-mem", x: 0, y: 166, width: 430, height: 86, rx: 16 }, q.B);
+    el("text", { class: "bl", x: 18, y: 200 }, q.B, "memory service");
+    el("text", { class: "bs", x: 18, y: 226 }, q.B, "writes: add_session_to_memory()");
+    el("text", { class: "bl", x: 0, y: 392 }, q.B, "load_memory");
+    el("text", { class: "bs", x: 0, y: 414 }, q.B, "a tool: the model searches when needed");
+    q.rays = []; q.dots = [];
+    const LOAD = [false, false, true, false];
+    [0, 1, 2, 3].forEach((i) => {
+      const x = 60 + i * 100;
+      q.dots.push(el("circle", { class: "dot", cx: x, cy: 84, r: 16 }, q.B));
+      el("text", { class: "bs", x: x + 24, y: 89 }, q.B, "t" + (i + 1));
+      q.rays.push(el("line", { class: "ray", x1: x, y1: 102, x2: x, y2: 166 }, q.B));
+      q.dots.push(el("circle", { class: "dot" + (LOAD[i] ? "" : " off"), cx: x, cy: 334, r: 16 }, q.B));
+      el("text", { class: "bs", x: x + 24, y: 339 }, q.B, "t" + (i + 1));
+      if (LOAD[i]) q.rays.push(el("line", { class: "ray", x1: x, y1: 316, x2: x, y2: 252 }, q.B));
+    });
+    /* scene C: erase request (Q3) */
+    q.C = el("g", {}, svg);
+    el("rect", { class: "box b-dead", x: 0, y: 0, width: 430, height: 100, rx: 16 }, q.C);
+    el("text", { class: "bl", x: 18, y: 38 }, q.C, "session s1");
+    el("text", { class: "bs", x: 18, y: 66 }, q.C, "delete_session(): gone");
+    q.X = el("g", {}, q.C);
+    el("line", { class: "x", x1: 340, y1: 24, x2: 392, y2: 76 }, q.X);
+    el("line", { class: "x", x1: 392, y1: 24, x2: 340, y2: 76 }, q.X);
+    el("rect", { class: "box b-mem", x: 0, y: 130, width: 430, height: 290, rx: 16 }, q.C);
+    el("text", { class: "bl", x: 18, y: 164 }, q.C, "memory (copied text)");
+    q.bad = el("g", {}, q.C);
+    el("rect", { class: "bad", x: 18, y: 182, width: 394, height: 44, rx: 10 }, q.bad);
+    el("text", { class: "bad-t", x: 34, y: 210 }, q.bad, "passport no. AB1234567");
+    q.badCap = el("text", { class: "cap r", x: 18, y: 254 }, q.C, "search_memory() still finds it");
+    q.strike = el("line", { class: "strike", x1: 26, y1: 204, x2: 404, y2: 204 }, q.C);
+    q.fix = chip(q.C, 18, 286, 250, "delete_memory(entry.id)  2.13", "chip");
+    q.okCap = el("text", { class: "cap g", x: 18, y: 254 }, q.C, "deleted: search_memory() finds nothing");
+    q.fixCap = el("g", {}, q.C);
+    el("text", { class: "cap", x: 18, y: 356 }, q.fixCap, "RAG memory: no MemoryEntry.id,");
+    el("text", { class: "cap", x: 18, y: 382 }, q.fixCap, "so delete in that backend");
+    return q;
+  }
+
+  function render(n, animate) {
+    if (!p) return;
+    if (tl) tl.kill();
+    tl = gsap.timeline();
+    const D = animate ? 1 : 0;
+    const scene = n <= 1 ? p.A : n === 2 ? p.B : p.C;
+    const fixed = n >= 4;
+    [p.A, p.B, p.C].forEach((g) => { if (g !== scene) gsap.set(g, { autoAlpha: 0 }); });
+    gsap.set(scene, { autoAlpha: 1 });
+    if (scene === p.A) {
+      if (n === 0) { gsap.set(p.tmp, { autoAlpha: 1 }); gsap.set(p.tmpCap, { autoAlpha: 0 }); }
+      else if (!animate) { gsap.set(p.tmp, { autoAlpha: 0.3 }); gsap.set(p.tmpCap, { autoAlpha: 1 }); }
+      else {
+        gsap.set(p.tmp, { autoAlpha: 1 }); gsap.set(p.tmpCap, { autoAlpha: 0 });
+        tl.to(p.tmp, { autoAlpha: 0.25, duration: 0.25, repeat: 3, yoyo: true }, 0.6)
+          .to(p.tmp, { autoAlpha: 0.3, duration: 0.5 }, "+=0.3")
+          .to(p.tmpCap, { autoAlpha: 1, duration: 0.4 }, "<0.2");
+      }
+    } else if (scene === p.B) {
+      p.rays.forEach((r) => { r.style.strokeDasharray = 70; });
+      if (!animate) { p.rays.forEach((r) => (r.style.strokeDashoffset = 0)); gsap.set(p.dots, { scale: 1 }); }
+      else {
+        p.rays.forEach((r) => (r.style.strokeDashoffset = 70));
+        tl.fromTo(scene, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.4 })
+          .fromTo(p.dots, { scale: 0, transformOrigin: "50% 50%" }, { scale: 1, duration: 0.35, ease: "back.out(2)", stagger: 0.08 }, 0.2)
+          .to(p.rays, { strokeDashoffset: 0, duration: 0.5, ease: "power2.out", stagger: 0.12 }, "+=0.1");
+      }
+    } else {
+      const L = 378;
+      p.strike.style.strokeDasharray = L;
+      if (!animate) {
+        gsap.set([p.X, p.bad, p.badCap], { autoAlpha: 1 });
+        gsap.set([p.fix, p.okCap, p.fixCap], { autoAlpha: fixed ? 1 : 0 });
+        gsap.set(p.bad, { autoAlpha: fixed ? 0.45 : 1 });
+        gsap.set(p.badCap, { autoAlpha: fixed ? 0 : 1 });
+        p.strike.style.strokeDashoffset = fixed ? 0 : L;
+      } else if (!fixed) {
+        p.strike.style.strokeDashoffset = L;
+        gsap.set([p.X, p.bad, p.badCap, p.fix, p.okCap, p.fixCap], { autoAlpha: 0 });
+        tl.fromTo(scene, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.4 })
+          .fromTo(p.X, { autoAlpha: 0, scale: 0.4, transformOrigin: "50% 50%" }, { autoAlpha: 1, scale: 1, duration: 0.4, ease: "back.out(2)" }, 0.3)
+          .to(p.bad, { autoAlpha: 1, duration: 0.4 }, "+=0.3")
+          .to(p.bad, { autoAlpha: 0.4, duration: 0.25, repeat: 3, yoyo: true })
+          .to(p.bad, { autoAlpha: 1, duration: 0.2 })
+          .to(p.badCap, { autoAlpha: 1, duration: 0.3 }, "<");
+      } else {
+        gsap.set([p.X, p.bad], { autoAlpha: 1 }); gsap.set(p.badCap, { autoAlpha: 1 });
+        p.strike.style.strokeDashoffset = L;
+        gsap.set([p.fix, p.okCap, p.fixCap], { autoAlpha: 0 });
+        tl.fromTo(p.fix, { autoAlpha: 0, y: 10 }, { autoAlpha: 1, y: 0, duration: 0.4 }, 0.2)
+          .to(p.strike, { strokeDashoffset: 0, duration: 0.6, ease: "power2.inOut" }, "+=0.2")
+          .to(p.bad, { autoAlpha: 0.45, duration: 0.4 }, "<0.3")
+          .to(p.badCap, { autoAlpha: 0, duration: 0.3 }, "<")
+          .to(p.okCap, { autoAlpha: 1, duration: 0.4 }, "<0.1")
+          .to(p.fixCap, { autoAlpha: 1, duration: 0.4 }, "+=0.2");
+      }
+    }
+    if (!D) tl.progress(1);
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) {
+      p = build(slide.querySelector("#c03-sm-svg"));
+      render(step, false);
+    },
+    step(slide, n, animate) { render(n, animate); },
+    leave() { if (tl) tl.kill(); tl = null; if (p) gsap.killTweensOf([p.A, p.B, p.C, p.tmp, p.tmpCap, p.X, p.bad, p.badCap, p.fix, p.okCap, p.fixCap, ...p.dots, ...p.rays]); }
+  });
+})();
+</script>

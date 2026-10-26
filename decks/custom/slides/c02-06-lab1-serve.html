@@ -1,0 +1,108 @@
+<section class="slide" id="custom-c02-lab1-serve" data-tone="model" data-title="Lab 1 · serve on vLLM">
+  <div class="kicker"><span class="pill">Lab 1</span> Acme refunds assistant · step 5 of 5</div>
+  <h2 class="title">Serve one base with many adapters on vLLM, merge only for the edge</h2>
+  <div class="grid fill sv-grid">
+    <div class="stack sv-left">
+      <div class="lab-head"><span class="run">pip install "vllm==0.32.0"</span><span class="tiny">new venv: vllm pins its own torch · Linux + CUDA</span></div>
+      <div class="code-wrap term">
+        <div class="code-head">refunds_sft/step5_serve.sh · vllm 0.32.0</div>
+        <pre class="code sv-code" data-lang="bash" data-focus="1:1-2, 2:3-6"><code># A: one merged model (edge, single tenant)
+$ vllm serve ./qwen3-0.6b-refund-merged --served-model-name refund-agent
+# B: one base + adapters (shipping = a 2nd team's adapter, same recipe)
+$ vllm serve Qwen/Qwen3-0.6B --enable-lora --max-loras 2 --max-lora-rank 16 \
+    --lora-modules refund=./qwen3-0.6b-refund-lora/final \
+                   shipping=./qwen3-0.6b-shipping-lora/final</code></pre>
+      </div>
+      <div class="code-wrap">
+        <div class="code-head">refunds_sft/step5_client.py · same prefix as training</div>
+        <pre class="code sv-code" data-lang="python" data-focus="3:5-8"><code># the openai client is installed with vllm
+from openai import OpenAI
+from common import SYSTEM
+client = OpenAI(base_url="http://localhost:8000/v1", api_key="EMPTY")
+r = client.chat.completions.create(model="refund",   # picks the adapter
+    messages=[{"role": "system", "content": SYSTEM},
+      {"role": "user", "content": "Where is my refund for {{Order Number}}?"}],
+    extra_body={"chat_template_kwargs": {"enable_thinking": False}})
+print(r.choices[0].message.content)</code></pre>
+      </div>
+      <div class="steps-rail sv-rail">
+        <div data-step="1"><span>Merge for one tenant, or for GGUF (the llama.cpp file for CPUs and laptops).</span></div>
+        <div data-step="2"><span>vLLM defaults: <code>max_loras</code> 1, <code>max_lora_rank</code> 16. Set them to match.</span></div>
+        <div data-step="3"><span><code>"model"</code> picks the adapter. Send SYSTEM and <code>enable_thinking=False</code>.</span></div>
+      </div>
+    </div>
+
+    <div class="stack sv-right">
+      <div class="diagram sv-dia" style="width:708px;height:330px"
+           data-wires="vllm>merged@1:rl; vllm>ad1@2:flow{model}:rb; vllm>ad2@2:flow{model}:rb; rui>vllm@3:flow{human}:rl [model=refund]; sui>vllm@3:flow{human}:rl [model=shipping]">
+        <div class="group g-model" style="left:420px;top:0;width:288px;height:330px" data-step="2"><span class="gl">GPU · one copy of the base</span></div>
+        <div class="node n-human pill" id="rui" style="left:0;top:20px;width:130px" data-step="3" data-fx="pop"><span class="nt">refunds UI</span></div>
+        <div class="node n-human pill" id="sui" style="left:0;top:252px;width:130px" data-step="3" data-fx="pop"><span class="nt">shipping UI</span></div>
+        <div class="node n-tool" id="vllm" style="left:236px;top:128px;width:150px"><span class="nt">vLLM 0.32.0</span><span class="ns">serve</span></div>
+        <div class="node n-model" id="merged" style="left:440px;top:200px;width:250px" data-until="2"><span class="nt">refund-agent</span><span class="ns">merged · bf16 · 1.2 GB</span></div>
+        <div class="node n-model" id="base" style="left:440px;top:200px;width:250px" data-step="2" data-fx="pop"><span class="nt">Qwen3-0.6B</span><span class="ns">base · bf16 · + B·A</span></div>
+        <div class="node n-model" id="ad1" style="left:432px;top:56px;width:128px" data-step="2" data-fx="pop"><span class="nt">refund</span><span class="ns">LoRA r=16</span></div>
+        <div class="node n-model" id="ad2" style="left:572px;top:56px;width:128px" data-step="2" data-fx="pop"><span class="nt">shipping</span><span class="ns">LoRA r=16</span></div>
+      </div>
+      <div class="sv-meter" data-step="2">
+        <div class="sv-mt">VRAM on a 24 GB GPU · vLLM takes <code>gpu_memory_utilization=0.9</code></div>
+        <div class="sv-track"><i class="sv-b"></i><i class="sv-a"></i><i class="sv-k"></i></div>
+        <div class="sv-ml"><span class="c-model">weights 1.2 GB</span><span class="c-tool">+ 80 MB adapters</span><span class="sv-kl">KV cache: the rest of 21.6 GB</span></div>
+      </div>
+      <div class="code-wrap out" data-step="4">
+        <div class="code-head">output · illustrative</div>
+        <pre class="code sv-out" data-lang="none"><code>I understand you're waiting on the refund for order <span class="ok">{{Order Number}}</span>. Refunds are processed ...</code></pre>
+      </div>
+      <div class="gotcha sv-gotcha" data-step="5">
+        <b>Symptom</b><span>Garbage <code>&lt;think&gt;</code> text in the reply.</span>
+        <b class="why">Cause</b><span>The prompt has no empty think block, so it does not match training.</span>
+        <b class="fix">Fix</b><span><code>chat_template_kwargs: {"enable_thinking": false}</code> on every call.</span>
+      </div>
+    </div>
+  </div>
+  <style>
+    #custom-c02-lab1-serve .sv-grid { grid-template-columns: 660px 708px; gap: 24px; align-items: start; }
+    #custom-c02-lab1-serve .sv-left, #custom-c02-lab1-serve .sv-right { gap: 12px; }
+    #custom-c02-lab1-serve .sv-code { font-size: 13px; line-height: 1.45; padding: 10px 16px 12px; }
+    #custom-c02-lab1-serve .code-head { font-size: 13.5px; padding: 8px 14px; }
+    #custom-c02-lab1-serve .sv-rail { gap: 6px; }
+    #custom-c02-lab1-serve .sv-rail > * { font-size: 16px; line-height: 1.32; }
+    #custom-c02-lab1-serve .sv-rail code { font-size: .84em; }
+    #custom-c02-lab1-serve .sv-dia .group > .gl { top: 14px; left: 16px; background: none; padding: 0; }
+    #custom-c02-lab1-serve .sv-out { font-size: 13.5px; line-height: 1.45; padding: 10px 16px 12px; white-space: pre-wrap; }
+    #custom-c02-lab1-serve .sv-out code { white-space: pre-wrap; }
+    #custom-c02-lab1-serve .sv-meter { display: flex; flex-direction: column; gap: 6px; }
+    #custom-c02-lab1-serve .sv-mt { font: 600 15px/1.2 var(--f-mono); color: var(--ink-2); }
+    #custom-c02-lab1-serve .sv-mt code { font-size: 1em; }
+    #custom-c02-lab1-serve .sv-track { display: flex; height: 24px; border-radius: 7px; overflow: hidden; background: var(--surface); border: 1px solid var(--line); }
+    #custom-c02-lab1-serve .sv-track i { display: block; height: 100%; }
+    #custom-c02-lab1-serve .sv-b { width: 0; background: var(--model); }
+    #custom-c02-lab1-serve .sv-a { width: 0; background: var(--tool); margin-left: 2px; }
+    #custom-c02-lab1-serve .sv-k { width: 0; background: color-mix(in oklab, var(--state) 35%, var(--surface)); margin-left: 2px; }
+    #custom-c02-lab1-serve .sv-ml { display: flex; gap: 18px; font: 600 16px/1.2 var(--f-mono); }
+    #custom-c02-lab1-serve .sv-kl { margin-left: auto; color: var(--state); }
+    #custom-c02-lab1-serve .gotcha { grid-template-columns: 96px 1fr; padding: 10px 14px; font-size: 16px; line-height: 1.35; gap: 3px 12px; }
+    #custom-c02-lab1-serve .gotcha > b { line-height: 1.5; }
+  </style>
+  <aside class="notes">This is the last step of the refunds lab: the model goes behind an OpenAI-compatible endpoint. Option A serves the merged copy, which is right for one tenant, or for the GGUF path: GGUF is the llama.cpp file format for CPUs, laptops and phones. Option B keeps one bf16 base on the GPU and loads LoRA adapters by name. Here the shipping adapter stands for a second team's adapter, trained with the same recipe. vLLM defaults to max_loras 1 and max_lora_rank 16, so for two adapters we pass --max-loras 2. The VRAM bar is the real cost picture: vLLM takes 90% of the GPU by default; the weights are about 1.2 GB and two adapters about 80 MB, and the rest becomes KV cache for concurrent requests. Think of the base as a shared kitchen and each adapter as a recipe card. The client sends the same system prompt as training and enable_thinking false through chat_template_kwargs, so the prompt prefix matches what the model learned; without it you get garbage think text. A likely question: why does the adapter work in Python but not in vLLM? Under transformers v5 the module names can differ; compare logprobs of base and adapter in CI, and try --model-impl transformers (PEFT issue 3896). Next: before we leave Lab 1, how to port an old tutorial to this stack.</aside>
+</section>
+<script>
+(() => {
+  // VRAM meter on a 24 GB GPU with gpu_memory_utilization 0.9: 21.6 GB budget
+  let segs = [];
+  function render(slide, n, animate) {
+    segs = [...slide.querySelectorAll(".sv-track i")];
+    gsap.killTweensOf(segs);
+    const w = n >= 2 ? ["5.6%", "0.5%", "92.7%"] : ["0%", "0%", "0%"];
+    segs.forEach((s, i) => {
+      if (animate && n === 2) gsap.fromTo(s, { width: "0%" }, { width: w[i], duration: i === 2 ? 0.9 : 0.5, delay: 0.3 + i * 0.4, ease: "power2.out" });
+      else gsap.set(s, { width: w[i] });
+    });
+  }
+  Deck.register("custom-c02-lab1-serve", {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { gsap.killTweensOf(segs); }
+  });
+})();
+</script>

@@ -1,0 +1,61 @@
+<section class="slide tight" id="adk-c07-lab-core" data-tone="agent" data-title="Lab 7 setup: the shared refund agent">
+  <style>
+    #adk-c07-lab-core .co-grid { display: grid; grid-template-columns: 830px 1fr; gap: 32px; align-items: start; }
+    #adk-c07-lab-core .co-col { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+    #adk-c07-lab-core table.t { width: 100%; font-size: 20px; }
+    #adk-c07-lab-core table.t td, #adk-c07-lab-core table.t th { padding: 10px 12px; }
+    #adk-c07-lab-core table.t td:first-child { font-family: var(--f-mono); font-weight: 700; }
+    #adk-c07-lab-core table.t tr.hot td { background: var(--agent-soft); }
+    #adk-c07-lab-core pre.code .dim { opacity: .95; color: #9aa3cf; }
+    #adk-c07-lab-core .co-cap { position: relative; height: 64px; }
+    #adk-c07-lab-core .co-cap > p { position: absolute; inset: 0 0 auto 0; font-size: 21px; line-height: 1.4; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 7</span> Acme refund team · setup 2 of 2</div>
+  <h2 class="title">refund_core.py holds the one refund agent that every step imports</h2>
+  <div class="co-grid fill">
+    <div class="co-col">
+      <div class="code-wrap">
+        <div class="code-head">labs/adk/lab7-acme-refunds/refund_core.py · excerpt</div>
+        <pre class="code" data-lang="python" data-focus="1:2, 2:4-6, 3:8-15"><code>from google.adk.agents import LlmAgent
+# ORDERS (the table) and INSTRUCTION (the policy): see the file
+
+def lookup_order(order_id: str) -&gt; dict:
+    """Return days since purchase, amount (USD) and category."""
+    return ORDERS.get(order_id, {"error": f"unknown order {order_id}"})
+
+refund_agent = LlmAgent(
+    name="refund_agent",
+    model="gemini-3.5-flash",
+    description=("Checks refund eligibility for an order id "
+                 "under Acme policy."),
+    instruction=INSTRUCTION,   # 30/14-day windows, $500 cap
+    tools=[lookup_order],
+)</code></pre>
+      </div>
+    </div>
+    <div class="co-col">
+      <table class="t" data-step="1">
+        <thead><tr><th>order</th><th>category</th><th>days</th><th>amount</th></tr></thead>
+        <tbody>
+          <tr data-on="2:hot"><td>A-100</td><td>apparel</td><td>12</td><td>$79</td></tr>
+          <tr><td>A-200</td><td>electronics</td><td>45</td><td>$640</td></tr>
+          <tr><td>A-300</td><td>apparel</td><td>42</td><td>$120</td></tr>
+        </tbody>
+      </table>
+      <div class="code-wrap out" data-step="2">
+        <div class="code-head">output · illustrative</div>
+        <pre class="code" data-lang="out"><code><span class="dim">&gt;&gt;&gt; lookup_order("A-100")</span>
+<span class="ok">{'days_since_purchase': 12,
+ 'amount': 79.0, 'category': 'apparel'}</span>
+<span class="dim">&gt;&gt;&gt; lookup_order("A-999")</span>
+<span class="err">{'error': 'unknown order A-999'}</span></code></pre>
+      </div>
+      <div class="co-cap">
+        <p data-step="1" data-until="2">Three test orders. Every step of the lab uses these ids.</p>
+        <p data-step="2" data-until="3">An unknown id returns an error dict. The tool never raises.</p>
+        <p data-step="3">One agent definition. Steps 1, 2 and 5 import it.</p>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">This is the one file the whole lab shares. ORDERS holds three test orders, shown in the table: A-100 is a 79 dollar apparel order at day 12, A-200 is a 640 dollar electronics order at day 45, and A-300 is a 120 dollar apparel order at day 42; the full dictionary is in labs/adk/lab7-acme-refunds/refund_core.py. lookup_order is a plain function tool: its docstring becomes the tool description, and an unknown id returns an error dict instead of raising, so the model can recover. refund_agent carries the policy in its instruction: apparel 30 days, electronics 14 days, refunds over 500 dollars need a manager. The MCP server, the A2A server and the skill agent all import from this module, so you keep one copy. Think of refund_core as the kitchen, and MCP and A2A as two serving hatches. A likely question: "Why is the policy in the instruction and not in code?" It is here only to start; step 4 moves it into a Skill, and step 6 enforces the 500 dollar cap in code.</aside>
+</section>

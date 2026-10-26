@@ -1,0 +1,196 @@
+<section class="slide" id="adk-interview-c05-whiteboard-release-pipeline" data-tone="risk" data-title="Whiteboard: weekly release pipeline">
+  <style>
+    #adk-interview-c05-whiteboard-release-pipeline .wb-prompt { padding: 14px 18px; }
+    #adk-interview-c05-whiteboard-release-pipeline .wb-prompt p { font-size: 16.5px; line-height: 1.42; color: var(--ink); margin: 0; }
+    #adk-interview-c05-whiteboard-release-pipeline .wb-clar h4 { font-size: 17px; margin-bottom: 6px; }
+    #adk-interview-c05-whiteboard-release-pipeline .wb-clar ul { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
+    #adk-interview-c05-whiteboard-release-pipeline .wb-clar li { font-size: 16px; line-height: 1.35; color: var(--ink-2); }
+    #adk-interview-c05-whiteboard-release-pipeline .callout { font-size: 16px; line-height: 1.4; padding: 10px 14px; }
+    #adk-interview-c05-whiteboard-release-pipeline pre.code.xs { font-size: 13px; padding: 10px 14px 12px; }
+    #adk-interview-c05-whiteboard-release-pipeline .code-wrap .code-head { font-size: 13px; padding: 8px 14px; }
+    #adk-interview-c05-whiteboard-release-pipeline .wb-cites { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    #adk-interview-c05-whiteboard-release-pipeline .wb-cites .cite { white-space: nowrap; font-size: 13px; padding: 6px 10px 6px 8px; flex-direction: row; }
+    #adk-interview-c05-whiteboard-release-pipeline .wb-cites .cite.paper { gap: 8px; border: 1px solid var(--line); border-radius: 10px; }
+    #adk-interview-c05-whiteboard-release-pipeline #wb-pipe { isolation: isolate; }
+    #adk-interview-c05-whiteboard-release-pipeline .node { width: 160px; min-height: 104px; padding: 12px 14px; }
+    #adk-interview-c05-whiteboard-release-pipeline .node .nt { font-size: 17px; }
+    #adk-interview-c05-whiteboard-release-pipeline .node .ns { font-size: 13.5px; }
+    #adk-interview-c05-whiteboard-release-pipeline .node.fail { border-color: var(--risk); box-shadow: 0 0 0 5px color-mix(in oklab, var(--risk) 30%, transparent), 0 18px 50px -16px var(--risk); }
+    #adk-interview-c05-whiteboard-release-pipeline .node.pass { border-color: var(--state); box-shadow: 0 0 0 5px color-mix(in oklab, var(--state) 30%, transparent), 0 18px 50px -16px var(--state); }
+    #adk-interview-c05-whiteboard-release-pipeline .wb-tok { position: absolute; left: 0; top: 0; width: 20px; height: 20px; border-radius: 50%; z-index: -1;
+      opacity: 0; pointer-events: none; background: var(--tool); box-shadow: 0 0 0 5px var(--tool-soft), 0 0 18px var(--tool); }
+    #adk-interview-c05-whiteboard-release-pipeline .wb-arc { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; z-index: 0; }
+    #adk-interview-c05-whiteboard-release-pipeline .wb-sli { position: absolute; left: 440px; top: 384px; width: 460px; padding: 12px 16px; border-radius: 14px;
+      border: 1px solid var(--line-2); border-top: 3px solid var(--tool); background: var(--surface); display: grid; gap: 7px; }
+    #adk-interview-c05-whiteboard-release-pipeline .wb-sli h5 { margin: 0; font: 700 14px/1.2 var(--f-mono); color: var(--tool); text-transform: uppercase; letter-spacing: .05em; }
+    #adk-interview-c05-whiteboard-release-pipeline .wb-sli .lg { font: 600 14px/1.2 var(--f-mono); color: var(--ink-2); }
+    #adk-interview-c05-whiteboard-release-pipeline .wb-sli .m { display: grid; grid-template-columns: 186px 1fr 112px; gap: 10px; align-items: center; font-size: 16px; color: var(--ink-2); }
+    #adk-interview-c05-whiteboard-release-pipeline .wb-sli .m b { font: 700 14px/1 var(--f-mono); color: var(--ink); text-align: right; }
+    #adk-interview-c05-whiteboard-release-pipeline .wb-sli .m.bad b { color: var(--risk); }
+    #adk-interview-c05-whiteboard-release-pipeline .wb-sli .bar { height: 10px; position: relative; overflow: visible; }
+    #adk-interview-c05-whiteboard-release-pipeline .wb-sli .bar > i { width: var(--c); background: var(--tool); }
+    #adk-interview-c05-whiteboard-release-pipeline .wb-sli .m.bad .bar > i { background: var(--risk); }
+    #adk-interview-c05-whiteboard-release-pipeline .wb-sli .bar::after { content: ""; position: absolute; left: var(--b); top: -4px; width: 3px; height: 18px; background: var(--ink); border-radius: 2px; }
+    #adk-interview-c05-whiteboard-release-pipeline .wb-sli pre { margin: 2px 0 0; font: 500 13px/1.45 var(--f-mono); color: var(--ink-2); white-space: pre; }
+    #adk-interview-c05-whiteboard-release-pipeline .wb-nums { position: absolute; left: 0; top: 392px; width: 400px; display: grid; gap: 10px; }
+    #adk-interview-c05-whiteboard-release-pipeline .wb-nums .tag { white-space: normal; line-height: 1.35; font-size: 14.5px; padding: 7px 11px 7px 10px; justify-self: start; }
+  </style>
+  <div class="kicker"><span class="pill">Whiteboard</span> System design</div>
+  <h2 class="title">Ship the refund agent weekly without a silent regression</h2>
+  <div class="row fill" style="gap:32px;align-items:start">
+    <div class="stack" style="width:460px;flex:none;gap:14px">
+      <div class="panel k-risk wb-prompt">
+        <p>"The refund agent ships every week. Prompts, tools and the model change. Design the evaluation and release pipeline so a regression cannot reach customers unnoticed."</p>
+      </div>
+      <div class="wb-clar" data-step="1">
+        <h4>Clarify first</h4>
+        <ul>
+          <li>What is a failure: a wrong refund, a policy breach, bad tone?</li>
+          <li>How much traffic can a canary take?</li>
+          <li>Who labels the ground truth?</li>
+        </ul>
+      </div>
+      <div class="code-wrap term" data-step="2">
+        <div class="code-head">ci/eval_gate.sh · google-adk[eval]==2.13.0</div>
+        <pre class="code xs" data-lang="bash"><code>$ adk eval refund_agent \
+    refund_agent/refund.evalset.json \
+    --config_file_path=refund_agent/test_config.json
+$ echo $?
+1   # since 2.13.0; before, always 0: CI never blocked</code></pre>
+      </div>
+      <div class="callout insight" data-step="5"><span><b>Say this:</b> layered evals, a calibrated judge, an SLI-watched canary, failures become eval cases.</span></div>
+      <div class="wb-cites" data-step="2">
+        <a class="cite doc" href="https://www.langchain.com/blog/how-rippling-went-ai-native-across-every-product-in-6-months-with-deep-agents-and-langsmith" target="_blank" rel="noopener"><b>Case</b>&nbsp;Rippling evals</a>
+        <a class="cite doc" href="https://shopify.engineering/building-production-ready-agentic-systems" target="_blank" rel="noopener"><b>Case</b>&nbsp;Shopify judge</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2610.25852" target="_blank" rel="noopener"><b>arXiv 2610.25852</b>&nbsp;MASIF</a>
+        <a class="cite codelab" href="https://codelabs.developers.google.com/adk-eval/instructions" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;Evaluating Agents</a>
+      </div>
+    </div>
+
+    <div class="diagram" id="wb-pipe" style="width:900px;height:600px"
+         data-wires="pr>offline@1:rl; offline>integ@2:rl [exit 0]; integ>block@2:rl [exit 0]; block>canary@3:bt [exit 0]; canary>prod@3:lr [ramp]; prod>traces@4:lr:flow{risk}; traces>offline@4:tb:flow{state} [+1 eval case]">
+      <svg class="wb-arc" data-step="2" aria-hidden="true">
+        <path id="wb-rail" d="" fill="none" stroke="var(--risk)" stroke-width="2.4" stroke-dasharray="7 7"/>
+        <path id="wb-drop-o" d="" fill="none" stroke="var(--risk)" stroke-width="2.4" stroke-dasharray="7 7"/>
+        <path id="wb-drop-i" d="" fill="none" stroke="var(--risk)" stroke-width="2.4" stroke-dasharray="7 7"/>
+        <path id="wb-ride" d="" fill="none" stroke="none"/>
+        <path id="wb-head" d="" fill="var(--risk)"/>
+        <rect id="wb-rail-bg" x="0" y="0" width="0" height="0" rx="6" fill="var(--bg)" stroke="var(--risk)" stroke-width="1"/>
+        <text id="wb-rail-t" x="0" y="0" font-size="14" font-weight="700" text-anchor="middle" fill="var(--risk)" font-family="var(--f-mono)">any gate: exit 1 → PR</text>
+      </svg>
+      <div class="node n-human" id="pr" style="left:0;top:70px"><span class="nt">PR</span><span class="ns">prompt / tool / model</span></div>
+      <div class="node n-state" id="offline" style="left:240px;top:70px" data-step="1" data-fx="pop"><span class="nt">Offline evals</span><span class="ns">adk eval, every commit</span></div>
+      <div class="node n-state" id="integ" style="left:480px;top:70px" data-step="2" data-fx="pop"><span class="nt">Integration</span><span class="ns">sandbox + llm_backed user simulator</span></div>
+      <div class="node n-risk" id="block" style="left:720px;top:70px;width:180px" data-step="2" data-fx="pop"><span class="nt">Deploy-blocking</span><span class="ns">~10 must-pass cases</span></div>
+      <div class="node n-tool" id="canary" style="left:730px;top:256px" data-step="3" data-fx="pop"><span class="nt">Canary</span><span class="ns">traffic split, agent SLIs</span></div>
+      <div class="node n-agent" id="prod" style="left:480px;top:256px" data-step="3" data-fx="pop"><span class="nt">Production</span><span class="ns">refund_agent</span></div>
+      <div class="node n-state" id="traces" style="left:240px;top:256px" data-step="4" data-fx="pop"><span class="nt">Traces</span><span class="ns">failing session → evalset</span></div>
+
+      <div class="wb-nums">
+        <span class="tag t-agent" data-step="2">Rippling: 300-400 post-merge queries, about 10 deploy-blocking scenarios</span>
+        <span class="tag t-human" data-step="3">Shopify: judge κ 0.61 vs human 0.69. Calibrate the online judge first.</span>
+        <span class="tag t-risk" data-step="4">MASIF: 54.3% of successful multi-agent traces hide implicit failures. Read traces, not only outcomes.</span>
+      </div>
+
+      <div class="wb-sli" data-step="3">
+        <h5>Canary vs baseline · illustrative</h5>
+        <div class="lg">bar = canary · black tick = baseline · red = alert</div>
+        <div class="m">tokens / invocation<div class="bar" style="--c:52%;--b:50%"><i></i></div><b>2.6k vs 2.5k</b></div>
+        <div class="m bad">LLM calls / invocation<div class="bar" style="--c:78%;--b:50%"><i></i></div><b>3.1 vs 2.0</b></div>
+        <div class="m">tool error rate<div class="bar" style="--c:20%;--b:22%"><i></i></div><b>1.0 vs 1.1%</b></div>
+        <div class="m">online task success<div class="bar" style="--c:70%;--b:72%"><i></i></div><b>70 vs 72%</b></div>
+        <pre>$ gcloud run services update-traffic refund-agent \
+    --to-revisions=NEW=5    # PREV=100 rolls back</pre>
+      </div>
+
+      <div class="wb-tok" id="wb-tok-a"></div>
+      <div class="wb-tok" id="wb-tok-b"></div>
+    </div>
+  </div>
+  <aside class="notes">Give the candidate the prompt card and two minutes to ask clarifying questions before you build the reference answer. The reference follows Rippling's layers: offline evals on every commit, 300 to 400 integration queries after merge, about 10 deploy-blocking scenarios, then a canary and production. The dashed return rail means any gate that exits 1 sends the build back to the PR; in the animation the Integration gate fails. Step 2 is the key detail for ADK: since 2.13.0 adk eval exits 1 on a failed case, so CI really blocks; before 2.13.0 the exit code did not reflect failures. Integration runs the agent against sandbox backends plus the llm_backed user simulator with personas, which gives multi-turn cases. Deploy-blocking is a second, small evalset of must-pass cases. On the canary, shift a small share of traffic with gcloud run services update-traffic and compare agent SLIs with the baseline: tokens per invocation, LLM calls per invocation (a sudden rise is the loop signature, as in the illustrative 3.1 vs 2.0), tool error rate, and an online task-success score from a judge calibrated against humans, as Shopify did (κ 0.61 against a human 0.69). When a production session fails, save its turns as a new case in refund.evalset.json, or add a scenario with adk eval_set add_eval_case, so the same failure is caught offline next time. MASIF (arXiv 2610.25852) found implicit failures in 54.3% of successful multi-agent traces, which is why traces, not only outcomes, feed the evalset. Analogy: a car factory with test benches, a test track and a recall desk, where every recall becomes a new bench test. Next: a debug drill on the deploy step of this pipeline.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-interview-c05-whiteboard-release-pipeline";
+  let tl = null, ridePath = null;
+  const R = 10; // token radius
+
+  function bx(dg, id) {
+    const el = dg.querySelector("#" + id);
+    return { l: el.offsetLeft, t: el.offsetTop, r: el.offsetLeft + el.offsetWidth, b: el.offsetTop + el.offsetHeight, cx: el.offsetLeft + el.offsetWidth / 2, cy: el.offsetTop + el.offsetHeight / 2 };
+  }
+  // edge-to-edge segments: the token rides on the wire and never stops on box text
+  function seg(dg, a, b, side) {
+    const A = bx(dg, a), B = bx(dg, b), g = 12;
+    if (side === "rl") return [{ x: A.r + g, y: A.cy }, { x: B.l - g, y: B.cy }];
+    if (side === "lr") return [{ x: A.l - g, y: A.cy }, { x: B.r + g, y: B.cy }];
+    if (side === "bt") return [{ x: A.cx, y: A.b + g }, { x: B.cx, y: B.t - g }];
+    return [{ x: A.cx, y: A.t - g }, { x: B.cx, y: B.b + g }]; // tb
+  }
+  function buildRail(slide) {
+    const dg = slide.querySelector("#wb-pipe");
+    const P = bx(dg, "pr"), O = bx(dg, "offline"), I = bx(dg, "integ"), B = bx(dg, "block");
+    const y = 24;
+    slide.querySelector("#wb-rail").setAttribute("d", `M${B.cx},${B.t} V${y} H${P.cx} V${P.t - 9}`);
+    slide.querySelector("#wb-drop-o").setAttribute("d", `M${O.cx},${O.t} V${y}`);
+    slide.querySelector("#wb-drop-i").setAttribute("d", `M${I.cx},${I.t} V${y}`);
+    slide.querySelector("#wb-head").setAttribute("d", `M${P.cx - 7},${P.t - 11} L${P.cx + 7},${P.t - 11} L${P.cx},${P.t - 1} Z`);
+    ridePath = slide.querySelector("#wb-ride");
+    ridePath.setAttribute("d", `M${I.cx},${I.t - 12} V${y} H${P.cx} V${P.t - 12}`);
+    const t = slide.querySelector("#wb-rail-t"), bg = slide.querySelector("#wb-rail-bg");
+    const lx = (I.cx + B.cx) / 2;
+    t.setAttribute("x", lx); t.setAttribute("y", y + 5);
+    bg.setAttribute("x", lx - 98); bg.setAttribute("y", y - 12); bg.setAttribute("width", 196); bg.setAttribute("height", 24);
+  }
+  function reset(slide) {
+    if (tl) { tl.kill(); tl = null; }
+    slide.querySelectorAll("#wb-pipe .node").forEach((nd) => nd.classList.remove("fail", "pass"));
+    gsap.set(slide.querySelectorAll(".wb-tok"), { opacity: 0 });
+  }
+  const look = (col) => ({ background: `var(--${col})`, boxShadow: `0 0 0 5px var(--${col}-soft), 0 0 18px var(--${col})` });
+  function ride(t, tok, dg, a, b, side, col) {
+    const [p0, p1] = seg(dg, a, b, side);
+    t.set(tok, { x: p0.x - R, y: p0.y - R, opacity: 0, ...look(col) })
+      .to(tok, { opacity: 1, duration: 0.12 })
+      .to(tok, { x: p1.x - R, y: p1.y - R, duration: 0.6, ease: "power1.inOut" }, "<")
+      .to(tok, { opacity: 0, duration: 0.12 });
+  }
+  function run(slide, n) {
+    reset(slide);
+    buildRail(slide);
+    if (n < 1) return;
+    const dg = slide.querySelector("#wb-pipe");
+    const A = slide.querySelector("#wb-tok-a"), B = slide.querySelector("#wb-tok-b");
+    const integ = dg.querySelector("#integ"), block = dg.querySelector("#block");
+    tl = gsap.timeline({ repeat: -1, delay: 0.5, repeatDelay: 0.5 });
+    if (n === 1) { ride(tl, A, dg, "pr", "offline", "rl", "tool"); return; }
+    // 1) a failing build stops at the Integration gate and rides the rail back to the PR
+    ride(tl, A, dg, "pr", "offline", "rl", "tool");
+    ride(tl, A, dg, "offline", "integ", "rl", "tool");
+    tl.call(() => integ.classList.add("fail"));
+    const L = ridePath.getTotalLength(), pr = { t: 0 };
+    tl.set(A, { opacity: 1, ...look("risk") })
+      .to(pr, { t: 1, duration: 1.3, ease: "power1.inOut", onUpdate: () => {
+        const pt = ridePath.getPointAtLength(pr.t * L); gsap.set(A, { x: pt.x - R, y: pt.y - R });
+      } })
+      .to(A, { opacity: 0, duration: 0.15 })
+      .call(() => integ.classList.remove("fail"))
+      .call(() => { pr.t = 0; });
+    // 2) the fixed build passes every gate
+    ride(tl, B, dg, "pr", "offline", "rl", "state");
+    ride(tl, B, dg, "offline", "integ", "rl", "state");
+    ride(tl, B, dg, "integ", "block", "rl", "state");
+    tl.call(() => block.classList.add("pass"));
+    if (n >= 3) { ride(tl, B, dg, "block", "canary", "bt", "state"); ride(tl, B, dg, "canary", "prod", "lr", "state"); }
+    tl.call(() => block.classList.remove("pass"));
+    // 3) a failing production session becomes a new offline eval case
+    if (n >= 4) { ride(tl, A, dg, "prod", "traces", "lr", "risk"); ride(tl, A, dg, "traces", "offline", "tb", "state"); }
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { run(slide, step); },
+    step(slide, n) { run(slide, n); },
+    leave(slide) { reset(slide); }
+  });
+})();
+</script>

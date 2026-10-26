@@ -1,0 +1,271 @@
+<section class="slide" id="rag-interview-c04-qa-graph-memory" data-tone="model" data-title="Q&amp;A: graphs and memory">
+  <style>
+    #rag-interview-c04-qa-graph-memory .gm-lay { display: grid; grid-template-columns: 590px 770px; gap: 32px; align-items: start; }
+    #rag-interview-c04-qa-graph-memory .qa { gap: 10px; transition: opacity .4s; }
+    #rag-interview-c04-qa-graph-memory .qa.off { opacity: .4; }
+    #rag-interview-c04-qa-graph-memory .qa .q { font-size: 21px; }
+    #rag-interview-c04-qa-graph-memory .qa .a { font-size: 19px; line-height: 1.42; padding: 11px 16px; }
+    #rag-interview-c04-qa-graph-memory .gm-slot { display: grid; }
+    #rag-interview-c04-qa-graph-memory .gm-slot > * { grid-area: 1 / 1; align-self: start; min-width: 0; }
+    #rag-interview-c04-qa-graph-memory pre.code { font-size: 14.5px; line-height: 1.5; padding: 10px 16px 12px; }
+    #rag-interview-c04-qa-graph-memory pre.code.big { font-size: 17px; }
+    #rag-interview-c04-qa-graph-memory .code-head { padding: 8px 14px; font-size: 13.5px; }
+    #rag-interview-c04-qa-graph-memory .paper { padding: 12px 16px; gap: 6px; }
+    #rag-interview-c04-qa-graph-memory .paper h4 { font-size: 17px; margin: 0; }
+    #rag-interview-c04-qa-graph-memory .paper .find { font-size: 17px; }
+    #rag-interview-c04-qa-graph-memory .cite { font-size: 14px; padding: 6px 12px 6px 8px; }
+    #rag-interview-c04-qa-graph-memory svg.gm-viz { display: block; width: 770px; height: 277px; }
+    #rag-interview-c04-qa-graph-memory .gm-right { min-width: 0; }
+    #rag-interview-c04-qa-graph-memory .cites { gap: 8px; }
+    #rag-interview-c04-qa-graph-memory .cite.paper { display: inline-flex; flex-direction: row; align-items: center; gap: 8px; border-radius: 10px; background: color-mix(in oklab, var(--surface) 60%, transparent); border: 1px solid var(--line); }
+    #rag-interview-c04-qa-graph-memory .cite.paper b { display: inline; }
+    #rag-interview-c04-qa-graph-memory .gm-hint { height: 277px; display: grid; place-items: center; font: 600 22px var(--f-mono); color: var(--muted); border: 2px dashed var(--line-2); border-radius: 18px; }
+  </style>
+  <div class="kicker">Interview · graph and memory RAG</div>
+  <h2 class="title">Graphs and memory must beat a strong naive-RAG baseline first</h2>
+  <div class="gm-lay fill">
+    <div class="stack" style="gap:18px">
+      <div class="qa" data-on="2:off">
+        <div class="q">When is GraphRAG worth its indexing cost?</div>
+        <div class="a" data-step="1">For corpus-wide questions over a <b>stable</b> corpus. Even then, let the graph <b>locate</b> passages and answer from source text: <b>57% lower cost</b>, won 93 of 120 (EffiRAG).</div>
+      </div>
+      <div class="qa" data-on="3:off">
+        <div class="q">The user says "I moved to Berlin." Design the memory update.</div>
+        <div class="a" data-step="2">Scope it to this user and key. Close the old row with <code>valid_to</code>, open the new one with <code>valid_from</code>. Plain RAG served superseded facts <b>36–38%</b> of the time.</div>
+      </div>
+      <div class="qa">
+        <div class="q">Do you need a complex agent-memory system?</div>
+        <div class="a" data-step="3">Not first. Dense retrieval + rerank over <b>raw chat turns</b> ranked first in <b>6 of 7</b> memory-benchmark settings (Raw-RAG).</div>
+      </div>
+    </div>
+
+    <div class="stack gm-right" style="gap:14px">
+      <div class="gm-slot">
+        <div class="gm-hint" data-until="1">answer aloud, then click</div>
+        <svg class="gm-viz" id="gm-svg" viewBox="0 0 750 270" aria-label="Figure that changes per answer: graph locate and cost bars, memory validity timeline, memory benchmark bars"></svg>
+      </div>
+      <div class="gm-slot">
+        <div class="stack" style="gap:12px" data-step="1" data-until="2">
+          <div class="code-wrap">
+            <div class="code-head">locate.py · lightrag-hku 1.5.7 · inside async main(), run with asyncio.run(main())</div>
+            <pre class="code" data-lang="python"><code>from lightrag import LightRAG, QueryParam
+# gemini_llm, gemini_emb wrap lightrag.llm.gemini; texts, paths, q: your data
+rag = LightRAG(working_dir="./claims_kg", llm_model_func=gemini_llm,
+               llm_model_name="gemini-3.8-flash", embedding_func=gemini_emb)
+await rag.initialize_storages()                       # required
+await rag.ainsert(texts, file_paths=paths)            # paths = citation targets
+data = await rag.aquery_data(q, param=QueryParam(mode="mix"))  # no LLM answer</code></pre>
+          </div>
+          <div class="code-wrap out">
+            <div class="code-head">output · illustrative · a source file to cite, not an entity summary</div>
+            <pre class="code big" data-lang="bash"><code><span class="ok">ref 1 -> policy/warranty-guidelines.txt</span></code></pre>
+          </div>
+          <div class="cites">
+            <a class="cite paper" href="https://arxiv.org/abs/2609.18099" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2609.18099 EffiRAG</a>
+            <a class="cite repo" href="https://github.com/HKUDS/LightRAG/tree/v1.5.7" target="_blank" rel="noopener"><b>Repo</b>&nbsp;LightRAG v1.5.7</a>
+          </div>
+        </div>
+        <div class="stack" style="gap:12px" data-step="2" data-until="3">
+          <div class="code-wrap">
+            <div class="code-head">memory.py · sqlite3 · illustrative</div>
+            <pre class="code" data-lang="python"><code>def remember(db, user, key, value, now):        # "I moved to Berlin"
+    db.execute("UPDATE memory SET valid_to=? WHERE user=? AND key=?"
+               " AND valid_to IS NULL", (now, user, key))   # close Paris
+    db.execute("INSERT INTO memory VALUES (?,?,?,?,NULL)",
+               (user, key, value, now))                     # open Berlin
+# read as of t: valid_from &lt;= t AND (valid_to IS NULL OR t &lt; valid_to)</code></pre>
+          </div>
+          <div class="cites">
+            <a class="cite paper" href="https://arxiv.org/abs/2608.20685" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2608.20685 Temporal validity</a>
+          </div>
+        </div>
+        <div class="stack" style="gap:12px" data-step="3">
+          <div class="paper">
+            <div class="pid">arXiv:2610.30755 <span>Oct 2026</span></div>
+            <h4>Is Complex Agentic Memory Always Needed? Naive RAG Is Stronger Than We Thought</h4>
+            <div class="find">Raw-RAG won <b>6 of 7</b> settings, by +0.13 to +5.53 points. Atomic-fact extraction cost <b>-19.62</b>; removing the reranker cost <b>-3.92</b>.</div>
+            <div class="so">Ship dense retrieval + a cross-encoder reranker over raw turns before you adopt a memory framework.</div>
+          </div>
+          <div class="cites">
+            <a class="cite paper" href="https://arxiv.org/abs/2610.30755" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.30755 Raw-RAG</a>
+            <a class="cite paper" href="https://arxiv.org/abs/2608.12888" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2608.12888 ReFind</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    Ask each question and let the candidate answer before you reveal the model answer; the answered question dims when you move on. Q1 tests cost judgement: a strong candidate prices the graph and uses it to locate passages, then answers and cites from the source text, which is what LightRAG aquery_data in mix mode gives you (it returns entities, relations, chunks and references with no LLM answer). gemini_llm and gemini_emb are thin wrappers around lightrag.llm.gemini, and LightRAG reads GEMINI_API_KEY, not GOOGLE_API_KEY. Extra numbers if asked: LLM-free traversal gave over 100x lower latency and over 99% lower cost than GraphRAG Global and DRIFT (LiteRAG, 2609.10239); and an attacker who edits 0.016% of GraphRAG's auxiliary structures (community summaries and scores) reached 88-94% attack success (2610.02373), so sign or verify summaries after the index build. Q2 checks user scoping and temporal invalidation, not overwrite: close the Paris row with valid_to, keep it, and "where did I live last year?" still answers Paris. Analogy: valid_from and valid_to are like the stamps in a passport; you do not erase the old address, you close it. Keeping stale facts live is harmful: stale documents flipped 30% (Llama) and 37% (Qwen) of correct answers (2609.31342). Q3 tests whether the candidate builds the strong simple baseline first. The bars show one of the 7 settings, LoCoMo (a long chat-memory QA benchmark) with a GPT-4.1-mini reader. ReFind: agent-controlled BM25 over raw chat beat structured memory, 58.2 vs 53.2 on MemoryAgentBench. Analogy for Q1: a graph is a map of the library, but you still read the book before you quote it. Likely follow-up: "How do you evaluate memory?" Add knowledge-update and stale-fact questions to the golden set and score them on their own. Next: the deep-research whiteboard for the Acme Outfitters claims team.
+  </aside>
+</section>
+<script>
+(() => {
+  const ID = "rag-interview-c04-qa-graph-memory";
+  const NS = "http://www.w3.org/2000/svg";
+  let S = null, tls = [];
+  const HALO = { paintOrder: "stroke", stroke: "var(--bg)", strokeWidth: "5px", strokeLinejoin: "round" };
+  const mk = (p, tag, a = {}, st = {}) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); Object.assign(e.style, st); p.appendChild(e); return e; };
+  const txt = (p, x, y, s, st = {}, anchor = "middle") => { const t = mk(p, "text", { x, y, "text-anchor": anchor }, Object.assign({ font: "600 15px var(--f-mono)", fill: "var(--ink-2)" }, HALO, st)); t.textContent = s; return t; };
+
+  function build(svg) {
+    svg.innerHTML = "";
+    const defs = mk(svg, "defs");
+    ["state", "human", "ink-2"].forEach((t) => {
+      const m = mk(defs, "marker", { id: `${ID}-a-${t}`, viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto-start-reverse" });
+      mk(m, "path", { d: "M0 0 L10 5 L0 10 z" }, { fill: `var(--${t})` });
+    });
+    const s = {};
+
+    /* scene A: knowledge graph -> source files, cost bars */
+    const A = s.A = mk(svg, "g");
+    // [label, x, y, label above?]
+    const N = [
+      ["Claim 041", 60, 62, true], ["Trailhead 45", 230, 40, true], ["Claim 057", 400, 62, true],
+      ["M. Lopez", 130, 140, false], ["warranty rule", 230, 140, false]
+    ];
+    const E = [[0, 1], [1, 2], [0, 3], [3, 4], [1, 4], [2, 4]];
+    s.edges = E.map(([a, b]) => mk(A, "line", { x1: N[a][1], y1: N[a][2], x2: N[b][1], y2: N[b][2] }, { stroke: "var(--line-2)", strokeWidth: 2 }));
+    s.nodes = N.map(([label, x, y, up]) => {
+      const g = mk(A, "g");
+      g._c = mk(g, "circle", { cx: x, cy: y, r: 14 }, { fill: "color-mix(in oklab, var(--agent) 14%, var(--bg))", stroke: "var(--agent)", strokeWidth: 2 });
+      g._t = txt(g, x, up ? y - 22 : y + 34, label);
+      return g;
+    });
+    s.hot = [0, 2, 4];
+    const P = [["claim-041.txt", 0], ["warranty.txt", 170], ["claim-057.txt", 340]];
+    s.pass = P.map(([label, x]) => {
+      const g = mk(A, "g");
+      mk(g, "rect", { x, y: 206, width: 120, height: 40, rx: 8 }, { fill: "color-mix(in oklab, var(--state) 14%, var(--bg))", stroke: "var(--state)", strokeWidth: 2 });
+      txt(g, x + 60, 231, label, { font: "600 14px var(--f-mono)", fill: "var(--state)" });
+      return g;
+    });
+    s.drops = [[60, 78], [230, 180], [400, 78]].map(([x, y]) =>
+      mk(A, "path", { d: `M${x} ${y} L${x} 200`, fill: "none" }, { stroke: "var(--state)", strokeWidth: 2.4, markerEnd: `url(#${ID}-a-state)` }));
+    s.lbl = txt(A, 230, 266, "locate with the graph, answer from the files", { font: "600 14px var(--f-mono)", fill: "var(--state)" });
+    // cost bars (relative total cost, EffiRAG)
+    txt(A, 490, 26, "relative total cost (EffiRAG)", { font: "600 15px var(--f-mono)", fill: "var(--ink-2)" }, "start");
+    txt(A, 490, 66, "LightRAG-hybrid", { font: "500 14px var(--f-mono)", fill: "var(--muted)" }, "start");
+    s.barA = mk(A, "rect", { x: 490, y: 74, width: 0, height: 30, rx: 6 }, { fill: "var(--model)", opacity: 0.85 });
+    s.barAT = txt(A, 496, 95, "100%", { font: "700 15px var(--f-mono)", fill: "#fff", stroke: "none" }, "start");
+    txt(A, 490, 136, "graph locates, text answers", { font: "500 14px var(--f-mono)", fill: "var(--muted)" }, "start");
+    s.barB = mk(A, "rect", { x: 490, y: 144, width: 0, height: 30, rx: 6 }, { fill: "var(--state)" });
+    s.barBT = txt(A, 496, 165, "43%", { font: "700 15px var(--f-mono)", fill: "#fff", stroke: "none" }, "start");
+    s.barTxt = txt(A, 490, 210, "-57% cost", { font: "700 18px var(--f-mono)", fill: "var(--state)" }, "start");
+    s.win = txt(A, 490, 238, "won 93 of 120 comparisons", { font: "600 14px var(--f-mono)", fill: "var(--ink-2)" }, "start");
+
+    /* scene B: validity timeline, one row for key "city" */
+    const B = s.B = mk(svg, "g");
+    const X = (yr) => 40 + (yr - 2019) * 76; // 2019..2027
+    const T = 2026 + 8 / 12;                 // 2026-09
+    mk(B, "line", { x1: X(2019), y1: 150, x2: X(2027.4), y2: 150 }, { stroke: "var(--line-2)", strokeWidth: 2 });
+    for (let y = 2019; y <= 2026; y++) { mk(B, "line", { x1: X(y), y1: 145, x2: X(y), y2: 155 }, { stroke: "var(--muted)", strokeWidth: 1.5 }); txt(B, X(y), 174, String(y), { font: "500 13.5px var(--f-mono)", fill: "var(--muted)" }); }
+    txt(B, 0, 20, "user u_481 · key: city", { font: "600 15px var(--f-mono)", fill: "var(--ink-2)" }, "start");
+    s.paris = mk(B, "rect", { x: X(2019.3), y: 70, width: X(T) - X(2019.3), height: 42, rx: 8 }, { fill: "color-mix(in oklab, var(--state) 16%, var(--bg))", stroke: "var(--state)", strokeWidth: 2 });
+    s.parisT = txt(B, X(2022.5), 97, "Paris", { font: "700 17px var(--f-display)", fill: "var(--ink)" });
+    s.tick = mk(B, "line", { x1: X(T), y1: 50, x2: X(T), y2: 158 }, { stroke: "var(--risk)", strokeWidth: 2, strokeDasharray: "5 4" });
+    s.tickT = txt(B, X(T), 194, "2026-09", { font: "700 14px var(--f-mono)", fill: "var(--risk)" });
+    s.close = txt(B, X(T) - 8, 44, "valid_to", { font: "600 14px var(--f-mono)", fill: "var(--risk)" }, "end");
+    s.berlin = mk(B, "rect", { x: X(T), y: 70, width: 730 - X(T), height: 42, rx: 8 }, { fill: "color-mix(in oklab, var(--state) 30%, var(--bg))", stroke: "var(--state)", strokeWidth: 2.5 });
+    s.berlinT = mk(B, "g");
+    txt(s.berlinT, (X(T) + 730) / 2, 97, "Berlin", { font: "700 17px var(--f-display)", fill: "var(--ink)" });
+    txt(s.berlinT, X(T) + 8, 44, "valid_from", { font: "600 14px var(--f-mono)", fill: "var(--state)" }, "start");
+    s.qcard = mk(B, "g");
+    mk(s.qcard, "rect", { x: 70, y: 216, width: 340, height: 42, rx: 21 }, { fill: "color-mix(in oklab, var(--human) 12%, var(--bg))", stroke: "var(--human)", strokeWidth: 2 });
+    txt(s.qcard, 240, 243, "\"where did I live last year?\"", { font: "600 15px var(--f-mono)", fill: "var(--human)", stroke: "none" });
+    s.qarrow = mk(B, "path", { d: `M410 237 C ${X(2025.5)} 237, ${X(2025.5)} 180, ${X(2025.5)} 116`, fill: "none" }, { stroke: "var(--human)", strokeWidth: 2.4, markerEnd: `url(#${ID}-a-human)` });
+    s.hit = txt(B, X(2025.5) + 14, 236, "2025 -> Paris", { font: "700 15px var(--f-mono)", fill: "var(--human)" }, "start");
+
+    /* scene C: one of the 7 settings */
+    const C = s.C = mk(svg, "g");
+    txt(C, 0, 22, "1 of the 7 settings: LoCoMo (long chat-memory QA)", { font: "600 15px var(--f-mono)", fill: "var(--ink-2)" }, "start");
+    txt(C, 0, 44, "GPT-4.1-mini reader · accuracy", { font: "500 14px var(--f-mono)", fill: "var(--muted)" }, "start");
+    const rows = [["Raw-RAG (dense + rerank)", 93.70, "var(--state)"], ["MemMachine", 91.69, "var(--agent)"], ["Mem0", 62.92, "var(--muted)"]];
+    s.rows = rows.map(([name, v, c], i) => {
+      const y = 70 + i * 62;
+      txt(C, 0, y + 24, name, { font: "500 15px var(--f-mono)", fill: "var(--ink-2)" }, "start");
+      const r = mk(C, "rect", { x: 250, y: y + 2, width: 0, height: 34, rx: 6 }, { fill: c });
+      const t = txt(C, 256, y + 25, "", { font: "700 16px var(--f-mono)", fill: "var(--ink)" }, "start");
+      return { r, t, v, w: (v / 100) * 420 };
+    });
+    return s;
+  }
+
+  const kill = () => { tls.forEach((t) => t.kill()); tls = []; };
+
+  function render(n, animate) {
+    if (!S) return;
+    kill();
+    const D = animate ? 1 : 0;
+    const vis = (el, on) => gsap.to(el, { autoAlpha: on ? 1 : 0, duration: 0.35 * D });
+    vis(S.A, n === 1); vis(S.B, n === 2); vis(S.C, n >= 3);
+
+    /* scene A: graph, hit nodes, drops to files, bars grow from 0 */
+    if (n === 1) {
+      S.nodes.forEach((g, i) => {
+        const h = S.hot.includes(i);
+        gsap.set(g._c, { attr: { r: h ? 17 : 14 } });
+        g._c.style.fill = h ? "var(--model)" : "color-mix(in oklab, var(--agent) 14%, var(--bg))";
+        g._c.style.stroke = h ? "var(--model)" : "var(--agent)";
+        gsap.set(g, { opacity: h ? 1 : 0.55 });
+      });
+      S.drops.forEach((p) => { const L = p.getTotalLength(); gsap.set(p, { strokeDasharray: L, strokeDashoffset: 0, opacity: 1 }); });
+      gsap.set([...S.pass, S.lbl, S.win, S.barTxt, S.barAT, S.barBT], { autoAlpha: 1 });
+      gsap.set(S.barA, { attr: { width: 240 } }); gsap.set(S.barB, { attr: { width: 240 * 0.43 } });
+      if (animate) {
+        const tl = gsap.timeline();
+        tl.from([...S.edges, ...S.nodes], { opacity: 0, duration: 0.3, stagger: 0.05 }, 0.2);
+        S.hot.forEach((i, k) => tl.from(S.nodes[i]._c, { attr: { r: 6 }, duration: 0.35, ease: "back.out(3)" }, 0.8 + k * 0.15));
+        S.drops.forEach((p, k) => tl.fromTo(p, { strokeDashoffset: p.getTotalLength() }, { strokeDashoffset: 0, duration: 0.5, ease: "power2.out" }, 1.3 + k * 0.15));
+        tl.from(S.pass, { autoAlpha: 0, y: 10, duration: 0.35, stagger: 0.12 }, 1.6);
+        tl.from(S.lbl, { autoAlpha: 0, duration: 0.3 }, 2.0);
+        tl.from([S.barA, S.barB], { attr: { width: 0 }, duration: 0.9, stagger: 0.2, ease: "power3.out" }, 2.2);
+        tl.from([S.barAT, S.barBT], { autoAlpha: 0, duration: 0.3 }, 2.9);
+        tl.from([S.barTxt, S.win], { autoAlpha: 0, duration: 0.3, stagger: 0.2 }, 3.1);
+        tls.push(tl);
+      }
+    }
+
+    /* scene B */
+    if (n === 2) {
+      gsap.set(S.paris, { opacity: 0.55 }); S.paris.style.strokeDasharray = "6 5";
+      gsap.set(S.parisT, { opacity: 0.75 });
+      gsap.set([S.tick, S.tickT, S.close, S.berlin, S.berlinT, S.qcard, S.hit], { autoAlpha: 1 });
+      const L = S.qarrow.getTotalLength(); gsap.set(S.qarrow, { strokeDasharray: L, strokeDashoffset: 0 });
+      if (animate) {
+        const tl = gsap.timeline();
+        tl.from([S.tick, S.tickT], { autoAlpha: 0, duration: 0.3 }, 0.3)
+          .fromTo(S.paris, { opacity: 1 }, { opacity: 0.55, duration: 0.5 }, 0.6)
+          .from(S.close, { autoAlpha: 0, y: -8, duration: 0.3 }, 0.6)
+          .from(S.berlin, { attr: { width: 0 }, duration: 0.6, ease: "power2.out" }, 1.0)
+          .from(S.berlinT, { autoAlpha: 0, duration: 0.3 }, 1.4)
+          .from(S.qcard, { autoAlpha: 0, y: 14, duration: 0.4 }, 1.8)
+          .fromTo(S.qarrow, { strokeDashoffset: L }, { strokeDashoffset: 0, duration: 0.6 }, 2.2)
+          .from(S.hit, { autoAlpha: 0, duration: 0.3 }, 2.7)
+          .to(S.paris, { opacity: 0.9, duration: 0.25, yoyo: true, repeat: 1 }, 2.7);
+        tls.push(tl);
+      }
+    }
+
+    /* scene C */
+    if (n >= 3) {
+      S.rows.forEach((r) => { gsap.set(r.r, { attr: { width: r.w } }); r.t.setAttribute("x", 256 + r.w); r.t.textContent = r.v.toFixed(2); });
+      if (animate) {
+        const tl = gsap.timeline();
+        S.rows.forEach((r, i) => {
+          const o = { w: 0 };
+          tl.fromTo(o, { w: 0 }, { w: r.w, duration: 0.9, ease: "power2.out", onUpdate: () => {
+            r.r.setAttribute("width", o.w); r.t.setAttribute("x", 256 + o.w); r.t.textContent = ((o.w / r.w) * r.v).toFixed(2);
+          } }, 0.2 + i * 0.2);
+        });
+        tls.push(tl);
+      }
+    }
+  }
+
+  Deck.register(ID, {
+    enter(slide, n) { S = build(slide.querySelector("#gm-svg")); render(n || 0, false); },
+    step(slide, n, animate) { render(n, animate); },
+    leave() { kill(); if (S) gsap.killTweensOf([S.A, S.B, S.C]); }
+  });
+})();
+</script>

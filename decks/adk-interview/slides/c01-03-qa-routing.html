@@ -1,0 +1,226 @@
+<section class="slide" id="adk-interview-c01-qa-routing" data-tone="agent" data-title="Q&amp;A: routes and joins">
+  <style>
+    #adk-interview-c01-qa-routing .lay { display: grid; grid-template-columns: 600px 1fr; gap: 36px; align-items: start; }
+    #adk-interview-c01-qa-routing .qa { gap: 8px; padding-left: 12px; border-left: 4px solid transparent; border-radius: 4px; transition: opacity .35s, border-color .35s; }
+    #adk-interview-c01-qa-routing .qa.cur:not(.past) { border-left-color: var(--agent); }
+    #adk-interview-c01-qa-routing .qa.past { opacity: .5; }
+    #adk-interview-c01-qa-routing .qa .q { font-size: 20px; line-height: 1.3; }
+    #adk-interview-c01-qa-routing .qa .a { font-size: 19px; line-height: 1.34; padding: 8px 16px; }
+    #adk-interview-c01-qa-routing .qa .a b { display: block; }
+    #adk-interview-c01-qa-routing .qa .a .ev { display: block; margin-top: 3px; font-size: 16px; line-height: 1.35; color: var(--muted); }
+    #adk-interview-c01-qa-routing .qa .a .ev.fix { color: var(--ink-2); }
+    #adk-interview-c01-qa-routing .swap { display: grid; }
+    #adk-interview-c01-qa-routing .swap > * { grid-area: 1 / 1; align-self: start; }
+    #adk-interview-c01-qa-routing pre.code { font-size: 16px; line-height: 1.45; padding: 10px 18px 12px; }
+    #adk-interview-c01-qa-routing pre.code.big { font-size: 17px; }
+    #adk-interview-c01-qa-routing .code-head { padding: 7px 14px; font-size: 14px; }
+    #adk-interview-c01-qa-routing .callout { font-size: 18px; }
+    #adk-interview-c01-qa-routing svg.viz { display: block; width: 720px; height: 250px; overflow: visible; }
+    #adk-interview-c01-qa-routing .cites { display: flex; gap: 8px; flex-wrap: nowrap; align-items: center; flex: none; }
+    #adk-interview-c01-qa-routing .cites .cite { font-size: 14px; padding: 5px 11px 5px 8px; white-space: nowrap; flex: none; display: inline-flex; flex-direction: row; align-items: center; gap: 8px; height: auto; }
+  </style>
+  <div class="kicker">Interview · routes and joins · Q&amp;A 2 of 3</div>
+  <h2 class="title">An unmatched route ends the branch with only a log line</h2>
+  <div class="lay fill">
+    <div class="stack" style="gap:14px">
+      <div class="qa" data-on="1:cur 3:past">
+        <div class="q">How do you branch in an ADK 2.0 Workflow, and what happens to an unmatched route?</div>
+        <div class="a" data-step="1" data-fx="up"><b>A function yields Event(route=...); a dict edge maps routes to nodes.</b><span class="ev">An unmatched route ends the branch with a log warning only: no error, no reply.</span><span class="ev fix" data-step="2" data-fx="fade">Fix: a <code>Literal</code> output_schema, and <code>DEFAULT_ROUTE</code>, the edge taken when no other route matches.</span></div>
+      </div>
+      <div class="qa" data-on="3:cur 4:past">
+        <div class="q">Why let the LLM classify but let code make the routing decision?</div>
+        <div class="a" data-step="3" data-fx="up"><b>A plain function is unit-testable without a model call.</b><span class="ev">"p1 always pages on-call" stays deterministic. Routing and review calls use 32-44% of multi-agent tokens (2610.21411).</span></div>
+      </div>
+      <div class="qa" data-on="4:cur">
+        <div class="q">Two branches both end with an output. What happens?</div>
+        <div class="a" data-step="4" data-fx="up"><b>The run fails: a workflow allows one terminal output.</b><span class="ev">A terminal node has no outgoing edge.</span><span class="ev fix" data-step="5" data-fx="fade">Fix: side branches emit <code>Event(message=...)</code>, or add a <code>JoinNode</code> before one final node.</span></div>
+      </div>
+    </div>
+
+    <div class="stack" style="gap:14px">
+      <svg class="viz" id="acr-svg" viewBox="0 0 720 250" aria-label="Triage graph: routes, the DEFAULT edge, a list route, then two terminal branches"></svg>
+      <div class="swap">
+        <div class="callout tip" data-until="1">Answer before you click: name the API, the silent failure, and the fix.</div>
+        <div class="code-wrap out" data-step="1" data-until="2">
+          <div class="code-head">adk run ticket_triage · log (before)</div>
+          <pre class="code" data-lang="none"><code><span class="err">WARNING</span> Node 'route_ticket' has conditional/DEFAULT edges
+  but none were matched by the emitted route(s): ['Billing'].
+  <span class="err">The branch will end.</span>
+<span class="dim"># exit 0, no reply, no exception</span></code></pre>
+        </div>
+        <div class="code-wrap good" data-step="2" data-until="3">
+          <div class="code-head">ticket_triage/agent.py · edges (after)</div>
+          <pre class="code big" data-lang="python"><code>from google.adk.workflow import DEFAULT_ROUTE
+root_agent = Workflow(name="ticket_triage", edges=[
+  ("START", intake, classify, route_ticket),
+  (route_ticket, {"billing": billing,
+                  "page": page_oncall,
+                  "how_to": how_to,
+                  DEFAULT_ROUTE: human_queue}),
+])</code></pre>
+        </div>
+        <div class="code-wrap" data-step="3" data-until="4">
+          <div class="code-head">ticket_triage/agent.py · the LLM labels, code routes</div>
+          <pre class="code" data-lang="python" data-focus="3:6-11"><code>class Triage(BaseModel):
+  labels: list[Literal["billing", "outage", "how_to", "other"]]
+  priority: Literal["p1", "p2", "p3"]
+classify = Agent(name="classify", output_schema=Triage,
+                 instruction="Classify this ticket: {ticket}")
+def route_ticket(node_input: Triage):
+  routes = [l for l in node_input.labels if l != "outage"]
+  if "outage" in node_input.labels or node_input.priority == "p1":
+    routes.append("page")      # outage or any p1 pages on-call
+  # "other" has no edge: DEFAULT catches it only if nothing matched
+  yield Event(output=node_input.model_dump(), route=routes)</code></pre>
+        </div>
+        <div class="code-wrap out" data-step="4" data-until="5">
+          <div class="code-head">adk run ticket_triage · error (before)</div>
+          <pre class="code" data-lang="none"><code><span class="err">WorkflowConfigurationError</span>: Workflow ticket_triage:
+  multiple terminal nodes produced output (2).
+  A workflow must have at most one terminal output.
+<span class="dim"># page_oncall: yield Event(output="PAGED on-call.")</span></code></pre>
+        </div>
+        <div class="code-wrap good" data-step="5">
+          <div class="code-head">page_oncall (after)</div>
+          <pre class="code big" data-lang="python"><code>def page_oncall(node_input: dict):
+  yield Event(message="PAGED on-call.")   # a message, not an output</code></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="cites">
+    <a class="cite doc" href="https://adk.dev/graphs/routes/" target="_blank" rel="noopener"><b>ADK docs</b>&nbsp;Graph routes</a>
+    <a class="cite codelab" href="https://codelabs.developers.google.com/adk2/instructions" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;ADK 2 Orchestration: Graph, Collaborative &amp; Dynamic Workflows</a>
+    <a class="cite repo" href="https://github.com/google/adk-python/tree/v2.13.0/contributing/samples/workflows" target="_blank" rel="noopener"><b>adk-python v2.13.0</b>&nbsp;samples/workflows</a>
+    <a class="cite paper" href="https://arxiv.org/abs/2610.21411" target="_blank" rel="noopener"><b>arXiv 2610.21411</b>&nbsp;Jev-LiteMAS</a>
+  </div>
+  <aside class="notes">
+    Read each question, pause, and let the candidate answer before you reveal the model answer. Q1 is the silent-failure trap, in two clicks: first the failure alone, where the LLM writes "Billing" with a capital B, no dict key matches, and the branch just ends with a log warning, so the customer gets no reply and no alert fires; then the fix: a Literal output_schema so the model cannot invent a label, and DEFAULT_ROUTE (import it from google.adk.workflow, checked against the v2.13.0 source), the edge taken when no other route on that node matches. Matching is an exact string match, and there is no strict mode that raises, so add a unit test that every Literal label has an edge. Q2 tests the boundary: the model only labels into a closed set, and a plain function holds the business rule, which you can unit-test without a model call; an outage label or any p1 ticket becomes the separate "page" route, so paging never depends on the meaning of a label, and a p1 billing ticket runs billing and page_oncall. Watch the "other" label: it has no edge, so DEFAULT_ROUTE catches it only when nothing else matched; next to "billing" it is ignored, which is fine because billing answers the ticket. Known labels get explicit edges; DEFAULT is for surprises. Q3: a terminal node is a node with no outgoing edge, and the workflow keeps exactly one terminal output: let side-effect branches such as paging emit a message, or join first. Analogy: a mail room where an unknown postcode goes in the bin unless you add a "return to sender" tray. Likely follow-up: "Can one ticket take two branches?" Yes, a list route runs every matching edge, but DEFAULT_ROUTE cannot share a list with other routes: that raises GraphValidationError. Hand-off: the whiteboard puts these routes into one ticket_triage design.
+  </aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-interview-c01-qa-routing";
+  const NS = "http://www.w3.org/2000/svg";
+  let loops = [], S = null;
+  const mk = (p, tag, a = {}, st = {}) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); Object.assign(e.style, st); p.appendChild(e); return e; };
+  const txt = (p, x, y, s, st = {}, anchor = "middle") => { const t = mk(p, "text", { x, y, "text-anchor": anchor }, Object.assign({ font: "600 17px var(--f-display)", fill: "var(--ink)" }, st)); t.textContent = s; return t; };
+  const box = (p, x, y, w, h, tone, label, sub) => {
+    const g = mk(p, "g");
+    g._r = mk(g, "rect", { x, y, width: w, height: h, rx: 12 }, { fill: `color-mix(in oklab, var(--${tone}) 10%, var(--bg))`, stroke: `var(--${tone})`, strokeWidth: 2 });
+    g._t = txt(g, x + w / 2, y + h / 2 + (sub ? -3 : 6), label);
+    if (sub) g._s = txt(g, x + w / 2, y + h / 2 + 15, sub, { font: "500 13.5px var(--f-mono)", fill: "var(--muted)" });
+    return g;
+  };
+  const wire = (p, d, tone, dash) => mk(p, "path", { d, fill: "none" }, { stroke: `var(--${tone})`, strokeWidth: 2.4, strokeDasharray: dash ? "7 6" : "none", markerEnd: `url(#${ID}-arr-${tone})` });
+  const dot = (p, tone) => mk(p, "circle", { r: 7, cx: -50, cy: -50 }, { fill: `var(--${tone})`, opacity: 0 });
+
+  function build(svg) {
+    svg.innerHTML = "";
+    const defs = mk(svg, "defs");
+    ["ink-2", "state", "risk", "agent", "tool", "human"].forEach((t) => {
+      const m = mk(defs, "marker", { id: `${ID}-arr-${t}`, viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto-start-reverse" });
+      mk(m, "path", { d: "M0 0 L10 5 L0 10 z" }, { fill: `var(--${t})` });
+    });
+    const s = {};
+    /* scene A: classify -> route_ticket -> dict edges */
+    const A = s.A = mk(svg, "g");
+    s.cls = box(A, 0, 105, 130, 46, "model", "classify", "LLM");
+    s.rt = box(A, 210, 105, 160, 46, "tool", "route_ticket", "code");
+    s.br = [
+      box(A, 520, 0, 200, 42, "model", "billing", '"billing"'),
+      box(A, 520, 68, 200, 42, "tool", "page_oncall", '"page"'),
+      box(A, 520, 136, 200, 42, "model", "how_to", '"how_to"'),
+    ];
+    s.hq = box(A, 520, 206, 200, 42, "human", "human_queue", 'DEFAULT · "other"');
+    wire(A, "M130 128 L208 128", "ink-2");
+    s.wBr = [21, 89, 157].map((y) => wire(A, `M370 128 C 440 128, 440 ${y}, 518 ${y}`, "ink-2"));
+    s.wDef = wire(A, "M370 134 C 430 134, 440 227, 518 227", "state");
+    s.dead = mk(A, "g");
+    wire(s.dead, "M290 151 L290 200", "risk", true);
+    txt(s.dead, 290, 226, "✕", { font: "700 24px var(--f-mono)", fill: "var(--risk)" });
+    txt(s.dead, 310, 226, "no edge: branch ends", { font: "600 18px var(--f-mono)", fill: "var(--risk)" }, "start");
+    s.lbl = txt(A, 290, 88, "route='billing'", { font: "600 18px var(--f-mono)", fill: "var(--tool)" });
+    s.dA = [0, 1].map(() => dot(A, "agent"));
+    s.dA.forEach((d) => A.insertBefore(d, A.firstChild));
+    /* scene C: two terminal branches, one workflow output */
+    const C = s.C = mk(svg, "g");
+    txt(C, 360, 20, "terminal node = no outgoing edge", { font: "500 15px var(--f-mono)", fill: "var(--muted)" }, "start");
+    box(C, 0, 30, 200, 50, "model", "billing", "output = reply");
+    s.pg = box(C, 0, 190, 200, 50, "tool", "page_oncall", "Event(output=...)");
+    s.out = box(C, 330, 100, 200, 56, "state", "workflow output", "max 1 terminal");
+    s.chat = box(C, 530, 190, 180, 50, "human", "chat message", "not an output");
+    s.cOk = wire(C, "M200 55 C 270 55, 270 120, 328 120", "state");
+    s.cMsg = wire(C, "M200 215 L528 215", "ink-2", true);
+    s.ghost = mk(C, "g");
+    wire(s.ghost, "M170 190 C 170 148, 260 146, 328 146", "risk", true);
+    txt(s.ghost, 316, 152, "✕", { font: "700 22px var(--f-mono)", fill: "var(--risk)" });
+    txt(s.ghost, 215, 140, "2nd output", { font: "600 15px var(--f-mono)", fill: "var(--risk)" });
+    s.dC = [dot(C, "state"), dot(C, "tool")];
+    s.dC.forEach((d) => C.insertBefore(d, C.firstChild));
+    return s;
+  }
+
+  const kill = () => { loops.forEach((t) => t.kill()); loops = []; };
+  const along = (d, path, dur, delay, extra = {}) => {
+    const L = path.getTotalLength(), o = { t: 0 };
+    return gsap.to(o, Object.assign({ t: 1, duration: dur, delay, repeat: -1, repeatDelay: 0.7, ease: "none",
+      onUpdate: () => { const pt = path.getPointAtLength(o.t * L); d.setAttribute("cx", pt.x); d.setAttribute("cy", pt.y); d.style.opacity = o.t < 0.03 || o.t > 0.97 ? 0 : 1; } }, extra));
+  };
+  const hidden = (p, d) => mk(p, "path", { d, fill: "none" }, { stroke: "none" });
+
+  function render(slide, n, animate) {
+    if (!S) return;
+    kill();
+    if (S.tmp) S.tmp.forEach((p) => p.remove());
+    S.tmp = [];
+    const D = animate ? 0.5 : 0;
+    const set = (el, v) => (D ? gsap.to(el, Object.assign({ duration: D }, v)) : gsap.set(el, v));
+    set(S.A, { autoAlpha: n <= 3 ? 1 : 0 });
+    set(S.C, { autoAlpha: n >= 4 ? 1 : 0 });
+    set([S.hq, S.wDef], { autoAlpha: n >= 2 ? 1 : 0 });
+    set(S.dead, { autoAlpha: n === 1 ? 1 : 0 });
+    set(S.br[2], { opacity: n === 3 ? 0.35 : 1 });
+    set(S.hq, { opacity: n === 3 ? 0.35 : 1 });
+    set(S.ghost, { autoAlpha: n === 4 ? 1 : 0 });
+    S.pg._s.textContent = n >= 5 ? "Event(message=...)" : "Event(output=...)";
+    S.chat._r.style.opacity = n >= 5 ? 1 : 0.35; S.chat._t.style.opacity = n >= 5 ? 1 : 0.35; S.chat._s.style.opacity = n >= 5 ? 1 : 0.35;
+    S.cMsg.style.opacity = n >= 5 ? 1 : 0.25;
+    S.lbl.textContent = n === 1 ? "route='Billing'" : n === 2 ? "route='Billing' → DEFAULT" : n === 3 ? 'route=["billing", "page"]' : "route='billing'";
+    S.lbl.style.fill = n === 1 ? "var(--risk)" : n === 2 ? "var(--state)" : "var(--tool)";
+    const head = "M130 128 L290 128";
+    if (n === 0) {
+      const p = hidden(S.A, head + " L370 128 C 440 128, 440 21, 518 21"); S.tmp.push(p);
+      S.dA[0].style.fill = "var(--agent)";
+      loops.push(along(S.dA[0], p, 2.0, 0));
+    } else if (n === 1) {
+      const p1 = hidden(S.A, head + " L290 200"); S.tmp.push(p1);
+      S.dA[0].style.fill = "var(--risk)";
+      loops.push(along(S.dA[0], p1, 1.6, 0, { repeatDelay: 1.2 }));
+    } else if (n === 2) {
+      const p2 = hidden(S.A, head + " L370 134 C 430 134, 440 227, 518 227"); S.tmp.push(p2);
+      S.dA[0].style.fill = "var(--state)";
+      loops.push(along(S.dA[0], p2, 2.0, 0, { repeatDelay: 1.0 }));
+    } else if (n === 3) {
+      const p1 = hidden(S.A, head + " L370 128 C 440 128, 440 21, 518 21"), p2 = hidden(S.A, head + " L370 128 C 440 128, 440 89, 518 89");
+      S.tmp.push(p1, p2);
+      S.dA[0].style.fill = "var(--model)"; S.dA[1].style.fill = "var(--tool)";
+      loops.push(along(S.dA[0], p1, 2.0, 0));
+      loops.push(along(S.dA[1], p2, 2.0, 0));
+    } else {
+      loops.push(along(S.dC[0], S.cOk, 1.6, 0));
+      if (n >= 5) loops.push(along(S.dC[1], S.cMsg, 1.6, 0.3));
+    }
+  }
+
+  Deck.register(ID, {
+    enter(slide, n) {
+      S = build(slide.querySelector("#acr-svg"));
+      gsap.set(S.C, { autoAlpha: 0 });
+      render(slide, n || 0, false);
+    },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { kill(); if (S) gsap.killTweensOf([S.A, S.C, S.hq, S.wDef, S.dead, S.ghost, ...S.br]); }
+  });
+})();
+</script>

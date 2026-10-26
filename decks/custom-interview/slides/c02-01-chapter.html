@@ -1,0 +1,141 @@
+<section class="slide chapter" id="custom-interview-c02-chapter" data-tone="model" data-title="Ch 2: SFT and adapters">
+  <style>
+    #custom-interview-c02-chapter { gap: 22px; }
+    #custom-interview-c02-chapter .ch-num { top: auto; bottom: 96px; right: 90px; font-size: 216px; }
+    #custom-interview-c02-chapter .display { font-size: 84px; max-width: 1000px; }
+    #custom-interview-c02-chapter .lede { font-size: 26px; max-width: 980px; }
+    #custom-interview-c02-chapter .tags .tag { font-size: 16px; }
+    #custom-interview-c02-chapter svg text, #custom-interview-c02-chapter code { font-variant-ligatures: none; }
+  </style>
+  <div class="ch-num" data-fx="blur">02</div>
+  <svg id="ci-c02-ch-svg" viewBox="0 0 1392 340" width="1392" height="340" aria-label="Loss mask on a chat transcript, then a LoRA pair B x A next to a frozen weight W"></svg>
+  <h2 class="display">Supervised fine-tuning and adapters</h2>
+  <p class="lede" data-fx="up">One case: a refund assistant on Qwen3-0.6B + LoRA. Find its silent bugs, then serve it to 200 tenants.</p>
+  <div class="tags" data-fx="up">
+    <span class="tag t-tool">pip install trl==1.16.0 peft==0.21.2 transformers==5.20.2</span>
+    <span class="tag t-state">checks: CPU</span>
+    <span class="tag t-model">training: 1 GPU ≥ 12 GB</span>
+  </div>
+  <aside class="notes">This chapter follows one case: a refund assistant on Qwen3-0.6B with a LoRA adapter, trained on the 2,992 Bitext REFUND rows, and then served as one tenant of a multi-tenant adapter service. The chapter is about the bugs that do not raise an error. The animation shows the two ideas we drill. First, the loss mask on a chat transcript: system and user tokens get label -100, which is PyTorch's ignore_index, so they get no loss; only the assistant tokens, including the end-of-turn token, get loss. Second, LoRA: the weight W stays frozen, and LoRA learns a low-rank update B times A that is added to W. B is d by r, A is r by k, and r is 16 here. B starts at zero, so at step 0 the model equals the base model, and only B and A receive gradients. An analogy: SFT is a teacher who grades only the answer lines of an exam, never the question lines. The template and mask checks run on a laptop CPU; the training runs need one GPU with at least 12 GB. A likely question: "Why must the end-of-turn token be inside the trained span?" Because otherwise the model never learns to stop. Next: debug the refund training script itself.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-interview-c02-chapter";
+  let tl = null, pulse = null, parts = null;
+
+  const mk = (parent, tag, attrs, style, text) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (style) Object.assign(e.style, style);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  };
+  const MONO = (w, s) => ({ font: `${w} ${s}px var(--f-mono)`, fontVariantLigatures: "none" });
+
+  // rows of the chat transcript: tokens [text, trained?]
+  const RH = 46, ROWS = [
+    { y: 0, label: "-100", toks: [["<|im_start|>system", 0], ["You are the refunds assistant.", 0], ["<|im_end|>", 0]] },
+    { y: 64, label: "-100", toks: [["<|im_start|>user", 0], ["I want a refund for my order.", 0], ["<|im_end|>", 0]] },
+    { y: 128, label: "loss", toks: [["<|im_start|>assistant", 0], ["I can help with your refund.", 1], ["<|im_end|>", 1]] },
+  ];
+  const CW = 10.85; // 18px mono advance
+
+  function build(svg) {
+    svg.innerHTML = "";
+    const pills = [], masked = [], trained = [], labels = [];
+    ROWS.forEach((row) => {
+      let x = 0;
+      row.toks.forEach(([text, on]) => {
+        const w = Math.round(text.length * CW + 24);
+        const g = mk(svg, "g", {});
+        const r = mk(g, "rect", { x, y: row.y, width: w, height: RH, rx: 10 }, { fill: "var(--surface-2)", stroke: "var(--line-2)", strokeWidth: 1.5 });
+        const t = mk(g, "text", { x: x + w / 2, y: row.y + 29, "text-anchor": "middle" }, { ...MONO(500, 18), fill: "var(--ink)" }, text);
+        pills.push(g);
+        (on ? trained : masked).push({ r, t });
+        x += w + 10;
+      });
+      const lab = mk(svg, "text", { x: 790, y: row.y + 30 }, { ...MONO(700, 22), fill: row.label === "loss" ? "var(--model)" : "#64748B", opacity: 0 }, row.label);
+      labels.push(lab);
+    });
+    const cap = mk(svg, "text", { x: 0, y: 214 }, { ...MONO(600, 18), fill: "var(--model)", opacity: 0 }, "loss on assistant tokens only, <|im_end|> included");
+    const leg = mk(svg, "text", { x: 0, y: 244 }, { ...MONO(500, 18), fill: "#64748B", opacity: 0 }, "-100 = ignored by the loss (PyTorch ignore_index)");
+
+    // frozen W (d x k) + B (d x r) x A (r x k)
+    const top = 34, side = 150;
+    const W = mk(svg, "g", {}, { opacity: 0 });
+    mk(W, "rect", { x: 930, y: top, width: side, height: side, rx: 12 }, { fill: "var(--surface-2)", stroke: "var(--faint)", strokeWidth: 2, strokeDasharray: "6 5" });
+    mk(W, "text", { x: 1005, y: top + 88, "text-anchor": "middle" }, { font: "700 40px var(--f-display)", fill: "var(--muted)" }, "W");
+    mk(W, "text", { x: 1005, y: top + 120, "text-anchor": "middle" }, { ...MONO(500, 16), fill: "var(--muted)" }, "d × k");
+    mk(W, "text", { x: 1005, y: top - 12, "text-anchor": "middle" }, { ...MONO(600, 16), fill: "var(--muted)" }, "frozen");
+    const plus = mk(svg, "text", { x: 1110, y: top + 88, "text-anchor": "middle" }, { font: "700 36px var(--f-display)", fill: "var(--ink-2)", opacity: 0 }, "+");
+    const B = mk(svg, "rect", { x: 1140, y: top, width: 30, height: side, rx: 6 }, { fill: "var(--model)", opacity: 0 });
+    const times = mk(svg, "text", { x: 1188, y: top + 26, "text-anchor": "middle" }, { font: "700 28px var(--f-display)", fill: "var(--ink-2)", opacity: 0 }, "×");
+    const A = mk(svg, "rect", { x: 1206, y: top, width: side, height: 30, rx: 6 }, { fill: "var(--model)", opacity: 0 });
+    const lbl = mk(svg, "g", {}, { opacity: 0 });
+    mk(lbl, "text", { x: 1182, y: top + side - 26 }, { ...MONO(700, 18), fill: "var(--model)" }, "B");
+    mk(lbl, "text", { x: 1182, y: top + side - 4 }, { ...MONO(500, 15), fill: "var(--ink-2)" }, "d × r");
+    mk(lbl, "text", { x: 1281, y: top + 58, "text-anchor": "middle" }, { ...MONO(700, 18), fill: "var(--model)" }, "A");
+    mk(lbl, "text", { x: 1281, y: top + 80, "text-anchor": "middle" }, { ...MONO(500, 15), fill: "var(--ink-2)" }, "r × k");
+    mk(lbl, "text", { x: 1188, y: top - 12, "text-anchor": "middle" }, { ...MONO(700, 18), fill: "var(--model)" }, "r = 16");
+    const capL = mk(svg, "text", { x: 1392, y: 330, "text-anchor": "end" }, { ...MONO(500, 16), fill: "var(--ink-2)", opacity: 0 }, "trained: B (d × r) × A (r × k); B starts at 0");
+
+    // gradient path: from the loss label, under W, up to the B x A pair
+    const path = mk(svg, "path", { d: "M 840 168 C 860 290, 1130 300, 1155 194", fill: "none" },
+      { stroke: "var(--model)", strokeWidth: 2.5, strokeDasharray: "7 6", opacity: 0 });
+    const gl = mk(svg, "text", { x: 985, y: 300, "text-anchor": "middle" }, { ...MONO(600, 16), fill: "var(--model)", opacity: 0 }, "gradients");
+    const dot = mk(svg, "circle", { cx: 840, cy: 168, r: 8 }, { fill: "var(--model)", opacity: 0 });
+    parts = { pills, masked, trained, labels, cap, leg, W, plus, B, times, A, lbl, capL, path, gl, dot };
+  }
+
+  function play() {
+    const p = parts;
+    tl = gsap.timeline();
+    tl.from(p.pills, { opacity: 0, y: 12, duration: 0.4, stagger: 0.08, ease: "power2.out" })
+      .to(p.masked.map((m) => m.r), { fill: "#F1F5F9", stroke: "#CBD5E1", duration: 0.5 }, "+=0.3")
+      .to(p.masked.map((m) => m.t), { fill: "#64748B", duration: 0.5 }, "<")
+      .to(p.labels.slice(0, 2), { opacity: 1, duration: 0.3 }, "<")
+      .to(p.leg, { opacity: 1, duration: 0.3 }, "<")
+      .to(p.trained.map((m) => m.r), { fill: "var(--model-soft)", stroke: "var(--model)", strokeWidth: 2.5, duration: 0.5 }, "+=0.2")
+      .to(p.labels[2], { opacity: 1, duration: 0.3 }, "<")
+      .to(p.cap, { opacity: 1, duration: 0.4 }, "<")
+      .to(p.W, { opacity: 1, duration: 0.5 }, "+=0.3")
+      .to(p.plus, { opacity: 1, duration: 0.3 }, "+=0.1")
+      .fromTo(p.B, { opacity: 0, y: -30 }, { opacity: 1, y: 0, duration: 0.45, ease: "back.out(2)" }, "<")
+      .to(p.times, { opacity: 1, duration: 0.25 }, "<0.1")
+      .fromTo(p.A, { opacity: 0, x: 30 }, { opacity: 1, x: 0, duration: 0.45, ease: "back.out(2)" }, "<0.1")
+      .to([p.lbl, p.capL], { opacity: 1, duration: 0.3 })
+      .to([p.path, p.gl], { opacity: 1, duration: 0.4 }, "+=0.1")
+      .add(() => startPulse());
+  }
+
+  function startPulse() {
+    const p = parts, len = p.path.getTotalLength();
+    const o = { t: 0 };
+    p.dot.style.opacity = 1;
+    pulse = gsap.to(o, {
+      t: 1, duration: 1.6, ease: "power1.inOut", repeat: -1, repeatDelay: 0.5,
+      onUpdate: () => { const q = p.path.getPointAtLength(o.t * len); p.dot.setAttribute("cx", q.x); p.dot.setAttribute("cy", q.y); },
+    });
+  }
+
+  Deck.register(ID, {
+    enter(slide) {
+      const svg = slide.querySelector("#ci-c02-ch-svg");
+      if (tl) tl.kill();
+      if (pulse) pulse.kill();
+      build(svg);
+      play();
+      if (matchMedia("(prefers-reduced-motion: reduce)").matches) { tl.progress(1); }
+    },
+    step() {},
+    leave() {
+      if (tl) tl.kill();
+      if (pulse) pulse.kill();
+      tl = pulse = null;
+      if (parts) gsap.killTweensOf([parts.dot, parts.path]);
+    },
+  });
+})();
+</script>

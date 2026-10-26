@@ -1,0 +1,91 @@
+<section class="slide tight" id="adk-c05-lab-gate-ask" data-tone="human" data-title="Lab 5A.2: the gate asks">
+  <style>
+    #adk-c05-lab-gate-ask .ga-body { display: grid; grid-template-columns: 770px 1fr; gap: 40px; align-items: start; }
+    #adk-c05-lab-gate-ask .ga-right { display: flex; flex-direction: column; gap: 28px; min-width: 0; padding-top: 24px; }
+    #adk-c05-lab-gate-ask .ga-chip { position: absolute; left: 0; top: 214px; padding: 10px 14px; border-radius: 12px;
+      font: 600 16px/1.45 var(--f-mono); color: var(--ink); background: var(--state-soft); border: 1.5px solid var(--state); }
+    #adk-c05-lab-gate-ask .ga-chip b { color: var(--risk); }
+    #adk-c05-lab-gate-ask .ga-tok { position: absolute; z-index: 4; left: 0; top: 0; height: 30px; padding: 0 12px; border-radius: 15px;
+      display: grid; place-items: center; font: 700 16px/1 var(--f-mono); color: var(--state); background: var(--bg);
+      border: 2px dashed var(--state); opacity: 0; pointer-events: none; white-space: nowrap; }
+    #adk-c05-lab-gate-ask .ga-pause { position: absolute; z-index: 5; width: 40px; height: 40px; border-radius: 50%;
+      background: var(--human); display: flex; gap: 5px; align-items: center; justify-content: center; opacity: 0; box-shadow: 0 0 0 4px var(--bg); }
+    #adk-c05-lab-gate-ask .ga-pause i { width: 5px; height: 16px; border-radius: 1px; background: #fff; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 5A</span> Acme refund approvals · step 2 of 5</div>
+  <h2 class="title">Above $500, manager_gate yields a RequestInput and the run pauses</h2>
+  <div class="ga-body fill">
+    <div class="code-wrap">
+      <div class="code-head">labs/adk/lab5a-refund-approval/refund_approval/agent.py · excerpt</div>
+      <pre class="code" data-lang="python" data-focus="1:3-5, 2:6-7, 3:8-13"><code>@node(rerun_on_resume=True)
+def manager_gate(ctx: Context, amount: float, draft: str):
+  if amount &lt;= AUTO_APPROVE_LIMIT:
+    yield Event(route="approved", state={"final_amount": amount})
+    return
+  iid = f"refund_approval_{ctx.invocation_id}_{ctx.run_id}"
+  answer = ctx.resume_inputs.get(iid)     # None on the first run
+  if answer is None:
+    yield RequestInput(
+        interrupt_id=iid, response_schema=ManagerDecision,
+        payload={"amount": amount, "draft": draft},
+        message=...)                      # the approval prompt
+    return
+  # ... the answer branch: next slide</code></pre>
+    </div>
+    <div class="ga-right">
+      <div class="diagram ga-diag" style="width:582px;height:300px"
+           data-wires="gate>issue@1 {state} [≤ $500]; gate>ri@3 {human} [$820 &gt; $500]">
+        <div class="node n-human" id="gate" style="left:0;top:90px;width:200px" data-on="2:hot"><span class="nt">manager_gate</span><span class="ns">run 1</span></div>
+        <div class="node n-tool" id="issue" style="left:372px;top:0;width:210px" data-step="1"><span class="nt">issue_refund</span><span class="ns">route approved</span></div>
+        <div class="node n-human" id="ri" style="left:372px;top:190px;width:210px" data-step="3" data-fx="pop"><span class="nt">RequestInput</span><span class="ns">interrupt_id=iid</span></div>
+        <div class="ga-chip" data-step="2">iid = refund_approval_e7…_1<br>resume_inputs.get(iid) → <b>None</b></div>
+        <div class="ga-pause" aria-hidden="true"><i></i><i></i></div>
+        <div class="ga-tok" aria-hidden="true">if $320</div>
+      </div>
+      <div class="code-wrap out" data-step="3">
+        <div class="code-head">output · illustrative</div>
+        <pre class="code sm" data-lang="none"><code>[draft_reply]: Dear customer, we are processing …
+<span class="ok">[refund_approval]: (Paused for input...)</span>
+# FunctionCall adk_request_input, id …_e7…_1</code></pre>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Step 2 of Lab 5A opens manager_gate. Three clicks. First, the limit: a $320 refund would route straight to issue_refund, which the dashed token shows; nobody is asked. Second, the id: iid is built from invocation_id and run_id, and on the first run resume_inputs.get(iid) returns None, because nobody has answered yet. Third, the question: the node yields a RequestInput with that id, the ManagerDecision schema, and a payload with the amount and the draft, so the approval screen shows exactly what is approved. The run pauses; on the wire this is a FunctionCall named adk_request_input whose id is the interrupt id, and it is listed in event.long_running_tool_ids. Think of the interrupt id as a ticket number stapled to the form: when the form comes back, the clerk finds the answer under that number. A likely question: "Why build the id by hand and not let ADK make one?" The default is a new uuid, and on a rerun that would never match the stored answer; the gotcha slides come back to this. Next: the same function runs again and finds the answer.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c05-lab-gate-ask";
+  let tl = null, pulse = null;
+  function clear(slide) {
+    if (tl) tl.kill(); tl = null;
+    if (pulse) pulse.kill(); pulse = null;
+    if (slide) gsap.killTweensOf(slide.querySelectorAll(".ga-tok, .ga-pause"));
+  }
+  function render(slide, n, animate) {
+    clear(slide);
+    const d = slide.querySelector(".ga-diag");
+    const tok = d.querySelector(".ga-tok"), pause = d.querySelector(".ga-pause");
+    const gate = d.querySelector("#gate"), issue = d.querySelector("#issue"), ri = d.querySelector("#ri");
+    gsap.set(pause, { x: ri.offsetLeft + ri.offsetWidth - 22, y: ri.offsetTop - 22, opacity: 0, scale: 1 });
+    // the $320 token only shows the auto-approve route (step 1); it parks on issue_refund
+    const from = { x: gate.offsetLeft + 30, y: gate.offsetTop - 34 };
+    const to = { x: issue.offsetLeft + 30, y: issue.offsetTop + issue.offsetHeight + 10 };
+    if (n < 1) { gsap.set(tok, { opacity: 0 }); }
+    else if (animate && n === 1) {
+      gsap.set(tok, { x: from.x, y: from.y, opacity: 1 });
+      tl = gsap.timeline().to(tok, { x: to.x, y: to.y, duration: 0.8, delay: 0.3, ease: "power1.inOut" });
+    } else gsap.set(tok, { x: to.x, y: to.y, opacity: n >= 3 ? 0.35 : 1 });
+    if (n >= 3) {
+      const t = gsap.timeline({ delay: animate && n === 3 ? 0.4 : 0 });
+      t.fromTo(pause, { opacity: 0, scale: 0.3 }, { opacity: 1, scale: 1, duration: animate && n === 3 ? 0.3 : 0.01, ease: "back.out(3)" })
+       .add(() => { pulse = gsap.to(pause, { scale: 1.18, duration: 0.6, yoyo: true, repeat: -1, ease: "sine.inOut" }); });
+      if (!tl) tl = t;
+    }
+  }
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { clear(slide); },
+  });
+})();
+</script>

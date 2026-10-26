@@ -1,0 +1,37 @@
+<section class="slide" id="adk-c01-gotcha" data-tone="risk" data-title="Gotcha: names and root_agent">
+  <style>
+    #adk-c01-gotcha pre.code, #adk-c01-gotcha pre.code * { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #adk-c01-gotcha .gotcha code { white-space: normal; overflow-wrap: anywhere; }
+    #adk-c01-gotcha .gotcha > span { min-width: 0; }
+    #adk-c01-gotcha .gx-main { display: grid; grid-template-columns: 1fr 520px; gap: 40px; align-items: center; }
+    #adk-c01-gotcha .gx-left { gap: 22px; min-width: 0; }
+    #adk-c01-gotcha .gx-main > .code-wrap { align-self: center; }
+    #adk-c01-gotcha .gotcha .em { font: 500 17px/1.45 var(--f-mono); color: var(--risk); }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> First run · the loader</div>
+  <h2 class="title">The loader needs a package name and a variable called root_agent</h2>
+  <div class="gx-main fill">
+    <div class="gx-left stack">
+      <div class="gotcha" data-step="2">
+        <b>Symptom</b><span class="em">Invalid agent name: 'refund-agent'. Agent names must be valid Python identifiers (letters, digits, and underscores only).</span>
+        <b class="why">Cause</b><span>ADK imports the folder as a Python package. A hyphen breaks the import.</span>
+        <b class="fix">Fix</b><span>Use <code>refund_agent</code> for the folder and for <code>name=</code>. Never name an agent <code>user</code>.</span>
+      </div>
+      <div class="gotcha" data-step="3">
+        <b>Symptom</b><span class="em">No root_agent found for 'refund_agent'. Searched in 'refund_agent.agent.root_agent', 'refund_agent.root_agent' and 'refund_agent/root_agent.yaml'.</span>
+        <b class="why">Cause</b><span>The variable is called <code>agent</code>, or <code>__init__.py</code> lost <code>from . import agent</code>.</span>
+        <b class="fix">Fix</b><span>Name it <code>root_agent</code> (or <code>app</code>, Chapter 2). Keep the scaffolded <code>__init__.py</code>.</span>
+      </div>
+    </div>
+    <div class="code-wrap term" data-step="1">
+      <div class="code-head">layout that adk run and adk web load</div>
+      <pre class="code" data-lang="bash" data-focus="2:1, 3:2-3"><code>refund_agent/     # folder = package
+  __init__.py     # from . import agent
+  agent.py        # defines root_agent
+  .env            # GOOGLE_API_KEY=...</code></pre>
+    </div>
+  </div>
+  <aside class="notes">
+    Two of the three errors that stop most first runs come from the loader, before any model call. Step 1: adk run and adk web import the agent folder as a Python package, then look for a variable called root_agent. Step 2: a hyphen in the folder gives "Invalid agent name: 'refund-agent'. Agent names must be valid Python identifiers"; a hyphen in name= gives the sibling error "Found invalid agent name: `refund-agent`. Agent name must be a valid identifier...". The name user is also reserved. Step 3: "No root_agent found for 'refund_agent'" lists the three places the loader searched: agent.root_agent, the package itself and root_agent.yaml. The fix is to name the variable root_agent, or app for an App (Chapter 2), and keep from . import agent in __init__.py. Analogy: the loader is a courier with one address format; a hyphen or a different door name and the parcel comes back. Likely question: "Can I keep a hyphenated repo name?" Yes, the repo can have any name; only the agent folder must be an identifier. Next: the third error, a loop that hits the call cap.
+  </aside>
+</section>

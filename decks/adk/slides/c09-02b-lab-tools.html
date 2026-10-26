@@ -1,0 +1,117 @@
+<section class="slide" id="adk-c09-lab-tools" data-tone="model" data-title="Lab 9.2: Refund tools">
+  <style>
+    #adk-c09-lab-tools .c9-split { --c9l: 850px; }
+    #adk-c09-lab-tools .c9-cap { min-height: 98px; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 9</span> Acme refund eval gate · step 2 of 15</div>
+  <h2 class="title">The refund tool does not check the $500 limit, on purpose</h2>
+  <div class="c9-split fill">
+    <div class="code-wrap">
+      <div class="code-head">labs/adk/lab9-refund-eval/refund_agent/agent.py · excerpt</div>
+      <pre class="code" data-lang="python" data-focus="1:1-2, 2:4-10, 3:12-16"><code>ORDERS = {"A-1001": {"amount": 79.00, "order_state": "delivered"},
+          "A-2040": {"amount": 820.00, "order_state": "delivered"}}
+
+def lookup_order(order_id: str) -&gt; dict:
+    """Returns the amount and delivery state of an order."""
+    order = ORDERS.get(order_id.upper())
+    if order is None:
+        return {"status": "error",
+                "error_message": f"Order {order_id} not found."}
+    return {"status": "success", "order_id": order_id.upper(), **order}
+
+def issue_refund(order_id: str, amount: float, reason: str) -&gt; dict:
+    """Issues a refund. Only for amounts of 500 USD or less."""
+    # deliberately NOT enforced here: the eval gate must catch it
+    return {"status": "success", "refund_id": f"RF-{order_id.upper()}",
+            "amount": amount}</code></pre>
+    </div>
+    <div class="c9-col">
+      <svg class="c9-svg" id="c9t-svg" viewBox="0 0 500 440" aria-label="Two order cards, A-1001 and A-2040. At step 2 lookup_order fills in their amounts, 79 and 820 dollars. At step 3 both orders flow through issue_refund, which has no limit check, and both are refunded; the 820 dollar refund turns red."></svg>
+      <div class="c9-cap">
+        <p data-step="1" data-until="2">Two Acme orders: one small, one large.</p>
+        <p data-step="2" data-until="3"><code>lookup_order</code> gives the amount, or a clear error the model can read.</p>
+        <p data-step="3"><code>issue_refund</code> pays any amount. The eval gate must catch <b>$820</b>.</p>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Step two: the three tools of the Acme refund agent, and here are the first two. The ORDERS dict holds two orders, A-1001 at 79 dollars and A-2040 at 820 dollars. lookup_order returns the amount, or a status error with a message the model can read and act on. issue_refund does not check the 500 dollar limit, on purpose: in a real system you would also check it here, but in this lab we want a bug that only the eval gate can catch. Analogy: we leave one door unlocked so we can test the alarm. A likely question: "Why not just add the check to issue_refund?" In production, do both; the eval gate still matters because the next model or prompt change can break behaviour that no tool check covers, such as promising a refund in text.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c09-lab-tools";
+  const NS = "http://www.w3.org/2000/svg";
+  const ORD = [{ id: "A-1001", v: 79, x: 0 }, { id: "A-2040", v: 820, x: 270 }];
+  let R = null, tw = [];
+  function mk(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const [a, v] of Object.entries(attrs)) e.setAttribute(a, v);
+    if (text !== undefined) e.textContent = text;
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function build(svg) {
+    svg.innerHTML = "";
+    R = { svg, cards: [], amt: [], res: [], tok: [] };
+    const defs = mk("defs", {}, svg);
+    const m = mk("marker", { id: "c9t-ah", viewBox: "0 0 10 10", refX: 8, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto" }, defs);
+    mk("path", { d: "M0,0 L10,5 L0,10 z", fill: "var(--line-2)" }, m);
+    ORD.forEach((o, i) => {
+      const g = mk("g", {}, svg);
+      mk("rect", { x: o.x, y: 0, width: 230, height: 96, rx: 14, fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 2 }, g);
+      mk("text", { x: o.x + 18, y: 36, "font-size": 22, "font-weight": 700, fill: "var(--ink)" }, g, o.id);
+      R.amt.push(mk("text", { x: o.x + 18, y: 74, "font-size": 24, "font-weight": 800, fill: i ? "var(--risk)" : "var(--state)" }, g, "amount ?"));
+      R.cards.push(g);
+      mk("path", { d: `M${o.x + 115},104 V176`, stroke: "var(--line-2)", "stroke-width": 2.5, fill: "none", "marker-end": "url(#c9t-ah)" }, svg);
+      mk("path", { d: `M${o.x + 115},282 V334`, stroke: "var(--line-2)", "stroke-width": 2.5, fill: "none", "marker-end": "url(#c9t-ah)" }, svg);
+      const rg = mk("g", {}, svg);
+      mk("rect", { x: o.x, y: 342, width: 230, height: 92, rx: 14, fill: i ? "var(--risk-soft)" : "var(--state-soft)", stroke: i ? "var(--risk)" : "var(--state)", "stroke-width": 2.2 }, rg);
+      mk("text", { x: o.x + 18, y: 380, "font-size": 20, "font-weight": 700, fill: "var(--ink)" }, rg, `RF-${o.id}`);
+      mk("text", { x: o.x + 18, y: 414, "font-size": 19, "font-weight": 700, fill: i ? "var(--risk)" : "var(--state)" }, rg, i ? "✕ $820 paid" : "✓ $79 paid");
+      R.res.push(rg);
+      R.tok.push(mk("circle", { cx: o.x + 115, cy: 110, r: 9, fill: "var(--model)", opacity: 0 }, svg));
+    });
+    const tool = mk("g", {}, svg);
+    mk("rect", { x: 0, y: 184, width: 500, height: 92, rx: 14, fill: "var(--tool-soft)", stroke: "var(--tool)", "stroke-width": 2.4 }, tool);
+    mk("text", { x: 250, y: 222, "text-anchor": "middle", "font-size": 22, "font-weight": 700, fill: "var(--ink)" }, tool, "issue_refund(amount)");
+    R.note = mk("text", { x: 250, y: 256, "text-anchor": "middle", "font-size": 18, "font-weight": 700, fill: "var(--risk)" }, tool, "no limit check");
+    R.tool = tool;
+  }
+  function clear() { tw.forEach((t) => t.kill()); tw = []; }
+  function render(slide, n, animate) {
+    const svg = slide.querySelector("#c9t-svg");
+    if (!svg) return;
+    if (!R || R.svg !== svg || !svg.childElementCount) build(svg);
+    clear();
+    gsap.killTweensOf([...R.cards, ...R.res, ...R.tok, R.tool]);
+    gsap.set(R.cards, { opacity: n >= 1 ? 1 : 0.25 });
+    gsap.set(R.tool, { opacity: n >= 3 ? 1 : 0.35 });
+    // step 2: lookup_order fills the amounts (count up)
+    ORD.forEach((o, i) => {
+      if (n >= 2 && animate && n === 2) {
+        const st = { v: 0 };
+        R.amt[i].textContent = "$0";
+        tw.push(gsap.to(st, { v: o.v, duration: 0.9, delay: 0.2 + i * 0.2, ease: "power2.out", onUpdate: () => { R.amt[i].textContent = "$" + Math.round(st.v); } }));
+      } else R.amt[i].textContent = n >= 2 ? "$" + o.v : "amount ?";
+    });
+    // step 3: both orders flow through issue_refund; both are paid
+    if (n >= 3 && animate && n === 3) {
+      gsap.set(R.res, { opacity: 0 });
+      R.tok.forEach((t, i) => {
+        gsap.set(t, { opacity: 1, attr: { cy: 110 } });
+        tw.push(gsap.to(t, { attr: { cy: 336 }, duration: 1.0, delay: 0.2 + i * 0.25, ease: "power1.inOut" }));
+        tw.push(gsap.to(t, { opacity: 0, duration: 0.2, delay: 1.2 + i * 0.25 }));
+        tw.push(gsap.to(R.res[i], { opacity: 1, duration: 0.35, delay: 1.2 + i * 0.25 }));
+      });
+      tw.push(gsap.fromTo(R.res[1], { x: 0 }, { x: -6, duration: 0.07, yoyo: true, repeat: 5, delay: 1.7 }));
+    } else {
+      gsap.set(R.tok, { opacity: 0 });
+      gsap.set(R.res, { opacity: n >= 3 ? 1 : 0, x: 0 });
+    }
+  }
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { clear(); },
+  });
+})();
+</script>

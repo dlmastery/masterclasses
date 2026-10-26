@@ -1,0 +1,236 @@
+<section class="slide tight" id="rag-c04-lab4-dense-rrf" data-tone="agent" data-title="Lab 4: dense + RRF">
+  <style>
+    #rag-c04-lab4-dense-rrf .dr-grid { display: grid; grid-template-columns: 850px 1fr; gap: 24px; align-items: start; }
+    #rag-c04-lab4-dense-rrf .dr-left, #rag-c04-lab4-dense-rrf .dr-right { gap: 10px; min-width: 0; }
+    #rag-c04-lab4-dense-rrf .code-wrap .code-head { padding: 7px 14px; font-size: 13.5px; }
+    #rag-c04-lab4-dense-rrf pre.code.dr-c { font-size: 12.2px; line-height: 1.37; padding: 10px 16px 12px; }
+    #rag-c04-lab4-dense-rrf pre.code.dr-t { font-size: 11.2px; line-height: 1.38; padding: 7px 12px 9px; }
+    #rag-c04-lab4-dense-rrf pre.code.dr-o { font-size: 11.4px; line-height: 1.4; padding: 7px 12px 9px; }
+    #rag-c04-lab4-dense-rrf .lab-head { gap: 10px; flex-wrap: nowrap; }
+    #rag-c04-lab4-dense-rrf .lab-head .run { font-size: 14px; flex: none; }
+    #rag-c04-lab4-dense-rrf .lab-head .cite { flex: none; white-space: nowrap; font-size: 13px; padding: 5px 10px 5px 8px; }
+    #rag-c04-lab4-dense-rrf .dr-rail { position: relative; height: 46px; }
+    #rag-c04-lab4-dense-rrf .dr-rail > p { position: absolute; left: 0; right: 0; top: 0; margin: 0; font-size: 16px; line-height: 1.36; }
+    #rag-c04-lab4-dense-rrf .dr-rail code { font-size: .88em; }
+    #rag-c04-lab4-dense-rrf .dr-svg { display: block; overflow: visible; }
+    #rag-c04-lab4-dense-rrf .dr-svg text { font-family: var(--f-mono); }
+    #rag-c04-lab4-dense-rrf .dr-svg .hd { font-size: 12px; font-weight: 700; letter-spacing: .05em; }
+    #rag-c04-lab4-dense-rrf .dr-svg .hd.bm { fill: var(--tool); }
+    #rag-c04-lab4-dense-rrf .dr-svg .hd.de { fill: var(--state); }
+    #rag-c04-lab4-dense-rrf .dr-svg .hd.fu { fill: var(--agent); }
+    #rag-c04-lab4-dense-rrf .dr-svg .hd.mu { fill: var(--muted); font-weight: 600; }
+    #rag-c04-lab4-dense-rrf .dr-svg .ql rect { fill: var(--human-soft); stroke: var(--human); stroke-width: 1.2; }
+    #rag-c04-lab4-dense-rrf .dr-svg .ql text { font-size: 12px; font-weight: 600; fill: var(--human); }
+    #rag-c04-lab4-dense-rrf .dr-svg .ch rect { stroke-width: 1.4; }
+    #rag-c04-lab4-dense-rrf .dr-svg .ch text { font-size: 12.5px; font-weight: 700; fill: var(--ink); }
+    #rag-c04-lab4-dense-rrf .dr-svg .ch .rk { fill: var(--muted); font-weight: 600; }
+    #rag-c04-lab4-dense-rrf .dr-svg .ch .sc { fill: var(--agent); }
+    #rag-c04-lab4-dense-rrf .dr-svg .ch.bm rect { fill: var(--tool-soft); stroke: var(--tool); }
+    #rag-c04-lab4-dense-rrf .dr-svg .ch.de rect { fill: var(--state-soft); stroke: var(--state); }
+    #rag-c04-lab4-dense-rrf .dr-svg .ch.fu rect { fill: var(--agent-soft); stroke: var(--agent); }
+    #rag-c04-lab4-dense-rrf .dr-svg .ch.hot rect { stroke: var(--human); stroke-width: 2.6; }
+    #rag-c04-lab4-dense-rrf .dr-svg .lk { stroke: var(--human); stroke-width: 1.8; fill: none; stroke-dasharray: 4 4; }
+    #rag-c04-lab4-dense-rrf .dr-svg .eq { font-size: 12px; font-weight: 700; fill: var(--human); }
+    #rag-c04-lab4-dense-rrf .dr-svg .ms rect { stroke-width: 1.2; }
+    #rag-c04-lab4-dense-rrf .dr-svg .ms text { font-size: 11.5px; font-weight: 700; }
+    #rag-c04-lab4-dense-rrf .dr-svg .ms.bad rect { fill: var(--risk-soft); stroke: var(--risk); }
+    #rag-c04-lab4-dense-rrf .dr-svg .ms.bad text { fill: var(--risk); }
+    #rag-c04-lab4-dense-rrf .dr-svg .ms.ok rect { fill: var(--state-soft); stroke: var(--state); }
+    #rag-c04-lab4-dense-rrf .dr-svg .ms.ok text { fill: var(--state); }
+  </style>
+  <div class="kicker"><span class="pill">Lab 4</span> Northwind support · step 1 of 4</div>
+  <h2 class="title">Add dense BGE retrieval and fuse it with BM25 by reciprocal rank</h2>
+  <div class="dr-grid fill">
+    <div class="stack dr-left">
+      <div class="code-wrap">
+        <div class="code-head">northwind_rag/lab3_hybrid.py</div>
+        <pre class="code dr-c" data-lang="python" data-focus="1:8-12, 2:17-23, 3:25-26, 4:28-33"><code># lab3_hybrid.py -- dense (BGE) + BM25, fused with Reciprocal Rank Fusion
+from sentence_transformers import SentenceTransformer
+from kb import IDS, TEXT
+from evalkit import evaluate
+from lab2_bm25 import bm25_search
+
+model = SentenceTransformer("BAAI/bge-small-en-v1.5")
+BGE_QUERY = "Represent this sentence for searching relevant passages: "
+doc_emb = model.encode_document([TEXT[i] for i in IDS], normalize_embeddings=True)
+
+def dense_search(query: str, k: int = 10) -&gt; list[str]:
+    q_emb = model.encode_query(query, prompt=BGE_QUERY, normalize_embeddings=True)
+    scores = model.similarity(q_emb, doc_emb)[0]            # cosine, shape (n_docs,)
+    top = scores.argsort(descending=True)[:k].tolist()
+    return [IDS[i] for i in top]
+
+def rrf(rankings: list[list[str]], k: int = 60, weights: list[float] | None = None) -&gt; list[str]:
+    weights = weights or [1.0] * len(rankings)
+    fused: dict[str, float] = {}
+    for w, ranking in zip(weights, rankings):
+        for rank, doc_id in enumerate(ranking, start=1):
+            fused[doc_id] = fused.get(doc_id, 0.0) + w / (k + rank)
+    return sorted(fused, key=fused.get, reverse=True)
+
+def hybrid_search(query: str, depth: int = 20, k_rrf: int = 60) -&gt; list[str]:
+    return rrf([bm25_search(query, depth), dense_search(query, depth)], k=k_rrf)
+
+if __name__ == "__main__":
+    evaluate("BM25", bm25_search)
+    evaluate("dense (bge-small)", dense_search)
+    evaluate("hybrid RRF k=60", hybrid_search)
+    evaluate("hybrid RRF k=2", lambda q: hybrid_search(q, k_rrf=2))
+    evaluate("hybrid RRF dense x2", lambda q: rrf([bm25_search(q, 20), dense_search(q, 20)], weights=[1, 2]))</code></pre>
+      </div>
+    </div>
+    <div class="stack dr-right">
+      <div class="lab-head">
+        <span class="run">python lab3_hybrid.py</span>
+        <a class="cite doc" href="https://huggingface.co/BAAI/bge-small-en-v1.5" target="_blank" rel="noopener"><b>Model card</b>&nbsp;BAAI/bge-small-en-v1.5</a>
+      </div>
+      <div class="code-wrap term">
+        <div class="code-head">run it Monday · Python 3.12</div>
+        <pre class="code dr-t" data-lang="bash"><code>$ pip install "sentence-transformers==6.2.0" \
+      "bm25s==0.3.15" "PyStemmer==3.1.0"
+# first run downloads bge-small-en-v1.5 (~130 MB)
+$ export HF_HUB_OFFLINE=1        # later runs: no network
+northwind_rag/  kb.py  evalkit.py  lab2_bm25.py  +lab3_hybrid.py
+  next: lab4_qdrant.py  lab5_cross_encoder.py  lab6_api_rerank.py</code></pre>
+      </div>
+      <svg class="dr-svg" id="dr-svg" viewBox="0 0 522 236" width="522" height="236" aria-label="BM25 and dense ranks for query q13; each chip scores 1/(60+rank); identical chunks merge and the fused list sorts; the gold chunk c18 reaches rank 4"></svg>
+      <div class="steps-rail dr-rail">
+        <p data-step="1" data-until="2"><span>BGE v1.5 has no <code>prompts</code> config: pass the query instruction. No document prefix.</span></p>
+        <p data-step="2" data-until="3"><span>Each list adds <code>w / (k + rank)</code>. Fuse ranks, not scores.</span></p>
+        <p data-step="3" data-until="4"><span>Depth 20 per list. Fusion cannot rescue a chunk below depth.</span></p>
+        <p data-step="4"><span>Dense fixes paraphrases, BM25 fixes "P-220". R@5 gains more than R@1.</span></p>
+      </div>
+      <div class="code-wrap out" data-step="4">
+        <div class="code-head">output · illustrative · nDCG column omitted</div>
+        <pre class="code dr-o" data-lang="output"><code>                     R@1   R@3   R@5   MRR@10  miss@5
+BM25                 0.600 0.733 0.767 0.680   <span class="err">q01 q07 q13</span>
+dense (bge-small)    0.600 0.800 0.867 0.710   <span class="err">q15</span>
+<span class="ok">hybrid RRF k=60      0.667 0.867 0.933 0.770   []</span>
+hybrid RRF k=2       0.667 0.833 0.900 0.760   <span class="err">q11</span>
+<span class="ok">hybrid RRF dense x2  0.667 0.867 0.933 0.775   []</span></code></pre>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    This is the run-it-Monday slide of Lab 4: pin sentence-transformers 6.2.0, bm25s 0.3.15 and PyStemmer 3.1.0, let the first run download bge-small-en-v1.5, then set HF_HUB_OFFLINE=1. Walk the four bands: encode_query only adds the BGE instruction if you pass prompt=, because the model ships no prompts config; rrf() is the Cormack et al. SIGIR 2009 formula w / (k + rank) with an optional weight per list; depth 20 sets what each list can contribute; and the five evaluate() rows go through the same Chapter 1 harness. The animation is query q13 with illustrative ranks: BM25 puts the gold chunk c18 at rank 7 because it says "import duties", dense puts it first, and the sum 1/67 + 1/61 lifts it to fused rank 4, inside the top 5 but not at rank 1. Analogy: RRF is a vote where each list gives more points to its top picks, and a chunk both lists like wins. Likely question: "Why k=60?" It is the paper's value and it keeps the curve flat, so agreement between lists matters more than one list's first place; the output shows k=2 dropping q11, and the next slide shows that Qdrant defaults to k=2.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  // q13 "who pays customs fees on orders to Canada?" -- illustrative ranks; gold = c18
+  const BM = [["c17", 1], ["c15", 2], ["c16", 3], ["c05", 4], ["c10", 5], ["c18", 7]];
+  const DE = [["c18", 1], ["c17", 2], ["c15", 3], ["c16", 4], ["c05", 5], ["c02", 6]];
+  const FU = [["c17", ".0325"], ["c15", ".0320"], ["c16", ".0315"], ["c18", ".0313"], ["c05", ".0310"]];
+  const MISS = [["BM25", ["q01", "q07", "q13"]], ["dense", ["q15"]], ["hybrid", []]];
+  const Y0 = 56, P = 27, CH = 22, XB = 0, XD = 140, XF = 318, WB = 124, WF = 204;
+  let built = null, prev = -1, tweens = [];
+  const mk = (p, tag, attrs, cls) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (cls) e.setAttribute("class", cls);
+    p.appendChild(e); return e;
+  };
+  const chip = (svg, cls, w, rank, id, extra) => {
+    const g = mk(svg, "g", {}, "ch " + cls);
+    mk(g, "rect", { x: 0, y: 0, width: w, height: CH, rx: 7 });
+    mk(g, "text", { x: 8, y: 15.5 }, "rk").textContent = rank;
+    mk(g, "text", { x: 30, y: 15.5 }).textContent = id;
+    const sc = mk(g, "text", { x: w - 8, y: 15.5, "text-anchor": "end" }, "sc");
+    sc.textContent = extra;
+    return { g, sc };
+  };
+  function build(slide) {
+    const svg = slide.querySelector("#dr-svg");
+    svg.innerHTML = "";
+    const ql = mk(svg, "g", {}, "ql");
+    mk(ql, "rect", { x: 0, y: 0, width: 392, height: 22, rx: 11 });
+    mk(ql, "text", { x: 12, y: 15.5 }).textContent = "q13 · who pays customs fees on orders to Canada?";
+    const hb = mk(svg, "text", { x: XB, y: Y0 - 9 }, "hd bm"); hb.textContent = "BM25 RANK";
+    const hd = mk(svg, "text", { x: XD, y: Y0 - 9 }, "hd de"); hd.textContent = "DENSE RANK";
+    const hf = mk(svg, "text", { x: XF, y: Y0 - 9 }, "hd fu"); hf.textContent = "RRF k=60 · SUM";
+    const bm = BM.map(([id, r]) => ({ id, r, ...chip(svg, "bm", WB, String(r), id, "1/" + (60 + r)) }));
+    const de = DE.map(([id, r]) => ({ id, r, ...chip(svg, "de", WB, String(r), id, "1/" + (60 + r)) }));
+    bm.forEach((c, i) => gsap.set(c.g, { x: XB, y: Y0 + i * P }));
+    de.forEach((c, i) => gsap.set(c.g, { x: XD, y: Y0 + i * P }));
+    const fu = FU.map(([id, s], i) => ({ id, ...chip(svg, "fu", WF, String(i + 1), id, s), bi: BM.findIndex((b) => b[0] === id), di: DE.findIndex((d) => d[0] === id) }));
+    const twins = fu.map((f) => chip(svg, "fu", WB, "", f.id, ""));
+    const more = mk(svg, "text", { x: XF + 8, y: Y0 + 5 * P + 15 }, "hd mu"); more.textContent = "… +13 more chunks";
+    // step 3: the gold chunk's two contributions
+    const yb = Y0 + 5 * P + CH / 2, yd = Y0 + CH / 2, yf = Y0 + 3 * P + CH / 2;
+    const l1 = mk(svg, "path", { d: `M${XB + WB},${yb} C${XB + WB + 70},${yb + 36} ${XF - 30},${yb + 30} ${XF},${yf}` }, "lk");
+    const l2 = mk(svg, "path", { d: `M${XD + WB},${yd} C${XD + WB + 50},${yd} ${XF - 50},${yf} ${XF},${yf}` }, "lk");
+    const eq = mk(svg, "text", { x: XF, y: Y0 + 6 * P + 6 }, "eq"); eq.textContent = "c18 = 1/67 + 1/61 = .0313 → #4";
+    // step 4: miss@5 per retriever
+    const msY = 214, ms = [];
+    const lab = mk(svg, "text", { x: 0, y: msY + 15 }, "hd mu"); lab.textContent = "MISS@5";
+    let x = 66;
+    MISS.forEach(([name, qs]) => {
+      const t = qs.length ? qs.join(" ") : "[]";
+      const w = 14 + (name.length + 1 + t.length) * 7;
+      const g = mk(svg, "g", {}, "ms " + (qs.length ? "bad" : "ok"));
+      mk(g, "rect", { x, y: msY, width: w, height: 22, rx: 7 });
+      mk(g, "text", { x: x + 7, y: msY + 15.5 }).textContent = name + " " + t;
+      ms.push(g); x += w + 10;
+    });
+    built = { ql, hb, hd, hf, bm, de, fu, twins, more, l1, l2, eq, ms, lab };
+  }
+  function render(slide, n, animate) {
+    if (!built) build(slide);
+    tweens.forEach((t) => t.kill()); tweens = [];
+    const fwd = animate && n === prev + 1;
+    const B = built;
+    const A = (el, to, opt) => { if (fwd) tweens.push(gsap.to(el, { ...to, ...opt })); else gsap.set(el, to); };
+    const gold = (c) => c.id === "c18";
+    // step 0: query + BM25 list (from Lab 1)
+    gsap.set([B.ql, B.hb], { opacity: 1 });
+    B.bm.forEach((c) => { gsap.set(c.g, { opacity: 1 }); c.g.classList.toggle("hot", n >= 3 && gold(c)); });
+    // step 1: dense list drops in
+    A(B.hd, { opacity: n >= 1 ? 1 : 0 }, { duration: 0.3 });
+    B.de.forEach((c, i) => {
+      if (fwd && n === 1) tweens.push(gsap.fromTo(c.g, { opacity: 0, y: Y0 + i * P - 14 }, { opacity: 1, y: Y0 + i * P, duration: 0.4, delay: i * 0.07, ease: "power2.out" }));
+      else gsap.set(c.g, { opacity: n >= 1 ? 1 : 0, y: Y0 + i * P });
+      c.g.classList.toggle("hot", n >= 3 && gold(c));
+    });
+    // step 2: 1/(60+rank) per chip, chips merge, fused list sorts
+    [...B.bm, ...B.de].forEach((c, k) => A(c.sc, { opacity: n >= 2 ? 1 : 0 }, { duration: 0.3, delay: n === 2 ? (k % 6) * 0.05 : 0 }));
+    A(B.hf, { opacity: n >= 2 ? 1 : 0 }, { duration: 0.3 });
+    B.fu.forEach((f, i) => {
+      const tw = B.twins[i].g;
+      f.g.classList.toggle("hot", n >= 3 && gold(f));
+      if (fwd && n === 2) {
+        gsap.set(f.g, { x: XB, y: Y0 + f.bi * P, opacity: 0 });
+        gsap.set(tw, { x: XD, y: Y0 + f.di * P, opacity: 0 });
+        const d = 0.5 + i * 0.12;
+        tweens.push(gsap.to([f.g, tw], { opacity: 0.85, duration: 0.15, delay: d }));
+        tweens.push(gsap.to([f.g, tw], { x: XF, y: Y0 + i * P, duration: 0.8, delay: d + 0.1, ease: "power3.inOut" }));
+        tweens.push(gsap.to(tw, { opacity: 0, duration: 0.2, delay: d + 0.9 }));
+        tweens.push(gsap.to(f.g, { opacity: 1, duration: 0.2, delay: d + 0.9 }));
+      } else {
+        gsap.set(f.g, { x: XF, y: Y0 + i * P, opacity: n >= 2 ? 1 : 0 });
+        gsap.set(tw, { opacity: 0 });
+      }
+    });
+    A(B.more, { opacity: n >= 2 ? 1 : 0 }, { duration: 0.3, delay: n === 2 ? 1.6 : 0 });
+    // step 3: the gold chunk c18 sums two contributions
+    [B.l1, B.l2].forEach((l) => {
+      const len = l.getTotalLength();
+      if (fwd && n === 3) tweens.push(gsap.fromTo(l, { opacity: 1, strokeDashoffset: len, strokeDasharray: len }, { strokeDashoffset: 0, duration: 0.7, ease: "power2.out", onComplete: () => gsap.set(l, { strokeDasharray: "4 4" }) }));
+      else gsap.set(l, { opacity: n === 3 ? 1 : 0, strokeDasharray: "4 4", strokeDashoffset: 0 });
+    });
+    A(B.eq, { opacity: n === 3 ? 1 : 0 }, { duration: 0.3, delay: n === 3 ? 0.6 : 0 });
+    // step 4: miss lists shrink to []
+    A(B.lab, { opacity: n >= 4 ? 1 : 0 }, { duration: 0.3 });
+    B.ms.forEach((g, k) => {
+      if (fwd && n === 4) tweens.push(gsap.fromTo(g, { opacity: 0, x: -10 }, { opacity: 1, x: 0, duration: 0.35, delay: 0.2 + k * 0.35 }));
+      else gsap.set(g, { opacity: n >= 4 ? 1 : 0, x: 0 });
+    });
+    prev = n;
+  }
+  Deck.register("rag-c04-lab4-dense-rrf", {
+    enter(slide, step) { prev = -1; built = null; render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { tweens.forEach((t) => t.kill()); tweens = []; prev = -1; }
+  });
+})();
+</script>

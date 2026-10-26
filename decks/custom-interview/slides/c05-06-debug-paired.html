@@ -1,0 +1,164 @@
+<section class="slide" id="custom-interview-c05-debug-paired" data-tone="risk" data-title="Debug: unpaired bootstrap">
+  <style>
+    #custom-interview-c05-debug-paired .dbg { display: grid; grid-template-columns: 720px minmax(0, 1fr); gap: 28px; align-items: start; }
+    #custom-interview-c05-debug-paired pre.code.xs { font-size: 13px; }
+    #custom-interview-c05-debug-paired .gotcha { font-size: 15.5px; padding: 11px 16px; grid-template-columns: 86px 1fr; gap: 4px 12px; }
+    #custom-interview-c05-debug-paired .gotcha code { white-space: normal; }
+    #custom-interview-c05-debug-paired .dbg .stack > .code-wrap, #custom-interview-c05-debug-paired .dbg .code-wrap.good { align-self: stretch; }
+    #custom-interview-c05-debug-paired .gotcha .cite { font-size: 12px; padding: 2px 8px; }
+  </style>
+  <div class="kicker"><span class="pill">Debug this</span> Paired bootstrap · refund agent v1 vs v2</div>
+  <h2 class="title">An unpaired bootstrap hid a real 5-point gain</h2>
+
+  <div class="dbg">
+    <div class="stack" style="gap:14px">
+      <div class="lab-head"><span class="run">python lab4_paired.py</span><span>scipy==1.18.1 · statsmodels==0.15.0</span></div>
+      <div class="code-wrap bad">
+        <div class="code-head">lab4_paired.py · same 400 golden cases</div>
+        <pre class="code xs" data-lang="python" data-focus="1:15-16, 2:21-24, 3:8-9"><code># lab4_paired.py - refund agent v1 vs v2 on the SAME 400 golden cases (scipy 1.18.1)
+import numpy as np
+from scipy import stats
+
+rng = np.random.default_rng(0)
+n = 400
+difficulty = rng.normal(0, 1.5, n)                     # shared item difficulty
+a = (rng.random(n) &lt; 1 / (1 + np.exp(-(1.3 - difficulty)))).astype(float)  # v1
+b = (rng.random(n) &lt; 1 / (1 + np.exp(-(1.6 - difficulty)))).astype(float)  # v2
+print(f"v1={a.mean():.3f}  v2={b.mean():.3f}  delta={b.mean() - a.mean():+.3f}")
+
+def diff_of_means(x, y, axis=-1):
+    return np.mean(x, axis=axis) - np.mean(y, axis=axis)
+
+res = stats.bootstrap((b, a), diff_of_means, paired=False, n_resamples=9999,
+                      confidence_level=0.95, method="percentile", rng=rng)
+lo, hi = res.confidence_interval
+print(f"unpaired 95% CI [{lo:+.3f}, {hi:+.3f}]")
+print("ship v2" if lo &gt; 0 else "no evidence: keep v1")
+
+# FIX: keep the unpaired run above (same rng order), then
+# res = stats.bootstrap((b, a), diff_of_means, paired=True, n_resamples=9999,
+#                       confidence_level=0.95, method="percentile", rng=rng)
+# -&gt; paired 95% CI [+0.005, +0.102]; McNemar exact p=0.0460 (40 vs 61 discordant)</code></pre>
+      </div>
+    </div>
+
+    <div class="stack" style="gap:12px">
+      <div class="code-wrap out">
+        <div class="code-head">output · captured on scipy 1.11.4 · digits may vary</div>
+        <pre class="code xs" data-lang="out"><code>v1=0.735  v2=0.787  delta=+0.052
+<span class="err">unpaired 95% CI [-0.007, +0.110]</span>
+<span class="err">no evidence: keep v1</span>
+<span data-step="2" data-fx="fade"><span class="ok">paired 95% CI [+0.005, +0.102]</span></span></code></pre>
+      </div>
+
+      <div style="position:relative">
+        <svg id="c05dbg-ci" viewBox="0 0 644 150" width="644" height="150" style="display:block;overflow:visible"></svg>
+        <span class="delta up" data-step="2" data-fx="pop" style="position:absolute;right:0;top:-4px">CI width 0.118 → 0.097</span>
+      </div>
+
+      <div style="display:grid">
+        <div class="gotcha" data-step="1" data-until="2" style="grid-area:1/1">
+          <b>Symptom</b><span>v2 is 5.2 points ahead, but the CI crosses 0, so the script keeps v1.</span>
+          <b class="why">Cause</b><span><code>paired=False</code> resamples v1 and v2 as independent samples. Shared item difficulty inflates the SE: 0.0302, not 0.0250.</span>
+          <b class="fix">Fix</b><span>Both models answered the same items. Resample item indices once.</span>
+        </div>
+        <div class="code-wrap good" data-step="2" style="grid-area:1/1">
+          <div class="code-head">lab4_paired.py · fix</div>
+          <pre class="code xs" data-lang="python"><code>res = stats.bootstrap((b, a), diff_of_means, paired=True,
+                      n_resamples=9999, confidence_level=0.95,
+                      method="percentile", rng=rng)</code></pre>
+        </div>
+      </div>
+
+      <div class="gotcha" data-step="3">
+        <b>Symptom</b><span><code>ValueError: When `paired is True`, all samples must have the same length along `axis`</code></span>
+        <b class="why">Cause</b><span>v2 crashed on 3 items. Those rows were dropped.</span>
+        <b class="fix">Fix</b><span>Score a crash as 0. Align on <code>item_id</code>. <a class="cite doc" href="https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.bootstrap.html" target="_blank" rel="noopener"><b>Doc</b>&nbsp;scipy.stats.bootstrap</a></span>
+      </div>
+    </div>
+  </div>
+
+  <aside class="notes">Show the code and the output first, and ask the candidate whether v2 should ship. The bug is on the bootstrap line: paired=False resamples the two models independently, but both answered the same 400 cases, so shared item difficulty stays in the variance and the CI of minus 0.007 to plus 0.110 crosses zero. With paired=True one index vector resamples both arrays, the CI becomes plus 0.005 to plus 0.102, and the exact McNemar test on the 40 versus 61 discordant pairs gives p = 0.046. Analogy: to compare two runners, time them on the same track on the same day; comparing times from different tracks adds the track to the noise. The third trap is operational: when v2 crashed on 3 items and the rows were dropped, SciPy refused the paired call, so score crashes as 0 and align on item_id. Likely follow-up: "How many items do you need?" The minimum detectable effect is about 2.8 times the SE, so 400 paired golden cases detect about 7 points and unpaired about 8.5, the same numbers as the first drill of this chapter.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-interview-c05-debug-paired";
+  const X = (v) => 70 + ((v + 0.03) / 0.16) * 450;         // delta -> px
+  const ROWS = [
+    { name: "unpaired", lo: -0.007, hi: 0.110, y: 44, c: "var(--risk)" },
+    { name: "paired", lo: 0.005, hi: 0.102, y: 84, c: "var(--state)" },
+  ];
+  const EST = 0.052;
+  let tws = [], parts = null;
+
+  function el(p, tag, attrs, style) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (style) e.setAttribute("style", style);
+    p.appendChild(e);
+    return e;
+  }
+
+  function build(slide) {
+    const svg = slide.querySelector("#c05dbg-ci");
+    if (svg._parts) { parts = svg._parts; return; }
+    svg.innerHTML = "";
+    el(svg, "text", { x: 0, y: 14 }, "font:600 14px var(--f-mono);fill:var(--ink-2)").textContent = "95% CI of v2 − v1 · same 400 golden cases";
+    el(svg, "line", { x1: X(-0.03), y1: 124, x2: X(0.13), y2: 124 }, "stroke:var(--line-2);stroke-width:2");
+    [-0.02, 0, 0.02, 0.04, 0.06, 0.08, 0.1, 0.12].forEach((v) => {
+      el(svg, "line", { x1: X(v), y1: 120, x2: X(v), y2: 128 }, "stroke:var(--line-2);stroke-width:2");
+      el(svg, "text", { x: X(v), y: 146, "text-anchor": "middle" }, "font:500 12px var(--f-mono);fill:var(--muted)").textContent = (v > 0 ? "+" : "") + v.toFixed(2);
+    });
+    const zero = el(svg, "line", { x1: X(0), y1: 26, x2: X(0), y2: 124 }, "stroke:var(--ink-2);stroke-width:2;stroke-dasharray:6 5");
+    const rows = ROWS.map((r) => {
+      const g = el(svg, "g", {});
+      el(g, "text", { x: 0, y: r.y + 5 }, `font:700 13px var(--f-mono);fill:${r.c}`).textContent = r.name;
+      const bar = el(g, "line", { x1: X(r.lo), y1: r.y, x2: X(r.hi), y2: r.y }, `stroke:${r.c};stroke-width:5;stroke-linecap:round`);
+      const capL = el(g, "line", { x1: X(r.lo), y1: r.y - 10, x2: X(r.lo), y2: r.y + 10 }, `stroke:${r.c};stroke-width:3`);
+      const capR = el(g, "line", { x1: X(r.hi), y1: r.y - 10, x2: X(r.hi), y2: r.y + 10 }, `stroke:${r.c};stroke-width:3`);
+      el(g, "circle", { cx: X(EST), cy: r.y, r: 7 }, `fill:${r.c}`);
+      const lab = el(g, "text", { x: X(r.hi) + 14, y: r.y + 5 }, "font:600 12px var(--f-mono);fill:var(--ink-2)");
+      lab.textContent = `[${r.lo >= 0 ? "+" : ""}${r.lo.toFixed(3)}, +${r.hi.toFixed(3)}]`;
+      return { g, bar, capL, capR, r };
+    });
+    const hit = el(svg, "circle", { cx: X(0), cy: ROWS[0].y, r: 13 }, "fill:none;stroke:var(--risk);stroke-width:3");
+    const mc = el(svg, "text", { x: X(0.005), y: 110 }, "font:600 13px var(--f-mono);fill:var(--state)");
+    mc.textContent = "";
+    parts = { svg, zero, rows, hit, mc };
+    svg._parts = parts;
+  }
+
+  function kill() { tws.forEach((t) => t.kill()); tws = []; }
+
+  function render(slide, n, animate) {
+    build(slide);
+    kill();
+    const [u, p] = parts.rows;
+    // step 0-1: unpaired whisker (the wrong verdict); step >= 2: the paired whisker joins
+    gsap.set(u.g, { opacity: n >= 2 ? 0.4 : 1 });
+    gsap.set(p.g, { opacity: n >= 2 ? 1 : 0 });
+    gsap.set(parts.hit, { opacity: n === 1 ? 1 : 0, attr: { r: 13 } });
+    parts.mc.textContent = n >= 2 ? "McNemar exact p = 0.0460 · 40 vs 61 discordant" : "";
+    gsap.set(parts.mc, { opacity: n >= 2 ? 1 : 0 });
+    if (n === 1) {
+      tws.push(gsap.to(parts.hit, { attr: { r: 20 }, opacity: 0.2, duration: 0.8, repeat: -1, yoyo: true, ease: "sine.inOut" }));
+    }
+    if (n === 2 && animate) {
+      const mid = X(EST);
+      [p.bar].forEach((b) => tws.push(gsap.fromTo(b, { attr: { x1: mid, x2: mid } }, { attr: { x1: X(p.r.lo), x2: X(p.r.hi) }, duration: 0.9, ease: "power3.out", delay: 0.2 })));
+      tws.push(gsap.fromTo([p.capL, p.capR], { opacity: 0 }, { opacity: 1, duration: 0.3, delay: 1.0 }));
+      tws.push(gsap.fromTo(parts.mc, { opacity: 0 }, { opacity: 1, duration: 0.4, delay: 1.2 }));
+    } else {
+      gsap.set(p.bar, { attr: { x1: X(p.r.lo), x2: X(p.r.hi) } });
+      gsap.set([p.capL, p.capR], { opacity: 1 });
+    }
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { kill(); }
+  });
+})();
+</script>

@@ -1,0 +1,210 @@
+<section class="slide" id="adk-interview-c01-debug-loop" data-tone="agent" data-title="Debug: unbounded loop">
+  <style>
+    #adk-interview-c01-debug-loop .dg-main { display: grid; grid-template-columns: 700px 1fr; gap: 24px; }
+    #adk-interview-c01-debug-loop .dg-left { gap: 10px; min-width: 0; }
+    #adk-interview-c01-debug-loop .dg-left pre.code { font-size: 14px; line-height: 1.37; padding: 9px 14px 10px 50px; }
+    #adk-interview-c01-debug-loop pre.code .gut { position: absolute; left: 0; top: 9px; width: 36px; text-align: right; color: #6670a6; font: inherit; white-space: pre; user-select: none; pointer-events: none; }
+    #adk-interview-c01-debug-loop .code-wrap .code-head { padding: 7px 14px; font-size: 14px; }
+    #adk-interview-c01-debug-loop .dg-right { gap: 12px; min-width: 0; }
+    #adk-interview-c01-debug-loop .dg-right > * { width: 100%; }
+    #adk-interview-c01-debug-loop .dg-sym { padding: 12px 16px; gap: 10px; }
+    #adk-interview-c01-debug-loop .dg-sym p { font-size: 17px; line-height: 1.38; margin: 0; }
+    #adk-interview-c01-debug-loop .dg-meter { display: grid; grid-template-columns: 1.15fr 1.25fr 1fr 1fr; gap: 10px; }
+    #adk-interview-c01-debug-loop .dg-cell { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; background: var(--surface-2); display: flex; flex-direction: column; gap: 5px; }
+    #adk-interview-c01-debug-loop .dg-cell .l { font: 600 14px/1.2 var(--f-mono); color: var(--muted); }
+    #adk-interview-c01-debug-loop .dg-cell .v { font: 700 34px/1 var(--f-mono); color: var(--ink); white-space: nowrap; margin-top: auto; }
+    #adk-interview-c01-debug-loop .dg-cell .v small { font-size: 15px; color: var(--muted); }
+    #adk-interview-c01-debug-loop .dg-bar { height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; }
+    #adk-interview-c01-debug-loop .dg-bar i { display: block; height: 100%; width: 0; background: var(--tool); border-radius: 4px; }
+    #adk-interview-c01-debug-loop .dg-cell.cap { border-color: var(--risk); background: color-mix(in oklab, var(--risk) 8%, var(--surface-2)); }
+    #adk-interview-c01-debug-loop .dg-cell.cap .v { color: var(--risk); }
+    #adk-interview-c01-debug-loop .dg-cell.clue { border-style: dashed; border-color: var(--risk); }
+    #adk-interview-c01-debug-loop .dg-cell.clue .v { color: var(--risk); }
+    #adk-interview-c01-debug-loop .dg-cell.ok { border-color: var(--state); }
+    #adk-interview-c01-debug-loop .dg-cell.ok .v { color: var(--state); }
+    #adk-interview-c01-debug-loop .dg-cell .v.dg-route { font-size: 24px; line-height: 34px; }
+    #adk-interview-c01-debug-loop .dg-slot { display: grid; }
+    #adk-interview-c01-debug-loop .dg-slot > * { grid-area: 1 / 1; align-self: start; }
+    #adk-interview-c01-debug-loop .code-wrap.out pre.code { font-size: 13.5px; line-height: 1.5; padding: 9px 14px 10px; }
+    #adk-interview-c01-debug-loop .dg-q { display: flex; align-items: center; gap: 12px; font-size: 19px; color: var(--ink); padding: 12px 16px; border-radius: 12px; border: 1px dashed var(--agent); background: color-mix(in oklab, var(--agent) 6%, var(--bg)); }
+    #adk-interview-c01-debug-loop .dg-q i { flex: none; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; font: 700 15px/1 var(--f-mono); font-style: normal; color: #fff; background: var(--agent); }
+    #adk-interview-c01-debug-loop .gotcha { font-size: 16.5px; padding: 12px 16px; grid-template-columns: 88px 1fr; gap: 5px 12px; }
+    #adk-interview-c01-debug-loop .gotcha > b { font-size: 13px; }
+    #adk-interview-c01-debug-loop .dg-fix { display: flex; flex-direction: column; gap: 8px; }
+    #adk-interview-c01-debug-loop .dg-cause { font-size: 16px; line-height: 1.35; padding: 8px 14px; border-radius: 10px; border-left: 4px solid var(--tool); background: color-mix(in oklab, var(--tool) 9%, var(--bg)); color: var(--ink-2); }
+    #adk-interview-c01-debug-loop .dg-cause b { font: 700 13px/1 var(--f-mono); letter-spacing: .05em; color: var(--tool); margin-right: 8px; }
+    #adk-interview-c01-debug-loop .code-wrap.good pre.code { font-size: 13.5px; line-height: 1.45; padding: 9px 14px 10px; }
+    #adk-interview-c01-debug-loop .code-wrap.good .delta { font-size: 12.5px; }
+    #adk-interview-c01-debug-loop .dg-cites { display: flex; gap: 8px; flex-wrap: nowrap; align-items: center; }
+    #adk-interview-c01-debug-loop .dg-cites .cite { font-size: 13.5px; padding: 5px 10px 5px 8px; white-space: nowrap; flex-direction: row; align-items: center; gap: 8px; }
+  </style>
+  <div class="kicker"><span class="pill">Debug this</span> loops</div>
+  <h2 class="title">Debug this: the compliance loop ran until the call cap stopped it</h2>
+  <div class="dg-main fill">
+    <div class="dg-left stack">
+      <div class="code-wrap">
+        <div class="code-head">copy_review/agent.py · google-adk 2.13.0 · adk run copy_review</div>
+        <pre class="code" data-lang="python" data-focus="2:9, 3:18"><span class="gut" aria-hidden="true"> 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27</span><code>from typing import Literal
+from google.adk import Agent, Context, Event, Workflow
+from pydantic import BaseModel
+MAX_ROUNDS = 3
+class Review(BaseModel):
+  grade: Literal["compliant", "needs_fix"]
+  feedback: str
+def brief(node_input: str):
+  yield Event(state={"brief": node_input, "feedback": "", "round": 0})
+write_copy = Agent(name="write_copy", output_key="draft",
+  instruction="Write a 2-sentence ad for: {brief}. Fix: {feedback?}")
+review_copy = Agent(name="review_copy", output_key="review",
+  output_schema=Review,
+  instruction="Must say 'Capital at risk.' Grade this ad: {draft}")
+def gate(ctx: Context, node_input: Review):
+  if node_input.grade == "compliant":
+    yield Event(route="done")
+  elif ctx.state["round"] &gt;= MAX_ROUNDS:
+    yield Event(route="escalate")
+  else:
+    yield Event(state={"feedback": node_input.feedback}, route="retry")
+# publish and escalate get draft from ctx.state["draft"] by name
+def publish(draft: str): yield Event(message=f"PUBLISHED: {draft}")
+def escalate(draft: str): yield Event(message=f"To Legal: {draft}")
+root_agent = Workflow(name="copy_review", edges=[
+  ("START", brief, write_copy, review_copy, gate),
+  (gate, {"retry": write_copy, "done": publish, "escalate": escalate})])</code></pre>
+      </div>
+      <div class="dg-cites">
+        <a class="cite codelab" href="https://codelabs.developers.google.com/adk2/instructions" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;ADK 2 Orchestration: Graph, Collaborative &amp; Dynamic Workflows</a>
+        <a class="cite doc" href="https://adk.dev/graphs/routes/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Graph routes</a>
+      </div>
+    </div>
+    <div class="dg-right stack">
+      <div class="panel k-risk dg-sym" data-step="1">
+        <p>One ad brief ran 250 rounds and stopped at the 500-LLM-call cap. review_copy never graded the ad compliant.</p>
+        <div class="dg-meter">
+          <div class="dg-cell" id="dg-c-round"><span class="l">gate runs (from node_path)</span><span class="v" id="dg-round">0</span></div>
+          <div class="dg-cell" id="dg-c-calls"><span class="l">LLM calls / cap</span><span class="v"><span id="dg-calls">0</span> <small>/ 500</small></span><span class="dg-bar"><i id="dg-bar"></i></span></div>
+          <div class="dg-cell clue" id="dg-c-state"><span class="l">ctx.state ["round"]</span><span class="v" id="dg-state">0</span></div>
+          <div class="dg-cell" id="dg-c-route"><span class="l">gate route</span><span class="v dg-route" id="dg-route">retry</span></div>
+        </div>
+      </div>
+      <div class="dg-slot">
+        <div class="code-wrap out" data-step="1" data-until="4">
+          <div class="code-head">output · illustrative · before the fix</div>
+          <pre class="code" data-lang="none"><code>"node_path": "copy_review@1/write_copy@250"
+"node_path": "copy_review@1/review_copy@250"
+"node_path": "copy_review@1/gate@250"
+<span class="err">LlmCallsLimitExceededError: Max number of llm calls limit of `500` exceeded</span>
+<span class="dim"># 2 LLM calls per round x 250 rounds = 500</span></code></pre>
+        </div>
+        <div class="code-wrap out" data-step="4">
+          <div class="code-head">output · illustrative · after the fix</div>
+          <pre class="code" data-lang="none"><code>"node_path": "copy_review@1/gate@1"     <span class="dim">route="retry"</span>
+"node_path": "copy_review@1/gate@2"     <span class="dim">route="retry"</span>
+"node_path": "copy_review@1/gate@3"     <span class="ok">route="escalate"</span>
+<span class="ok">[copy_review]: To Legal: Grow your savings with ...</span>
+<span class="dim"># 3 rounds x 2 LLM calls = 6, no error</span></code></pre>
+        </div>
+      </div>
+      <div class="dg-slot">
+        <div class="dg-q" data-step="2" data-until="3"><i>?</i><span>What does the <code>elif</code> on line 18 read in round 250?</span></div>
+        <div class="gotcha" data-step="3" data-until="4">
+          <b>Symptom</b><span>The loop never escalates.</span>
+          <b class="why">Cause</b><span>Line 9 sets <code>round</code> to 0 once. No line increments it, so <code>0 &gt;= 3</code> is never true.</span>
+          <b class="fix">Fix</b><span>Increment it at the top of <code>gate</code>. Also put the "Capital at risk." rule in write_copy's instruction: the counter is only the backstop.</span>
+        </div>
+        <div class="dg-fix" data-step="4">
+          <div class="dg-cause"><b>CAUSE</b>nothing incremented <code>ctx.state["round"]</code>, so it stayed 0.</div>
+          <div class="code-wrap good">
+            <div class="code-head">copy_review/agent.py · gate <span class="delta up">max 3 rounds · 6 LLM calls</span></div>
+            <pre class="code" data-lang="python"><code>def gate(ctx: Context, node_input: Review):
+  ctx.state["round"] = ctx.state["round"] + 1   # the missing line
+  if node_input.grade == "compliant":
+    yield Event(route="done")
+  elif ctx.state["round"] &gt;= MAX_ROUNDS:
+    yield Event(route="escalate")
+  else:
+    yield Event(state={"feedback": node_input.feedback}, route="retry")</code></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    Show the code and the symptom, and give the room one minute to find the line. Step 2 asks about the elif on line 18. Step 3: line 9 sets round to 0 once, in the brief node; line 18 reads it on every pass, but no line writes it again, so 0 &gt;= 3 is never true and the only exit left is a compliant grade that never comes. The tile "gate runs" comes from the trace (gate@250 in node_path), not from state: that gap between 250 and 0 is the clue. Expect someone to say "set max_iterations": there is none on graph cycles. LoopAgent had it; a Workflow cycle is bounded only by your own counter, because validation rejects only unconditional cycles and a routed back-edge is legal. The default cap of 500 LLM calls per run (override it with the ADK_MAX_LLM_CALLS environment variable) stopped this run, but that cap is a cost backstop, not a design. There is a second cause: write_copy is never told the "Capital at risk." rule, so the critic keeps failing it; put the rule in the writer's instruction and keep the counter as the backstop. publish and escalate get the draft by parameter name from ctx.state, which is the Python default binding. Analogy: a guard who checks the visitor count but never clicks the counter. Likely follow-up: how would you catch this in tests? Use a critic stub that always says needs_fix and assert that the run ends in escalate after 3 rounds; log the round count so evals can measure rounds-to-compliant. Hand-off: the last slide moves from static cycles to dynamic nodes and agent modes.
+  </aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-interview-c01-debug-loop";
+  const CAP = 500;
+  let tl = null;
+  const q = (s, id) => s.querySelector("#" + id);
+  function render(s, round, calls, state, route, fixed) {
+    q(s, "dg-round").textContent = String(round);
+    q(s, "dg-calls").textContent = String(calls);
+    q(s, "dg-state").textContent = String(state);
+    q(s, "dg-route").textContent = route;
+    q(s, "dg-bar").style.width = (Math.min(calls, CAP) / CAP * 100) + "%";
+    q(s, "dg-bar").style.background = fixed ? "var(--state)" : (calls >= CAP ? "var(--risk)" : "var(--tool)");
+    q(s, "dg-c-calls").classList.toggle("cap", !fixed && calls >= CAP);
+    q(s, "dg-c-state").classList.toggle("clue", !fixed);
+    q(s, "dg-c-state").classList.toggle("ok", fixed);
+    q(s, "dg-c-route").classList.toggle("ok", fixed && route === "escalate");
+  }
+  function stop() { if (tl) { tl.kill(); tl = null; } }
+  function build(s, n, animate) {
+    stop();
+    if (n < 1) { render(s, 0, 0, 0, "retry", false); return; }
+    if (n < 4) {
+      // buggy run: the node_path counter climbs to 250, the state counter stays 0
+      if (!animate) { render(s, 250, 500, 0, "retry", false); return; }
+      const o = { r: 0 };
+      render(s, 0, 0, 0, "retry", false);
+      tl = gsap.timeline({ delay: 0.4 });
+      tl.to(o, { r: 250, duration: 3.2, ease: "none", onUpdate: () => { const r = Math.round(o.r); render(s, r, 2 * r, 0, "retry", false); } });
+      return;
+    }
+    // fixed gate: both counters move together, the route flips to escalate at round 3
+    const seq = [[1, "retry"], [2, "retry"], [3, "escalate"]];
+    if (!animate) { render(s, 3, 6, 3, "escalate", true); return; }
+    render(s, 0, 0, 0, "retry", true);
+    tl = gsap.timeline({ delay: 0.4 });
+    seq.forEach(([r, route]) => {
+      tl.call(() => render(s, r, 2 * r, r, route, true));
+      tl.fromTo([q(s, "dg-state"), q(s, "dg-round")], { scale: 1.35 }, { scale: 1, duration: 0.45, ease: "back.out(2)" });
+      tl.to({}, { duration: 0.45 });
+    });
+  }
+  Deck.register(ID, {
+    enter(slide, n) { build(slide, n || 0, false); },
+    step(slide, n, animate) { build(slide, n, animate); },
+    leave() { stop(); }
+  });
+})();
+</script>

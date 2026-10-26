@@ -1,0 +1,204 @@
+<section class="slide tight" id="adk-c02-sqlite-sessions" data-tone="state" data-title="Build: SQLite sessions">
+  <style>
+    #adk-c02-sqlite-sessions .sq-grid { display: grid; grid-template-columns: 800px 1fr; gap: 24px; align-items: start; }
+    #adk-c02-sqlite-sessions .sq-left, #adk-c02-sqlite-sessions .sq-right { gap: 12px; min-width: 0; }
+    #adk-c02-sqlite-sessions .code-wrap .code-head { padding: 7px 14px; font-size: 14px; }
+    #adk-c02-sqlite-sessions pre.code.sq-c { font-size: 14.5px; line-height: 1.36; padding: 9px 16px 11px; }
+    #adk-c02-sqlite-sessions .out pre.code { font-size: 13px; line-height: 1.45; padding: 8px 14px 10px; }
+    #adk-c02-sqlite-sessions .sq-cites { display: flex; gap: 8px; flex-wrap: wrap; }
+    #adk-c02-sqlite-sessions .sq-cites .cite { font-size: 13.5px; padding: 5px 10px 5px 8px; }
+    #adk-c02-sqlite-sessions .sq-svg text { font-family: var(--f-mono); }
+    #adk-c02-sqlite-sessions .sq-svg .ln { font-size: 15px; font-weight: 700; fill: var(--ink-2); }
+    #adk-c02-sqlite-sessions .sq-svg .pb { fill: var(--agent-soft); stroke: var(--agent); stroke-width: 2; }
+    #adk-c02-sqlite-sessions .sq-svg .pb.ghost { stroke-dasharray: 6 5; fill: var(--surface); }
+    #adk-c02-sqlite-sessions .sq-svg .pt { font-size: 17px; font-weight: 700; fill: var(--ink); }
+    #adk-c02-sqlite-sessions .sq-svg .ps { font-size: 15px; font-weight: 600; fill: var(--muted); }
+    #adk-c02-sqlite-sessions .sq-svg .mem rect { fill: var(--risk-soft); stroke: var(--risk); stroke-width: 1.6; stroke-dasharray: 5 4; }
+    #adk-c02-sqlite-sessions .sq-svg .mem text { font-size: 15px; font-weight: 700; fill: var(--risk); }
+    #adk-c02-sqlite-sessions .sq-svg .mem line { stroke: var(--risk); stroke-width: 3; }
+    #adk-c02-sqlite-sessions .sq-svg .cy { fill: var(--state-soft); stroke: var(--state); stroke-width: 2.2; }
+    #adk-c02-sqlite-sessions .sq-svg .cyt { fill: var(--surface-2); stroke: var(--state); stroke-width: 2.2; }
+    #adk-c02-sqlite-sessions .sq-svg .ct { font-size: 16px; font-weight: 700; fill: var(--ink); }
+    #adk-c02-sqlite-sessions .sq-svg .cf { font-size: 15px; font-weight: 600; fill: var(--state); }
+    #adk-c02-sqlite-sessions .sq-svg .cn { font-size: 30px; font-weight: 800; fill: var(--state); }
+    #adk-c02-sqlite-sessions .sq-svg .wire { stroke: var(--state); stroke-width: 2.6; fill: none; }
+    #adk-c02-sqlite-sessions .sq-svg .wl { font-size: 14px; font-weight: 700; fill: var(--state); }
+    #adk-c02-sqlite-sessions .sq-svg .dot { fill: var(--state); }
+    #adk-c02-sqlite-sessions .sq-svg .ans rect { stroke-width: 1.8; }
+    #adk-c02-sqlite-sessions .sq-svg .ans.bad rect { fill: var(--risk-soft); stroke: var(--risk); }
+    #adk-c02-sqlite-sessions .sq-svg .ans.good rect { fill: var(--state-soft); stroke: var(--state); }
+    #adk-c02-sqlite-sessions .sq-svg .ans text { font-size: 15px; font-weight: 700; fill: var(--ink); }
+    #adk-c02-sqlite-sessions .sq-svg .dl { font-size: 15px; font-weight: 800; fill: var(--state); }
+    #adk-c02-sqlite-sessions .sq-rail { position: relative; height: 46px; }
+    #adk-c02-sqlite-sessions .sq-rail > p { position: absolute; left: 0; right: 0; top: 0; margin: 0; font-size: 16px; line-height: 1.38; }
+    #adk-c02-sqlite-sessions .sq-rail code { font-size: .88em; }
+  </style>
+  <div class="kicker"><span class="pill">Build</span> Northwind claims API · sessions that survive a restart</div>
+  <h2 class="title">SqliteSessionService keeps the claim conversation across a restart</h2>
+  <div class="sq-grid fill">
+    <div class="stack sq-left">
+      <div class="code-wrap bad">
+        <div class="code-head">claims/claims_followup.py</div>
+        <pre class="code sq-c" data-lang="python"><code>runner = InMemoryRunner(agent=claims_followup, app_name="claims_api")  # RAM only
+# run 2: "Which car did I say I have?"  ->  "I don't have that."</code></pre>
+      </div>
+      <div class="code-wrap good" data-step="1">
+        <div class="code-head">claims/claims_followup.py · usage: python claims/claims_followup.py "message"</div>
+        <pre class="code sq-c" data-lang="python" data-focus="1:4-9, 2:11-17, 3:20-21, 4:9"><code>import asyncio, sys
+from google.adk import Agent, Runner
+from google.adk.apps import App
+from google.adk.sessions.sqlite_session_service import SqliteSessionService
+from google.genai import types
+claims_followup = Agent(name="claims_followup", model="gemini-3.5-flash",
+    instruction="You handle claim {claim_id}. Remember what the user said.")
+app = App(name="claims_api", root_agent=claims_followup)
+sessions = SqliteSessionService(db_path="claims_sessions.db")   # file in the cwd
+async def main(text: str) -> None:
+    runner = Runner(app=app, session_service=sessions, auto_create_session=True)
+    sid, uid = "claim-77", "u-tom"
+    old = await sessions.get_session(app_name="claims_api", user_id=uid, session_id=sid)
+    delta = None if old else {"claim_id": sid}                   # seed on first contact
+    msg = types.UserContent(parts=[types.Part(text=text)])
+    async for ev in runner.run_async(user_id=uid, session_id=sid, new_message=msg,
+                                     state_delta=delta):
+        if ev.is_final_response() and ev.content and ev.content.parts:
+            print(f"[{ev.author}] {ev.content.parts[0].text}")
+    s = await sessions.get_session(app_name="claims_api", user_id=uid, session_id=sid)
+    print(f"(events stored: {len(s.events)})")
+    await runner.close()
+asyncio.run(main(sys.argv[1]))</code></pre>
+      </div>
+    </div>
+    <div class="stack sq-right">
+      <svg class="sq-svg" id="sq-svg" viewBox="0 0 568 372" width="568" height="372" aria-label="Top lane, before: run 1 keeps the session in a RAM dict that dies with the process, so run 2 answers I don't have that. Bottom lane, after: run 1 writes 2 events to claims_sessions.db, run 2 reads them and writes 2 more">
+        <!-- lane A: InMemoryRunner -->
+        <g id="sq-la">
+          <text class="ln" x="0" y="16">BEFORE · InMemoryRunner</text>
+          <rect class="pb" id="sq-a1r" x="1" y="30" width="150" height="80" rx="14"/>
+          <text class="pt" x="18" y="60">run 1</text><text class="ps" id="sq-a1s" x="18" y="90">running</text>
+          <g class="mem" id="sq-mem"><rect x="200" y="44" width="160" height="52" rx="10"/><text x="280" y="76" text-anchor="middle">dict in RAM</text><line id="sq-x" x1="210" y1="90" x2="350" y2="50"/></g>
+          <rect class="pb" id="sq-a2r" x="416" y="30" width="150" height="80" rx="14"/>
+          <text class="pt" x="433" y="60">run 2</text><text class="ps" id="sq-a2s" x="433" y="90">new process</text>
+          <g class="ans bad" id="sq-abad"><rect x="330" y="122" width="236" height="38" rx="10"/><text x="448" y="146.5" text-anchor="middle">"I don't have that."</text></g>
+        </g>
+        <!-- lane B: SqliteSessionService -->
+        <g id="sq-lb">
+          <text class="ln" x="0" y="196">AFTER · SqliteSessionService</text>
+          <text class="dl" id="sq-dl" x="566" y="196" text-anchor="end">events 2 → 4 across a restart</text>
+          <rect class="pb" id="sq-b1r" x="1" y="226" width="150" height="80" rx="14"/>
+          <text class="pt" x="18" y="256">run 1</text><text class="ps" id="sq-b1s" x="18" y="286">not started</text>
+          <g id="sq-db">
+            <path class="cy" d="M222 226 v74 a62 13 0 0 0 124 0 v-74"/>
+            <ellipse class="cyt" cx="284" cy="226" rx="62" ry="13"/>
+            <text class="ct" x="284" y="260" text-anchor="middle">events</text>
+            <text class="cn" id="sq-n" x="284" y="296" text-anchor="middle">0</text>
+            <text class="cf" x="284" y="340" text-anchor="middle">claims_sessions.db</text>
+          </g>
+          <g id="sq-w1"><path class="wire" d="M155 266 H214"/><path class="wire" d="M206 259 L215 266 L206 273"/><text class="wl" x="184" y="252" text-anchor="middle">write</text></g>
+          <g id="sq-w2"><path class="wire" d="M354 266 H410"/><path class="wire" d="M362 259 L353 266 L362 273"/><path class="wire" d="M402 259 L411 266 L402 273"/><text class="wl" x="382" y="252" text-anchor="middle">read</text></g>
+          <rect class="pb" id="sq-b2r" x="416" y="226" width="150" height="80" rx="14"/>
+          <text class="pt" x="433" y="256">run 2</text><text class="ps" id="sq-b2s" x="433" y="286">not started</text>
+          <g class="ans good" id="sq-agood"><rect x="376" y="318" width="190" height="38" rx="10"/><text x="471" y="342.5" text-anchor="middle">"a 2024 Civic"</text></g>
+          <circle class="dot" id="sq-d0" cx="0" cy="0" r="6" opacity="0"/>
+          <circle class="dot" id="sq-d1" cx="0" cy="0" r="6" opacity="0"/>
+          <circle class="dot" id="sq-d2" cx="0" cy="0" r="6" opacity="0"/>
+          <circle class="dot" id="sq-d3" cx="0" cy="0" r="6" opacity="0"/>
+        </g>
+      </svg>
+      <div class="sq-rail">
+        <p data-until="1"><span>Before: the session is a dict in process memory. Run 2 starts empty.</span></p>
+        <p data-step="1" data-until="2"><span>Import <code>SqliteSessionService</code> from its module. No extra install: <code>aiosqlite</code> is core.</span></p>
+        <p data-step="2" data-until="3"><span><code>auto_create_session</code> makes claim-77. The first run seeds <code>claim_id</code> once.</span></p>
+        <p data-step="3" data-until="4"><span>Run 2 is a new process. It loads claim-77 from the file and answers.</span></p>
+        <p data-step="4"><span>Same code on Postgres: swap the service class. That one needs <code>google-adk[db]</code>.</span></p>
+      </div>
+      <div class="code-wrap out" data-step="2">
+        <div class="code-head">output · illustrative · two separate processes</div>
+        <pre class="code" data-lang="output"><code>$ python claims/claims_followup.py "My car is a 2024 Civic."
+[claims_followup] Noted: a 2024 Civic on claim claim-77.
+<span class="ok">(events stored: 2)</span>
+<span data-step="3" data-fx="fade">$ python claims/claims_followup.py "Which car did I say I have?"
+[claims_followup] You said you have a 2024 Civic.
+<span class="ok">(events stored: 4)</span></span></code></pre>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    Same app name claims_api, same user u-tom, same session claim-77 as in Lab 2 step 3, and the same id is stored as claim_id, so there is one key for the claim. The before block uses InMemoryRunner: the session is a Python dict, so when the first process exits the conversation goes with it, and the second process answers that it does not have that detail. The fix swaps the session service: one constructor, SqliteSessionService(db_path="claims_sessions.db"), imported from google.adk.sessions.sqlite_session_service because it is not re-exported, and one Runner argument, session_service=sessions, with auto_create_session=True. SQLite needs no extra install because aiosqlite is a core dependency. The file is created in the current directory; delete it to start fresh. The script seeds claim_id only on first contact; a delta on every run would write the same value in a new event each turn. Run the script twice in two processes: the first run stores 2 events, the second loads claim-77 from the file, answers with the 2024 Civic, and the count goes to 4. Analogy: the in-memory runner is a whiteboard that is wiped when the meeting ends; SQLite is the claim folder in the filing cabinet. For production, install google-adk[db] and asyncpg and use DatabaseSessionService with a postgresql+asyncpg URL. If older services still run ADK 1.x, only 1.28 and later can read sessions that 2.0 writes, so upgrade every reader first.
+  </aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c02-sqlite-sessions";
+  let prev = -1, els = [], counter = { v: 0 };
+  function render(slide, n, animate) {
+    if (window.c02Focus) window.c02Focus(slide, n);
+    const q = (s) => slide.querySelector(s);
+    els = [...slide.querySelectorAll("#sq-svg g, #sq-svg rect, #sq-svg circle, #sq-svg text, #sq-svg path, #sq-svg line")];
+    gsap.killTweensOf(els); gsap.killTweensOf(counter);
+    const fwd = animate && n === prev + 1;
+    const num = q("#sq-n");
+    const setN = (v) => { counter.v = v; num.textContent = String(v); };
+    const la = q("#sq-la"), lb = q("#sq-lb"), x = q("#sq-x"), bad = q("#sq-abad"), good = q("#sq-agood"), dl = q("#sq-dl");
+    const a1s = q("#sq-a1s"), a2s = q("#sq-a2s"), b1s = q("#sq-b1s"), b2s = q("#sq-b2s");
+    const b1r = q("#sq-b1r"), b2r = q("#sq-b2r"), w1 = q("#sq-w1"), w2 = q("#sq-w2");
+    const dots = [0, 1, 2, 3].map((i) => q("#sq-d" + i));
+    gsap.set(dots, { opacity: 0 });
+    // lane A: the failure stays on screen, greyed after step 0
+    a1s.textContent = "exited"; a2s.textContent = "exited";
+    gsap.set(la, { opacity: n === 0 ? 1 : 0.42 });
+    gsap.set([x, bad], { opacity: 1, y: 0 });
+    // lane B: the SQLite timeline builds from step 1
+    gsap.set(lb, { opacity: n >= 1 ? 1 : 0, y: 0 });
+    b1r.classList.toggle("ghost", n < 2);
+    b2r.classList.toggle("ghost", n < 3);
+    b1s.textContent = n >= 2 ? "exited" : "not started";
+    b2s.textContent = n >= 3 ? "exited" : "not started";
+    gsap.set(w1, { opacity: n >= 2 ? 1 : 0 });
+    gsap.set(w2, { opacity: n >= 3 ? 1 : 0 });
+    gsap.set([good, dl], { opacity: n >= 3 ? 1 : 0, y: 0 });
+    setN(n >= 3 ? 4 : n >= 2 ? 2 : 0);
+    if (!fwd) { prev = n; return; }
+    if (n === 0) {
+      a1s.textContent = "running"; a2s.textContent = "new process";
+      gsap.set([x, bad], { opacity: 0 });
+      gsap.to(x, { opacity: 1, duration: .3, delay: 1.0, onStart: () => (a1s.textContent = "exited") });
+      gsap.fromTo(bad, { opacity: 0, y: -8 }, { opacity: 1, y: 0, duration: .4, delay: 1.7, ease: "back.out(2)", onStart: () => (a2s.textContent = "exited") });
+    } else if (n === 1) {
+      gsap.fromTo(la, { opacity: 1 }, { opacity: 0.42, duration: .5 });
+      gsap.fromTo(lb, { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: .55, ease: "power3.out", delay: .2 });
+    } else if (n === 2) {
+      b1s.textContent = "running"; setN(0);
+      gsap.fromTo(w1, { opacity: 0 }, { opacity: 1, duration: .3 });
+      dots.slice(0, 2).forEach((d, i) => {
+        gsap.fromTo(d, { attr: { cx: 152, cy: 266 }, opacity: 1 }, { attr: { cx: 266 + i * 36, cy: 300 }, duration: .7, delay: .3 + i * .45, ease: "power2.inOut" });
+        gsap.to(d, { opacity: 0, duration: .2, delay: 1.0 + i * .45 });
+      });
+      gsap.to(counter, { v: 2, duration: 1.0, delay: .5, ease: "none", onUpdate: () => (num.textContent = String(Math.round(counter.v))) });
+      gsap.delayedCall(1.8, () => { if (prev === 2) b1s.textContent = "exited"; });
+    } else if (n === 3) {
+      b2s.textContent = "running"; setN(2);
+      gsap.set([good, dl], { opacity: 0 });
+      gsap.fromTo(w2, { opacity: 0 }, { opacity: 1, duration: .3 });
+      dots.slice(0, 2).forEach((d, i) => {
+        gsap.fromTo(d, { attr: { cx: 354, cy: 266 }, opacity: 1 }, { attr: { cx: 414, cy: 266 }, duration: .5, delay: .3 + i * .25, ease: "power2.inOut" });
+        gsap.to(d, { opacity: 0, duration: .15, delay: .8 + i * .25 });
+      });
+      dots.slice(2, 4).forEach((d, i) => {
+        gsap.fromTo(d, { attr: { cx: 414, cy: 276 }, opacity: 0 }, { attr: { cx: 354, cy: 276 }, opacity: 1, duration: .5, delay: 1.3 + i * .3, ease: "power2.inOut" });
+        gsap.to(d, { opacity: 0, duration: .15, delay: 1.8 + i * .3 });
+      });
+      gsap.to(counter, { v: 4, duration: .7, delay: 1.5, ease: "none", onUpdate: () => (num.textContent = String(Math.round(counter.v))) });
+      gsap.fromTo(good, { opacity: 0, y: -8 }, { opacity: 1, y: 0, duration: .4, delay: 2.2, ease: "back.out(2)" });
+      gsap.to(dl, { opacity: 1, duration: .4, delay: 2.3, onStart: () => (b2s.textContent = "exited") });
+    }
+    prev = n;
+  }
+  Deck.register(ID, {
+    // the engine calls step() before enter(); keep the animation that step() just started
+    enter(slide, step) { if (prev !== (step || 0)) { prev = -1; render(slide, step || 0, false); } },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { gsap.killTweensOf(els); gsap.killTweensOf(counter); prev = -1; }
+  });
+})();
+</script>

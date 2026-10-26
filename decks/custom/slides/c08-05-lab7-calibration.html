@@ -1,0 +1,246 @@
+<section class="slide" id="custom-c08-lab7-calibration" data-tone="risk" data-title="Lab 7: calibrate the scores">
+  <style>
+    #custom-c08-lab7-calibration { gap: 18px; }
+    #custom-c08-lab7-calibration .cal-top { display: flex; flex-wrap: nowrap; gap: 14px; align-items: center; }
+    #custom-c08-lab7-calibration .cal-top > * { flex: none; }
+    #custom-c08-lab7-calibration .cal-top .cite { font-size: 13px; padding: 5px 10px 5px 8px; gap: 8px; white-space: nowrap; }
+    #custom-c08-lab7-calibration .cal-top .cite.paper { display: inline-flex; flex-direction: row; border-radius: 10px; background: color-mix(in oklab, var(--surface) 60%, transparent); }
+    #custom-c08-lab7-calibration .cal-top .cite::before { width: 18px; height: 18px; }
+    #custom-c08-lab7-calibration .cal-top .cites { margin-left: auto; display: flex; gap: 10px; flex-wrap: nowrap; }
+    #custom-c08-lab7-calibration .lab-head { font-size: 13.5px; gap: 10px; flex-wrap: nowrap; white-space: nowrap; }
+    #custom-c08-lab7-calibration .lab-head .run { font-size: 14.5px; padding: 7px 11px; }
+    #custom-c08-lab7-calibration .cal-grid { display: grid; grid-template-columns: 712px 1fr; gap: 22px; min-height: 0; }
+    #custom-c08-lab7-calibration .cal-left, #custom-c08-lab7-calibration .cal-right { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+    #custom-c08-lab7-calibration .code-head { padding: 6px 14px; font-size: 13px; }
+    #custom-c08-lab7-calibration .cal-code pre.code { font-size: 11px; line-height: 1.32; padding: 9px 12px 10px; }
+    #custom-c08-lab7-calibration .cal-out pre.code { font-size: 11px; line-height: 1.38; padding: 7px 12px 9px; }
+    #custom-c08-lab7-calibration .steps-rail { grid-template-columns: 1fr 1fr; gap: 8px 14px; }
+    #custom-c08-lab7-calibration .steps-rail > * { font-size: 13.5px; line-height: 1.33; grid-template-columns: 28px 1fr; gap: 8px; }
+    #custom-c08-lab7-calibration .steps-rail > *::before { width: 24px; height: 24px; font-size: 13px; }
+    #custom-c08-lab7-calibration .steps-rail code { font-size: .86em; }
+    #custom-c08-lab7-calibration .gotcha { font-size: 13.5px; line-height: 1.35; padding: 10px 14px; grid-template-columns: 84px 1fr; gap: 4px 10px; }
+    #custom-c08-lab7-calibration .gotcha > b { font-size: 12px; }
+    #custom-c08-lab7-calibration .gotcha code { font-size: .86em; white-space: normal; overflow-wrap: anywhere; }
+    #custom-c08-lab7-calibration pre.code, #custom-c08-lab7-calibration pre.code *, #custom-c08-lab7-calibration code, #custom-c08-lab7-calibration svg text { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #c08cal-svg text { font-family: var(--f-mono); }
+  </style>
+  <div class="kicker"><span class="pill">Lab 7</span> Acme refund-fraud model · step 4 of 5</div>
+  <h2 class="title">ROC-AUC 0.929 everywhere, but '0.86 fraud' really means 35%</h2>
+  <div class="cal-top">
+    <div class="lab-head"><span class="run">python lab7_calibration.py</span><span class="small">scikit-learn==1.9.1 · numpy==2.5.4 · output: 1.8.0 run</span></div>
+    <div class="cites">
+      <a class="cite repo" href="https://github.com/scikit-learn/scikit-learn/blob/1.9.1/sklearn/calibration.py" target="_blank" rel="noopener"><b>Repo</b>&nbsp;sklearn/calibration.py @ 1.9.1</a>
+      <a class="cite paper" href="https://arxiv.org/abs/2610.31657" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.31657 Cost-Aware Abstention</a>
+    </div>
+  </div>
+  <div class="cal-grid fill">
+    <div class="cal-left">
+      <div class="code-wrap cal-code">
+        <div class="code-head">fraud_data/lab7_calibration.py</div>
+        <pre class="code" data-lang="python" data-focus="1:35-37, 2:24-29, 3:9-20, 4:30-34"><code>import numpy as np
+from sklearn.calibration import CalibratedClassifierCV, calibration_curve
+from sklearn.datasets import make_classification
+from sklearn.frozen import FrozenEstimator
+from sklearn.metrics import brier_score_loss, roc_auc_score
+from sklearn.model_selection import train_test_split
+from sklearn.naive_bayes import GaussianNB
+
+def ece(y, p, n_bins=15, strategy="uniform"):       # strategy: 'uniform' or 'quantile'
+    if strategy == "uniform":
+        edges = np.linspace(0, 1, n_bins + 1)
+    else:
+        edges = np.quantile(p, np.linspace(0, 1, n_bins + 1))
+    idx = np.clip(np.searchsorted(edges, p, side="right") - 1, 0, n_bins - 1)
+    total = 0.0
+    for b in range(n_bins):
+        m = idx == b
+        if m.any():
+            total += m.mean() * abs(y[m].mean() - p[m].mean())
+    return total
+
+X, y = make_classification(n_samples=20_000, n_features=20, n_informative=6,
+                           n_redundant=10, weights=[0.9, 0.1], random_state=0)
+X_tr, X_rest, y_tr, y_rest = train_test_split(X, y, test_size=0.5, stratify=y, random_state=0)
+X_cal, X_te, y_cal, y_te = train_test_split(X_rest, y_rest, test_size=0.5, stratify=y_rest, random_state=0)
+base = GaussianNB().fit(X_tr, y_tr)        # NB with redundant features = overconfident
+models = {"raw GaussianNB": base}
+for method in ["sigmoid", "isotonic", "temperature"]:
+    models[method] = CalibratedClassifierCV(FrozenEstimator(base), method=method).fit(X_cal, y_cal)
+print(f"{'model':15s} {'ROC-AUC':>7s} {'Brier':>7s} {'ECE-15u':>8s} {'ECE-15q':>8s}")
+for name, m in models.items():
+    p = m.predict_proba(X_te)[:, 1]
+    print(f"{name:15s} {roc_auc_score(y_te, p):7.3f} {brier_score_loss(y_te, p):7.4f} "
+          f"{ece(y_te, p):8.4f} {ece(y_te, p, strategy='quantile'):8.4f}")
+frac_pos, mean_pred = calibration_curve(y_te, base.predict_proba(X_te)[:, 1], n_bins=10)
+print("raw reliability (mean_pred -> frac_pos):",
+      [f"{mp:.2f}->{fp:.2f}" for mp, fp in zip(mean_pred, frac_pos)])</code></pre>
+      </div>
+    </div>
+    <div class="cal-right">
+      <svg id="c08cal-svg" viewBox="0 0 668 262" width="624" height="245" role="img" aria-label="Reliability diagram. x is the predicted fraud probability, y is the observed fraud rate, and a dashed diagonal marks perfect calibration. Step 1: ten raw Naive Bayes points sit far below the diagonal; the point at 0.86 predicted has an observed rate of 0.35. Step 2: the points move toward the diagonal for sigmoid, ECE 0.0173. Step 3: isotonic points sit on the diagonal, ECE 0.0063. Step 4: temperature points stay below it, ECE 0.0780, in red. A ROC-AUC 0.929 badge stays the same in every step."></svg>
+      <div class="code-wrap out cal-out" data-step="1">
+        <div class="code-head">output · real run (scikit-learn 1.8.0)</div>
+        <pre class="code" data-lang="none"><code>model            ROC-AUC   Brier  ECE-15u  ECE-15q
+raw GaussianNB     0.929  0.0750   0.0677   0.0698
+sigmoid            0.929  0.0561   0.0173   0.0251
+<span class="ok">isotonic           0.929  0.0536   0.0063   0.0064</span>
+<span class="err">temperature        0.929  0.0702   0.0780   0.0806</span>
+raw reliability (mean_pred -> frac_pos): [... '0.75->0.37', <span class="err">'0.86->0.35'</span>, '0.98->0.67']</code></pre>
+      </div>
+      <div class="steps-rail">
+        <div data-step="1"><span><code>calibration_curve</code> defaults to <code>n_bins=5</code>. Raw NB says 0.86; 35% are fraud.</span></div>
+        <div data-step="2"><span><code>FrozenEstimator</code> keeps the base fixed. Fit the calibrator on <code>X_cal</code> only.</span></div>
+        <div data-step="3"><span>ECE is the row-weighted gap per bin. Report both binnings and Brier.</span></div>
+        <div data-step="4"><span>ROC-AUC stays 0.929. Temperature has no intercept, so ECE got worse.</span></div>
+      </div>
+      <div class="gotcha" data-step="5">
+        <b>Symptom</b><span><code>InvalidParameterError: The 'cv' parameter ... Got 'prefit' instead.</code></span>
+        <b class="fix">Fix</b><span><code>CalibratedClassifierCV(FrozenEstimator(base))</code>. Platt is <code>"sigmoid"</code>.</span>
+        <b class="why">Also</b><span>Isotonic is "not recommended when the number of calibration samples is too low (≪1000)".</span>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">This is step 4 of Lab 7: the fraud scores already rank well, with ROC-AUC 0.929, but the hold rule in the next step reads them as probabilities. Step 1: the reliability curve of the raw Naive Bayes model shows that when it says 0.86, only 35% of those refunds are fraud, because Naive Bayes counts the ten redundant features many times. Step 2: we wrap the fitted model in FrozenEstimator and fit only a calibrator on a separate calibration split, so sigmoid cuts ECE from 0.0677 to 0.0173 and isotonic to 0.0063. Step 4: ROC-AUC is identical in every row, because a monotone map changes the numbers, not the order; temperature scaling made ECE worse, 0.0780, because it has one parameter and no intercept, and the sklearn docstring says sigmoid "might be preferred" for very uncalibrated models on imbalanced data. Analogy: calibration re-labels the ruler, it does not move the objects. Likely question: why not isotonic always? The docstring says isotonic is not recommended with far fewer than 1,000 calibration samples, because it overfits. Hand-off: with calibrated scores, step 5 turns the $15 / $120 cost matrix into the hold threshold. The calibrated points in the diagram are illustrative: each raw gap is scaled by that method's ECE ratio; the ECE and ROC-AUC numbers are the real output.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c08-lab7-calibration";
+  const RAW = [[0.01, 0.01], [0.15, 0.09], [0.24, 0.14], [0.35, 0.24], [0.45, 0.23], [0.55, 0.22], [0.65, 0.35], [0.75, 0.37], [0.86, 0.35], [0.98, 0.67]];
+  const M = [
+    { name: "raw GaussianNB", ece: 0.0677, col: "var(--tool)" },
+    { name: "sigmoid", ece: 0.0173, col: "var(--agent)" },
+    { name: "isotonic", ece: 0.0063, col: "var(--state)" },
+    { name: "temperature", ece: 0.0780, col: "var(--risk)" }
+  ];
+  const X0 = 58, PW = 300, Y0 = 230, PH = 210;
+  const px = (v) => X0 + v * PW, py = (v) => Y0 - v * PH;
+  const ratio = (m) => M[m].ece / M[0].ece;
+  const ptY = (x, yr, r) => x - (x - yr) * r;
+  const methodAt = (n) => (n <= 1 ? 0 : Math.min(n - 1, 3));
+  const RX = 400, BARW = 190, BMAX = 0.08;
+
+  function mk(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  }
+
+  function build(slide) {
+    const svg = slide.querySelector("#c08cal-svg");
+    if (svg._S) return svg._S;
+    svg.innerHTML = "";
+    const s = { prev: -1, tls: [], pts: [], ghosts: [], rows: [], proxy: { r: 1 } };
+    // axes and grid
+    [0, 0.25, 0.5, 0.75, 1].forEach((v) => {
+      mk("line", { x1: px(0), y1: py(v), x2: px(1), y2: py(v), stroke: "var(--line)", "stroke-width": 1 }, svg);
+      mk("text", { x: X0 - 8, y: py(v) + 4, "text-anchor": "end", "font-size": 10.5, fill: "var(--muted)" }, svg, v.toFixed(2));
+      mk("text", { x: px(v), y: Y0 + 15, "text-anchor": "middle", "font-size": 10.5, fill: "var(--muted)" }, svg, v.toFixed(2));
+    });
+    mk("line", { x1: px(0), y1: py(0), x2: px(1), y2: py(0), stroke: "var(--line-2)", "stroke-width": 1.5 }, svg);
+    mk("line", { x1: px(0), y1: py(0), x2: px(0), y2: py(1), stroke: "var(--line-2)", "stroke-width": 1.5 }, svg);
+    mk("line", { x1: px(0), y1: py(0), x2: px(1), y2: py(1), stroke: "var(--muted)", "stroke-width": 1.5, "stroke-dasharray": "5 5" }, svg);
+    mk("line", { x1: px(0) + 152, y1: py(1) + 14, x2: px(0) + 176, y2: py(1) + 14, stroke: "var(--muted)", "stroke-width": 1.5, "stroke-dasharray": "5 5" }, svg);
+    mk("text", { x: px(0) + 182, y: py(1) + 18, "font-size": 11, fill: "var(--muted)" }, svg, "perfect");
+    mk("text", { x: X0 - 50, y: 9, "font-size": 11, "font-weight": 700, fill: "var(--ink-2)" }, svg, "observed fraud rate");
+    mk("text", { x: px(1), y: Y0 + 29, "text-anchor": "end", "font-size": 11, "font-weight": 700, fill: "var(--ink-2)" }, svg, "predicted P(fraud) →");
+    // ROC-AUC badge (constant)
+    const bd = mk("g", {}, svg);
+    mk("rect", { x: px(0) + 8, y: py(1) + 2, width: 132, height: 24, rx: 6, fill: "var(--bg)", stroke: "var(--ink-2)", "stroke-width": 1.4 }, bd);
+    mk("text", { x: px(0) + 74, y: py(1) + 18, "text-anchor": "middle", "font-size": 12, "font-weight": 800, fill: "var(--ink)" }, bd, "ROC-AUC 0.929");
+    // ghosts (raw, faint) and live points
+    RAW.forEach(([x, yr]) => s.ghosts.push(mk("circle", { cx: px(x), cy: py(yr), r: 4, fill: "var(--tool)", opacity: 0 }, svg)));
+    s.line = mk("polyline", { points: "", fill: "none", stroke: "var(--tool)", "stroke-width": 2, opacity: 0 }, svg);
+    RAW.forEach(() => s.pts.push(mk("circle", { cx: 0, cy: 0, r: 6.5, fill: "var(--tool)", stroke: "var(--bg)", "stroke-width": 1.5, opacity: 0 }, svg)));
+    // step-1 callout: 0.86 -> 0.35
+    s.call = mk("g", { opacity: 0 }, svg);
+    mk("line", { x1: px(0.86), y1: py(0.86), x2: px(0.86), y2: py(0.35) - 8, stroke: "var(--risk)", "stroke-width": 2, "stroke-dasharray": "4 3" }, s.call);
+    mk("text", { x: px(0.86) - 8, y: py(0.58), "text-anchor": "end", "font-size": 12, "font-weight": 800, fill: "var(--risk)" }, s.call, "says 0.86");
+    mk("text", { x: px(0.86) - 8, y: py(0.58) + 15, "text-anchor": "end", "font-size": 12, "font-weight": 800, fill: "var(--risk)" }, s.call, "→ 35% fraud");
+    // ECE read-out panel
+    mk("text", { x: RX, y: 14, "font-size": 12, "font-weight": 800, fill: "var(--ink)" }, svg, "ECE-15u on the test split");
+    M.forEach((m, k) => {
+      const y = 44 + k * 46;
+      const g = mk("g", { opacity: 0 }, svg);
+      mk("circle", { cx: RX + 6, cy: y - 4, r: 5.5, fill: m.col }, g);
+      mk("text", { x: RX + 18, y, "font-size": 12, "font-weight": 700, fill: "var(--ink-2)" }, g, m.name);
+      mk("rect", { x: RX, y: y + 8, width: BARW, height: 9, rx: 4, fill: "var(--line)" }, g);
+      const bar = mk("rect", { x: RX, y: y + 8, width: 0, height: 9, rx: 4, fill: m.col }, g);
+      const val = mk("text", { x: RX + BARW + 70, y: y + 17, "text-anchor": "end", "font-size": 13, "font-weight": 800, fill: m.col }, g, m.ece.toFixed(4));
+      s.rows.push({ g, bar, val, w: BARW * m.ece / BMAX });
+    });
+    s.note = mk("text", { x: RX, y: 236, "font-size": 10.5, fill: "var(--muted)", opacity: 0 }, svg, "calibrated points: illustrative,");
+    s.note2 = mk("text", { x: RX, y: 250, "font-size": 10.5, fill: "var(--muted)", opacity: 0 }, svg, "raw gap × ECE ratio");
+    svg._S = s;
+    return s;
+  }
+
+  function place(s, r, col) {
+    const xy = RAW.map(([x, yr]) => [px(x), py(Math.max(0, ptY(x, yr, r)))]);
+    s.pts.forEach((c, i) => { c.setAttribute("cx", xy[i][0]); c.setAttribute("cy", xy[i][1]); if (col) c.setAttribute("fill", col); });
+    s.line.setAttribute("points", xy.map((p) => p.join(",")).join(" "));
+    if (col) s.line.setAttribute("stroke", col);
+  }
+
+  function render(s, n, animate) {
+    s.tls.forEach((t) => t && t.kill()); s.tls = [];
+    const all = [...s.pts, ...s.ghosts, s.line, s.call, s.note, s.note2, s.proxy, ...s.rows.flatMap((r) => [r.g, r.bar])];
+    gsap.killTweensOf(all);
+    const m = methodAt(n), pm = s.prev < 1 ? -1 : methodAt(s.prev);
+    const col = M[m].col, on = n >= 1;
+    const op = (el, v, d) => (animate ? gsap.to(el, { opacity: v, duration: .4, delay: d || 0 }) : gsap.set(el, { opacity: v }));
+    // points
+    if (!on) { gsap.set([...s.pts, s.line], { opacity: 0 }); }
+    else if (animate && s.prev < 1) {
+      s.proxy.r = 1; place(s, 1, col);
+      gsap.set(s.line, { opacity: 0 });
+      s.tls.push(gsap.fromTo(s.pts, { opacity: 0, scale: 0, transformOrigin: "center", transformBox: "fill-box" }, { opacity: 1, scale: 1, duration: .45, stagger: .06, ease: "back.out(2)" }));
+      s.tls.push(gsap.to(s.line, { opacity: 0.55, duration: .5, delay: .6 }));
+    } else if (animate && m !== pm) {
+      s.pts.forEach((c) => c.setAttribute("fill", col)); s.line.setAttribute("stroke", col);
+      gsap.set(s.pts, { opacity: 1, scale: 1 }); gsap.set(s.line, { opacity: 0.55 });
+      s.tls.push(gsap.to(s.proxy, { r: ratio(m), duration: 1.1, ease: "power3.inOut", onUpdate: () => place(s, s.proxy.r) }));
+    } else {
+      s.proxy.r = ratio(m); place(s, s.proxy.r, col);
+      gsap.set(s.pts, { opacity: 1, scale: 1 }); gsap.set(s.line, { opacity: 0.55 });
+    }
+    // raw ghosts once the points have moved
+    s.ghosts.forEach((g) => op(g, n >= 2 ? 0.35 : 0));
+    op(s.call, n === 1 ? 1 : 0, n === 1 && animate ? 1.0 : 0);
+    op(s.note, n >= 2 ? 1 : 0); op(s.note2, n >= 2 ? 1 : 0);
+    // ECE rows: row k shows from step k+1; the active row is bold
+    s.rows.forEach((row, k) => {
+      const show = on && k <= m;
+      const fresh = animate && show && (pm < k);
+      if (!show) { gsap.set(row.g, { opacity: 0 }); gsap.set(row.bar, { attr: { width: 0 } }); return; }
+      const alpha = k === m ? 1 : 0.45;
+      if (fresh) {
+        gsap.set(row.g, { opacity: 0 }); gsap.set(row.bar, { attr: { width: 0 } });
+        const from = { v: k === 0 ? 0 : M[Math.max(0, pm)].ece };
+        const tl = gsap.timeline({ delay: .2 });
+        tl.to(row.g, { opacity: alpha, duration: .3 })
+          .to(row.bar, { attr: { width: row.w }, duration: .9, ease: "power2.out" }, "<")
+          .to(from, { v: M[k].ece, duration: .9, ease: "power2.out", onUpdate: () => { row.val.textContent = from.v.toFixed(4); } }, "<");
+        s.tls.push(tl);
+      } else {
+        row.val.textContent = M[k].ece.toFixed(4);
+        gsap.set(row.bar, { attr: { width: row.w } });
+        op(row.g, alpha);
+      }
+    });
+    s.prev = n;
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { const s = build(slide); s.prev = -1; render(s, step, false); },
+    step(slide, n, animate) { render(build(slide), n, animate); },
+    leave(slide) {
+      const svg = slide.querySelector("#c08cal-svg");
+      if (svg && svg._S) { svg._S.tls.forEach((t) => t && t.kill()); svg._S.tls = []; gsap.killTweensOf(svg._S.proxy); }
+      if (svg) gsap.killTweensOf(svg.querySelectorAll("*"));
+    }
+  });
+})();
+</script>

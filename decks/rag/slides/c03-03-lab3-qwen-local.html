@@ -1,0 +1,205 @@
+<section class="slide" id="rag-c03-lab3-qwen-local" data-tone="state" data-title="Lab 3: Qwen3 claims embeddings">
+  <style>
+    #rag-c03-lab3-qwen-local .ql-wrap { display: flex; flex-direction: column; gap: 14px; }
+    #rag-c03-lab3-qwen-local .lab-head { gap: 12px; font-size: 15px; }
+    #rag-c03-lab3-qwen-local .lab-head .run { font-size: 14px; }
+    #rag-c03-lab3-qwen-local .lab-head .cite { font-size: 14px; padding: 5px 10px 5px 8px; }
+    #rag-c03-lab3-qwen-local .ql-note { font: 500 13.5px/1.2 var(--f-mono); color: var(--state); padding: 6px 9px; border-radius: 8px; background: var(--state-soft); }
+    #rag-c03-lab3-qwen-local .ql-main { display: grid; grid-template-columns: 760px 1fr; gap: 22px; min-height: 0; }
+    #rag-c03-lab3-qwen-local .ql-main .code-head { padding: 8px 14px; font-size: 13.5px; }
+    #rag-c03-lab3-qwen-local .ql-code pre.code { font-size: 12px; line-height: 1.45; padding: 12px 18px 14px; }
+    #rag-c03-lab3-qwen-local .ql-right { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    #rag-c03-lab3-qwen-local .ql-rail { gap: 9px; }
+    #rag-c03-lab3-qwen-local .ql-rail > * { font-size: 14.5px; line-height: 1.32; }
+    #rag-c03-lab3-qwen-local .ql-row { display: grid; grid-template-columns: 1fr 280px; gap: 12px; align-items: center; min-height: 54px; }
+    #rag-c03-lab3-qwen-local .ql-row code { font-size: 13px; }
+    #rag-c03-lab3-qwen-local .ql-v { width: 280px; height: 56px; overflow: visible; }
+    #rag-c03-lab3-qwen-local .ql-v text { font: 500 12px/1 var(--f-mono); fill: var(--muted); }
+    #rag-c03-lab3-qwen-local .ql-v .ql-num { font: 700 19px/1 var(--f-mono); fill: var(--state); }
+    #rag-c03-lab3-qwen-local .ql-v .ql-in { font: 600 12px/1 var(--f-mono); fill: #fff; }
+    #rag-c03-lab3-qwen-local .ql-v .ql-ink { fill: var(--ink-2); }
+    #rag-c03-lab3-qwen-local .ql-v .ql-bold { font-weight: 700; fill: var(--state); }
+    #rag-c03-lab3-qwen-local .ql-cells rect { fill: var(--state); }
+    #rag-c03-lab3-qwen-local .ql-paper { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+    #rag-c03-lab3-qwen-local .ql-paper .cite { display: inline-flex; flex-direction: row; white-space: nowrap; width: auto; font-size: 13.5px; padding: 4px 9px 4px 7px; }
+    #rag-c03-lab3-qwen-local .code-wrap.out { margin-top: auto; align-self: stretch; }
+    #rag-c03-lab3-qwen-local .code-wrap.out pre.code { font-size: 12px; line-height: 1.45; padding: 9px 14px 11px; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 3</span> Northwind Mutual index · step 2 of 4</div>
+  <h2 class="title">Embed claims on-prem with Qwen3: model prompts, 256-d MRL, int8</h2>
+  <div class="ql-wrap fill">
+    <div class="lab-head">
+      <span class="run">pip install "sentence-transformers==6.2.0" "torch==2.14.1"</span>
+      <span class="run">python lab5_st_claims.py</span>
+      <a class="cite repo" href="https://github.com/huggingface/sentence-transformers" target="_blank" rel="noopener"><b>Repo</b>&nbsp;huggingface/sentence-transformers</a>
+    </div>
+    <div class="ql-main fill">
+      <div class="code-wrap ql-code">
+        <div class="code-head">lab5_st_claims.py · reads Lab 2 chunks · Qwen3-Embedding-0.6B is not gated</div>
+        <pre class="code" data-lang="python" data-focus="1:9-11, 2:12, 3:14-17, 4:26-27"><code># lab5_st_claims.py
+import json
+import numpy as np
+from sentence_transformers import SentenceTransformer, quantize_embeddings
+
+chunks = [json.loads(line) for line in open("out/claims_chunks.jsonl", encoding="utf-8")]
+texts = [c["text"] for c in chunks]
+
+model = SentenceTransformer("Qwen/Qwen3-Embedding-0.6B", device="cpu", truncate_dim=256)
+print("prompts:", list(model.prompts), "| dim:", model.get_embedding_dimension(),
+      "| max_seq_length:", model.max_seq_length)
+model.max_seq_length = 1024          # cap memory; chunks are <=512 tokens anyway
+
+doc_emb = model.encode_document(texts, batch_size=16, normalize_embeddings=True,
+                                show_progress_bar=True)
+queries = ["Is water damage from a burst pipe covered?", "How long do I have to report a claim?"]
+q_emb = model.encode_query(queries, normalize_embeddings=True)
+
+scores = model.similarity(q_emb, doc_emb)            # cosine (from model config)
+for qi, q in enumerate(queries):
+    top = np.argsort(-scores[qi].numpy())[:3]
+    print(f"\nQ: {q}")
+    for j in top:
+        print(f"  {scores[qi, j]:.3f} p{chunks[j]['pages']} {chunks[j]['headings'][-1:]} ")
+
+int8_docs = quantize_embeddings(doc_emb, precision="int8", calibration_embeddings=doc_emb)
+print("\nfloat32 bytes:", doc_emb.nbytes, "| int8 bytes:", int8_docs.nbytes)
+np.save("out/claims_qwen256.npy", doc_emb.astype(np.float32))</code></pre>
+      </div>
+      <div class="ql-right">
+        <div class="steps-rail ql-rail">
+          <div data-step="1"><div class="ql-row">
+            <span><code>truncate_dim=256</code> keeps 256 of 1,024 dims, then normalises.</span>
+            <svg class="ql-v" viewBox="0 0 300 60" aria-label="1024-dim vector truncated to its first 256 dims">
+              <g class="ql-cells"></g>
+              <text x="0" y="50">0</text>
+              <text x="74" y="50" text-anchor="middle" class="ql-bold">256</text>
+              <text x="300" y="50" text-anchor="end">1,024 dims</text>
+            </svg>
+          </div></div>
+          <div data-step="2"><div class="ql-row">
+            <span>Config allows 32,768 tokens. Chunks are &le; 512: cap at 1,024.</span>
+            <svg class="ql-v" viewBox="0 0 300 60" aria-label="max_seq_length capped at 1024 with a 512-token chunk inside">
+              <text x="0" y="19" class="ql-num ql-seq">32,768</text>
+              <text x="300" y="18" text-anchor="end">max_seq_length</text>
+              <rect x="0" y="27" width="300" height="14" rx="4" fill="none" stroke="var(--state)" stroke-width="1.5"></rect>
+              <rect class="ql-chunk" x="0" y="27" width="150" height="14" rx="4" fill="var(--state)" opacity=".55"></rect>
+              <text x="0" y="56">chunk &le; 512</text>
+              <text x="300" y="56" text-anchor="end">1,024</text>
+            </svg>
+          </div></div>
+          <div data-step="3"><div class="ql-row">
+            <span><code>encode_query</code> adds the Instruct prompt. Plain <code>encode()</code> drops it.</span>
+            <svg class="ql-v" viewBox="0 0 300 60" aria-label="query gets an Instruct prefix, document gets an empty prompt">
+              <g class="ql-ins">
+                <rect x="0" y="3" width="146" height="22" rx="6" fill="var(--agent)"></rect>
+                <text x="8" y="18" class="ql-in">Instruct: … Query:</text>
+              </g>
+              <text x="156" y="18" class="ql-ink ql-qtxt">burst pipe covered?</text>
+              <rect x="0" y="33" width="40" height="22" rx="6" fill="none" stroke="var(--muted)" stroke-dasharray="4 3"></rect>
+              <text x="20" y="48" text-anchor="middle">""</text>
+              <text x="50" y="48" class="ql-ink">doc: 3.2 Exclusions …</text>
+            </svg>
+          </div></div>
+          <div data-step="4"><div class="ql-row">
+            <span>int8 stores 4x less. Calibrate on a representative sample.</span>
+            <svg class="ql-v" viewBox="0 0 300 60" aria-label="float32 41984 bytes shrinks to int8 10496 bytes">
+              <rect x="0" y="2" width="300" height="20" rx="4" fill="var(--state-soft)" stroke="var(--state)" stroke-width="1"></rect>
+              <text x="8" y="16" class="ql-ink">float32 · 41,984 B</text>
+              <rect class="ql-i8" x="0" y="31" width="75" height="20" rx="4" fill="var(--state)"></rect>
+              <text x="84" y="45" class="ql-ink ql-i8t">int8 · 10,496 B</text>
+              <text x="300" y="45" text-anchor="end" class="ql-bold ql-4x">4x</text>
+            </svg>
+          </div></div>
+          <div data-step="5"><div class="ql-paper">
+            <span>Mean quality hides per-query neighbour loss. Test 256-d on hard queries.</span>
+            <a class="cite paper" href="https://arxiv.org/abs/2610.17742" target="_blank" rel="noopener"><b>arXiv 2610.17742</b>&nbsp;Neighborhood loss under PCA truncation</a>
+          </div></div>
+        </div>
+        <div class="code-wrap out">
+          <div class="code-head">output · illustrative · 41 chunks</div>
+          <pre class="code" data-lang="none"><code><span class="dim">$ python lab5_st_claims.py</span>
+<span data-step="1" data-fx="fade">prompts: ['query', 'document'] | dim: <span class="ok">256</span> | max_seq_length: 32768</span>
+<span data-step="3" data-fx="fade"><span class="dim">Batches: 100%|██████████| 3/3</span>
+Q: Is water damage from a burst pipe covered?
+  <span class="ok">0.712</span> p[4] ['3.2 Exclusions']
+  0.655 p[3] ['3.1 Covered perils']</span>
+<span data-step="4" data-fx="fade">float32 bytes: 41984 | int8 bytes: <span class="ok">10496</span>   <span class="dim"># 41 x 256 x 4 B</span></span></code></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">This lab embeds the same claims chunks from Lab 2, but on our own machines, so no policy text leaves the network. Walk the four focus steps: truncate_dim cuts the 1,024-dimension Qwen3 vector to its first 256 dimensions, max_seq_length caps memory, encode_query and encode_document apply the model's own prompts, and int8 quantization cuts storage by four. Matryoshka truncation is like a nested set of dolls: the first 256 numbers are a complete, smaller vector by training, not by accident. Stress that plain encode() for queries silently drops the "Instruct:" prompt and costs recall with no error. A likely question is "how much recall do I lose at 256 dimensions?"; the answer is to measure it on your hard queries, because arXiv 2610.17742 shows that the mean hides large per-query loss. Hand-off: the script saves out/claims_qwen256.npy; step 3 asks how to search 256-d vectors like these fast without losing neighbours.</aside>
+</section>
+<script>
+(() => {
+  const ID = "rag-c03-lab3-qwen-local";
+  let els = [];
+  const counter = { v: 0 };
+  const fmt = (v) => Math.round(v).toLocaleString("en-US");
+  function build(slide) {
+    const g = slide.querySelector(".ql-cells");
+    if (g.childElementCount) return;
+    const NS = "http://www.w3.org/2000/svg";
+    for (let i = 0; i < 32; i++) {
+      const r = document.createElementNS(NS, "rect");
+      r.setAttribute("x", (i * 9.3).toFixed(1)); r.setAttribute("y", 6);
+      r.setAttribute("width", 7.6); r.setAttribute("height", 26); r.setAttribute("rx", 2);
+      g.appendChild(r);
+    }
+  }
+  function render(slide, n, animate) {
+    build(slide);
+    const cells = [...slide.querySelectorAll(".ql-cells rect")];
+    const head = cells.slice(0, 8), tail = cells.slice(8);
+    const seq = slide.querySelector(".ql-seq"), chunk = slide.querySelector(".ql-chunk");
+    const ins = slide.querySelector(".ql-ins"), qtxt = slide.querySelector(".ql-qtxt");
+    const i8 = slide.querySelector(".ql-i8"), i8t = slide.querySelector(".ql-i8t"), x4 = slide.querySelector(".ql-4x");
+    els = [...cells, seq, chunk, ins, qtxt, i8, i8t, x4, counter];
+    els.forEach((e) => gsap.killTweensOf(e));
+    // step 1: Matryoshka prefix of 256 of 1,024 dims (8 of 32 cells, 32 dims each)
+    const cut = n >= 1;
+    if (animate && n === 1) {
+      gsap.set(cells, { opacity: 1 });
+      gsap.to(tail, { opacity: 0.13, duration: 0.5, delay: 0.5, stagger: 0.015 });
+      gsap.fromTo(head, { y: 0 }, { y: -3, duration: 0.25, delay: 1.0, yoyo: true, repeat: 1, stagger: 0.03 });
+    } else {
+      gsap.set(tail, { opacity: cut ? 0.13 : 1 });
+      gsap.set(head, { opacity: 1, y: 0 });
+    }
+    // step 2: max_seq_length 32,768 -> 1,024; a 512-token chunk fills half of the cap
+    if (animate && n === 2) {
+      counter.v = 32768; seq.textContent = fmt(32768);
+      gsap.to(counter, { v: 1024, duration: 1.1, delay: 0.4, ease: "power3.out", onUpdate: () => (seq.textContent = fmt(counter.v)) });
+      gsap.fromTo(chunk, { attr: { width: 0 } }, { attr: { width: 150 }, duration: 0.8, delay: 1.2, ease: "power2.out" });
+    } else {
+      seq.textContent = n >= 2 ? "1,024" : "32,768";
+      gsap.set(chunk, { attr: { width: 150 } });
+    }
+    // step 3: the query gets the Instruct prefix, the document gets an empty prompt
+    if (animate && n === 3) {
+      gsap.fromTo(ins, { x: -30, opacity: 0 }, { x: 0, opacity: 1, duration: 0.55, delay: 0.5, ease: "back.out(1.6)" });
+      gsap.fromTo(qtxt, { x: -150 }, { x: 0, duration: 0.55, delay: 0.5, ease: "power2.out" });
+    } else {
+      gsap.set(ins, { x: 0, opacity: n >= 3 ? 1 : 0 });
+      gsap.set(qtxt, { x: 0 });
+    }
+    // step 4: 41,984 B float32 -> 10,496 B int8 (a quarter of the width)
+    if (animate && n === 4) {
+      counter.v = 41984; i8t.textContent = "int8 · 41,984 B";
+      gsap.set(x4, { opacity: 0 });
+      gsap.fromTo(i8, { attr: { width: 300 } }, { attr: { width: 75 }, duration: 1.0, delay: 0.5, ease: "power3.inOut" });
+      gsap.to(counter, { v: 10496, duration: 1.0, delay: 0.5, ease: "power3.inOut", onUpdate: () => (i8t.textContent = "int8 · " + fmt(counter.v) + " B") });
+      gsap.fromTo(x4, { opacity: 0, scale: 0.4, transformOrigin: "100% 50%" }, { opacity: 1, scale: 1, duration: 0.4, delay: 1.5, ease: "back.out(2.4)" });
+    } else {
+      gsap.set(i8, { attr: { width: 75 } });
+      i8t.textContent = "int8 · 10,496 B";
+      gsap.set(x4, { opacity: 1, scale: 1 });
+    }
+  }
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { els.forEach((e) => e && gsap.killTweensOf(e)); }
+  });
+})();
+</script>

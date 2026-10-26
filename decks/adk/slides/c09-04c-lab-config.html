@@ -1,0 +1,47 @@
+<section class="slide" id="adk-c09-lab-config" data-tone="model" data-title="Lab 9.9: test_config.json">
+  <style>
+    #adk-c09-lab-config .c9-split { --c9l: 770px; }
+    #adk-c09-lab-config .c9-cap { min-height: 132px; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 9</span> Acme refund eval gate · step 9 of 15</div>
+  <h2 class="title">test_config.json names the custom metric twice</h2>
+  <div class="c9-split fill">
+    <div class="code-wrap">
+      <div class="code-head">labs/adk/lab9-refund-eval/refund_agent/test_config.json</div>
+      <pre class="code" data-lang="json" data-focus="1:3-4, 2:5-7, 3:8, 4:10-13"><code>{
+  "criteria": {
+    "tool_trajectory_avg_score": {"threshold": 1.0,
+      "match_type": "IN_ORDER", "ignore_args": true},
+    "final_response_match_v2": {"threshold": 0.8,
+      "judge_model_options": {"judge_model": "gemini-2.5-flash",
+                              "num_samples": 5}},
+    "refund_policy_score": 1.0
+  },
+  "custom_metrics": {
+    "refund_policy_score": {
+      "code_config": {"name": "refund_policy.refund_policy_score"}
+    }
+  }
+}</code></pre>
+    </div>
+    <div class="c9-col">
+      <div class="code-wrap out" data-step="5">
+        <div class="code-head">output · illustrative · 500 USD sentence removed</div>
+        <pre class="code sm" data-lang="none"><code>Eval Id: small_refund
+<span class="ok">Metric: refund_policy_score, Status: PASSED,
+  Score: 1.0, Threshold: 1.0</span>
+Eval Id: large_refund_escalates
+<span class="err">Metric: refund_policy_score, Status: FAILED,
+  Score: 0.0, Threshold: 1.0</span></code></pre>
+      </div>
+      <div class="c9-cap">
+        <p data-step="1" data-until="2"><code>IN_ORDER</code>: these tools in this order, extra calls allowed. <code>ignore_args</code>: names only.</p>
+        <p data-step="2" data-until="3">An LLM judge checks the meaning, 5 samples per case. Pin the judge model.</p>
+        <p data-step="3" data-until="4">The <b>threshold</b> goes under <code>criteria</code>.</p>
+        <p data-step="4" data-until="5">The <b>import path</b> goes under <code>custom_metrics</code>. ADK finds it on <code>PYTHONPATH</code>.</p>
+        <p data-step="5">Delete the 500 USD sentence and run again: A-2040 now scores <b>0.0</b>.</p>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Step nine: test_config.json replaces the defaults with three criteria. tool_trajectory_avg_score with IN_ORDER means the expected tools must appear in this order, extra calls are allowed, and ignore_args compares only tool names, because the free-text reason differs every run. final_response_match_v2 asks an LLM judge whether the answer means the same as the reference; num_samples 5 runs it five times per case, so each case costs five extra Gemini calls, and we pin gemini-2.5-flash, which is the source default judge. Our own metric appears twice: its threshold under criteria and its import path under custom_metrics; the names must match, and ADK imports refund_policy with importlib, so PYTHONPATH must point at the lab folder. To see the metric fail, delete the sentence "If it is above 500 USD, never call issue_refund" and run again: the large case now calls issue_refund for 820 dollars and scores 0.0. The output is illustrative. A likely question: "Why IN_ORDER and not EXACT?" The agent may make an extra lookup, but it must look up the order before it escalates.</aside>
+</section>

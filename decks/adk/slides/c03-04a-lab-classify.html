@@ -1,0 +1,56 @@
+<section class="slide" id="adk-c03-lab-classify" data-tone="agent" data-title="Lab 3.3: classify into a Literal set">
+  <style>
+    #adk-c03-lab-classify .cl-main { display: grid; grid-template-columns: 860px 1fr; gap: 40px; align-items: start; }
+    #adk-c03-lab-classify .cl-right { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+    #adk-c03-lab-classify .cl-diag .node .nt { font-size: 21px; }
+    #adk-c03-lab-classify .cl-diag .node .ns { font-size: 16px; }
+    #adk-c03-lab-classify .cl-diag .node.json { font: 600 18px/1.5 var(--f-mono); color: var(--ink); }
+    #adk-c03-lab-classify .cl-diag .node.json .k { color: var(--state); }
+    #adk-c03-lab-classify .cap { display: grid; }
+    #adk-c03-lab-classify .cap > * { grid-area: 1 / 1; font-size: 23px; line-height: 1.4; color: var(--ink-2); }
+    #adk-c03-lab-classify .cap code { font-size: .82em; }
+    #adk-c03-lab-classify, #adk-c03-lab-classify * { font-variant-ligatures: none !important; }
+    #adk-c03-lab-classify .out pre.code .dim { color: #a3abd6; opacity: 1; }
+    #adk-c03-lab-classify .cites .cite { display: inline-flex; flex-direction: row; align-items: center; gap: 10px; white-space: nowrap; padding: 6px 12px 6px 10px; border-radius: 10px; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 3.3</span> Acme support desk · 1 of 3</div>
+  <h2 class="title">The LLM may only answer inside a closed Literal set</h2>
+  <div class="lab-head"><span class="run">adk run ticket_triage "Checkout API returns 500 since 09:00 and we were double charged"</span><span class="tag t-agent">setup as in Lab 3.1</span></div>
+  <div class="cl-main fill">
+    <div class="code-wrap">
+      <div class="code-head">labs/adk/c03-ticket-triage/ticket_triage/agent.py · excerpt</div>
+      <pre class="code" data-lang="python" data-focus="1:6-9, 2:11-12, 3:14-16"><code>from typing import Literal
+from google.adk import Agent, Event, Workflow
+from google.adk.workflow import DEFAULT_ROUTE
+from pydantic import BaseModel, Field
+
+class Triage(BaseModel):
+  labels: list[Literal["billing", "outage", "how_to", "other"]] = Field(
+      description="All labels that apply to the ticket.")
+  priority: Literal["p1", "p2", "p3"]
+
+def intake(node_input: str):
+  yield Event(state={"ticket": node_input})
+
+classify = Agent(name="classify", model="gemini-3.5-flash",
+    instruction="Classify this support ticket. Ticket: {ticket}",
+    output_schema=Triage, output_key="triage")</code></pre>
+    </div>
+    <div class="cl-right">
+      <div class="diagram cl-diag" style="width:492px;height:370px"
+           data-wires="cl-ticket>cl-intake@2:bt; cl-intake>cl-classify@3:rl; cl-classify>cl-out@3:bt">
+        <div class="node n-human" id="cl-ticket" style="left:0;top:0;width:492px"><span class="nt">“Checkout API returns 500 … double charged”</span></div>
+        <div class="node n-tool" id="cl-intake" style="left:0;top:118px;width:200px" data-step="2" data-fx="pop"><span class="nt">intake</span><span class="ns">state.ticket</span></div>
+        <div class="node n-model" id="cl-classify" style="left:292px;top:118px;width:200px" data-step="3" data-fx="pop"><span class="nt">classify</span><span class="ns">→ Triage</span></div>
+        <div class="node n-state json" id="cl-out" style="left:0;top:268px;width:492px" data-step="3" data-fx="up"><span><span class="k">labels</span>: ["billing"]</span><span><span class="k">priority</span>: "p1"</span></div>
+      </div>
+      <div class="cap">
+        <p data-until="1">The ticket is free text. The routes must not be.</p>
+        <p data-step="1" data-until="2">Closed <code>Literal</code> sets: the model cannot invent <code>"Billing"</code>.</p>
+        <p data-step="2" data-until="3"><code>intake</code> saves the ticket in state for every later prompt.</p>
+        <p data-step="3"><code>output_schema=Triage</code>: the reply is validated JSON, saved as <code>triage</code>.</p>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Lab 3.3 is the Acme support desk triage. A second package, ticket_triage, adds routing; the full file is labs/adk/c03-ticket-triage/ticket_triage/agent.py. Step 1: the Triage schema. Labels and priority are closed Literal sets, so the model can only pick from them; it cannot invent "Billing" with a capital B. labels is a list because one ticket can be both an outage and a billing problem. Step 2: intake is a function node that yields an Event with state, so {ticket} is available to every prompt later in the graph. Step 3: classify is an Agent with output_schema=Triage: its reply is validated JSON, saved in state under triage, and passed on the edge to the next node. For this double-charge ticket the illustrative answer is labels billing, priority p1; the next slide shows how code adds the outage route. Analogy: the nurse may only write one of four ward names on the chart. A likely question: "Why import DEFAULT_ROUTE from google.adk.workflow?" The top-level package exports only Agent, Context, Event, Runner and Workflow. Next: the function that picks the route.</aside>
+</section>

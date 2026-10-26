@@ -1,0 +1,205 @@
+<section class="slide" id="custom-interview-c02-peft-numbers" data-tone="model" data-title="Adapter numbers: params, bytes, forgetting">
+  <style>
+    #custom-interview-c02-peft-numbers .pn-grid { display: grid; grid-template-columns: 1fr 800px; gap: 32px; }
+    #custom-interview-c02-peft-numbers .qa { gap: 8px; }
+    #custom-interview-c02-peft-numbers .qa .q { font-size: 22px; }
+    #custom-interview-c02-peft-numbers .qa .a { font-size: 19px; line-height: 1.4; padding: 10px 16px; }
+    #custom-interview-c02-peft-numbers code { font-variant-ligatures: none; }
+    #custom-interview-c02-peft-numbers .viz { position: relative; height: 610px; }
+    #custom-interview-c02-peft-numbers .vp { position: absolute; inset: 0; display: flex; flex-direction: column; gap: 12px;
+      padding: 18px 22px; border-radius: 16px; border: 1px solid var(--line); border-top: 3px solid var(--model); background: var(--surface); }
+    #custom-interview-c02-peft-numbers .vp h4 { font-size: 21px; }
+    #custom-interview-c02-peft-numbers .bl { display: flex; justify-content: space-between; font-size: 18px; color: var(--ink-2); margin: 10px 0 6px; }
+    #custom-interview-c02-peft-numbers .bl b { font-family: var(--f-mono); color: var(--ink); }
+    #custom-interview-c02-peft-numbers .bar { height: 20px; }
+    #custom-interview-c02-peft-numbers .bar.qv > i { background: var(--tool); }
+    #custom-interview-c02-peft-numbers .bar.al > i { background: var(--model); }
+    #custom-interview-c02-peft-numbers .fx { font: 500 16px/1.45 var(--f-mono); color: var(--ink-2); }
+    #custom-interview-c02-peft-numbers .fx b { color: var(--ink); }
+    #custom-interview-c02-peft-numbers svg text { font-family: var(--f-mono); font-variant-ligatures: none; }
+    #custom-interview-c02-peft-numbers .stat .n { font-size: 60px; }
+    #custom-interview-c02-peft-numbers .stat .l { font-size: 17px; }
+    #custom-interview-c02-peft-numbers pre.code { font-size: 16px; line-height: 1.45; padding: 10px 16px 12px; }
+    #custom-interview-c02-peft-numbers .code-wrap .code-head { padding: 7px 14px; font-size: 14px; }
+    #custom-interview-c02-peft-numbers .cites { gap: 8px; margin-top: 12px; }
+    #custom-interview-c02-peft-numbers .cite { display: inline-flex; flex-direction: row; gap: 8px; border-radius: 10px; font-size: 14px; padding: 6px 10px 6px 8px; }
+  </style>
+  <div class="kicker">Interview · PEFT numbers</div>
+  <h2 class="title">Know the adapter numbers: params, bytes and forgetting</h2>
+  <div class="pn-grid fill">
+    <div class="stack" style="gap:18px">
+      <div class="qa">
+        <div class="q">The refund adapter is LoRA r=16 on Qwen3-0.6B. How many trainable params?</div>
+        <div class="a" data-step="1">Sum r × (in + out) over 7 modules × 28 layers.</div>
+      </div>
+      <div class="qa" data-step="2">
+        <div class="q">Where does QLoRA save memory, and what is the silent default?</div>
+        <div class="a" data-step="3">It freezes the base in 4-bit. Set <code>nf4</code>: the default is <code>fp4</code>.</div>
+      </div>
+      <div class="qa" data-step="4">
+        <div class="q">You LoRA-tune a reasoning (thinking) model such as Qwen3, and its reasoning collapses. Why?</div>
+        <div class="a" data-step="5">Plain LoRA SFT overwrites what RL built. Always run a reasoning eval.</div>
+      </div>
+      <div class="cites push">
+        <a class="cite paper" href="https://arxiv.org/abs/2609.25618" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2609.25618 NB-LoRA</a>
+        <a class="cite repo" href="https://github.com/huggingface/peft/tree/v0.21.2" target="_blank" rel="noopener"><b>Repo</b>&nbsp;PEFT v0.21.2</a>
+      </div>
+    </div>
+
+    <div class="viz">
+      <!-- region: one visual per question -->
+      <div class="vp" data-until="2">
+        <h4>LoRA r=16 on Qwen3-0.6B: 7 modules × 28 layers</h4>
+        <svg id="pn-grid" viewBox="0 0 756 170" width="756" height="170" aria-label="LoRA target modules per layer"></svg>
+        <div class="fx" data-step="1">d = 1024 · q → 2048 · k, v → 1024 · o: 2048 → 1024 · MLP 3072<br>q: 16 × (1024 + 2048) = <b>49,152</b> · per layer <b>360,448</b> × 28</div>
+        <div data-step="1" data-fx="bar">
+          <div class="bl"><span><span style="color:var(--tool)">■</span> PEFT qwen3 default (q_proj, v_proj)</span><b>2,293,760 · 0.38%</b></div>
+          <div class="bar qv"><i style="--v:22.7%"></i></div>
+          <div class="bl"><span><span style="color:var(--model)">■</span> target_modules="all-linear"</span><b>10,092,544 · 1.665%</b></div>
+          <div class="bar al"><i style="--v:100%"></i></div>
+        </div>
+      </div>
+      <div class="vp" data-step="2" data-until="4">
+        <h4>Qwen3-4B-Instruct-2507 (4.02B params): full FT vs QLoRA</h4>
+        <div class="row" style="gap:24px;align-items:flex-end">
+          <svg id="pn-mem" viewBox="0 0 400 330" width="400" height="330" aria-label="Memory: full fine-tuning stack vs QLoRA bar">
+            <line x1="10" y1="300" x2="390" y2="300" stroke="var(--line-2)" stroke-width="2"/>
+            <rect class="mem" data-y0="300" data-h="70" x="30" width="150" fill="var(--model)" opacity=".6" rx="4"/>
+            <rect class="mem" data-y0="230" data-h="70" x="30" width="150" fill="var(--model)" opacity=".8" rx="4"/>
+            <rect class="mem" data-y0="160" data-h="141" x="30" width="150" fill="var(--model)" rx="4"/>
+            <text class="ml" x="105" y="271" text-anchor="middle" font-size="16" font-weight="700" fill="#fff">weights 16.1</text>
+            <text class="ml" x="105" y="201" text-anchor="middle" font-size="16" font-weight="700" fill="#fff">grads 16.1</text>
+            <text class="ml" x="105" y="96" text-anchor="middle" font-size="16" font-weight="700" fill="#fff">AdamW 32.2</text>
+            <text class="ml" x="105" y="322" text-anchor="middle" font-size="16" fill="var(--ink-2)">full FT · GB</text>
+            <rect class="mem q4" data-y0="300" data-h="11" x="230" width="150" fill="var(--state)" rx="3"/>
+            <text class="ml q4" x="305" y="278" text-anchor="middle" font-size="16" font-weight="700" fill="var(--state)">≈ 2.0 + ≤ 0.6</text>
+            <text class="ml q4" x="305" y="322" text-anchor="middle" font-size="16" fill="var(--ink-2)">QLoRA · GB</text>
+          </svg>
+          <div class="stack" style="gap:12px;flex:1" data-step="3">
+            <div class="stat"><div class="n" data-to="64" data-pre="~" data-suf=" GB">0</div><div class="l">before activations · 16 B/param = 4 weight + 4 grad + 8 AdamW (fp32)</div></div>
+            <div class="fx">QLoRA: 4-bit base ≈ <b>2.0 GB</b>, plus 33.0M adapter params with grads and AdamW states ≤ <b>0.6 GB</b></div>
+          </div>
+        </div>
+        <div class="code-wrap" data-step="3">
+          <div class="code-head">qlora.py · pip install bitsandbytes==0.50.2</div>
+          <pre class="code" data-lang="python"><code>import torch
+from transformers import BitsAndBytesConfig
+bnb = BitsAndBytesConfig(load_in_4bit=True,
+    bnb_4bit_quant_type="nf4",              # default is "fp4"
+    bnb_4bit_compute_dtype=torch.bfloat16)  # T4: torch.float16
+# SFTTrainer(..., quantization_config=bnb, peft_config=lora)</code></pre>
+        </div>
+      </div>
+      <div class="vp" data-step="4">
+        <h4>Post-RL Qwen2.5 models: reasoning after fine-tuning</h4>
+        <svg id="pn-forget" viewBox="0 0 756 380" width="756" height="380" aria-label="Plain LoRA drops reasoning; NB-LoRA keeps it">
+          <line x1="10" y1="340" x2="746" y2="340" stroke="var(--line-2)" stroke-width="2"/>
+          <text x="190" y="20" text-anchor="middle" font-size="16" font-weight="700" fill="var(--risk)">plain LoRA SFT · RL reasoning score</text>
+          <text x="566" y="20" text-anchor="middle" font-size="16" font-weight="700" fill="var(--state)">NB-LoRA · avg of 5 reasoning benchmarks</text>
+          <line x1="378" y1="34" x2="378" y2="340" stroke="var(--line)" stroke-width="1.5" stroke-dasharray="4 5"/>
+          <g class="fg" data-pre="63.8" data-post="8.3">
+            <rect class="ghost" x="50" width="120" fill="none" stroke="var(--ink-2)" stroke-dasharray="5 5" stroke-width="1.5" rx="5"/>
+            <rect class="live" x="50" width="120" fill="var(--risk)" rx="5"/>
+            <text class="pre" x="110" text-anchor="middle" font-size="16" fill="var(--ink-2)">post-RL 63.8</text>
+            <text class="val" x="110" text-anchor="middle" font-size="22" font-weight="700" fill="var(--ink)">63.8</text>
+            <text x="110" y="364" text-anchor="middle" font-size="16" fill="var(--ink-2)">Qwen2.5-3B</text>
+          </g>
+          <g class="fg" data-pre="80.1" data-post="9.4">
+            <rect class="ghost" x="210" width="120" fill="none" stroke="var(--ink-2)" stroke-dasharray="5 5" stroke-width="1.5" rx="5"/>
+            <rect class="live" x="210" width="120" fill="var(--risk)" rx="5"/>
+            <text class="pre" x="270" text-anchor="middle" font-size="16" fill="var(--ink-2)">post-RL 80.1</text>
+            <text class="val" x="270" text-anchor="middle" font-size="22" font-weight="700" fill="var(--ink)">80.1</text>
+            <text x="270" y="364" text-anchor="middle" font-size="16" fill="var(--ink-2)">Qwen2.5-1.5B</text>
+          </g>
+          <g class="fg" data-pre="67.7" data-post="67.1">
+            <rect class="ghost" x="426" width="120" fill="none" stroke="var(--ink-2)" stroke-dasharray="5 5" stroke-width="1.5" rx="5"/>
+            <rect class="live" x="426" width="120" fill="var(--state)" rx="5"/>
+            <text class="pre" x="486" text-anchor="middle" font-size="16" fill="var(--ink-2)">post-RL 67.7</text>
+            <text class="val" x="486" text-anchor="middle" font-size="22" font-weight="700" fill="#fff">67.7</text>
+            <text x="486" y="364" text-anchor="middle" font-size="16" fill="var(--ink-2)">Qwen2.5-3B</text>
+          </g>
+          <g class="fg" data-pre="54.5" data-post="54.3">
+            <rect class="ghost" x="586" width="120" fill="none" stroke="var(--ink-2)" stroke-dasharray="5 5" stroke-width="1.5" rx="5"/>
+            <rect class="live" x="586" width="120" fill="var(--state)" rx="5"/>
+            <text class="pre" x="646" text-anchor="middle" font-size="16" fill="var(--ink-2)">post-RL 54.5</text>
+            <text class="val" x="646" text-anchor="middle" font-size="22" font-weight="700" fill="#fff">54.5</text>
+            <text x="646" y="364" text-anchor="middle" font-size="16" fill="var(--ink-2)">Qwen2.5-1.5B</text>
+          </g>
+        </svg>
+        <div class="fx">dashed = post-RL level · the two panels use different metrics<br>NB-LoRA: the update is constrained to the null space of the reasoning activations</div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Reveal one question at a time, and let the candidate answer before you show the answer. Question 1: a strong answer does the arithmetic. Qwen3-0.6B has hidden size 1024; q_proj maps 1024 to 2048, k and v map 1024 to 1024, o maps 2048 to 1024, and the MLP is 3072 wide. So q_proj adds 16 times 3072, which is 49,152; one layer adds 360,448; 28 layers give 10,092,544. PEFT's qwen3 default trains only q_proj and v_proj: 2,293,760. Why does LoRA need about 10 times the full fine-tuning learning rate? The update is B times A scaled by lora_alpha over r; keep alpha over r fixed, or set use_rslora, when you sweep r, so the effective step size does not change. Question 2: full fine-tuning with AdamW in fp32 needs 16 bytes per parameter, so Qwen3-4B needs about 64 GB before activations. QLoRA keeps the base frozen in 4-bit, about 2 GB, and trains only the 33.0M adapter parameters. NF4 places its 16 levels for normally distributed weights, which is why it beats fp4; BitsAndBytesConfig defaults to fp4, while the TRL CLI defaults to nf4. A follow-up: QLoRA saves memory, not time; AQLoRA (arXiv 2608.23816) keeps the layers with the highest NF4 error in fp16 and trains about 11% faster. Analogy: full fine-tuning keeps four copies of the library; QLoRA keeps one compressed copy and writes notes in a small notebook. Question 3: the numbers come from Qwen2.5 post-RL checkpoints in the NB-LoRA paper (arXiv 2609.25618). Plain LoRA dropped the RL reasoning score from 63.8% to 8.3% (3B) and from 80.1% to 9.4% (1.5B). NB-LoRA constrains the update to the null space of the reasoning activations, so reasoning stays near the post-RL level: 67.1% vs 67.7% and 54.3% vs 54.5% on the 5-benchmark average. Note that the two panels use different metrics. Also select checkpoints on a generation metric, not on NLL, the negative log-likelihood training loss: generation-based selection beat NLL selection by 0.71 to 0.85 points (arXiv 2609.36569). Next: adapter coverage on a hybrid model.</aside>
+</section>
+<script>
+(() => {
+  const ID = "custom-interview-c02-peft-numbers";
+  const NS = "http://www.w3.org/2000/svg";
+  const ROWS = ["q", "k", "v", "o", "gate", "up", "down"];
+  let tw = [];
+  function build(slide) {
+    const svg = slide.querySelector("#pn-grid");
+    if (!svg || svg.childElementCount) return;
+    ROWS.forEach((name, r) => {
+      const t = document.createElementNS(NS, "text");
+      t.setAttribute("x", 0); t.setAttribute("y", r * 24 + 17); t.setAttribute("font-size", 15);
+      t.setAttribute("fill", "var(--ink-2)"); t.textContent = name;
+      svg.appendChild(t);
+      for (let c = 0; c < 28; c++) {
+        const rc = document.createElementNS(NS, "rect");
+        rc.setAttribute("x", 60 + c * 24.8); rc.setAttribute("y", r * 24 + 3);
+        rc.setAttribute("width", 20); rc.setAttribute("height", 18); rc.setAttribute("rx", 3);
+        rc.setAttribute("class", "cell"); rc.dataset.r = r; rc.dataset.c = c;
+        svg.appendChild(rc);
+      }
+    });
+  }
+  function render(slide, n, animate) {
+    build(slide);
+    tw.forEach((t) => t.kill()); tw = [];
+    // Q1: the 7 x 28 module grid lights up (q/v first, then all-linear)
+    slide.querySelectorAll("#pn-grid rect.cell").forEach((c) => {
+      const r = +c.dataset.r, col = +c.dataset.c, qv = r === 0 || r === 2;
+      if (n < 1) { gsap.set(c, { attr: { fill: "var(--line-2)" }, opacity: 0.55 }); return; }
+      gsap.set(c, { attr: { fill: qv ? "var(--tool)" : "var(--model)" } });
+      if (animate && n === 1) tw.push(gsap.fromTo(c, { opacity: 0.12 }, { opacity: qv ? 1 : 0.8, duration: 0.35, delay: (qv ? 0 : 0.9) + col * 0.025 }));
+      else gsap.set(c, { opacity: qv ? 1 : 0.8 });
+    });
+    // Q2: memory stack grows weights -> grads -> AdamW, then the small QLoRA bar
+    slide.querySelectorAll("#pn-mem rect.mem").forEach((m, i) => {
+      const y0 = +m.dataset.y0, h = +m.dataset.h;
+      if (n < 3) { gsap.set(m, { attr: { y: y0, height: 0 } }); return; }
+      if (animate && n === 3) tw.push(gsap.fromTo(m, { attr: { y: y0, height: 0 } }, { attr: { y: y0 - h, height: h }, duration: 0.6, delay: 0.25 + i * 0.45, ease: "power2.out" }));
+      else gsap.set(m, { attr: { y: y0 - h, height: h } });
+    });
+    slide.querySelectorAll("#pn-mem text.ml").forEach((t) => {
+      const late = t.classList.contains("q4");
+      if (n < 3) { gsap.set(t, { opacity: 0 }); return; }
+      if (animate && n === 3) tw.push(gsap.fromTo(t, { opacity: 0 }, { opacity: 1, duration: 0.3, delay: late ? 2.0 : 0.8 }));
+      else gsap.set(t, { opacity: 1 });
+    });
+    // Q3: plain LoRA bars fall far; NB-LoRA bars stay near the post-RL level
+    const base = 340, k = 3.4; // px per percentage point
+    slide.querySelectorAll("#pn-forget g.fg").forEach((g, i) => {
+      const pre = +g.dataset.pre, post = +g.dataset.post;
+      const pl = g.querySelector(".pre");
+      gsap.set(pl, { attr: { y: base - pre * k - 10 }, opacity: n < 5 ? 0 : 1 });
+      const ghost = g.querySelector(".ghost"), live = g.querySelector(".live"), val = g.querySelector(".val");
+      gsap.set(ghost, { attr: { y: base - pre * k, height: pre * k } });
+      const inside = post > 30;
+      const put = (v) => { live.setAttribute("y", base - v * k); live.setAttribute("height", v * k); val.setAttribute("y", inside ? base - v * k + 34 : base - v * k - 10); val.textContent = v.toFixed(1); };
+      if (n < 5) { put(pre); return; }
+      if (animate && n === 5) {
+        const o = { v: pre }; put(pre);
+        tw.push(gsap.to(o, { v: post, duration: 1.4, delay: 0.7 + i * 0.3, ease: "power3.in", onUpdate: () => put(o.v) }));
+      } else put(post);
+    });
+  }
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step, step === 0); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { tw.forEach((t) => t.kill()); tw = []; }
+  });
+})();
+</script>

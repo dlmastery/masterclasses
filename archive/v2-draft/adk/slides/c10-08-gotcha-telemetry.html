@@ -1,0 +1,165 @@
+<section class="slide tight" id="adk-c10-gotcha-telemetry" data-tone="risk" data-title="Gotcha: telemetry defaults">
+  <style>
+    #adk-c10-gotcha-telemetry .gt-body { display: grid; grid-template-columns: 640px minmax(0, 1fr); gap: 24px; align-items: start; }
+    #adk-c10-gotcha-telemetry .gt-col { display: flex; flex-direction: column; gap: 11px; min-width: 0; }
+    #adk-c10-gotcha-telemetry .gotcha { grid-template-columns: 84px 1fr; gap: 3px 12px; padding: 9px 14px; font-size: 15px; line-height: 1.36; }
+    #adk-c10-gotcha-telemetry .gotcha > b { font-size: 12px; line-height: 1.75; }
+    #adk-c10-gotcha-telemetry .gotcha .gt-n { grid-column: 1 / -1; font: 700 12.5px/1 var(--f-mono); color: var(--risk); letter-spacing: .05em; text-transform: uppercase; margin-bottom: 3px; }
+    #adk-c10-gotcha-telemetry .gt-err { font: 500 12.5px/1.45 var(--f-mono); color: var(--risk); }
+    #adk-c10-gotcha-telemetry .gt-src { color: var(--muted); }
+    #adk-c10-gotcha-telemetry .code-head { padding: 7px 14px; font-size: 13px; }
+    #adk-c10-gotcha-telemetry pre.code { font-size: 12.3px; line-height: 1.44; padding: 9px 14px 11px; }
+    #adk-c10-gotcha-telemetry .gt-foot { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; align-items: stretch; }
+    #adk-c10-gotcha-telemetry .gt-foot .panel { padding: 8px 11px; font-size: 13px; line-height: 1.34; gap: 2px; }
+    #adk-c10-gotcha-telemetry .gt-foot .panel b { display: block; font: 700 11.5px/1.5 var(--f-mono); text-transform: uppercase; letter-spacing: .05em; color: var(--risk); }
+    #adk-c10-gotcha-telemetry .gt-foot code { font-size: 11.5px; }
+    #adk-c10-gotcha-telemetry .gt-cites { display: flex; gap: 8px; flex-wrap: wrap; }
+    #adk-c10-gotcha-telemetry .gt-cites .cite { font-size: 12px; padding: 3px 8px; }
+    #adk-c10-gotcha-telemetry .gt-col > .code-wrap { width: 100%; }
+    #adk-c10-gotcha-telemetry .gt-fig { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); padding: 8px 12px 6px; }
+    #adk-c10-gotcha-telemetry .gt-fig svg { display: block; width: 100%; height: auto; overflow: visible; }
+    #adk-c10-gotcha-telemetry svg text { font-family: var(--f-mono); }
+    #adk-c10-gotcha-telemetry .gt-pt { font-size: 13px; font-weight: 700; fill: var(--ink); }
+    #adk-c10-gotcha-telemetry .gt-pv { font-size: 15px; font-weight: 700; }
+    #adk-c10-gotcha-telemetry .gt-frame { fill: none; stroke: var(--line-2); stroke-width: 1.5; }
+    #adk-c10-gotcha-telemetry .gt-base { stroke: var(--line-2); stroke-width: 1.5; }
+    #adk-c10-gotcha-telemetry .gt-up { stroke: var(--risk); stroke-width: 2; stroke-dasharray: 6 5; }
+    #adk-c10-gotcha-telemetry .gt-ul { font-size: 11.5px; font-weight: 700; fill: var(--risk); }
+    #adk-c10-gotcha-telemetry .gt-al { font-size: 12px; font-weight: 700; fill: var(--risk); }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> Telemetry</div>
+  <h2 class="title sm">Spans carry PII by default, and 2.13 removed the call_llm span</h2>
+  <div class="gt-body fill">
+    <div class="gt-col">
+      <div class="gotcha" data-step="1">
+        <span class="gt-n">1 · ticket text in Cloud Trace <span class="gt-src">· telemetry/context.py L137-142</span></span>
+        <b>Symptom</b><span>Employee names and HR ticket text appear in Cloud Trace spans.</span>
+        <b class="why">Cause</b><span><code>ADK_CAPTURE_MESSAGE_CONTENT_IN_SPANS</code> defaults to on. Only <code>adk deploy agent_engine --otel_to_cloud</code> turns it off.</span>
+        <b class="fix">Fix</b><span>Set it to <code>false</code> yourself on Cloud Run and GKE.</span>
+      </div>
+      <div class="gotcha" data-step="2">
+        <span class="gt-n">2 · dashboards drop to zero <span class="gt-src">· CHANGELOG 2.13.0</span></span>
+        <b>Symptom</b><span>Panels keyed on <code>call_llm</code> read 0 after the upgrade. No error.</span>
+        <b class="why">Cause</b><span>2.13.0 defaults to OTel GenAI semconv 1.44 and removes the <code>call_llm</code> span. The Cloud Trace docs still list it.</span>
+        <b class="fix">Fix</b><span>Rebuild panels on <code>generate_content</code>, or opt out with <code>ADK_TELEMETRY_SCHEMA_VERSION_OPT_IN=otel_semconv_1_36</code>.</span>
+      </div>
+      <div class="gotcha" data-step="3">
+        <span class="gt-n">3 · the resolver refuses <span class="gt-src">· pyproject.toml L44-45</span></span>
+        <b>Symptom</b><span><span class="gt-err">pip resolver conflict</span> when you pin <code>opentelemetry-sdk==1.45.1</code>.</span>
+        <b class="why">Cause</b><span>ADK 2.13.0 requires <code>opentelemetry-sdk&gt;=1.39,&lt;=1.44</code>.</span>
+        <b class="fix">Fix</b><span>Pin <code>&lt;=1.44</code> next to ADK.</span>
+      </div>
+      <div class="gt-foot" data-step="4">
+        <div class="panel k-risk"><b>No ADK spans</b><span>Phoenix or Langfuse set a global <code>TracerProvider</code> first. ADK's set is "a no-op and results in a warning". Register one provider and add processors to it.</span></div>
+        <div class="panel k-risk"><b>MCP SDK 2.x</b><span>MCP calls go untraced. The instrumentor is built for httpx 1.x.</span></div>
+        <div class="panel k-risk"><b>Panels read 0</b><span>2.2.0 sent <code>cloud.resource.id</code>, not <code>cloud.resource_id</code> (fixed 2.4.0). Alert on "spans ingested &gt; 0 but metric = 0".</span></div>
+      </div>
+      <div class="gt-cites" data-step="4">
+        <a class="cite doc" href="https://adk.dev/integrations/cloud-trace/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;ADK Cloud Trace</a>
+        <a class="cite repo" href="https://github.com/google/adk-python/blob/main/CHANGELOG.md" target="_blank" rel="noopener"><b>Repo</b>&nbsp;adk-python CHANGELOG</a>
+        <a class="cite repo" href="https://github.com/google/adk-python/issues/6247" target="_blank" rel="noopener"><b>Repo</b>&nbsp;adk-python #6247</a>
+      </div>
+    </div>
+    <div class="gt-col">
+      <div class="gt-fig" data-step="2">
+        <svg id="gt-svg" viewBox="0 0 800 258" aria-label="After the 2.13.0 upgrade the call_llm panel drops to zero while a rebuilt generate_content panel fills">
+          <text class="gt-pt" x="0" y="16">call_llm spans / min</text>
+          <text class="gt-pv" id="gt-va" x="800" y="17" text-anchor="end">0</text>
+          <rect class="gt-frame" x="0" y="26" width="800" height="90" rx="8"/>
+          <line class="gt-base" x1="10" y1="108" x2="790" y2="108"/>
+          <g id="gt-ba"></g>
+          <text class="gt-al" id="gt-al" x="420" y="46">alert: spans &gt; 0, call_llm = 0</text>
+          <text class="gt-pt" x="0" y="148">generate_content spans / min · rebuilt panel</text>
+          <text class="gt-pv" id="gt-vb" x="800" y="149" text-anchor="end">0</text>
+          <rect class="gt-frame" x="0" y="158" width="800" height="90" rx="8"/>
+          <line class="gt-base" x1="10" y1="240" x2="790" y2="240"/>
+          <g id="gt-bb"></g>
+          <line class="gt-up" x1="391" y1="26" x2="391" y2="248"/>
+          <text class="gt-ul" x="384" y="132" text-anchor="end">upgrade to 2.13.0</text>
+        </svg>
+      </div>
+      <div class="code-wrap good" data-step="1">
+        <div class="code-head">deploy.sh · google-adk 2.13.0 · the fixes</div>
+        <pre class="code" data-lang="bash" data-focus="1:1-5, 2:7-8, 4:10-12"><code># 1: Cloud Run and GKE capture message content unless you say no
+adk deploy cloud_run --project=$PROJECT --region=$REGION --service_name=contoso-hr \
+  --session_service_uri="agentengine://$AGENT_ENGINE_ID" hr_agent \
+  -- --no-allow-unauthenticated \
+  --set-env-vars=ADK_CAPTURE_MESSAGE_CONTENT_IN_SPANS=false
+
+# 2: only while dashboards still need the v1 names (call_llm), add
+#    ADK_TELEMETRY_SCHEMA_VERSION_OPT_IN=otel_semconv_1_36
+
+# Agent Runtime: --otel_to_cloud already turns content capture off
+adk deploy agent_engine --project=$PROJECT --region=$REGION \
+  --agent_engine_id=$AGENT_ENGINE_ID --otel_to_cloud hr_agent</code></pre>
+      </div>
+      <div class="code-wrap good" data-step="3">
+        <div class="code-head">hr_agent/requirements.txt</div>
+        <pre class="code" data-lang="bash" data-focus="3:2"><code>google-adk[gcp,otel]==2.13.0
+opentelemetry-sdk&gt;=1.39,&lt;=1.44    # 1.45.1 conflicts with ADK 2.13.0</code></pre>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Tracing is on in the Contoso HR assistant, and three defaults now work against us. First, ADK copies message content into spans unless ADK_CAPTURE_MESSAGE_CONTENT_IN_SPANS is false, and only the Agent Runtime deploy with --otel_to_cloud sets that for you, so on Cloud Run and GKE you set it yourself. Second, the animation shows what the 2.13.0 upgrade does to a dashboard: the call_llm panel drains to zero with no error, because semconv 1.44 removed that span, and the panel rebuilt on generate_content fills instead. Think of it as a street that the city renamed: the traffic is still there, but your map no longer finds it. Third, ADK 2.13.0 caps opentelemetry-sdk at 1.44, so pinning the latest 1.45.1 breaks the install. A likely question: "How do I notice a silent zero?" Run a synthetic canary query per deploy and alert when spans are ingested but the dashboard metric is zero. Next: three recent papers on why the deterministic checks from step 1 matter more than detectors.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c10-gotcha-telemetry";
+  const NS = "http://www.w3.org/2000/svg";
+  const H = [58, 66, 52, 70, 61, 64, 55, 68, 60, 72, 57, 63];   // fixed shape, index-based
+  const UP = 6;                                                  // bars 0-5 before the upgrade
+  let tl = null;
+  const q = (s, sel) => s.querySelector(sel);
+  function bars(s) {
+    const ga = q(s, "#gt-ba"), gb = q(s, "#gt-bb");
+    if (ga.childNodes.length) return;
+    for (let i = 0; i < H.length; i++) {
+      [[ga, 108], [gb, 240]].forEach(([g, base]) => {
+        const r = document.createElementNS(NS, "rect");
+        r.setAttribute("x", 24 + i * 64); r.setAttribute("width", 40);
+        r.setAttribute("y", base); r.setAttribute("height", 0); r.setAttribute("rx", 3);
+        r.dataset.base = base;
+        g.appendChild(r);
+      });
+    }
+  }
+  function setBar(r, h, tone) {
+    const base = +r.dataset.base;
+    r.setAttribute("y", base - h); r.setAttribute("height", h);
+    r.style.fill = `var(--${tone})`;
+  }
+  // t in [0,12]: number of minutes drawn
+  function render(s, t) {
+    bars(s);
+    const ra = q(s, "#gt-ba").children, rb = q(s, "#gt-bb").children;
+    let va = 0, vb = 0;
+    for (let i = 0; i < H.length; i++) {
+      const f = Math.max(0, Math.min(1, t - i));
+      const before = i < UP;
+      setBar(ra[i], before ? H[i] * f : 3 * f, before ? "model" : "risk");
+      setBar(rb[i], before ? 0 : H[i] * f, "state");
+      if (f > 0) { va = before ? H[i] : 0; vb = before ? 0 : H[i]; }
+    }
+    const a = q(s, "#gt-va"), b = q(s, "#gt-vb");
+    a.textContent = String(va); a.style.fill = t > UP ? "var(--risk)" : "var(--ink)";
+    b.textContent = String(vb); b.style.fill = vb > 0 ? "var(--state)" : "var(--ink)";
+    q(s, "#gt-al").setAttribute("opacity", t >= UP + 1 ? "1" : "0");
+  }
+  function stop() { if (tl) tl.kill(); tl = null; }
+  function build(s, n, animate) {
+    stop();
+    const P = { t: n >= 2 ? H.length : 0 };
+    if (animate && n === 2) P.t = 0;
+    render(s, P.t);
+    if (animate && n === 2) {
+      tl = gsap.timeline({ delay: 0.4 });
+      tl.to(P, { t: H.length, duration: 3.6, ease: "none", onUpdate: () => render(s, P.t) });
+    }
+  }
+  Deck.register(ID, {
+    enter(slide, n) { if (!tl) build(slide, n || 0, false); },
+    step(slide, n, animate) { build(slide, n, animate); },
+    leave() { stop(); }
+  });
+})();
+</script>

@@ -1,0 +1,92 @@
+<section class="slide tight" id="adk-c07-plugins" data-tone="agent" data-title="Lab 7.6: a callback guards one agent">
+  <style>
+    #adk-c07-plugins .pg-top { display: grid; grid-template-columns: 860px 1fr; gap: 36px; align-items: center; }
+    #adk-c07-plugins .pg-cap { position: relative; height: 100px; }
+    #adk-c07-plugins .pg-cap > p { position: absolute; inset: 0 0 auto 0; font-size: 22px; line-height: 1.4; }
+    /* diagram: three agents inside the App frame; the money-moving tool outside it */
+    #adk-c07-plugins .pa { position: relative; width: 1392px; height: 330px; }
+    #adk-c07-plugins .pa svg { position: absolute; inset: 0; overflow: visible; pointer-events: none; }
+    #adk-c07-plugins .pa .e { fill: none; stroke: var(--line-2); stroke-width: 3; }
+    #adk-c07-plugins .pa .e.hot { stroke: var(--risk); stroke-width: 4; }
+    #adk-c07-plugins .ring { position: absolute; left: 0; top: 0; width: 940px; height: 330px; border-radius: 28px; border: 2px dashed var(--line-2); }
+    #adk-c07-plugins .ring span { position: absolute; left: 22px; bottom: 16px; font: 700 18px/1 var(--f-mono); color: var(--muted); white-space: nowrap; }
+    #adk-c07-plugins .nd { position: absolute; width: 300px; height: 86px; border-radius: 14px; border: 2px solid var(--agent); background: var(--agent-soft);
+      display: flex; flex-direction: column; justify-content: center; gap: 6px; padding: 0 18px; z-index: 2; }
+    #adk-c07-plugins .nd b { font: 700 21px/1.15 var(--f-mono); color: var(--ink); white-space: nowrap; }
+    #adk-c07-plugins .nd i { font: 600 17px/1.15 var(--f-mono); font-style: normal; white-space: nowrap; color: var(--risk); }
+    #adk-c07-plugins .nd i.good { color: var(--state); }
+    #adk-c07-plugins .nd.tool { border-color: var(--tool); background: var(--tool-soft); width: 270px; }
+    #adk-c07-plugins .nd.tool i { color: var(--muted); }
+    #adk-c07-plugins .nd.tool.hit { border-color: var(--risk); background: var(--risk-soft); }
+    #adk-c07-plugins .nd.tool.hit i { color: var(--risk); }
+    #adk-c07-plugins .tk { position: absolute; left: 0; top: 0; padding: 7px 13px; border-radius: 999px; font: 700 17px/1 var(--f-mono); color: #fff; z-index: 4; opacity: 0;
+      white-space: nowrap; background: var(--risk); }
+  </style>
+  <div class="kicker"><span class="pill">Lab 7</span> Acme refund team · step 6 of 6 · before</div>
+  <h2 class="title">A callback on one agent leaves its sub-agents unguarded</h2>
+  <div class="pg-top">
+    <div class="code-wrap bad">
+      <div class="code-head">a callback on one agent</div>
+      <pre class="code" data-lang="python" data-focus="1:5, 2:4, 3:4"><code># M, T, partner, chargebacks: as in guarded_app.py
+def cap_refund(tool, args, tool_context): ...  # blocks &gt; 500
+refunds = LlmAgent(name="refunds", model=M, tools=T,
+                   sub_agents=[partner, chargebacks],
+                   before_tool_callback=cap_refund)  # this agent only</code></pre>
+    </div>
+    <div class="pg-cap">
+      <p data-step="1" data-until="2">The callback guards <code>refunds</code> and nothing else.</p>
+      <p data-step="2" data-until="3"><code>partner_refunds</code> has no callback. $640 reaches the tool.</p>
+      <p data-step="3"><code>chargebacks</code> has the same hole. Move the rule up to the App.</p>
+    </div>
+  </div>
+  <div class="pa" aria-label="Three agents inside the App frame call issue_refund outside it. Without a plugin a 640 dollar call from partner_refunds reaches the tool.">
+    <svg viewBox="0 0 1392 330" aria-hidden="true">
+      <path class="e" d="M320 165 C 380 165, 380 82, 440 82 M320 165 C 380 165, 380 248, 440 248"/>
+      <path class="e" id="pg-e1" d="M740 82 C 900 82, 940 150, 1100 150"/>
+      <path class="e" id="pg-e2" d="M740 248 C 900 248, 940 180, 1100 180"/>
+    </svg>
+    <div class="ring"><span>App · no plugin</span></div>
+    <div class="nd" style="left:40px;top:122px;width:280px"><b>refunds</b><i id="pg-r">no guard</i></div>
+    <div class="nd" style="left:440px;top:39px"><b>partner_refunds</b><i>no callback</i></div>
+    <div class="nd" style="left:440px;top:205px"><b>chargebacks</b><i>no callback</i></div>
+    <div class="nd tool" id="pg-tool" style="left:1100px;top:122px"><b>issue_refund</b><i id="pg-ti">moves money</i></div>
+    <span class="tk" id="pg-t640">$640</span>
+  </div>
+  <aside class="notes">Step 6 closes Lab 7: the 500 dollar rule that the refund_agent instruction only asks for becomes code. This slide shows the old way first. A before_tool_callback on the refunds root agent guards that one agent; its signature is positional, tool, args and tool_context, and the body here is a one-line stub that blocks amounts over 500. But refunds has two sub-agents, partner_refunds and chargebacks, and both call issue_refund with no callback, so a partner-store refund of 640 dollars on A-200 goes straight through. You could copy the callback onto every agent, and the next agent someone adds will miss it. Think of a lock on one office door while the side doors stay open. A likely question: "Is the callback wrong?" No, it works for its own agent; the problem is scope, and the next slide moves the rule to a plugin on the App.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c07-plugins";
+  let tw = [];
+  const clear = () => { tw.forEach((t) => t.kill()); tw = []; };
+  function render(slide, n, animate) {
+    clear();
+    const q = (s) => slide.querySelector(s);
+    const tool = q("#pg-tool"), e1 = q("#pg-e1"), e2 = q("#pg-e2"), t640 = q("#pg-t640"), r = q("#pg-r"), ti = q("#pg-ti");
+    n = Math.max(0, Math.min(3, n | 0));
+    r.textContent = n >= 1 ? "cap_refund callback" : "no guard";
+    r.className = n >= 1 ? "good" : "";
+    e1.classList.toggle("hot", n >= 2);
+    e2.classList.toggle("hot", n >= 3);
+    tool.classList.toggle("hit", n >= 2);
+    ti.textContent = n >= 2 ? "✕ refunded $640" : "moves money";
+    // $640 rides the partner_refunds -> issue_refund edge
+    const len = e1.getTotalLength();
+    const place = (t) => { const pt = e1.getPointAtLength(len * t); gsap.set(t640, { x: pt.x, y: pt.y, xPercent: -50, yPercent: -150 }); };
+    if (n >= 2) {
+      gsap.set(t640, { opacity: 1 });
+      if (animate && n === 2) {
+        const o = { t: 0 }; place(0);
+        tw.push(gsap.timeline({ delay: 0.3 })
+          .to(o, { t: 0.62, duration: 1.2, ease: "power2.inOut", onUpdate: () => place(o.t) })
+          .fromTo(tool, { scale: 1 }, { scale: 1.06, duration: 0.15, yoyo: true, repeat: 1 }));
+      } else place(0.62);
+    } else gsap.set(t640, { opacity: 0 });
+  }
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { clear(); if (slide) gsap.killTweensOf(slide.querySelectorAll(".pa *")); },
+  });
+})();
+</script>

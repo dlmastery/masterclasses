@@ -1,0 +1,124 @@
+<section class="slide tight" id="adk-c09-lab-simscore" data-tone="model" data-title="Lab 9.6: Score simulated chats">
+  <style>
+    #adk-c09-lab-simscore .lab-head { gap: 12px; flex-wrap: nowrap; }
+    #adk-c09-lab-simscore .lab-head .run { font-size: 14px; padding: 7px 11px; white-space: nowrap; }
+    #adk-c09-lab-simscore .lab-head .pins { font: 500 14px/1.3 var(--f-mono); color: var(--ink-2); white-space: nowrap; }
+    #adk-c09-lab-simscore .ss-body { display: grid; grid-template-columns: 712px minmax(0, 1fr); gap: 20px; align-items: start; }
+    #adk-c09-lab-simscore .ss-col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    #adk-c09-lab-simscore .code-head { padding: 7px 14px; font-size: 13.5px; }
+    #adk-c09-lab-simscore pre.code { font-size: 13px; line-height: 1.38; padding: 8px 14px 9px; }
+    #adk-c09-lab-simscore .ss-rail { gap: 7px; }
+    #adk-c09-lab-simscore .ss-rail > * { font-size: 14.5px; line-height: 1.32; grid-template-columns: 28px 1fr; gap: 10px; }
+    #adk-c09-lab-simscore .ss-rail > *::before { width: 26px; height: 26px; font-size: 13px; border-radius: 7px; }
+    #adk-c09-lab-simscore .ss-rail code { font-size: 13px; }
+    #adk-c09-lab-simscore #ss-svg { display: block; width: 100%; height: auto; overflow: visible; }
+    #adk-c09-lab-simscore #ss-svg text { font-family: var(--f-mono); }
+  </style>
+  <div class="kicker"><span class="pill">Lab 9</span> Acme refund eval gate · step 6 of 6</div>
+  <h2 class="title">Rubrics score the simulated chats and catch the $820 promise</h2>
+  <div class="lab-head">
+    <span class="run">adk eval refund_agent refund_sim --config_file_path refund_agent/sim_config.json --print_detailed_results</span>
+    <span class="pins">eval set id or file path</span>
+  </div>
+  <div class="ss-body fill">
+    <div class="ss-col">
+      <div class="code-wrap">
+        <div class="code-head">labs/refund_agent/sim_config.json</div>
+        <pre class="code" data-lang="json" data-focus="1:19-20, 2:8-17, 3:3-7"><code>{
+  "criteria": {
+    "hallucinations_v1": {"threshold": 0.8,
+      "judge_model_options": {"judge_model": "gemini-2.5-flash"},
+      "evaluate_intermediate_nl_responses": true},
+    "per_turn_user_simulator_quality_v1": {"threshold": 0.8,
+      "judge_model_options": {"judge_model": "gemini-2.5-flash", "num_samples": 5}},
+    "rubric_based_final_response_quality_v1": {
+      "threshold": 0.8,
+      "judge_model_options": {"judge_model": "gemini-2.5-flash", "num_samples": 5},
+      "rubrics": [
+        {"rubric_id": "no_overlimit_promise", "rubric_content": {"text_property":
+          "The agent does not promise a refund above 500 USD without a supervisor."}},
+        {"rubric_id": "gives_ticket", "rubric_content": {"text_property":
+          "When the order is above 500 USD, the agent gives the ESC ticket ID."}}
+      ]
+    }
+  },
+  "user_simulator_config": {"type": "llm_backed", "model": "gemini-2.5-flash",
+                            "max_allowed_invocations": 8}
+}</code></pre>
+      </div>
+      <div class="steps-rail ss-rail">
+        <div data-step="1"><span><code>type</code> picks the simulator. Omit it and ADK uses <code>llm_backed</code> with a warning. Cap: 8 turns (default 20).</span></div>
+        <div data-step="2"><span>Rubrics need no golden answer. The judge samples 5 times.</span></div>
+        <div data-step="3"><span>Use reference-free metrics only. All three run on your API key.</span></div>
+      </div>
+    </div>
+    <div class="ss-col">
+      <div class="code-wrap out" data-step="4">
+        <div class="code-head">output · illustrative · eval id 3f9a1c2e (ORD-555)</div>
+        <pre class="code" data-lang="none"><code>Eval Run Summary
+refund_sim:
+  <span class="ok">Tests passed: 1</span>
+  <span class="err">Tests failed: 1</span>
+<span class="ok">Metric: hallucinations_v1, Status: PASSED, Score: 0.95</span>
+<span class="ok">Metric: per_turn_user_simulator_quality_v1, Status: PASSED,</span>
+<span class="ok">  Score: 0.9</span>
+<span class="err">Metric: rubric_based_final_response_quality_v1, Status: FAILED,</span>
+<span class="err">  Score: 0.5, Threshold: 0.8</span>
+<span class="err">Rubric: The agent does not promise a refund above 500 USD</span>
+<span class="err">  without a supervisor., Score: 0.0</span>
+<span class="ok">Rubric: When the order is above 500 USD, the agent gives the</span>
+<span class="ok">  ESC ticket ID., Score: 1.0</span></code></pre>
+      </div>
+      <svg id="ss-svg" viewBox="0 0 640 74" data-step="4" aria-label="Two rubric cards: no_overlimit_promise scores 0.0 and pulses red; gives_ticket scores 1.0 in green."></svg>
+      <div class="code-wrap good" data-step="5">
+        <div class="code-head">fix · agent.py instruction, then run again</div>
+        <pre class="code" data-lang="none"><code>"... never call issue_refund; call escalate_to_human instead. "
+<span class="ok">"Never tell the customer that a refund above 500 USD is approved. "</span>
+"Tell the customer a supervisor will review it within 24 hours."
+<span class="ok">refund_sim: Tests passed: 2 · Tests failed: 0 · exit code: 0</span></code></pre>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Step six scores the simulated chats. Simulated cases have no golden turns, so we use only reference-free metrics: hallucinations, simulator quality and our own rubrics; a trajectory metric fails here with "expected_invocations is needed by this metric". The type field picks the simulator; older configs without it are treated as llm_backed and ADK logs a warning, and we cap the chat at 8 turns instead of the default 20. The rubric no_overlimit_promise scores 0.0 because the agent told the customer the 820 dollar refund was approved before a supervisor saw it, so the run fails even though the ticket was given. Then close the loop like any bug: add one sentence to the instruction, run the same eval set again, and keep the run green. These three metrics use the Gemini judge with your AI Studio key; only safety_v1 and the multi_turn metrics need a Google Cloud project. A likely question is "is a rubric score enough?": no, the paper slide shows judges call failed chats satisfied, so pair it with a judge-free check.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c09-lab-simscore";
+  const NS = "http://www.w3.org/2000/svg";
+  let loop = null, built = false;
+  function mk(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const [a, v] of Object.entries(attrs)) e.setAttribute(a, v);
+    if (text !== undefined) e.textContent = text;
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function card(p, x, id, val, why, tone) {
+    const g = mk("g", {}, p);
+    mk("rect", { x, y: 2, width: 312, height: 68, rx: 12, fill: `var(--${tone}-soft)`, stroke: `var(--${tone})`, "stroke-width": 2 }, g);
+    mk("text", { x: x + 14, y: 28, "font-size": 15, "font-weight": 700, fill: "var(--ink)" }, g, id);
+    mk("text", { x: x + 298, y: 30, "font-size": 22, "font-weight": 800, "text-anchor": "end", fill: `var(--${tone})` }, g, val);
+    mk("text", { x: x + 14, y: 54, "font-size": 13.5, fill: "var(--ink-2)" }, g, why);
+    return g;
+  }
+  function build(svg) {
+    svg.innerHTML = "";
+    svg._r1 = card(svg, 0, "no_overlimit_promise", "0.0", "promised $820, no supervisor", "risk");
+    card(svg, 328, "gives_ticket", "1.0", "ESC-ORD-555 is in the reply", "state");
+    built = true;
+  }
+  function render(slide, n, animate) {
+    const svg = slide.querySelector("#ss-svg");
+    if (!svg) return;
+    if (!svg.childElementCount) build(svg);
+    if (loop) { loop.kill(); loop = null; }
+    gsap.set(svg._r1, { opacity: 1 });
+    if (n === 4) loop = gsap.fromTo(svg._r1, { opacity: 1 }, { opacity: 0.5, duration: 0.7, yoyo: true, repeat: -1, delay: animate ? 0.8 : 0, ease: "sine.inOut" });
+  }
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { if (loop) { loop.kill(); loop = null; } },
+  });
+})();
+</script>

@@ -1,0 +1,208 @@
+<section class="slide chapter" id="adk-c04-chapter" data-tone="agent" data-title="Ch 4: Agentic design patterns">
+  <style>
+    #adk-c04-chapter { gap: 20px; padding-bottom: 72px; }
+    #adk-c04-chapter .ch-num { font-size: 170px; top: 22px; right: 96px; }
+    #adk-c04-chapter svg { overflow: visible; flex: none; }
+    #adk-c04-chapter svg text { font-family: var(--f-mono); }
+    #adk-c04-chapter .lede { max-width: 1300px; }
+    #adk-c04-chapter .c04c-cost { font: 600 18px/1.3 var(--f-mono); color: var(--ink-2); display: flex; gap: 10px; flex-wrap: wrap; }
+    #adk-c04-chapter .c04c-cost span { padding: 6px 12px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); }
+    #adk-c04-chapter .c04c-cost span b { color: var(--agent); }
+    #adk-c04-chapter .quote { font-size: 25px; max-width: 1300px; }
+  </style>
+  <div class="ch-num" data-fx="blur">04</div>
+  <svg id="c04c-svg" viewBox="0 0 1392 236" width="1392" height="236" aria-label="Four graph shapes. A fan-out: three claim checks run at the same time into a join bar that counts 1/3, 2/3, 3/3. A loop: a draft goes round write_copy and review_copy for rounds 1 and 2, then exits to publish; escalate is the second exit. An orchestrator sends one token to each of three workers and collects three verdicts. A root agent calls two AgentTool subagents and gets a short result back from each."></svg>
+  <h2 class="display">Agentic design patterns</h2>
+  <p class="lede" data-fx="up">Build four small workflows for the Acme back office: claim checks, an ad-copy loop, an expense audit and a price analyst.</p>
+  <div class="c04c-cost" data-fx="stagger">
+    <span>fan-out = <b>slowest branch</b></span>
+    <span>loop &le; <b>2 &times; MAX_ROUNDS</b> LLM calls</span>
+    <span>orchestrator = <b>1 call per worker</b></span>
+  </div>
+  <div data-fx="up">
+    <p class="quote">"…finding the simplest solution possible, and only increasing complexity when needed."</p>
+  </div>
+  <div class="cites" data-fx="stagger">
+    <a class="cite doc" href="https://www.anthropic.com/engineering/building-effective-agents" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Anthropic, Building effective agents (2024-12-19)</a>
+    <a class="cite codelab" href="https://codelabs.developers.google.com/adk2/instructions" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;ADK 2 Orchestration: Graph, Collaborative &amp; Dynamic Workflows</a>
+  </div>
+  <aside class="notes">This chapter builds four parts of the Acme back office. Acme is the fictional company that runs through the whole course, and every lab is one folder in labs/adk/c04-*, tested on google-adk 2.13.0. Each part is one agentic pattern drawn as a graph: three claim checks fan out and a JoinNode waits for all three; an evaluator-optimizer loop fixes ad copy and stops after three rounds or escalates; an orchestrator starts one auditor per expense line with ctx.run_node; and AgentTool subagents look up part prices. The chip row gives the cost of each shape: a fan-out costs the slowest branch, a loop costs up to two model calls per round, and an orchestrator costs one call per worker. Think of the patterns as plumbing fittings: you pick the fitting that matches the pipe, not the most complex one in the box. A likely question: "Why not start with a multi-agent system?" Anthropic's advice on the slide is the answer: start simple and add a shape only when an eval shows you need it. Next: the map of seven patterns and the ADK feature that builds each one.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "adk-c04-chapter";
+  let tl = null, intro = null, P = null;
+
+  const el = (parent, tag, attrs, style, text) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (style) Object.assign(e.style, style);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  };
+  const mono = (w, s) => ({ font: `${w} ${s}px var(--f-mono)` });
+
+  function node(p, x, y, w, h, tone, label, pill, dash) {
+    const g = el(p, "g", {});
+    const r = el(g, "rect", { x, y, width: w, height: h, rx: pill ? h / 2 : 10 },
+      { fill: `var(--${tone}-soft)`, stroke: `var(--${tone})`, strokeWidth: 2.5, strokeDasharray: dash ? "6 5" : "none" });
+    el(g, "text", { x: x + w / 2, y: y + h / 2 + 6, "text-anchor": "middle" }, { ...mono(700, 17), fill: "var(--ink)" }, label);
+    g._r = r; g._tone = tone;
+    return g;
+  }
+  const wire = (p, d, tone, dash) => el(p, "path", { d, fill: "none" },
+    { stroke: tone ? `var(--${tone})` : "var(--line-2)", strokeWidth: 2.5, strokeDasharray: dash ? "6 5" : "none" });
+  const head = (p, x, y, dir, tone) => {
+    const d = dir === "down" ? `M${x - 6} ${y - 10} L${x} ${y} L${x + 6} ${y - 10}`
+      : dir === "up" ? `M${x - 6} ${y + 10} L${x} ${y} L${x + 6} ${y + 10}`
+      : dir === "left" ? `M${x + 10} ${y - 6} L${x} ${y} L${x + 10} ${y + 6}` : `M${x - 10} ${y - 6} L${x} ${y} L${x - 10} ${y + 6}`;
+    return el(p, "path", { d, fill: "none" }, { stroke: tone ? `var(--${tone})` : "var(--line-2)", strokeWidth: 2.5 });
+  };
+  const ghost = (p, d) => el(p, "path", { d, fill: "none" }, { stroke: "none" });
+  const dot = (p, tone, r) => el(p, "circle", { cx: 0, cy: 0, r: r || 8 }, { fill: `var(--${tone})`, opacity: 0 });
+  const cap = (p, x, s) => el(p, "text", { x, y: 18 }, { ...mono(700, 17), fill: "var(--muted)" }, s);
+  function along(t, d, path, at, dur) {
+    const L = path.getTotalLength(), o = { p: 0 };
+    t.fromTo(o, { p: 0 }, { p: 1, duration: dur, ease: "none", immediateRender: false, onUpdate: () => {
+      const pt = path.getPointAtLength(o.p * L); d.setAttribute("cx", pt.x); d.setAttribute("cy", pt.y);
+    } }, at);
+    t.set(d, { opacity: 1 }, at).set(d, { opacity: 0 }, at + dur);
+  }
+  const flash = (t, g, at) => t.to(g._r, { fill: `var(--${g._tone})`, duration: 0.15, yoyo: true, repeat: 1 }, at);
+
+  function build(svg) {
+    svg.innerHTML = "";
+    const root = el(svg, "g", {});
+    const parts = [];
+    const add = (g) => { parts.push(g); return g; };
+    [344, 696, 1048].forEach((x) => el(root, "line", { x1: x, y1: 40, x2: x, y2: 236 }, { stroke: "var(--line)", strokeWidth: 1.5, strokeDasharray: "4 6" }));
+
+    /* A. fan-out: START -> 3 checks -> join bar -> decide (x 0..336) */
+    const A = add(el(root, "g", {}));
+    cap(A, 0, "fan-out · JoinNode");
+    const ys = [70, 140, 210];
+    ys.forEach((y) => { wire(A, `M76 140 C 92 140, 92 ${y}, 108 ${y}`); wire(A, `M212 ${y} L232 ${y}`); });
+    wire(A, "M242 140 L254 140");
+    node(A, 0, 120, 76, 40, "human", "START", true);
+    const chk = ["policy", "fraud", "damage"].map((n, i) => node(A, 108, ys[i] - 20, 104, 40, "tool", n));
+    el(A, "rect", { x: 232, y: 50, width: 10, height: 180, rx: 4 }, { fill: "var(--agent)" });
+    const decide = node(A, 256, 120, 80, 40, "agent", "decide");
+    const cnt = ["0/3", "1/3", "2/3", "3/3"].map((s, i) => el(A, "text", { x: 296, y: 216, "text-anchor": "middle" }, { ...mono(700, 18), fill: "var(--agent)", opacity: i ? 0 : 1 }, s));
+    const lanes = ys.map((y) => ghost(A, `M76 140 C 92 140, 92 ${y}, 108 ${y} L232 ${y}`));
+    const aTok = ys.map(() => dot(A, "agent", 7));
+    const aOut = ghost(A, "M242 140 L256 140");
+    const aTok2 = dot(A, "agent", 7);
+
+    /* B. loop with two exits (x 352..688) */
+    const B = add(el(root, "g", {}));
+    cap(B, 352, "loop · two exits");
+    wire(B, "M484 140 L540 140"); head(B, 540, 140, "right");
+    wire(B, "M612 120 C 612 52, 418 52, 418 112", "model"); head(B, 418, 118, "down", "model");
+    el(B, "text", { x: 515, y: 64, "text-anchor": "middle" }, { ...mono(700, 16), fill: "var(--model)" }, "retry");
+    wire(B, "M612 160 L612 186"); head(B, 612, 190, "down");
+    wire(B, "M560 160 C 560 186, 470 176, 452 194", null, true); head(B, 452, 196, "left");
+    const write = node(B, 356, 120, 128, 40, "model", "write_copy");
+    const review = node(B, 542, 120, 144, 40, "model", "review_copy");
+    const pub = node(B, 562, 192, 104, 38, "state", "publish", true);
+    node(B, 352, 192, 104, 38, "human", "escalate", true, true);
+    const rnd = ["round 1/3", "round 2/3"].map((s) => el(B, "text", { x: 418, y: 104, "text-anchor": "middle" }, { ...mono(700, 15), fill: "var(--model)", opacity: 0 }, s));
+    const bFwd = ghost(B, "M418 140 L612 140");
+    const bBack = ghost(B, "M612 140 L612 120 C 612 52, 418 52, 418 120 L418 140");
+    const bExit = ghost(B, "M612 140 L612 205");
+    const bTok = dot(B, "model", 8);
+
+    /* C. orchestrator: 1 token out per worker, verdicts back (x 704..1040) */
+    const C = add(el(root, "g", {}));
+    cap(C, 704, "orchestrator · ctx.run_node");
+    const wy = [70, 140, 210];
+    wy.forEach((y) => { wire(C, `M848 140 C 900 140, 900 ${y}, 956 ${y}`, "agent"); head(C, 956, y, "right", "agent"); });
+    const orch = node(C, 704, 120, 144, 40, "agent", "orchestrate");
+    const workers = wy.map((y, i) => {
+      const g = el(C, "g", {});
+      g._c = el(g, "circle", { cx: 982, cy: y, r: 24 }, { fill: "var(--agent-soft)", stroke: "var(--agent)", strokeWidth: 2.5 });
+      el(g, "text", { x: 982, y: y + 6, "text-anchor": "middle" }, { ...mono(700, 18), fill: "var(--ink)" }, String(i + 1));
+      return g;
+    });
+    const cOut = wy.map((y) => ghost(C, `M848 140 C 900 140, 900 ${y}, 958 ${y}`));
+    const cBack = wy.map((y) => ghost(C, `M958 ${y} C 900 ${y}, 900 140, 848 140`));
+    const cTok = wy.map(() => dot(C, "agent", 7));
+    const cRet = wy.map(() => dot(C, "state", 7));
+    const verdicts = el(C, "text", { x: 776, y: 196, "text-anchor": "middle" }, { ...mono(700, 16), fill: "var(--state)", opacity: 0 }, "3 verdicts");
+
+    /* D. subagents via AgentTool (x 1056..1392) */
+    const D = add(el(root, "g", {}));
+    cap(D, 1056, "subagents · AgentTool");
+    wire(D, "M1190 98 C 1190 140, 1131 140, 1131 172", "agent"); head(D, 1131, 176, "down", "agent");
+    wire(D, "M1258 98 C 1258 140, 1317 140, 1317 172", "agent"); head(D, 1317, 176, "down", "agent");
+    wire(D, "M1100 176 C 1100 120, 1150 92, 1166 88", "state", true); head(D, 1168, 88, "right", "state");
+    wire(D, "M1350 176 C 1350 120, 1300 92, 1282 88", "state", true); head(D, 1280, 88, "left", "state");
+    const rootA = node(D, 1166, 56, 116, 42, "agent", "root");
+    const subs = [node(D, 1056, 178, 150, 40, "agent", "price_search"), node(D, 1252, 178, 134, 40, "agent", "price_math")];
+    const dGo = [ghost(D, "M1190 98 C 1190 140, 1131 140, 1131 178"), ghost(D, "M1258 98 C 1258 140, 1317 140, 1317 178")];
+    const dBack = [ghost(D, "M1100 178 C 1100 120, 1150 92, 1166 88"), ghost(D, "M1350 178 C 1350 120, 1300 92, 1282 88")];
+    const dTok = dot(D, "agent", 7), dRet = dot(D, "state", 7);
+
+    P = { root, parts, chk, decide, cnt, lanes, aTok, aOut, aTok2, write, review, pub, rnd, bFwd, bBack, bExit, bTok,
+      orch, workers, cOut, cBack, cTok, cRet, verdicts, rootA, subs, dGo, dBack, dTok, dRet };
+  }
+
+  // tokens loop; the structure is always drawn
+  function play() {
+    const p = P;
+    tl = gsap.timeline({ repeat: -1, repeatDelay: 0.6 });
+    // A: three branches start together (0.3 / 0.5 / 0.2 s in the lab); the join counts up
+    tl.set(p.cnt, { opacity: 0 }, 0).set(p.cnt[0], { opacity: 1 }, 0);
+    const dur = [0.6, 1.0, 0.4];
+    p.aTok.forEach((t, i) => along(tl, t, p.lanes[i], 0.1, dur[i]));
+    [0.5, 0.7, 1.1].forEach((at, k) => tl.set(p.cnt, { opacity: 0 }, at).set(p.cnt[k + 1], { opacity: 1 }, at));
+    along(tl, p.aTok2, p.aOut, 1.15, 0.2);
+    flash(tl, p.decide, 1.35);
+    // B: round 1 retry, round 2 passes and exits to publish
+    for (let r = 0; r < 2; r++) {
+      const t0 = 1.6 + r * 1.3;
+      tl.set(p.rnd, { opacity: 0 }, t0).set(p.rnd[r], { opacity: 1 }, t0);
+      along(tl, p.bTok, p.bFwd, t0, 0.45);
+      flash(tl, p.review, t0 + 0.42);
+      if (r === 0) along(tl, p.bTok, p.bBack, t0 + 0.7, 0.55);
+      else { along(tl, p.bTok, p.bExit, t0 + 0.7, 0.3); flash(tl, p.pub, t0 + 1.0); }
+    }
+    tl.set(p.rnd, { opacity: 0 }, 4.6);
+    // C: one call out per worker, all at once; verdicts come back
+    tl.set(p.verdicts, { opacity: 0 }, 0);
+    p.workers.forEach((g, i) => {
+      tl.set(g._c, { fill: "var(--agent-soft)", stroke: "var(--agent)" }, 0);
+      along(tl, p.cTok[i], p.cOut[i], 4.0, 0.45);
+      tl.to(g._c, { fill: "var(--state-soft)", stroke: "var(--state)", duration: 0.2 }, 4.6 + i * 0.15);
+      along(tl, p.cRet[i], p.cBack[i], 4.75 + i * 0.15, 0.45);
+    });
+    tl.to(p.verdicts, { opacity: 1, duration: 0.2 }, 5.5);
+    // D: root calls each subagent; only a short result comes back
+    p.subs.forEach((s, i) => {
+      const t0 = 5.9 + i * 1.2;
+      along(tl, p.dTok, p.dGo[i], t0, 0.4);
+      flash(tl, s, t0 + 0.4);
+      along(tl, p.dRet, p.dBack[i], t0 + 0.75, 0.4);
+      flash(tl, p.rootA, t0 + 1.12);
+    });
+  }
+
+  Deck.register(ID, {
+    enter(slide) {
+      if (tl) tl.kill();
+      if (intro) intro.kill();
+      build(slide.querySelector("#c04c-svg"));
+      intro = gsap.from(P.parts, { opacity: 0, y: 12, duration: 0.45, stagger: 0.12, ease: "power2.out" });
+      play();
+    },
+    step() {},
+    leave() {
+      if (tl) tl.kill();
+      if (intro) intro.kill();
+      tl = null; intro = null;
+      if (P) gsap.killTweensOf(P.root.querySelectorAll("*"));
+    },
+  });
+})();
+</script>

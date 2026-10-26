@@ -1,0 +1,207 @@
+<section class="slide tight" id="rag-c01-gotcha-bm25-codes" data-tone="human" data-title="Gotcha: BM25 codes, k and ids">
+  <style>
+    #rag-c01-gotcha-bm25-codes .gb-main { display: grid; grid-template-columns: 832px 1fr; gap: 28px; align-items: start; }
+    #rag-c01-gotcha-bm25-codes .gb-left, #rag-c01-gotcha-bm25-codes .gb-right { gap: 12px; min-width: 0; }
+    #rag-c01-gotcha-bm25-codes .gotcha { font-size: 15.5px; line-height: 1.36; padding: 11px 16px; grid-template-columns: 78px 1fr; gap: 4px 10px; }
+    #rag-c01-gotcha-bm25-codes .gotcha > b { font-size: 12.5px; }
+    #rag-c01-gotcha-bm25-codes .gotcha .em { font: 500 13px/1.42 var(--f-mono); color: var(--risk); background: color-mix(in oklab, var(--risk) 7%, transparent); padding: 1px 5px; border-radius: 5px; }
+    #rag-c01-gotcha-bm25-codes .code-wrap .code-head { padding: 8px 14px; font-size: 14px; }
+    #rag-c01-gotcha-bm25-codes pre.code.gb-c { font-size: 12.8px; line-height: 1.45; padding: 10px 16px 12px; }
+    #rag-c01-gotcha-bm25-codes .gb-svg text { font-family: var(--f-mono); }
+    #rag-c01-gotcha-bm25-codes .gb-svg .pn { fill: var(--surface); stroke: var(--line-2); stroke-width: 1; }
+    #rag-c01-gotcha-bm25-codes .gb-svg .hd { font-size: 12px; font-weight: 700; fill: var(--muted); letter-spacing: .05em; }
+    #rag-c01-gotcha-bm25-codes .gb-svg .sm { font-size: 11.5px; fill: var(--ink-2); }
+    #rag-c01-gotcha-bm25-codes .gb-svg .tk rect { fill: var(--surface-2); stroke: var(--line-2); stroke-width: 1.2; }
+    #rag-c01-gotcha-bm25-codes .gb-svg .tk text { font-size: 13px; font-weight: 600; fill: var(--ink); }
+    #rag-c01-gotcha-bm25-codes .gb-svg .tk.bad rect { fill: var(--risk-soft); stroke: var(--risk); }
+    #rag-c01-gotcha-bm25-codes .gb-svg .tk.bad text { fill: var(--risk); }
+    #rag-c01-gotcha-bm25-codes .gb-svg .tk.good rect { fill: var(--state-soft); stroke: var(--state); stroke-width: 1.8; }
+    #rag-c01-gotcha-bm25-codes .gb-svg .tk.good text { fill: var(--state); }
+    #rag-c01-gotcha-bm25-codes .gb-svg .trk { stroke: var(--line-2); stroke-width: 6; stroke-linecap: round; }
+    #rag-c01-gotcha-bm25-codes .gb-svg .fillk { stroke: var(--human); stroke-width: 6; stroke-linecap: round; }
+    #rag-c01-gotcha-bm25-codes .gb-svg .wall { fill: var(--risk); }
+    #rag-c01-gotcha-bm25-codes .gb-svg .knob { fill: var(--human); stroke: #fff; stroke-width: 2; }
+    #rag-c01-gotcha-bm25-codes .gb-svg .err { font-size: 10.5px; font-weight: 600; fill: var(--risk); }
+    #rag-c01-gotcha-bm25-codes .gb-svg .ok { font-size: 12px; font-weight: 700; fill: var(--state); }
+    #rag-c01-gotcha-bm25-codes .gb-svg .arr { stroke: var(--human); stroke-width: 1.6; fill: none; }
+    #rag-c01-gotcha-bm25-codes .gb-cites .cite { font-size: 13.5px; padding: 5px 10px 5px 8px; }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> Lexical retrieval</div>
+  <h2 class="title">BM25 turns E-4012 into 4012 and crashes when k exceeds the corpus</h2>
+  <div class="gb-main fill">
+    <div class="stack gb-left">
+      <div class="code-wrap good">
+        <div class="code-head">northwind_rag/test_bm25.py · one test per fix in lab2_bm25.py</div>
+        <pre class="code gb-c" data-lang="python" data-focus="1:6-8, 2:10-11, 3:13-17"><code># test_bm25.py -- guards for the three fixes in lab2_bm25.py
+import bm25s
+from kb import IDS
+from lab2_bm25 import normalise, bm25_search
+
+def test_codes_survive_tokenizer():                # fix 1: glue codes on both sides
+    assert normalise("E-4012") == "E4012"
+    assert "e4012" in bm25s.tokenize(normalise("E-4012"), return_ids=False)[0]
+
+def test_k_above_corpus_size():                    # fix 2: k = min(k, len(IDS))
+    assert len(bm25_search("refund", k=20)) &lt;= len(IDS)   # 20 of 18: no ValueError
+
+def test_returns_string_ids():                     # fix 3: corpus=IDS gives "c11", not 10
+    assert all(d in IDS for d in bm25_search("customer sees E-4012 at checkout"))
+
+def ids_from_positions(positions: list[int]) -&gt; list[str]:
+    return [IDS[i] for i in positions]             # for any API that returns positions</code></pre>
+      </div>
+      <svg class="gb-svg" id="gb-svg" viewBox="0 0 832 214" width="832" height="214" aria-label="Three animations: a token falls off, k hits the corpus wall, positions map to ids">
+        <g id="gb-p1">
+          <rect class="pn" x="0" y="0" width="268" height="214" rx="12"/>
+          <text class="hd" x="14" y="22">1 · TOKEN PATTERN \b\w\w+\b</text>
+          <text class="sm" x="14" y="48">"Error E-4012 means"</text>
+          <g id="gb-r1"></g>
+          <text class="sm" x="14" y="132">after normalise()</text>
+          <g id="gb-r2"></g>
+        </g>
+        <g id="gb-p2">
+          <rect class="pn" x="282" y="0" width="268" height="214" rx="12"/>
+          <text class="hd" x="296" y="22">2 · TOP-K VS 18 CHUNKS</text>
+          <line class="trk" x1="306" y1="92" x2="526" y2="92"/>
+          <line class="fillk" id="gb-fill" x1="306" y1="92" x2="306" y2="92"/>
+          <rect class="wall" id="gb-wall" x="502" y="66" width="5" height="52" rx="2"/>
+          <text class="sm" x="306" y="132">0</text><text class="sm" x="494" y="58">18</text><text class="sm" x="518" y="132">20</text>
+          <circle class="knob" id="gb-knob" cx="416" cy="92" r="10"/>
+          <text class="sm" id="gb-k" x="306" y="58">k = 10</text>
+          <text class="err" id="gb-e1" x="296" y="160"></text>
+          <text class="err" id="gb-e2" x="296" y="176"></text>
+          <text class="ok" id="gb-fix" x="296" y="202">k = min(k, len(IDS)) → 18</text>
+        </g>
+        <g id="gb-p3">
+          <rect class="pn" x="564" y="0" width="268" height="214" rx="12"/>
+          <text class="hd" x="578" y="22">3 · POSITIONS VS IDS</text>
+          <text class="sm" x="578" y="48">retriever returns</text>
+          <text class="sm" x="728" y="48">gold holds</text>
+          <g id="gb-r3"></g>
+          <text class="sm" id="gb-map" x="660" y="200">IDS[i]</text>
+        </g>
+      </svg>
+    </div>
+    <div class="stack gb-right">
+      <div class="gotcha" data-step="1">
+        <b>Symptom</b><span><code>E-4012</code> and <code>X-4012</code> score the same. Error-code queries rank random runbook lines.</span>
+        <b class="why">Cause</b><span>The bm25s default <code>token_pattern</code> <code>(?u)\b\w\w+\b</code> needs 2+ word characters. The 1-letter "E" is dropped.</span>
+        <b class="fix">Fix</b><span>Normalise codes before tokenising, on corpus and query. Keep a unit test.</span>
+      </div>
+      <div class="gotcha" data-step="2">
+        <b>Symptom</b><span><span class="em">ValueError: k of 20 is larger than the number of available scores, which is 18 (corpus size should be larger than top-k). Please set with a smaller k or increase the size of corpus.</span></span>
+        <b class="why">Cause</b><span>The Lab 4 hybrid run asks for depth 20 on 18 chunks. Without the cap it crashes on the first query.</span>
+        <b class="fix">Fix</b><span><code>k = min(k, len(IDS))</code></span>
+      </div>
+      <div class="gotcha" data-step="3">
+        <b>Symptom</b><span>Every metric is 0.000 for a real retriever.</span>
+        <b class="why">Cause</b><span>It returns positions <code>[3, 0, 7]</code>. The gold sets hold <code>"c04"</code>. bm25s without <code>corpus=</code> and <code>CrossEncoder.rank</code> both return positions.</span>
+        <b class="fix">Fix</b><span>Map back: <code>[IDS[i] for i in positions]</code>.</span>
+      </div>
+      <div class="cites gb-cites">
+        <a class="cite repo" href="https://github.com/xhluca/bm25s" target="_blank" rel="noopener"><b>Repo</b>&nbsp;xhluca/bm25s 0.3.15 · tokenization.py</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    Three bugs that every support or IT corpus hits in its first BM25 week. First: the default bm25s token pattern needs two word characters, so "E-4012" loses its "E" and every E-, X- or P-code with the same digits looks the same; glue the code with one shared normalise() on corpus and query, and keep the unit test in CI. Second: bm25s raises a ValueError when k is larger than the corpus; the hybrid run in Lab 4 asks for 20 of 18 chunks, so without the cap it crashes on the first query. Third: a score of 0.000 for a real retriever is almost always an id mapping bug, because bm25s without corpus= and CrossEncoder.rank return positions, not your ids. Analogy: the retriever hands you seat numbers, the answer key lists passenger names. Likely question: "Why not change token_pattern instead?" You can, but normalising the identifiers keeps one rule for every index, including the dense side. test_bm25.py imports the fixes from lab2_bm25.py, so the fixes live in one file. Next: labels can move scores as much as bugs do.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ROW1 = [["error", 14], ["E", 82], ["4012", 120], ["means", 184]];
+  const ROW2 = [["error", 14], ["e4012", 82], ["means", 160]];
+  const POS = [3, 0, 7], IDV = ["c04", "c01", "c08"];
+  const E1 = "ValueError: k of 20 is larger than the", E2 = "number of available scores, which is 18";
+  const TX = (k) => 306 + (k / 20) * 220;
+  let B = null, prev = -1, tweens = [];
+  const el = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; };
+  const chip = (parent, label, x, y, cls) => {
+    const g = el("g", { class: "tk " + (cls || "") }, parent);
+    const w = 16 + label.length * 8.2;
+    el("rect", { x, y, width: w, height: 28, rx: 7 }, g);
+    const t = el("text", { x: x + w / 2, y: y + 19, "text-anchor": "middle" }, g); t.textContent = label;
+    return g;
+  };
+  function build(slide) {
+    const q = (s) => slide.querySelector(s);
+    const r1 = q("#gb-r1"), r2 = q("#gb-r2"), r3 = q("#gb-r3");
+    r1.innerHTML = r2.innerHTML = r3.innerHTML = "";
+    const b = { p: [q("#gb-p1"), q("#gb-p2"), q("#gb-p3")] };
+    b.row1 = ROW1.map(([s, x]) => chip(r1, s, x, 62, s === "4012" ? "bad" : ""));
+    b.row2 = ROW2.map(([s, x]) => chip(r2, s, x, 144, s === "e4012" ? "good" : ""));
+    b.ints = [], b.ids = [], b.arrs = [];
+    POS.forEach((p, i) => {
+      const y = 62 + i * 40;
+      b.ints.push(chip(r3, String(p), 590, y, "bad"));
+      b.arrs.push(el("path", { class: "arr", d: `M 628 ${y + 14} C 670 ${y + 14}, 690 ${y + 14}, 724 ${y + 14}` }, r3));
+      b.ids.push(chip(r3, `'${IDV[i]}'`, 730, y, "good"));
+    });
+    b.fill = q("#gb-fill"); b.knob = q("#gb-knob"); b.k = q("#gb-k"); b.wall = q("#gb-wall");
+    b.e1 = q("#gb-e1"); b.e2 = q("#gb-e2"); b.fix = q("#gb-fix"); b.map = q("#gb-map");
+    return b;
+  }
+  const all = () => [...B.p, ...B.row1, ...B.row2, ...B.ints, ...B.ids, ...B.arrs, B.fill, B.knob, B.k, B.wall, B.e1, B.e2, B.fix, B.map];
+  const kill = () => { tweens.forEach((t) => t.kill()); tweens = []; if (B) gsap.killTweensOf(all()); };
+  function render(slide, n, animate) {
+    kill();
+    const fwd = animate && n === prev + 1;
+    // panels: panel k visible from step k
+    B.p.forEach((p, i) => gsap.set(p, { opacity: n >= i + 1 ? 1 : 0.25 }));
+    // panel 1: the "E" chip falls off, then the glued token appears
+    const E = B.row1[1];
+    if (n === 1 && fwd) {
+      gsap.set(E, { opacity: 1, y: 0 }); E.classList.remove("bad");
+      gsap.set(B.row2, { opacity: 0, y: 0 });
+      tweens.push(gsap.timeline()
+        .call(() => E.classList.add("bad"), null, 0.3)
+        .to(E, { opacity: 0.35, duration: 0.15, repeat: 3, yoyo: true }, 0.3)
+        .to(E, { y: 46, opacity: 0, duration: 0.6, ease: "power2.in" }, 0.95)
+        .fromTo(B.row2, { opacity: 0, y: 8 }, { opacity: 1, y: 0, duration: 0.4, stagger: 0.12, ease: "back.out(2)" }, 1.6));
+    } else {
+      gsap.set(E, { opacity: n >= 1 ? 0 : 1, y: n >= 1 ? 46 : 0 });
+      E.classList.toggle("bad", n >= 1);
+      gsap.set(B.row2, { opacity: n >= 1 ? 1 : 0, y: 0 });
+    }
+    // panel 2: k slides from 10 to 20, hits the wall at 18, the error types, then the fix
+    const setK = (k) => { gsap.set(B.knob, { attr: { cx: TX(k) } }); gsap.set(B.fill, { attr: { x2: TX(k) } }); B.k.textContent = "k = " + Math.round(k); };
+    if (n === 2 && fwd) {
+      setK(10); B.e1.textContent = ""; B.e2.textContent = ""; gsap.set(B.fix, { opacity: 0 });
+      const p = { k: 10, c: 0 };
+      tweens.push(gsap.timeline()
+        .to(p, { k: 18, duration: 0.9, ease: "power1.in", onUpdate: () => setK(p.k) })
+        .to(B.wall, { attr: { width: 9, x: 500 }, duration: 0.12, repeat: 3, yoyo: true })
+        .to(B.knob, { attr: { r: 13 }, duration: 0.12, repeat: 1, yoyo: true }, "<")
+        .call(() => { B.k.textContent = "k = 20 > 18"; })
+        .to(p, { c: E1.length + E2.length, duration: 1.4, ease: "none", onUpdate: () => { const c = Math.round(p.c); B.e1.textContent = E1.slice(0, c); B.e2.textContent = E2.slice(0, Math.max(0, c - E1.length)); } })
+        .fromTo(B.fix, { opacity: 0, y: 6 }, { opacity: 1, y: 0, duration: 0.4 }));
+    } else if (n >= 2) {
+      setK(18); B.k.textContent = "k = 20 > 18"; B.e1.textContent = E1; B.e2.textContent = E2; gsap.set(B.fix, { opacity: 1, y: 0 });
+      gsap.set(B.wall, { attr: { width: 5, x: 502 } }); gsap.set(B.knob, { attr: { r: 10 } });
+    } else {
+      setK(10); B.e1.textContent = ""; B.e2.textContent = ""; gsap.set(B.fix, { opacity: 0 });
+      gsap.set(B.wall, { attr: { width: 5, x: 502 } }); gsap.set(B.knob, { attr: { r: 10 } });
+    }
+    // panel 3: ints map through IDS[i] to string ids
+    if (n === 3 && fwd) {
+      gsap.set(B.ints, { opacity: 0 }); gsap.set([...B.ids, B.map], { opacity: 0 }); gsap.set(B.arrs, { strokeDasharray: 110, strokeDashoffset: 110 });
+      tweens.push(gsap.timeline()
+        .to(B.ints, { opacity: 1, duration: 0.3, stagger: 0.12 })
+        .to(B.map, { opacity: 1, duration: 0.3 })
+        .to(B.arrs, { strokeDashoffset: 0, duration: 0.5, stagger: 0.15, ease: "power2.out" })
+        .fromTo(B.ids, { opacity: 0, x: -10 }, { opacity: 1, x: 0, duration: 0.35, stagger: 0.15, ease: "back.out(2)" }, "-=0.4"));
+    } else {
+      gsap.set([...B.ints, B.map], { opacity: n >= 3 ? 1 : 0.5 });
+      gsap.set(B.ids, { opacity: n >= 3 ? 1 : 0, x: 0 });
+      gsap.set(B.arrs, { strokeDasharray: 110, strokeDashoffset: n >= 3 ? 0 : 110 });
+    }
+    prev = n;
+  }
+  Deck.register("rag-c01-gotcha-bm25-codes", {
+    enter(slide, step) { if (!B) B = build(slide); prev = -1; render(slide, step, false); },
+    step(slide, n, animate) { if (!B) B = build(slide); render(slide, n, animate); },
+    leave() { kill(); prev = -1; }
+  });
+})();
+</script>

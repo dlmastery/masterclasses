@@ -1,0 +1,203 @@
+<section class="slide" id="custom-c09-lab8-drift-output" data-tone="human" data-title="Lab 8: read the drift output">
+  <style>
+    #custom-c09-lab8-drift-output { gap: 20px; }
+    #custom-c09-lab8-drift-output .dr-grid { display: grid; grid-template-columns: 700px 1fr; gap: 26px; min-height: 0; }
+    #custom-c09-lab8-drift-output .dr-left, #custom-c09-lab8-drift-output .dr-right { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+    #custom-c09-lab8-drift-output .lab-head { font-size: 14px; gap: 10px; }
+    #custom-c09-lab8-drift-output .lab-head .run { font-size: 14.5px; padding: 7px 11px; }
+    #custom-c09-lab8-drift-output .code-head { padding: 7px 14px; font-size: 13.5px; }
+    #custom-c09-lab8-drift-output .dr-out pre.code { font-size: 11.6px; line-height: 1.5; padding: 10px 14px 12px; }
+    #custom-c09-lab8-drift-output .gotcha { grid-template-columns: 64px 1fr; gap: 5px 12px; padding: 12px 16px; font-size: 14px; line-height: 1.38; }
+    #custom-c09-lab8-drift-output .gotcha > b { font-size: 12px; }
+    #custom-c09-lab8-drift-output .gotcha code { font-size: .9em; }
+    #custom-c09-lab8-drift-output .steps-rail { gap: 9px; }
+    #custom-c09-lab8-drift-output .steps-rail > * { font-size: 15.5px; line-height: 1.36; grid-template-columns: 30px 1fr; gap: 10px; }
+    #custom-c09-lab8-drift-output .steps-rail > *::before { width: 26px; height: 26px; font-size: 14px; }
+    #custom-c09-lab8-drift-output .steps-rail code { font-size: .84em; }
+    #custom-c09-lab8-drift-output .cites { display: flex; gap: 10px; flex-wrap: wrap; margin-top: auto; }
+    #custom-c09-lab8-drift-output pre.code, #custom-c09-lab8-drift-output pre.code *, #custom-c09-lab8-drift-output code, #custom-c09-lab8-drift-output svg text { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #c09dr-svg text { font-family: var(--f-mono); }
+  </style>
+  <div class="kicker"><span class="pill">Lab 8</span> Acme ticket triage · step 2 of 4</div>
+  <h2 class="title">Dataset drift passed, product_area drifted: test the key columns</h2>
+  <div class="dr-grid fill">
+    <div class="dr-left">
+      <div class="lab-head"><span class="run">python drift_gate.py; echo "exit code: $?"</span><span class="small">evidently==0.7.23 · report ~3.8 MB (embeds plotly)</span></div>
+      <div class="code-wrap out dr-out">
+        <div class="code-head">output · captured run · exit code 1</div>
+        <pre class="code" data-lang="none" data-focus="1:1-1, 2:7-9, 3:6-6, 4:10-10"><code><span class="ok">DriftedColumnsCount(drift_share=0.5,num_method=psi,num_thres   {'count': 1.0, 'share': 0.25}</span>
+ValueDrift(column=body_chars,method=psi,threshold=0.2)         0.00864067267465683
+ValueDrift(column=customer_tenure_days,method=psi,threshold=   0.012513760650011765
+ValueDrift(column=channel,method=Jensen-Shannon distance,thr   0.0182178544907071
+<span class="err">ValueDrift(column=product_area,method=Jensen-Shannon distanc   0.20686265028221704</span>
+ValueDrift(column=customer_tenure_days,method=ks,threshold=0   0.5709138235382716
+tests: 6, failed: 1
+<span class="err">FAIL: Value Drift for column product_area - Drift score is 0.21. The drift</span>
+<span class="err">detection method is Jensen-Shannon distance. The drift thre</span>
+<span class="err">exit code: 1</span></code></pre>
+      </div>
+      <div class="gotcha" data-step="4">
+        <b>Error</b><span><code>ModuleNotFoundError: No module named 'evidently.report'</code> (also <code>'evidently.metric_preset'</code>)</span>
+        <b class="fix">Fix</b><span>Legacy tutorial code. Use the 0.7 imports. The old API is under <code>evidently.legacy.*</code>.</span>
+        <b>Error</b><span><code>ValueError: Reference dataset should be present</code></span>
+        <b class="fix">Fix</b><span>Pass <code>reference_data</code>. Drift is always relative.</span>
+        <b>Error</b><span><code>KeyError: 'metric_id'</code></span>
+        <b class="fix">Fix</b><span>Read <code>metric_name</code> or <code>id</code> from <code>snapshot.dict()</code>.</span>
+      </div>
+      <div class="cites">
+        <a class="cite doc" href="https://docs.evidentlyai.com/quickstart_ml" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Data and ML checks - Documentation</a>
+        <a class="cite doc" href="https://docs.evidentlyai.com/metrics/customize_data_drift" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Customize Data Drift - Documentation</a>
+      </div>
+    </div>
+    <div class="dr-right">
+      <svg id="c09dr-svg" viewBox="0 0 666 382" width="666" height="382" role="img" aria-label="Step 1: four drift-score bars rise to their exact values: body_chars 0.0086 and customer_tenure_days 0.0125 (PSI), channel 0.0182 and product_area 0.2069 (Jensen-Shannon). A gauge shows 1 of 4 columns drifted, share 0.25, under the drift_share line at 0.5, so the dataset test shows PASS. Step 2: the product_area bar turns red with a FAIL badge. Step 3: two scales: the KS p-value 0.571 sits far from the drift zone near 0, while distances put product_area at the high end. Step 4: exit 1 holds the retraining job."></svg>
+      <div class="steps-rail">
+        <div data-step="1"><span>Share <code>0.25</code> &lt; <code>drift_share=0.5</code>: the dataset test passes. A yes/no gate misses the login outage.</span></div>
+        <div data-step="2"><span>Only the per-column test on <code>product_area</code> failed (JS 0.21).</span></div>
+        <div data-step="3"><span>KS <code>0.571</code> is a p-value: low = drift. PSI and JS are distances: high = drift. Never one axis.</span></div>
+        <div data-step="4"><span>Exit 1 holds retraining. Test the 3-5 key columns. Save <code>snapshot.json()</code> next to the model version.</span></div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">This is the captured output of the Evidently gate from the previous slide, and it exits with code 1. Step 1: only one of four columns drifted, so the share is 0.25, which is below drift_share 0.5, and the dataset-level test passes even though Acme has a login outage. Step 2: the per-column ValueDrift test on product_area failed with a Jensen-Shannon distance of 0.21, and that single failure is what makes the script exit 1. Step 3: the extra KS metric shows 0.571, but for KS that number is a p-value where low means drift, while PSI and JS are distances where high means drift, so never plot them on one axis. Analogy: a building alarm that sounds only when half the rooms are on fire. Likely question: why not lower drift_share? You can, but explicit tests on the 3 to 5 columns the business cares about are clearer, and saving snapshot.json next to the model version lets you trace an alert to its data. Next: the gate tells us when the data changed; cleanlab tells us which of the vendor's labels to re-check before the held retraining runs.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c09-lab8-drift-output";
+  // exact values from the captured run
+  const COLS = [
+    { name: ["body_chars"], m: "psi", v: 0.00864067267465683, fail: false },
+    { name: ["customer_", "tenure_days"], m: "psi", v: 0.012513760650011765, fail: false },
+    { name: ["channel"], m: "JS", v: 0.0182178544907071, fail: false },
+    { name: ["product_area"], m: "JS", v: 0.20686265028221704, fail: true },
+  ];
+  const BASE = 214, K = 700;               // bar baseline y; px per unit of drift score
+  const BX = (i) => 46 + i * 98, BW = 54;  // bar x and width
+  const GX = 520, GT = 50, GB = 214;       // gauge: share 0 at GB, 1.0 at GT
+  const gy = (s) => GB - s * (GB - GT);
+  const PX0 = 150, PX1 = 640;              // bottom scales
+  let S = null;
+
+  function mk(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  }
+
+  function build(slide) {
+    const svg = slide.querySelector("#c09dr-svg");
+    if (svg._S) return svg._S;
+    svg.innerHTML = "";
+    const s = { prev: -1, bars: [], vals: [] };
+    mk("text", { x: 4, y: 16, "font-size": 13, "font-weight": 700, fill: "var(--ink)" }, svg, "drift score per column");
+    mk("text", { x: 470, y: 16, "font-size": 13, "font-weight": 700, fill: "var(--ink)" }, svg, "dataset-level test");
+    mk("line", { x1: 26, y1: BASE, x2: 430, y2: BASE, stroke: "var(--line-2)", "stroke-width": 1.5 }, svg);
+    // psi threshold over the two numeric columns
+    s.thr = mk("g", { opacity: 0 }, svg);
+    mk("line", { x1: 30, y1: BASE - 0.2 * K, x2: 220, y2: BASE - 0.2 * K, stroke: "var(--tool)", "stroke-width": 1.5, "stroke-dasharray": "5 4" }, s.thr);
+    mk("text", { x: 32, y: BASE - 0.2 * K - 7, "font-size": 11, fill: "var(--tool)" }, s.thr, "num_threshold 0.2 (psi)");
+    COLS.forEach((c, i) => {
+      const x = BX(i);
+      s.bars.push(mk("rect", { x, y: BASE, width: BW, height: 0, rx: 4, fill: "var(--state)" }, svg));
+      s.vals.push(mk("text", { x: x + BW / 2, y: BASE - 6, "text-anchor": "middle", "font-size": 12, "font-weight": 700, fill: "var(--ink)", opacity: 0 }, svg, "0"));
+      c.name.forEach((t, k) => mk("text", { x: x + BW / 2, y: BASE + 18 + k * 13, "text-anchor": "middle", "font-size": 11, fill: "var(--ink-2)" }, svg, t));
+      mk("text", { x: x + BW / 2, y: BASE + 18 + c.name.length * 13, "text-anchor": "middle", "font-size": 10.5, fill: "var(--muted)" }, svg, c.m);
+    });
+    // FAIL badge on product_area
+    s.fail = mk("g", { opacity: 0 }, svg);
+    const fx = BX(3) + BW / 2;
+    mk("rect", { x: fx - 52, y: 22, width: 104, height: 22, rx: 6, fill: "var(--risk)" }, s.fail);
+    mk("text", { x: fx, y: 37, "text-anchor": "middle", "font-size": 11.5, "font-weight": 700, fill: "#fff" }, s.fail, "ValueDrift FAIL");
+    // gauge
+    s.gauge = mk("g", { opacity: 0 }, svg);
+    mk("rect", { x: GX, y: GT, width: 44, height: GB - GT, rx: 6, fill: "var(--surface)", stroke: "var(--line-2)" }, s.gauge);
+    s.gfill = mk("rect", { x: GX, y: GB, width: 44, height: 0, rx: 6, fill: "var(--state)" }, s.gauge);
+    mk("line", { x1: GX - 12, y1: gy(0.5), x2: GX + 56, y2: gy(0.5), stroke: "var(--risk)", "stroke-width": 2, "stroke-dasharray": "5 4" }, s.gauge);
+    mk("text", { x: GX + 60, y: gy(0.5) + 4, "font-size": 11, fill: "var(--risk)" }, s.gauge, "drift_share");
+    mk("text", { x: GX + 60, y: gy(0.5) + 17, "font-size": 11, fill: "var(--risk)" }, s.gauge, "0.5");
+    s.gnum = mk("text", { x: GX + 60, y: gy(0.25) + 4, "font-size": 12, "font-weight": 700, fill: "var(--state)" }, s.gauge, "share 0.25");
+    mk("text", { x: GX + 60, y: gy(0.25) + 18, "font-size": 11, fill: "var(--muted)" }, s.gauge, "1 of 4");
+    // verdict captions under the gauge: one per step region
+    s.verd = [
+      mk("text", { x: GX + 22, y: BASE + 24, "text-anchor": "middle", "font-size": 12.5, "font-weight": 700, fill: "var(--state)", opacity: 0 }, svg, "PASS (the trap)"),
+      mk("text", { x: GX + 22, y: BASE + 24, "text-anchor": "middle", "font-size": 12.5, "font-weight": 700, fill: "var(--muted)", opacity: 0 }, svg, "PASS, ignored"),
+      mk("text", { x: GX + 22, y: BASE + 24, "text-anchor": "middle", "font-size": 12.5, "font-weight": 700, fill: "var(--risk)", opacity: 0 }, svg, "exit 1: retrain held"),
+    ];
+    // bottom: p-value scale vs distance scale
+    const b = s.scales = mk("g", { opacity: 0 }, svg);
+    mk("line", { x1: 4, y1: 270, x2: 662, y2: 270, stroke: "var(--line)", "stroke-width": 1 }, b);
+    // p-value scale
+    const y1 = 306, y2 = 358;
+    mk("text", { x: 4, y: y1 - 4, "font-size": 11.5, "font-weight": 700, fill: "var(--ink)" }, b, "ks p-value");
+    mk("text", { x: 4, y: y1 + 10, "font-size": 10.5, fill: "var(--risk)" }, b, "low = drift");
+    mk("rect", { x: PX0, y: y1 - 7, width: (PX1 - PX0) * 0.05, height: 14, fill: "var(--risk-soft)", stroke: "var(--risk)", "stroke-width": 1 }, b);
+    mk("line", { x1: PX0, y1, x2: PX1, y2: y1, stroke: "var(--line-2)", "stroke-width": 2 }, b);
+    mk("text", { x: PX0, y: y1 + 20, "text-anchor": "middle", "font-size": 10, fill: "var(--muted)" }, b, "0");
+    mk("text", { x: PX0 + (PX1 - PX0) * 0.05 + 2, y: y1 - 12, "font-size": 10, fill: "var(--risk)" }, b, "0.05");
+    mk("text", { x: PX1, y: y1 + 20, "text-anchor": "middle", "font-size": 10, fill: "var(--muted)" }, b, "1");
+    const kx = PX0 + (PX1 - PX0) * 0.5709138235382716;
+    mk("circle", { cx: kx, cy: y1, r: 7, fill: "var(--state)" }, b);
+    mk("text", { x: kx, y: y1 - 13, "text-anchor": "middle", "font-size": 11.5, "font-weight": 700, fill: "var(--state)" }, b, "0.571 tenure: no drift");
+    // distance scale 0..0.25
+    const dx = (v) => PX0 + (PX1 - PX0) * (v / 0.25);
+    mk("text", { x: 4, y: y2 - 4, "font-size": 11.5, "font-weight": 700, fill: "var(--ink)" }, b, "psi / JS");
+    mk("text", { x: 4, y: y2 + 10, "font-size": 10.5, fill: "var(--risk)" }, b, "high = drift");
+    mk("line", { x1: PX0, y1: y2, x2: PX1, y2, stroke: "var(--line-2)", "stroke-width": 2 }, b);
+    mk("text", { x: PX0, y: y2 + 20, "text-anchor": "middle", "font-size": 10, fill: "var(--muted)" }, b, "0");
+    mk("text", { x: PX1, y: y2 + 20, "text-anchor": "middle", "font-size": 10, fill: "var(--muted)" }, b, "0.25");
+    COLS.forEach((c, i) => mk("circle", { cx: dx(c.v), cy: y2, r: c.fail ? 7 : 5, fill: c.fail ? "var(--risk)" : "var(--state)", opacity: c.fail ? 1 : 0.8 }, b));
+    mk("text", { x: dx(0.012), y: y2 - 12, "font-size": 10.5, fill: "var(--state)" }, b, "3 columns < 0.02");
+    mk("text", { x: dx(0.2069), y: y2 - 12, "text-anchor": "middle", "font-size": 11.5, "font-weight": 700, fill: "var(--risk)" }, b, "0.207 product_area");
+    svg._S = s;
+    return s;
+  }
+
+  function setBars(s, t, n) {
+    COLS.forEach((c, i) => {
+      const h = c.v * K * t;
+      s.bars[i].setAttribute("y", BASE - h);
+      s.bars[i].setAttribute("height", h);
+      s.vals[i].setAttribute("y", BASE - h - 6);
+      s.vals[i].textContent = (c.v * t).toFixed(4);
+    });
+    const g = 0.25 * t;
+    s.gfill.setAttribute("y", gy(g));
+    s.gfill.setAttribute("height", GB - gy(g));
+  }
+
+  function render(s, n, animate) {
+    const els = [s.thr, s.fail, s.gauge, s.scales, ...s.vals, ...s.bars, ...s.verd];
+    gsap.killTweensOf(els);
+    if (s.tl) { s.tl.kill(); s.tl = null; }
+    const to = (el, v, d) => (animate ? gsap.to(el, { ...v, duration: .45, delay: d || 0 }) : gsap.set(el, v));
+    s.bars.forEach((r, i) => gsap.set(r, { fill: COLS[i].fail && n >= 2 ? "var(--risk)" : (COLS[i].fail && n >= 1 ? "var(--tool)" : "var(--state)") }));
+    to(s.thr, { opacity: n >= 1 ? 1 : 0 });
+    to(s.gauge, { opacity: n >= 1 ? (n === 2 || n === 3 ? 0.45 : 1) : 0 });
+    s.vals.forEach((v) => to(v, { opacity: n >= 1 ? 1 : 0 }));
+    to(s.fail, { opacity: n >= 2 ? 1 : 0 }, n >= 2 ? 0.2 : 0);
+    const vi = n <= 0 ? -1 : (n === 1 ? 0 : (n <= 3 ? 1 : 2));
+    s.verd.forEach((v, i) => to(v, { opacity: i === vi ? 1 : 0 }, i === vi ? 0.3 : 0));
+    to(s.scales, { opacity: n >= 3 ? 1 : 0 });
+    if (n >= 1 && animate && s.prev < 1) {
+      setBars(s, 0, n);
+      const o = { t: 0 };
+      s.tl = gsap.timeline();
+      s.tl.to(o, { t: 1, duration: 1.3, ease: "power2.out", delay: .2, onUpdate: () => setBars(s, o.t, n) });
+    } else setBars(s, n >= 1 ? 1 : 0, n);
+    s.prev = n;
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { S = build(slide); S.prev = step; render(S, step, false); },
+    step(slide, n, animate) { S = build(slide); render(S, n, animate); },
+    leave(slide) {
+      const svg = slide.querySelector("#c09dr-svg");
+      if (svg && svg._S && svg._S.tl) { svg._S.tl.kill(); svg._S.tl = null; }
+      if (svg) gsap.killTweensOf(svg.querySelectorAll("*"));
+    }
+  });
+})();
+</script>

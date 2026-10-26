@@ -1,0 +1,49 @@
+<section class="slide" id="adk-c09-lab-rubrics" data-tone="model" data-title="Lab 9.14: Rubrics on simulated chats">
+  <style>
+    #adk-c09-lab-rubrics .c9-split { --c9l: 784px; }
+    #adk-c09-lab-rubrics .c9-cap { min-height: 100px; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 9</span> Acme refund eval gate · step 14 of 15</div>
+  <h2 class="title">Rubrics score simulated chats without a golden answer</h2>
+  <div class="c9-split fill">
+    <div class="c9-col">
+      <div class="code-wrap">
+        <div class="code-head">labs/adk/lab9-refund-eval/refund_agent/sim_config.json · excerpt</div>
+        <pre class="code" data-lang="json" data-focus="1:5-9, 2:3-4, 3:12-13"><code>"rubric_based_final_response_quality_v1": {
+  "threshold": 0.8,
+  "judge_model_options": {"judge_model": "gemini-2.5-flash",
+                          "num_samples": 5},
+  "rubrics": [
+    {"rubric_id": "no_overlimit_promise", "rubric_content":
+      {"text_property": "Never approves a refund above 500 USD."}},
+    {"rubric_id": "gives_ticket", "rubric_content":
+      {"text_property": "Above 500 USD, gives the ESC ticket ID."}}
+  ]
+},
+"user_simulator_config": {"type": "llm_backed",
+  "model": "gemini-2.5-flash", "max_allowed_invocations": 8}</code></pre>
+      </div>
+      <div class="c9-cap">
+        <p data-step="1" data-until="2">A rubric states the rule. It needs no golden answer.</p>
+        <p data-step="2" data-until="3">The judge samples 5 times per case, then aggregates.</p>
+        <p data-step="3" data-until="4"><code>type</code> picks the simulator. Cap the chat at 8 turns (default 20).</p>
+        <p data-step="4">The ticket was given, but $820 was promised. The case fails.</p>
+      </div>
+    </div>
+    <div class="code-wrap out" data-step="4">
+      <div class="code-head">output · illustrative · lines wrapped</div>
+      <pre class="code sm" data-lang="none" data-focus="4:7-8"><code>$ adk eval refund_agent refund_sim \
+    --config_file_path refund_agent/sim_config.json
+refund_sim:
+  <span class="ok">Tests passed: 1</span>
+  <span class="err">Tests failed: 1</span>
+Metric: rubric_based_final_response_quality_v1,
+  <span class="err">Status: FAILED, Score: 0.5, Threshold: 0.8</span>
+<span class="err">Rubric: Never approves a refund above 500 USD.,</span>
+<span class="err">  Score: 0.0</span>
+<span class="ok">Rubric: Above 500 USD, gives the ESC ticket ID.,</span>
+<span class="ok">  Score: 1.0</span></code></pre>
+    </div>
+  </div>
+  <aside class="notes">Step fourteen scores the simulated chats. Simulated cases have no golden turns, so we use only reference-free metrics. sim_config.json has three of them: hallucinations_v1 checks that the answers are grounded in the tool results, per_turn_user_simulator_quality_v1 checks that the simulator followed its plan, and the rubric metric on this slide checks our two rules. A rubric is a property the answer must have; the judge scores each rubric five times. The type field picks the simulator; older configs without it are treated as llm_backed with a warning, and we cap the chat at 8 turns instead of the default 20. In the NOVICE chat the agent gave the ticket but promised the 820 dollar refund, so no_overlimit_promise scores 0.0, the rubric metric scores 0.5 and the case fails. The output is illustrative. A likely question: "Do these need Google Cloud?" No: these three metrics run on the AI Studio key; only safety_v1 and the multi_turn metrics need a Cloud project.</aside>
+</section>

@@ -1,0 +1,279 @@
+<section class="slide tight" id="adk-c03-gotcha" data-tone="risk" data-title="Gotcha: an unmatched route">
+  <style>
+    #adk-c03-gotcha .g7-main { display: grid; grid-template-columns: 736px 1fr; gap: 28px; align-items: start; }
+    #adk-c03-gotcha .g7-left, #adk-c03-gotcha .g7-right { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+    #adk-c03-gotcha .g7-swap { display: grid; }
+    #adk-c03-gotcha .g7-swap > * { grid-area: 1 / 1; }
+    #adk-c03-gotcha .code-wrap .code-head { padding: 7px 14px; font-size: 14px; }
+    #adk-c03-gotcha pre.code { font-size: 15px; line-height: 1.42; padding: 10px 16px 12px; }
+    #adk-c03-gotcha .gotcha { font-size: 18px; line-height: 1.38; padding: 12px 18px; grid-template-columns: 96px 1fr; gap: 6px 14px; }
+    #adk-c03-gotcha .gotcha code { font-size: .86em; }
+    #adk-c03-gotcha .g7-fig { border: 1px solid var(--line); border-radius: 14px; background: var(--surface); padding: 10px 12px 8px; }
+    #adk-c03-gotcha .g7-fig svg { display: block; width: 100%; height: auto; overflow: visible; }
+    #adk-c03-gotcha svg text { font-family: var(--f-mono); }
+    #adk-c03-gotcha .g7-nt { fill: var(--ink); font-size: 17px; font-weight: 700; }
+    #adk-c03-gotcha .g7-wire { fill: none; stroke: var(--line-2); stroke-width: 2.5; }
+    #adk-c03-gotcha .g7-key rect { fill: var(--surface-2); stroke: var(--line-2); stroke-width: 1.5; }
+    #adk-c03-gotcha .g7-key text { fill: var(--ink-2); font-size: 14px; font-weight: 700; }
+    #adk-c03-gotcha .g7-key.miss rect { stroke: var(--risk); fill: var(--risk-soft); }
+    #adk-c03-gotcha .g7-key.miss text { fill: var(--risk); }
+    #adk-c03-gotcha .g7-key.ok rect { stroke: var(--state); fill: var(--state-soft); }
+    #adk-c03-gotcha .g7-key.ok text { fill: var(--state); }
+    #adk-c03-gotcha .g7-x { fill: var(--risk); font-size: 20px; font-weight: 800; }
+    #adk-c03-gotcha .g7-tok circle { fill: var(--agent); }
+    #adk-c03-gotcha .g7-tok text { fill: var(--agent); font-size: 16px; font-weight: 700; paint-order: stroke; stroke: var(--surface); stroke-width: 5px; stroke-linejoin: round; }
+    #adk-c03-gotcha .g7-tok .cap { fill: var(--risk); }
+    #adk-c03-gotcha .g7-log { font: 500 14px/1.45 var(--f-mono); color: var(--ink-2); min-height: 62px; padding: 8px 4px 2px; border-top: 1px dashed var(--line-2); margin-top: 6px; }
+    #adk-c03-gotcha .g7-log b { color: var(--tool); font-weight: 700; }
+    #adk-c03-gotcha .g7-cites { display: flex; gap: 8px; flex-wrap: wrap; }
+    #adk-c03-gotcha .g7-cites .cite { font-size: 13.5px; }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> Graph routing</div>
+  <h2 class="title">An unmatched route fails silently: one log line and no error</h2>
+  <div class="g7-main fill">
+    <div class="g7-left">
+      <div class="g7-swap">
+        <div class="code-wrap bad" data-until="2">
+          <div class="code-head">ticket_triage/agent.py · free-text labels</div>
+          <pre class="code" data-lang="python" data-focus="1:4-5"><code>from google.adk import Event, Workflow
+from pydantic import BaseModel
+class Triage(BaseModel):
+  labels: list[str]          # free text: "Billing" is legal
+  priority: str
+def route_ticket(node_input: Triage):
+  yield Event(output=node_input.model_dump(),
+              route=list(node_input.labels))
+# intake, classify, billing, page_oncall, how_to: Lab 3 step 3
+root_agent = Workflow(name="ticket_triage", edges=[
+    ("START", intake, classify, route_ticket),
+    (route_ticket, {"billing": billing, "outage": page_oncall,
+                    "how_to": how_to}),
+])</code></pre>
+        </div>
+        <div class="code-wrap good" data-step="2">
+          <div class="code-head">ticket_triage/agent.py · fix</div>
+          <pre class="code" data-lang="python" data-focus="2:14-15, 3:6-8"><code>from typing import Literal
+from google.adk import Event, Workflow
+from google.adk.workflow import DEFAULT_ROUTE
+from pydantic import BaseModel
+class Triage(BaseModel):
+  labels: list[Literal["billing", "outage", "how_to", "other"]]
+  priority: Literal["p1", "p2", "p3"]
+def route_ticket(node_input: Triage):
+  yield Event(output=node_input.model_dump(),
+              route=list(node_input.labels))
+# intake, classify, billing, page_oncall, how_to, human_queue: Lab 3 step 3
+root_agent = Workflow(name="ticket_triage", edges=[
+    ("START", intake, classify, route_ticket),
+    (route_ticket, {"billing": billing, "outage": page_oncall,
+                    "how_to": how_to, DEFAULT_ROUTE: human_queue}),
+])</code></pre>
+        </div>
+      </div>
+      <div class="g7-cites" data-step="3">
+        <a class="cite repo" href="https://github.com/google/adk-python/blob/v2.13.0/src/google/adk/workflow/_graph.py" target="_blank" rel="noopener"><b>Repo</b>&nbsp;adk-python v2.13.0 workflow/_graph.py</a>
+        <a class="cite doc" href="https://adk.dev/graphs/routes/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Graph routes</a>
+      </div>
+    </div>
+    <div class="g7-right">
+      <div class="g7-fig">
+        <svg id="g7-svg" viewBox="0 0 620 300" aria-label="The route token 'Billing' tries the billing, outage and how_to keys and matches none; on the fix step a DEFAULT edge catches it, and with a Literal schema the token is 'billing' and takes the billing edge.">
+          <path class="g7-wire" d="M172 150 L232 150"/>
+          <path class="g7-wire" id="g7-w1" d="M240 150 C 320 150, 330 36, 430 36"/>
+          <path class="g7-wire" id="g7-w2" d="M240 150 C 320 150, 330 106, 430 106"/>
+          <path class="g7-wire" id="g7-w3" d="M240 150 C 320 150, 330 176, 430 176"/>
+          <path class="g7-wire" id="g7-wd" d="M240 150 C 320 150, 330 262, 430 262" style="stroke:var(--human);stroke-dasharray:6 6"/>
+          <circle cx="240" cy="150" r="5" style="fill:var(--line-2)"/>
+          <rect x="4" y="124" width="168" height="52" rx="12" style="fill:var(--tool-soft);stroke:var(--tool);stroke-width:2"/>
+          <text class="g7-nt" x="88" y="156" text-anchor="middle">route_ticket</text>
+          <g id="g7-n1"><rect id="g7-n1r" x="430" y="14" width="186" height="44" rx="12" style="fill:var(--agent-soft);stroke:var(--agent);stroke-width:2"/>
+            <text class="g7-nt" x="523" y="42" text-anchor="middle">billing</text></g>
+          <g><rect x="430" y="84" width="186" height="44" rx="12" style="fill:var(--tool-soft);stroke:var(--tool);stroke-width:2"/>
+            <text class="g7-nt" x="523" y="112" text-anchor="middle">page_oncall</text></g>
+          <g><rect x="430" y="154" width="186" height="44" rx="12" style="fill:var(--agent-soft);stroke:var(--agent);stroke-width:2"/>
+            <text class="g7-nt" x="523" y="182" text-anchor="middle">how_to</text></g>
+          <g id="g7-n3"><rect id="g7-n3r" x="430" y="240" width="186" height="44" rx="12" style="fill:var(--human-soft);stroke:var(--human);stroke-width:2"/>
+            <text class="g7-nt" x="523" y="268" text-anchor="middle">human_queue</text></g>
+          <g class="g7-key" id="g7-k1"><rect x="338" y="22" width="84" height="26" rx="7"/><text x="380" y="40" text-anchor="middle">billing</text></g>
+          <g class="g7-key" id="g7-k2"><rect x="338" y="93" width="84" height="26" rx="7"/><text x="380" y="111" text-anchor="middle">outage</text></g>
+          <g class="g7-key" id="g7-k3"><rect x="338" y="163" width="84" height="26" rx="7"/><text x="380" y="181" text-anchor="middle">how_to</text></g>
+          <g class="g7-key" id="g7-kd"><rect x="330" y="249" width="92" height="26" rx="7" style="stroke:var(--human)"/><text x="376" y="267" text-anchor="middle" style="fill:var(--human)">DEFAULT</text></g>
+          <text class="g7-x" id="g7-x1" x="316" y="42">✕</text>
+          <text class="g7-x" id="g7-x2" x="316" y="113">✕</text>
+          <text class="g7-x" id="g7-x3" x="316" y="183">✕</text>
+          <g class="g7-tok" id="g7-tok"><circle cx="0" cy="0" r="9"/>
+            <text id="g7-tokt" x="-6" y="-16">route=['<tspan class="cap">B</tspan>illing']</text></g>
+        </svg>
+        <div class="g7-log" id="g7-log"></div>
+      </div>
+      <div class="gotcha" data-step="1">
+        <b>Symptom</b><span>No branch runs. No error. Only the log line above.</span>
+        <b class="why">Cause</b><span>The model wrote <code>'Billing'</code>. The dict key is <code>'billing'</code>.</span>
+        <b class="fix" data-step="2">Fix</b><span data-step="2">Add a <code>DEFAULT_ROUTE</code> edge. Classify into a <code>Literal</code> set.</span>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Workflow graphs can fail without a sound. Step 0 shows the BEFORE code: labels is a plain list of strings, so the model may write "Billing" with a capital B. Step 1: route_ticket emits route=['Billing']. The token tries each key, billing, outage and how_to, and matches none. Nothing raises; the branch ends and you get one WARNING log line: "Node 'route_ticket' has conditional/DEFAULT edges but none were matched by the emitted route(s): ['Billing']. The branch will end." Step 2: the first half of the fix is a DEFAULT_ROUTE edge, which catches any unmatched route and sends the ticket to the human queue. Step 3: the second half is a Literal schema, so the model can only emit legal labels: the token is now 'billing' and takes the billing edge. Analogy: an unmatched route is a letter with a wrong address that nobody returns. A likely question is "Why does the engine not raise?": it treats an unmatched route as a legal end of a branch, so you must make the fallback explicit. Next: two errors that do fail loudly.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c03-gotcha";
+  const LOG = "WARNING Node 'route_ticket' has conditional/DEFAULT edges but none were matched by the emitted route(s): ['Billing']. The branch will end.";
+  let tl = null;
+  const clamp = (x) => Math.max(0, Math.min(1, x));
+  const q = (s, id) => s.querySelector("#" + id);
+  // point at fraction f of a wire path
+  const at = (s, id, f) => { const p = q(s, id); const L = p.getTotalLength(); const pt = p.getPointAtLength(L * clamp(f)); return [pt.x, pt.y]; };
+  function tokAt(s, x, y, op, txt) {
+    const t = q(s, "g7-tok");
+    t.setAttribute("transform", `translate(${x},${y})`);
+    t.setAttribute("opacity", op);
+    if (txt) q(s, "g7-tokt").innerHTML = txt;
+  }
+  const BAD = "route=['<tspan class=\"cap\">B</tspan>illing']", GOOD = "route=['billing']";
+  // a in [0,1]: the token tries the three keys in turn and misses each; the log types
+  function phaseA(s, a) {
+    const tries = ["g7-w1", "g7-w2", "g7-w3"];
+    const seg = a * 3, k = Math.min(2, Math.floor(seg)), f = seg - k;
+    // out to the key and back
+    const reach = 0.62;
+    const pos = f < 0.5 ? (f / 0.5) * reach : reach - ((f - 0.5) / 0.5) * reach;
+    const [x, y] = a >= 1 ? [240, 150] : at(s, tries[k], pos);
+    tokAt(s, x, y, a >= 1 ? 0 : 1, BAD);
+    [1, 2, 3].forEach((i) => {
+      const hit = a >= 1 || k > i - 1 || (k === i - 1 && f >= 0.5);
+      q(s, "g7-k" + i).classList.toggle("miss", hit);
+      q(s, "g7-x" + i).setAttribute("opacity", hit ? 1 : 0);
+    });
+    const n = Math.round(LOG.length * clamp((a - 0.75) / 0.25));
+    const txt = LOG.slice(0, n);
+    q(s, "g7-log").innerHTML = txt.startsWith("WARNING") ? "<b>WARNING</b>" + txt.slice(7) : txt;
+  }
+  function setDefault(s, d) {
+    const wd = q(s, "g7-wd"), L = wd.getTotalLength();
+    wd.style.strokeDasharray = d >= 1 ? "6 6" : `${L * d} ${L}`;
+    q(s, "g7-kd").setAttribute("opacity", d);
+    q(s, "g7-n3").setAttribute("opacity", 0.3 + 0.7 * d);
+  }
+  function base(s, n) {
+    q(s, "g7-n3r").style.strokeWidth = 2; q(s, "g7-n1r").style.strokeWidth = 2;
+    q(s, "g7-k1").classList.remove("ok");
+    setDefault(s, n >= 2 ? 1 : 0);
+    if (n >= 1) phaseA(s, 1); else { phaseA(s, 0); tokAt(s, 240, 150, 0, BAD); q(s, "g7-log").innerHTML = ""; }
+    if (n >= 2) q(s, "g7-log").style.opacity = 0.5; else q(s, "g7-log").style.opacity = 1;
+    if (n === 2) q(s, "g7-n3r").style.strokeWidth = 4;
+    if (n >= 3) {
+      [1, 2, 3].forEach((i) => { q(s, "g7-k" + i).classList.remove("miss"); q(s, "g7-x" + i).setAttribute("opacity", 0); });
+      q(s, "g7-k1").classList.add("ok"); q(s, "g7-n1r").style.strokeWidth = 4;
+    }
+  }
+  function stop() { if (tl) { tl.kill(); tl = null; } }
+  function build(s, n, animate) {
+    stop();
+    base(s, n);
+    if (!animate) return;
+    const o = { t: 0 };
+    if (n === 1) {
+      phaseA(s, 0);
+      tl = gsap.timeline({ delay: 0.4 }).to(o, { t: 1, duration: 4.2, ease: "none", onUpdate: () => phaseA(s, o.t) });
+    } else if (n === 2) {
+      setDefault(s, 0); q(s, "g7-n3r").style.strokeWidth = 2;
+      tl = gsap.timeline({ delay: 0.3 })
+        .to(o, { t: 1, duration: 0.8, ease: "power1.inOut", onUpdate: () => setDefault(s, o.t) })
+        .to({ u: 0 }, { u: 1, duration: 1.2, ease: "power1.inOut", onUpdate() { const u = this.targets()[0].u; const [x, y] = at(s, "g7-wd", u); tokAt(s, x, y, 1, BAD); } })
+        .call(() => { tokAt(s, 430, 262, 0); q(s, "g7-n3r").style.strokeWidth = 4; });
+    } else if (n === 3) {
+      q(s, "g7-k1").classList.remove("ok"); q(s, "g7-n1r").style.strokeWidth = 2;
+      tl = gsap.timeline({ delay: 0.3 })
+        .to({ u: 0 }, { u: 1, duration: 1.3, ease: "power1.inOut", onUpdate() { const u = this.targets()[0].u; const [x, y] = at(s, "g7-w1", u); tokAt(s, x, y, 1, GOOD); if (u > 0.6) q(s, "g7-k1").classList.add("ok"); } })
+        .call(() => { tokAt(s, 430, 36, 0); q(s, "g7-n1r").style.strokeWidth = 4; });
+    }
+  }
+  Deck.register(ID, {
+    enter(slide, n) { build(slide, n || 0, false); },
+    step(slide, n, animate) { build(slide, n, animate); },
+    leave() { stop(); }
+  });
+})();
+</script>
+
+<section class="slide tight" id="adk-c03-gotcha-loud" data-tone="risk" data-title="Gotcha: two loud graph errors">
+  <style>
+    #adk-c03-gotcha-loud .g8-main { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; align-items: start; }
+    #adk-c03-gotcha-loud .g8-col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+    #adk-c03-gotcha-loud .gotcha { font-size: 18px; line-height: 1.38; padding: 12px 18px; grid-template-columns: 92px 1fr; gap: 6px 14px; }
+    #adk-c03-gotcha-loud .gotcha code { font-size: .86em; }
+    #adk-c03-gotcha-loud .gotcha .em { font: 500 15px/1.45 var(--f-mono); color: #b0123b; }
+    #adk-c03-gotcha-loud .code-wrap .code-head { padding: 7px 14px; font-size: 14px; }
+    #adk-c03-gotcha-loud pre.code { font-size: 14px; line-height: 1.45; padding: 10px 16px 12px; }
+    #adk-c03-gotcha-loud .g8-swap { display: grid; }
+    #adk-c03-gotcha-loud .g8-swap > * { grid-area: 1 / 1; }
+    #adk-c03-gotcha-loud .diagram .node { padding: 10px 14px; min-width: 0; }
+    #adk-c03-gotcha-loud .diagram .node .nt { font-size: 20px; white-space: nowrap; }
+    #adk-c03-gotcha-loud .diagram .node .ns { font-size: 14px; white-space: nowrap; }
+    #adk-c03-gotcha-loud .g8-chip { position: absolute; font: 700 15px/1 var(--f-mono); padding: 7px 10px; border-radius: 8px; white-space: nowrap; z-index: 3; }
+    #adk-c03-gotcha-loud .g8-chip.bad { color: var(--risk); background: var(--risk-soft); border: 1.5px solid var(--risk); }
+    #adk-c03-gotcha-loud .g8-chip.good { color: var(--state); background: var(--state-soft); border: 1.5px solid var(--state); }
+    #adk-c03-gotcha-loud .g8-cites { display: flex; gap: 8px; flex-wrap: wrap; }
+    #adk-c03-gotcha-loud .g8-cites .cite { font-size: 13.5px; }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> Graph validation</div>
+  <h2 class="title">Two graph errors fail loudly: a schema mismatch and two outputs</h2>
+  <div class="g8-main fill">
+    <div class="g8-col">
+      <div class="diagram" style="width:682px;height:96px" data-wires="g8-check>g8-reply">
+        <div class="node n-tool" id="g8-check" style="left:0;top:18px;width:200px"><span class="nt">check_policy</span><span class="ns">→ RefundCase</span></div>
+        <div class="node n-tool" id="g8-reply" style="left:470px;top:18px;width:212px"><span class="nt">write_reply</span><span class="ns">function</span></div>
+        <span class="g8-chip bad" style="left:228px;top:0" data-step="1" data-until="2">RefundCase ≠ dict ✕</span>
+        <span class="g8-chip good" style="left:222px;top:0" data-step="2">RefundCase = RefundCase ✓</span>
+      </div>
+      <div class="gotcha" data-step="1">
+        <b>Symptom</b><span class="em">GraphValidationError: Graph validation failed. Schema mismatch on edge check_policy -&gt; write_reply. Output schema &lt;class 'RefundCase'&gt; does not match input schema &lt;class 'dict'&gt;.</span>
+        <b class="why">Cause</b><span>The two type hints on the edge disagree. The build checks this before any token.</span>
+        <b class="fix" data-step="2">Fix</b><span data-step="2">Use the same Pydantic class on both ends, or drop one hint.</span>
+      </div>
+      <div class="g8-swap">
+        <div class="code-wrap bad" data-step="1" data-until="2">
+          <div class="code-head">refund_flow/agent.py · write_reply as a function</div>
+          <pre class="code" data-lang="python"><code>def write_reply(node_input: dict) -&gt; str:</code></pre>
+        </div>
+        <div class="code-wrap good" data-step="2">
+          <div class="code-head">refund_flow/agent.py · fix</div>
+          <pre class="code" data-lang="python"><code>def write_reply(node_input: RefundCase) -&gt; str:   # same class</code></pre>
+        </div>
+      </div>
+    </div>
+    <div class="g8-col">
+      <div class="diagram" style="width:682px;height:150px" data-wires="g8-rt>g8-bill [billing]; g8-rt>g8-page [outage]">
+        <div class="node n-tool" id="g8-rt" style="left:0;top:48px;width:180px"><span class="nt">route_ticket</span><span class="ns">list route</span></div>
+        <div class="node n-agent" id="g8-bill" style="left:330px;top:0;width:170px"><span class="nt">billing</span><span class="ns">Agent</span></div>
+        <div class="node n-tool" id="g8-page" style="left:330px;top:92px;width:170px"><span class="nt">page_oncall</span><span class="ns">function</span></div>
+        <span class="g8-chip good" style="left:520px;top:12px" data-step="3">output</span>
+        <span class="g8-chip bad" style="left:520px;top:104px" data-step="3" data-until="4">output ✕</span>
+        <span class="g8-chip good" style="left:520px;top:104px" data-step="4">message only ✓</span>
+      </div>
+      <div class="gotcha" data-step="3">
+        <b>Symptom</b><span class="em">WorkflowConfigurationError: Workflow ticket_triage: multiple terminal nodes produced output (2). A workflow must have at most one terminal output.</span>
+        <b class="why">Cause</b><span>Two branches ran, and both ended with an <code>output</code>.</span>
+        <b class="fix" data-step="4">Fix</b><span data-step="4">End nodes emit only a <code>message</code>, or add a <code>JoinNode</code> before one final node.</span>
+      </div>
+      <div class="g8-swap">
+        <div class="code-wrap bad" data-step="3" data-until="4">
+          <div class="code-head">ticket_triage/agent.py · page_oncall returns a value</div>
+          <pre class="code" data-lang="python"><code>def page_oncall(node_input: dict):
+  return {"paged": node_input["priority"]}   # a return value is output</code></pre>
+        </div>
+        <div class="code-wrap good" data-step="4">
+          <div class="code-head">ticket_triage/agent.py · fix (Lab 3 step 3)</div>
+          <pre class="code" data-lang="python"><code>def page_oncall(node_input: dict):
+  yield Event(message=f"PAGED on-call (priority={node_input['priority']}).")</code></pre>
+        </div>
+      </div>
+      <div class="g8-cites" data-step="4">
+        <a class="cite repo" href="https://github.com/google/adk-python/blob/v2.13.0/src/google/adk/workflow/_workflow.py" target="_blank" rel="noopener"><b>Repo</b>&nbsp;adk-python v2.13.0 workflow/_workflow.py</a>
+        <a class="cite doc" href="https://adk.dev/graphs/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;ADK graphs</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">These two errors are loud, which is good: you find them in a test, not in production. Step 1: change write_reply into a plain function typed node_input: dict, and the Workflow refuses to build. The error names the edge and both classes. Step 2: the fix is one line, the same Pydantic class on both ends of the edge (or drop one hint). Step 3: two branches of a list route both end with an output, here because page_oncall returns a dict, and a plain return value becomes the node output. The run raises WorkflowConfigurationError: at most one terminal output. Step 4: this is why Lab 3 step 3 works: page_oncall yields only a message, so billing gives the one terminal output. The other fix is a JoinNode before one final node. Two more errors you will meet: "from google.adk import START" raises ImportError, because the top-level package exports only Agent, Context, Event, Runner and Workflow (import START from google.adk.workflow, or use the string "START" in a chain tuple); and "WorkflowDataError: Missing value for parameter reply_txt" means a parameter name does not match the output_key. Analogy: a schema check is a plug that will not fit the socket. Next: an October paper on what the routing decision costs.</aside>
+</section>

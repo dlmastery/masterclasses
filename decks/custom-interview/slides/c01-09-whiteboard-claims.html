@@ -1,0 +1,105 @@
+<section class="slide" id="custom-interview-c01-whiteboard-claims" data-tone="agent" data-title="Whiteboard: claims assistant">
+  <style>
+    #custom-interview-c01-whiteboard-claims .wb-prompt { margin: -6px 0 0; font-size: 19px; color: var(--ink-2); }
+    #custom-interview-c01-whiteboard-claims .wb-prompt b { color: var(--agent); font-family: var(--f-mono); font-size: 16px; text-transform: uppercase; letter-spacing: .05em; margin-right: 8px; }
+    #custom-interview-c01-whiteboard-claims .diagram .node { min-width: 0; padding: 10px 10px; }
+    #custom-interview-c01-whiteboard-claims .diagram .node .nt { font-size: 18px; }
+    #custom-interview-c01-whiteboard-claims .diagram .node .ns { font-size: 14px; }
+    #custom-interview-c01-whiteboard-claims .wb-token { position: absolute; left: 0; top: 0; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%; background: var(--agent); z-index: 1; pointer-events: none; opacity: 0; }
+    #custom-interview-c01-whiteboard-claims .steps-rail > * { font-size: 17px; }
+    #custom-interview-c01-whiteboard-claims .gotcha { font-size: 16px; padding: 10px 16px; gap: 4px 12px; grid-template-columns: 92px 1fr; }
+  </style>
+  <div class="kicker"><span class="pill">Whiteboard</span> System design</div>
+  <h2 class="title">Design a claims assistant: cited policy, brand tone, monthly change</h2>
+  <p class="wb-prompt"><b>Prompt</b>Claims-agent assistant. Policies change monthly. Every answer cites a clause. Brand tone. 3 product lines.</p>
+  <div class="grid fill" style="grid-template-columns: 990px 1fr; gap: 30px">
+    <div class="stack" style="gap:14px">
+      <div class="diagram" id="wb-claims-dg" style="width:990px;height:450px"
+           data-wires="agent>retr@1 [question]; store>acl@1 [chunks]{state}; acl>retr@1:bt; retr>rerank@1; rerank>gen@1 [top-n]; tone>gen@2:bt [brand tone]{model}; gen>check@3; check>answer@3:bt [clause 4.2]{tool}; answer>judge@4:rl [score]; golden>judge@4:lr; judge>card@4:br; retr>drift@5:bt [query vs corpus]; drift>card@5:bl">
+        <div class="node n-state" id="store" style="left:0;top:0;width:140px" data-step="1" data-fx="pop"><span class="nt">Policy store</span><span class="ns">v2026-10</span></div>
+        <div class="node n-tool" id="acl" style="left:220px;top:0;width:150px" data-step="1" data-fx="pop"><span class="nt">ACL filter</span><span class="ns">product, role</span></div>
+        <div class="node n-model" id="tone" style="left:640px;top:0;width:150px" data-step="2" data-fx="pop"><span class="nt">Tone adapter</span><span class="ns">SFT / DPO</span></div>
+        <div class="node n-human" id="agent" style="left:0;top:128px;width:130px" data-step="1" data-fx="pop"><span class="nt">User</span><span class="ns">claims agent</span></div>
+        <div class="node n-agent" id="retr" style="left:220px;top:128px;width:150px" data-step="1" data-fx="pop"><span class="nt">Retriever</span><span class="ns">BM25 + dense</span></div>
+        <div class="node n-agent" id="rerank" style="left:430px;top:128px;width:150px" data-step="1" data-fx="pop"><span class="nt">Reranker</span><span class="ns">small top-n</span></div>
+        <div class="node n-model" id="gen" style="left:640px;top:128px;width:150px" data-step="1" data-fx="pop"><span class="nt">Generator</span><span class="ns">LLM</span></div>
+        <div class="node n-tool" id="check" style="left:850px;top:128px;width:140px" data-step="3" data-fx="pop" data-on="6:hot"><span class="nt">Cite check</span><span class="ns">quote match</span></div>
+        <div class="node n-tool" id="drift" style="left:220px;top:256px;width:150px" data-step="5" data-fx="pop"><span class="nt">Drift monitor</span><span class="ns">top-1 sim</span></div>
+        <div class="node n-state" id="golden" style="left:430px;top:256px;width:150px" data-step="4" data-fx="pop"><span class="nt">Golden set</span><span class="ns">3 slices</span></div>
+        <div class="node n-human" id="judge" style="left:640px;top:256px;width:150px" data-step="4" data-fx="pop"><span class="nt">LLM judge</span><span class="ns">vs adjusters</span></div>
+        <div class="node n-human" id="answer" style="left:850px;top:256px;width:140px" data-step="3" data-fx="pop"><span class="nt">Answer</span><span class="ns">cited</span></div>
+        <div class="node n-state" id="card" style="left:430px;top:380px;width:150px" data-step="4" data-fx="pop"><span class="nt">Scorecard</span><span class="ns">per release</span></div>
+        <div class="wb-token"></div>
+      </div>
+      <div class="grid g2" style="gap:16px">
+        <div class="gotcha" data-step="6">
+          <b>Symptom</b><span>Answers quote last month's policy.</span>
+          <b class="why">Cause</b><span>Stale index after a policy update.</span>
+          <b class="fix">Fix</b><span>Re-index on publish. Cite the version id.</span>
+        </div>
+        <div class="gotcha" data-step="6">
+          <b>Symptom</b><span>The cited clause is real but wrong.</span>
+          <b class="why">Cause</b><span>The cite check matches the quote, not the product line.</span>
+          <b class="fix">Fix</b><span>Also check the clause's product-line tag.</span>
+        </div>
+      </div>
+    </div>
+    <div class="stack" style="gap:16px">
+      <div class="steps-rail">
+        <div data-step="1"><span><b>Knowledge = retrieval.</b> Versioned store, ACL filter, hybrid search, rerank.</span></div>
+        <div data-step="2"><span><b>Behavior = training.</b> SFT/DPO tone adapter on approved replies.</span></div>
+        <div data-step="3"><span><b>Cite check in code.</b> The quote must appear in the cited clause. Else regenerate once, then refuse.</span></div>
+        <div data-step="4"><span><b>Eval.</b> Golden set from real traces, one slice per product line. Report judge agreement % vs adjusters.</span></div>
+        <div data-step="5"><span><b>Operate.</b> Drift = share of queries with top-1 similarity under a threshold. Scorecard per release.</span></div>
+      </div>
+      <div class="stack push" style="gap:8px" data-step="4">
+        <a class="cite doc" href="https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents" target="_blank" rel="noopener"><b>Post</b>&nbsp;Anthropic: Demystifying evals for AI agents</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    Read the prompt aloud and let the candidate split it before you build anything. Click 1: monthly policies are knowledge, so they go to retrieval: a versioned policy store, an access filter by product line and role so an agent sees only its own lines, hybrid search and a reranker that keeps a small top-n. Click 2: brand tone is behavior, so it goes to a small SFT or DPO adapter trained on approved replies. Click 3: the generator's citation is checked in code: the quoted text must appear in the cited clause, and on a miss you regenerate once, then refuse. Click 4: the evaluation loop. A golden set from real traces with one slice per product line, an LLM judge whose agreement with adjusters you measure on a labelled sample, and both feed a scorecard. Click 5: operate. Drift is the share of live queries whose best match in the corpus is below a similarity threshold; when it rises, the corpus no longer covers the questions. Click 6: the two follow-ups strong interviewers ask. What happens the day after a policy update, and what if the quote matches but the clause belongs to another product line. Analogy: the policy store is the rule book on the desk; the adapter is the house style the agent learned in training. Likely question: "why not fine-tune the policies in?" They change monthly, so each change would need a new training run and a new eval. Next: before the team trains anything for claim payouts, it probes the base model, and the probe has a bug.
+  </aside>
+</section>
+<script>
+(() => {
+  const ID = "custom-interview-c01-whiteboard-claims";
+  let tl = null;
+  /* the token moves only through the gaps between boxes: from one box border to the next, never over a label */
+  function edge(dg, from, to) {
+    const a = dg.querySelector("#" + from), b = dg.querySelector("#" + to);
+    const ar = { l: a.offsetLeft, t: a.offsetTop, r: a.offsetLeft + a.offsetWidth, b: a.offsetTop + a.offsetHeight };
+    const br = { l: b.offsetLeft, t: b.offsetTop, r: b.offsetLeft + b.offsetWidth, b: b.offsetTop + b.offsetHeight };
+    if (br.l >= ar.r) return [{ x: ar.r + 8, y: (ar.t + ar.b) / 2 }, { x: br.l - 12, y: (br.t + br.b) / 2 }];
+    if (br.r <= ar.l) return [{ x: ar.l - 8, y: (ar.t + ar.b) / 2 }, { x: br.r + 12, y: (br.t + br.b) / 2 }];
+    return [{ x: (ar.l + ar.r) / 2, y: ar.b + 8 }, { x: (br.l + br.r) / 2, y: br.t - 12 }];
+  }
+  function stop(slide) {
+    if (tl) { tl.kill(); tl = null; }
+    const tok = slide.querySelector(".wb-token");
+    gsap.killTweensOf(tok);
+    gsap.set(tok, { autoAlpha: 0 });
+  }
+  function build(slide, n) {
+    stop(slide);
+    if (n < 1) return;
+    const dg = slide.querySelector("#wb-claims-dg"), tok = slide.querySelector(".wb-token");
+    let ids = ["agent", "retr", "rerank", "gen"];
+    if (n >= 3) ids = ids.concat(["check", "answer"]);
+    if (n >= 4) ids = ids.concat(["judge"]);
+    tl = gsap.timeline({ repeat: -1, repeatDelay: 0.6, delay: 0.8 });
+    for (let i = 1; i < ids.length; i++) {
+      const [p, q] = edge(dg, ids[i - 1], ids[i]);
+      tl.set(tok, { x: p.x, y: p.y });
+      tl.to(tok, { autoAlpha: 1, duration: 0.12 });
+      tl.to(tok, { x: q.x, y: q.y, duration: 0.5, ease: "power1.inOut" });
+      tl.to(tok, { autoAlpha: 0, duration: 0.12, delay: 0.15 });
+    }
+  }
+  Deck.register(ID, {
+    enter(slide, n) { build(slide, n); },
+    step(slide, n) { build(slide, n); },
+    leave(slide) { stop(slide); }
+  });
+})();
+</script>

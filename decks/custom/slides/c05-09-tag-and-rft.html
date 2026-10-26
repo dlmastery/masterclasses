@@ -1,0 +1,200 @@
+<section class="slide" id="custom-c05-tag-and-rft" data-tone="model" data-title="TAG gating; GRPO vs RFT">
+  <div class="kicker"><span class="pill">arXiv</span> Oct 2026 · reward design</div>
+  <h2 class="title sm">Gate auxiliary rewards on correctness; prefer GRPO over one-shot RFT</h2>
+  <div class="tr-grid fill">
+    <div class="stack tr-left">
+      <div class="paper tr-card">
+        <div class="pid">arXiv:2610.21404 <span>15 Oct 2026 · Li, Woo, Li, Park</span></div>
+        <h4>Multi-Reward Hacking: From Aggregation-Induced Drift to Trust-Anchored Defense</h4>
+        <div class="find">A plain sum lets GRPO drift to the easier auxiliary reward. TAG gates it on correctness. Qwen3-4B + brevity reward: pass@4 <b>0.581</b> vs <b>0.220</b> additive, answers <b>44%</b> shorter.</div>
+        <div class="so">Monday: replace any additive brevity term with the gate. Lab 4 step 4 already does.</div>
+      </div>
+      <svg id="tr-cells" class="tr-cells" viewBox="0 0 760 232" width="760" height="232" aria-label="Two by two grid of payout right or wrong by answer short or long, with the reward of each cell, and pass@4 bars for additive and TAG aggregation."></svg>
+      <div class="tr-swap">
+        <div class="code-wrap bad" data-step="1" data-until="2">
+          <div class="code-head">additive sum · what TAG replaces</div>
+          <pre class="code xs" data-lang="python"><code>r_correct, r_len = 0.0, 1.0       # wrong payout, short answer
+r = r_correct + 0.1 * r_len       # 0.1 &gt; 0: GRPO learns "short and wrong"</code></pre>
+        </div>
+        <div class="code-wrap good" data-step="2">
+          <div class="code-head">TAG gate · the rule inside gated_brevity_reward</div>
+          <pre class="code xs" data-lang="python" data-focus="2:2-3, 3:5-6"><code># correctness-anchored brevity (TAG, arXiv 2610.21404)
+def tag_reward(r_primary, aux, lambdas):     # r_primary in {0,1}
+    return r_primary * (1 + sum(l*a for l, a in zip(lambdas, aux))) / (1 + sum(lambdas))
+
+r_correct, r_len = 0.0, 1.0                  # wrong payout, short answer
+print(tag_reward(r_correct, [r_len], [0.1])) # 0.0  (additive gave 0.1)</code></pre>
+        </div>
+      </div>
+    </div>
+    <div class="stack tr-right">
+      <div class="paper tr-card" data-step="4">
+        <div class="pid">arXiv:2610.25812 <span>19 Oct 2026 · Chaudhry</span></div>
+        <h4>Is it RL or Data? A Controlled Comparison of GRPO and Rejection-Sampling Fine-Tuning</h4>
+        <div class="find">Same prompts, verifier and token cap (Qwen3-4B-Base + LoRA, KL 0, <code>loss_type="dapo"</code>). GRPO beats tuned RFT by up to <b>+10.9 pp</b>. One RFT round does not move greedy accuracy. Iterated RFT recovers <b>~30%</b> of the gap.</div>
+        <div class="so">Monday: report pass@1 and pass@k together.</div>
+      </div>
+      <svg id="tr-passk" class="tr-passk" data-step="4" viewBox="0 0 590 262" width="590" height="262" aria-label="pass@k curves: base starts at 42.5 percent and GRPO at 70.1 to 77.1 percent at k equals 1; they meet near 96 to 98 percent at k equals 64."></svg>
+      <div class="tr-take" data-step="5">RL sharpens what the base model can already solve. It does not add coverage.</div>
+      <div class="tr-cites push">
+        <a class="cite doc" href="https://arxiv.org/abs/2610.21404" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.21404 Multi-Reward Hacking (TAG)</a>
+        <a class="cite doc" href="https://arxiv.org/abs/2610.25812" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.25812 Is it RL or Data?</a>
+      </div>
+    </div>
+  </div>
+  <style>
+    #custom-c05-tag-and-rft .tr-grid { display: grid; grid-template-columns: 760px 1fr; gap: 42px; align-items: stretch; }
+    #custom-c05-tag-and-rft .tr-left, #custom-c05-tag-and-rft .tr-right { gap: 12px; min-width: 0; }
+    #custom-c05-tag-and-rft .tr-card { padding: 12px 18px; gap: 6px; }
+    #custom-c05-tag-and-rft .tr-card h4 { font-size: 18px; line-height: 1.25; margin: 0; }
+    #custom-c05-tag-and-rft .tr-card .find { font-size: 16px; line-height: 1.38; }
+    #custom-c05-tag-and-rft .tr-card .find code { font-size: .82em; }
+    #custom-c05-tag-and-rft .tr-card .so { font-size: 15px; }
+    #custom-c05-tag-and-rft .tr-swap { display: grid; }
+    #custom-c05-tag-and-rft .tr-swap > * { grid-area: 1 / 1; align-self: start; }
+    #custom-c05-tag-and-rft .tr-swap pre.code { font-size: 13px; }
+    #custom-c05-tag-and-rft .tr-take { font-size: 17px; line-height: 1.4; color: var(--ink-2); padding: 8px 14px; border-left: 3px solid var(--model); background: var(--model-soft); border-radius: 8px; }
+    #custom-c05-tag-and-rft .tr-cites { display: flex; flex-wrap: wrap; gap: 8px; }
+    #custom-c05-tag-and-rft .tr-cites .cite { font-size: 13px; }
+    #custom-c05-tag-and-rft svg text { font-family: var(--f-mono); }
+  </style>
+  <aside class="notes">Two October papers change how we write the claims reward. The first, Multi-Reward Hacking, shows that a plain sum like correctness plus 0.1 times brevity gives the wrong-but-short cell a positive reward, and inside a GRPO group that small 0.1 still beats 0, so the policy drifts toward short wrong payouts. TAG multiplies the auxiliary credit by correctness, so a wrong payout earns exactly zero; on Qwen3-4B with a brevity reward this gave pass@4 0.581 versus 0.220 and 44% shorter answers. The second paper keeps prompts, verifier and token cap fixed and finds GRPO beats tuned rejection-sampling fine-tuning by up to 10.9 points, while pass@64 barely moves: RL sharpens what the base model can already do. Analogy: GRPO is a coach who makes your best shot reliable, not one who teaches a new shot. Likely question: "Should I skip RFT entirely?" If you have a verifier, run GRPO first; if you must use RFT, iterate it and resample from the current policy each round.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c05-tag-and-rft";
+  // cells: [wrong+short, right+short, wrong+long, right+long]; lambda = 0.1
+  const ZERO = [0, 0, 0, 0];
+  const ADD = [0.1, 1.1, 0.0, 1.0];                       // r_correct + 0.1 * r_len
+  const TAG = [0.0, 1.0, 0.0, 1 / 1.1];                   // r_correct * (1 + 0.1 * r_len) / 1.1
+  const P4 = [0.220, 0.581];                              // pass@4 additive, TAG (2610.21404)
+  const st = { c0: 0, c1: 0, c2: 0, c3: 0, p: 0, d: 0, a: 0 };
+  let C = null, K = null;
+
+  const el = (p, tag, a, txt) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); if (txt !== undefined) e.textContent = txt; p.appendChild(e); return e; };
+
+  /* ---- 2x2 reward grid + pass@4 bars ---- */
+  const GX = 120, GY = 30, CW = 170, CH = 86, BW = 58, SC = 62;
+  function buildCells(svg) {
+    svg.innerHTML = "";
+    const mode = el(svg, "text", { x: GX, y: 18, "font-size": 14, "font-weight": 700, fill: "var(--ink-2)" }, "");
+    const cells = [], bars = [], vals = [];
+    for (let i = 0; i < 4; i++) {
+      const col = i % 2, row = Math.floor(i / 2);
+      const x = GX + col * CW, y = GY + row * CH;
+      cells.push(el(svg, "rect", { x: x + 3, y: y + 3, width: CW - 6, height: CH - 6, rx: 10, fill: "var(--surface)", stroke: "var(--line-2)", "stroke-width": 1.5 }));
+      bars.push(el(svg, "rect", { x: x + CW / 2 - BW / 2, y: y + CH - 8, width: BW, height: 0, rx: 4, fill: col ? "var(--state)" : "var(--risk)" }));
+      vals.push(el(svg, "text", { x: x + CW / 2 + BW / 2 + 8, y: y + CH - 12, "font-size": 15, "font-weight": 700, fill: "var(--ink)" }, ""));
+    }
+    el(svg, "text", { x: GX - 12, y: GY + CH / 2 + 5, "text-anchor": "end", "font-size": 13, fill: "var(--muted)" }, "short");
+    el(svg, "text", { x: GX - 12, y: GY + CH * 1.5 + 5, "text-anchor": "end", "font-size": 13, fill: "var(--muted)" }, "long");
+    el(svg, "text", { x: GX + CW / 2, y: GY + 2 * CH + 20, "text-anchor": "middle", "font-size": 13, fill: "var(--muted)" }, "payout wrong");
+    el(svg, "text", { x: GX + CW * 1.5, y: GY + 2 * CH + 20, "text-anchor": "middle", "font-size": 13, fill: "var(--muted)" }, "payout right");
+    const hack = el(svg, "text", { x: GX + 14, y: GY + 22, "font-size": 12, "font-weight": 700, fill: "var(--risk)" }, "");
+    // pass@4 bars (right)
+    const RX = 500, RW = 180;
+    const res = el(svg, "g", { opacity: 0 });
+    el(res, "text", { x: RX, y: 44, "font-size": 13, fill: "var(--muted)" }, "pass@4 · Qwen3-4B");
+    const pb = [], pv = [];
+    ["additive", "TAG"].forEach((name, j) => {
+      const y = 66 + j * 62;
+      el(res, "text", { x: RX, y: y + 4, "font-size": 13, "font-weight": 700, fill: j ? "var(--state)" : "var(--risk)" }, name);
+      el(res, "rect", { x: RX, y: y + 12, width: RW, height: 24, rx: 6, fill: "var(--bg)", stroke: "var(--line-2)" });
+      pb.push(el(res, "rect", { x: RX, y: y + 12, width: 0, height: 24, rx: 6, fill: j ? "var(--state)" : "var(--risk)" }));
+      pv.push(el(res, "text", { x: RX + RW + 8, y: y + 30, "font-size": 16, "font-weight": 700, fill: "var(--ink)" }, "0.000"));
+    });
+    el(res, "text", { x: RX, y: 214, "font-size": 15, "font-weight": 700, fill: "var(--state)" }, "TAG answers 44% shorter");
+    C = { mode, cells, bars, vals, hack, res, pb, pv, RW };
+  }
+  function drawCells(n) {
+    if (!C) return;
+    const v = [st.c0, st.c1, st.c2, st.c3];
+    v.forEach((x, i) => {
+      const row = Math.floor(i / 2), base = GY + row * CH + CH - 8;
+      const h = x * SC;
+      C.bars[i].setAttribute("y", base - h); C.bars[i].setAttribute("height", Math.max(0, h));
+      C.vals[i].setAttribute("y", Math.max(GY + row * CH + 20, base - h - 4));
+      C.vals[i].textContent = n >= 1 ? x.toFixed(2) : "";
+    });
+    C.mode.textContent = n >= 2 ? "TAG: r = r_correct · (1 + 0.1·r_len) / 1.1" : n >= 1 ? "additive: r = r_correct + 0.1·r_len" : "reward per cell";
+    const hackOn = n === 1;
+    C.cells[0].setAttribute("stroke", hackOn ? "var(--risk)" : n >= 2 ? "var(--state)" : "var(--line-2)");
+    C.cells[0].setAttribute("stroke-width", n >= 1 ? 3 : 1.5);
+    C.hack.textContent = hackOn ? "hack cell" : n >= 2 ? "gated to 0" : "";
+    C.hack.setAttribute("fill", hackOn ? "var(--risk)" : "var(--state)");
+    C.res.setAttribute("opacity", st.p > 0 ? 1 : 0);
+    P4.forEach((p, j) => { C.pb[j].setAttribute("width", C.RW * p * st.p); C.pv[j].textContent = (p * st.p).toFixed(3); });
+  }
+
+  /* ---- pass@k chart ---- */
+  const L = 56, R = 470, T = 20, B = 214;                 // plot box
+  const xk = (k) => L + (Math.log2(k) / 6) * (R - L);
+  const yp = (p) => B - ((p - 40) / 60) * (B - T);
+  // schematic curve between the measured endpoints (k = 1 mean@8, k = 64 pass@64)
+  const pts = (y1, y64) => Array.from({ length: 31 }, (_, i) => { const t = i / 30; return [xk(Math.pow(2, 6 * t)), yp(y1 + (y64 - y1) * (1 - Math.pow(1 - t, 2.6)))]; });
+  const path = (ps) => ps.map((q, i) => (i ? "L" : "M") + q[0].toFixed(1) + " " + q[1].toFixed(1)).join(" ");
+  function buildChart(svg) {
+    svg.innerHTML = "";
+    [40, 60, 80, 100].forEach((p) => {
+      el(svg, "line", { x1: L, x2: R, y1: yp(p), y2: yp(p), stroke: "var(--line)", "stroke-width": 1 });
+      el(svg, "text", { x: L - 8, y: yp(p) + 4, "text-anchor": "end", "font-size": 11, fill: "var(--muted)" }, p + "%");
+    });
+    [1, 2, 4, 8, 16, 32, 64].forEach((k) => el(svg, "text", { x: xk(k), y: B + 18, "text-anchor": "middle", "font-size": 11, fill: "var(--muted)" }, String(k)));
+    el(svg, "text", { x: (L + R) / 2, y: B + 36, "text-anchor": "middle", "font-size": 12, fill: "var(--muted)" }, "k samples (log) · k=1 is mean@8 · curve shape schematic");
+    const lo = pts(70.1, 95.7), hi = pts(77.1, 96.7);
+    const band = el(svg, "path", { d: path(hi.concat(lo.slice().reverse())) + " Z", fill: "var(--model)", opacity: 0 });
+    const g1 = el(svg, "path", { d: path(hi), fill: "none", stroke: "var(--model)", "stroke-width": 3 });
+    const g2 = el(svg, "path", { d: path(lo), fill: "none", stroke: "var(--model)", "stroke-width": 2 });
+    const bs = el(svg, "path", { d: path(pts(42.5, 98.0)), fill: "none", stroke: "var(--ink-2)", "stroke-width": 3 });
+    const lines = [g1, g2, bs].map((p) => { const len = p.getTotalLength ? p.getTotalLength() : 600; p.setAttribute("stroke-dasharray", len); return { p, len }; });
+    const lab = el(svg, "g", { opacity: 0 });
+    el(lab, "text", { x: xk(1) + 18, y: yp(42.5) - 2, "font-size": 13, "font-weight": 700, fill: "var(--ink-2)" }, "base 42.5%");
+    el(lab, "text", { x: xk(1) + 4, y: yp(92), "font-size": 13, "font-weight": 700, fill: "var(--model)" }, "GRPO 70.1-77.1%");
+    el(lab, "text", { x: R + 8, y: yp(98.0) - 2, "font-size": 12, "font-weight": 700, fill: "var(--ink-2)" }, "base 98.0%");
+    el(lab, "text", { x: R + 8, y: yp(96.2) + 14, "font-size": 12, "font-weight": 700, fill: "var(--model)" }, "GRPO 95.7-96.7");
+    el(lab, "text", { x: R + 8, y: yp(96.2) + 30, "font-size": 11, fill: "var(--muted)" }, "pass@64");
+    const ann = el(svg, "g", { opacity: 0 });
+    el(ann, "line", { x1: xk(1) + 3, x2: xk(1) + 3, y1: yp(77.1), y2: yp(42.5), stroke: "var(--state)", "stroke-width": 3 });
+    el(ann, "text", { x: xk(2) + 4, y: yp(60), "font-size": 14, "font-weight": 700, fill: "var(--state)" }, "+27.6 to +34.6 pp");
+    el(ann, "rect", { x: xk(8) - 20, y: yp(72) - 20, width: 250, height: 30, rx: 8, fill: "var(--model-soft)" });
+    el(ann, "text", { x: xk(8) - 8, y: yp(72), "font-size": 15, "font-weight": 700, fill: "var(--model)" }, "sharpening, not expansion");
+    K = { band, lines, lab, ann };
+  }
+  function drawChart() {
+    if (!K) return;
+    K.lines.forEach(({ p, len }) => p.setAttribute("stroke-dashoffset", len * (1 - st.d)));
+    K.band.setAttribute("opacity", 0.18 * st.d);
+    K.lab.setAttribute("opacity", st.d);
+    K.ann.setAttribute("opacity", st.a);
+  }
+
+  function target(n) {
+    const v = n >= 2 ? TAG : n >= 1 ? ADD : ZERO;
+    return { c0: v[0], c1: v[1], c2: v[2], c3: v[3], p: n >= 3 ? 1 : 0, d: n >= 4 ? 1 : 0, a: n >= 5 ? 1 : 0 };
+  }
+  function render(n, animate) {
+    gsap.killTweensOf(st);
+    const t = target(n);
+    const upd = () => { drawCells(n); drawChart(); };
+    if (animate) {
+      gsap.to(st, { c0: t.c0, c1: t.c1, c2: t.c2, c3: t.c3, duration: 0.8, ease: "power2.inOut", onUpdate: upd });
+      gsap.to(st, { p: t.p, duration: t.p ? 1.2 : 0.2, ease: "power2.out", delay: t.p ? 0.2 : 0, onUpdate: upd });
+      gsap.to(st, { d: t.d, duration: t.d ? 1.6 : 0.2, ease: "power1.inOut", delay: t.d ? 0.4 : 0, onUpdate: upd });
+      gsap.to(st, { a: t.a, duration: 0.5, delay: t.a ? 0.2 : 0, onUpdate: upd });
+    } else { Object.assign(st, t); upd(); }
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) {
+      buildCells(slide.querySelector("#tr-cells"));
+      buildChart(slide.querySelector("#tr-passk"));
+      gsap.killTweensOf(st);
+      Object.assign(st, target(0));
+      render(step, step === 0);
+    },
+    step(slide, n, animate) { if (C && K) render(n, animate); },
+    leave() { gsap.killTweensOf(st); },
+  });
+})();
+</script>

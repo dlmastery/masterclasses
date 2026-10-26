@@ -1,0 +1,108 @@
+<section class="slide tight" id="adk-c04-lab-fanout" data-tone="agent" data-title="Lab 4.1: fan-out + JoinNode">
+  <style>
+    #adk-c04-lab-fanout .lab-head { gap: 12px; flex-wrap: nowrap; }
+    #adk-c04-lab-fanout .lab-head .run { font-size: 15px; white-space: nowrap; }
+    #adk-c04-lab-fanout .lab-head .pins { font: 500 15px/1.3 var(--f-mono); color: var(--ink-2); white-space: nowrap; padding: 6px 10px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); }
+    #adk-c04-lab-fanout .lab-head .pins b { color: var(--state); }
+    #adk-c04-lab-fanout .lab-head .cite { font-size: 13px; padding: 4px 9px; margin-left: auto; white-space: nowrap; }
+    #adk-c04-lab-fanout .fo-code { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+    #adk-c04-lab-fanout .code-head { padding: 7px 14px; font-size: 14px; }
+    #adk-c04-lab-fanout .fo-code pre.code { font-size: 13.4px; line-height: 1.38; padding: 8px 14px 9px; }
+    #adk-c04-lab-fanout .fo-low { display: grid; grid-template-columns: 900px 1fr; gap: 26px; align-items: start; }
+    #adk-c04-lab-fanout .fo-diag .node { padding: 6px 12px; }
+    #adk-c04-lab-fanout .fo-diag .node .nt { font-size: 17px; }
+    #adk-c04-lab-fanout .fo-diag .node .ns { font-size: 14px; }
+    #adk-c04-lab-fanout .fo-diag .group > .gl { font-size: 14px; }
+    #adk-c04-lab-fanout .fo-rail { gap: 8px; }
+    #adk-c04-lab-fanout .fo-rail > * { font-size: 16.5px; line-height: 1.35; grid-template-columns: 30px 1fr; gap: 10px; }
+    #adk-c04-lab-fanout .fo-rail > *::before { width: 26px; height: 26px; font-size: 13px; border-radius: 7px; }
+    #adk-c04-lab-fanout .fo-rail code { font-size: 14.5px; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 4</span> Northwind back office · step 1 of 4</div>
+  <h2 class="title">Three claim checks fan out in parallel and a JoinNode waits for all</h2>
+  <div class="lab-head">
+    <span class="run">pip install "google-adk==2.13.0"</span>
+    <span class="pins">claim_checks/ = __init__.py + agent.py · Python 3.11+ · <b>no .env</b>: no LLM node</span>
+    <a class="cite codelab" href="https://codelabs.developers.google.com/adk2/instructions" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;ADK 2 Orchestration L2a</a>
+  </div>
+  <div class="fo-code">
+    <div class="code-wrap">
+      <div class="code-head">claim_checks/agent.py · part 1 of 2 · the checks</div>
+      <pre class="code" data-lang="python" data-focus="1:6-8, 2:9-17"><code>import asyncio
+from google.adk import Event, Workflow
+from google.adk.workflow import JoinNode
+POLICIES = {"POL-77": {"active": True, "deductible": 500, "limit": 20000}}
+INACTIVE = {"active": False, "deductible": 0, "limit": 0}
+def parse_claim(node_input: str) -&gt; dict:   # "POL-77 rear-end collision 4200"
+  policy_id, *desc, amount = node_input.split()
+  return {"policy_id": policy_id, "desc": " ".join(desc), "amount": float(amount)}
+async def policy_check(node_input: dict) -&gt; dict:
+  await asyncio.sleep(0.3)                     # stands in for the policy DB
+  return POLICIES.get(node_input["policy_id"], INACTIVE)
+async def fraud_score(node_input: dict) -&gt; float:
+  await asyncio.sleep(0.5)                     # stands in for the fraud model
+  return 0.82 if "total loss" in node_input["desc"] else 0.07
+async def damage_estimate(node_input: dict) -&gt; float:
+  await asyncio.sleep(0.2)                     # stands in for the estimator
+  return round(node_input["amount"] * 0.95, 2)</code></pre>
+    </div>
+    <div class="code-wrap">
+      <div class="code-head">claim_checks/agent.py · part 2 of 2 · join, decide, graph</div>
+      <pre class="code" data-lang="python" data-focus="3:1-12, 4:13-16"><code># {"policy_check": {...}, "fraud_score": 0.07, "damage_estimate": 3990.0}
+def decide(node_input: dict):
+  pol, fraud = node_input["policy_check"], node_input["fraud_score"]
+  est = node_input["damage_estimate"]
+  payout = max(0, min(est, pol["limit"]) - pol["deductible"])
+  if not pol["active"] or payout == 0:
+    verdict = "DENY: policy inactive or payout 0"
+  elif fraud &gt; 0.6:
+    verdict = f"REFER to SIU (fraud score {fraud:.2f})"
+  else:
+    verdict = f"APPROVE payout ${payout:,.2f}"
+  yield Event(output=verdict, message=verdict)
+join_checks = JoinNode(name="join_checks")
+root_agent = Workflow(name="claim_checks", max_concurrency=3,  # optional cap
+    edges=[("START", parse_claim, (policy_check, fraud_score, damage_estimate),
+            join_checks, decide)])</code></pre>
+    </div>
+  </div>
+  <div class="fo-low fill">
+    <div class="diagram fo-diag" style="width:900px;height:206px"
+         data-wires="start>parse@1; parse>pc@2:flow; parse>fs@2:flow; parse>de@2:flow; pc>join@3; fs>join@3; de>join@3; join>decide@3{state}">
+      <div class="group g-agent" style="left:346px;top:-6px;width:218px;height:218px" data-step="4" data-fx="fade"><span class="gl">optional cap = 3</span></div>
+      <div class="node n-human pill" id="start" style="left:0;top:82px;width:90px"><span class="nt">START</span></div>
+      <div class="node n-tool" id="parse" style="left:150px;top:74px;width:150px" data-step="1" data-fx="pop"><span class="nt">parse_claim</span><span class="ns">sync</span></div>
+      <div class="node n-tool" id="pc" style="left:360px;top:0;width:190px" data-step="2" data-fx="pop"><span class="nt">policy_check</span><span class="ns">async · 0.3 s</span></div>
+      <div class="node n-tool" id="fs" style="left:360px;top:76px;width:190px" data-step="2" data-fx="pop"><span class="nt">fraud_score</span><span class="ns">async · 0.5 s</span></div>
+      <div class="node n-tool" id="de" style="left:360px;top:152px;width:190px" data-step="2" data-fx="pop"><span class="nt">damage_estimate</span><span class="ns">async · 0.2 s</span></div>
+      <div class="node n-agent" id="join" style="left:612px;top:74px;width:140px" data-step="3" data-fx="pop" data-on="3:hot"><span class="nt">join_checks</span><span class="ns">JoinNode</span></div>
+      <div class="node n-tool" id="decide" style="left:806px;top:74px;width:94px" data-step="3" data-fx="pop"><span class="nt">decide</span><span class="ns">yields</span></div>
+    </div>
+    <div class="steps-rail fo-rail">
+      <div data-step="1"><span><code>parse_claim</code> turns "POL-77 rear-end collision 4200" into a dict.</span></div>
+      <div data-step="2"><span>Each branch gets the same dict. <code>async</code> sleeps let the three waits overlap.</span></div>
+      <div data-step="3"><span><code>JoinNode</code> fires once, after all three. Keys = predecessor node names = function names.</span></div>
+      <div data-step="4"><span>The tuple inside the chain makes the fan-out. <code>max_concurrency</code> is only a cap.</span></div>
+    </div>
+  </div>
+  <aside class="notes">This is step 1 of the Northwind back-office lab: one claim, three independent checks, one decision. Make a folder claim_checks with an __init__.py that says "from . import agent" and this agent.py; the file has no model call, so it runs offline with no API key and no .env. Walk the four focus steps: parse_claim splits the claim text, the three async checks sleep 0.3, 0.5 and 0.2 seconds to stand in for a policy database, a fraud model and an estimator, JoinNode is the barrier that waits for all three, and the tuple inside the edges chain is what makes the fan-out. max_concurrency=3 on the Workflow is an optional cap on graph-scheduled nodes, not what creates the branches. Think of the JoinNode as the claims supervisor who signs only when all three reports are on the desk. A likely question: "How does decide know which value is which?" The join emits a dict keyed by predecessor node name, and a function node's name is its function name, so the keys are policy_check, fraud_score and damage_estimate, as in the comment on line 1 of part 2. decide yields an Event because adk run prints only message content; a plain return value prints nothing. payout is clamped at zero, so a claim under the deductible is denied instead of paying a negative amount. In step 2 we run claim_checks with "adk run claim_checks" on three claims and time it.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c04-lab-fanout";
+  // two code blocks: only the block that owns the current focus step keeps its band
+  function bands(slide, n) {
+    const pres = slide.querySelectorAll("pre.code[data-focus]");
+    pres.forEach((pre, i) => {
+      if (!pre._band) return;
+      const own = i === 0 ? n >= 1 && n <= 2 : n >= 3;
+      if (!own) { gsap.killTweensOf(pre._band); gsap.set(pre._band, { autoAlpha: 0 }); pre.closest(".code-wrap").classList.remove("focusing"); }
+    });
+  }
+  Deck.register(ID, {
+    enter(slide, step) { bands(slide, step || 0); },
+    step(slide, n) { bands(slide, n); },
+    leave() {}
+  });
+})();
+</script>

@@ -1,0 +1,181 @@
+<section class="slide" id="adk-interview-c02-qa-approval-security" data-tone="risk" data-title="Q&amp;A: approval security">
+  <style>
+    #adk-interview-c02-qa-approval-security .qa-col { display: flex; flex-direction: column; gap: 22px; }
+    #adk-interview-c02-qa-approval-security .qa { gap: 10px; margin-left: -22px; padding-left: 18px; border-left: 4px solid transparent; }
+    #adk-interview-c02-qa-approval-security .qa.cur { border-left-color: var(--risk); }
+    #adk-interview-c02-qa-approval-security .qa.past { opacity: .5; border-left-color: transparent; }
+    #adk-interview-c02-qa-approval-security .qa .q { font-size: 23px; }
+    #adk-interview-c02-qa-approval-security .qa .a { font-size: 19px; line-height: 1.45; padding: 12px 18px; }
+    #adk-interview-c02-qa-approval-security code, #adk-interview-c02-qa-approval-security svg text { font-variant-ligatures: none !important; }
+    #adk-interview-c02-qa-approval-security .qa code { font-size: .86em; padding: 1px 6px; }
+    #adk-interview-c02-qa-approval-security .viz { display: grid; align-items: start; }
+    #adk-interview-c02-qa-approval-security .vp { grid-area: 1 / 1; display: flex; flex-direction: column; gap: 14px; padding: 16px 18px;
+      border-radius: 16px; border: 1px solid var(--line); border-top: 3px solid var(--risk); background: var(--surface); }
+    #adk-interview-c02-qa-approval-security .vp h4 { font-size: 20px; margin: 0; }
+    #adk-interview-c02-qa-approval-security svg text { font-family: var(--f-mono); }
+    #adk-interview-c02-qa-approval-security .vp pre.code, #adk-interview-c02-qa-approval-security .vp pre.code code { font-size: 14px; line-height: 1.5; font-variant-ligatures: none; }
+    #adk-interview-c02-qa-approval-security .vp pre.code { padding: 10px 14px 12px; }
+    #adk-interview-c02-qa-approval-security .vp .code-head { padding: 7px 12px; font-size: 14px; }
+    #adk-interview-c02-qa-approval-security .vp .code-wrap .band { background: color-mix(in oklab, var(--state) 22%, transparent); border-left: 5px solid var(--state); }
+    #adk-interview-c02-qa-approval-security .fix { border-left: 4px solid var(--state); border-radius: 0 12px 12px 0; padding: 10px 14px; font-size: 18px; line-height: 1.4; color: var(--ink-2); background: var(--state-soft); margin: 0; }
+    #adk-interview-c02-qa-approval-security .fix code { font-size: .9em; }
+    #adk-interview-c02-qa-approval-security .big { display: flex; align-items: baseline; gap: 16px; }
+    #adk-interview-c02-qa-approval-security .big .n { font: 800 72px/1 var(--f-mono); color: var(--risk); }
+    #adk-interview-c02-qa-approval-security .big .l { font-size: 18px; line-height: 1.35; color: var(--ink-2); }
+    #adk-interview-c02-qa-approval-security ul.checks li { font-size: 18px; }
+    #adk-interview-c02-qa-approval-security .cites { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+    #adk-interview-c02-qa-approval-security .cite { font-size: 14px; padding: 6px 10px 6px 8px; }
+    #adk-interview-c02-qa-approval-security .cite.paper { display: inline-flex; flex-direction: row; gap: 10px; border-radius: 10px; }
+  </style>
+  <div class="kicker">Interview · approval security · Q&amp;A set 3 of 3</div>
+  <h2 class="title">A human approval is a security boundary only when you bind it</h2>
+  <div class="grid fill" style="grid-template-columns: 1fr 700px; gap: 36px">
+    <div class="qa-col">
+      <div class="qa" data-on="1:cur 2:past">
+        <div class="q"><span>Is a human approval a security boundary in ADK?</span></div>
+        <div class="a" data-step="1" data-fx="up"><b>Not by default.</b> The tool gate (<code>require_confirmation</code>) trusts any reply from the user role. A2A (Agent-to-Agent) messages arrive as the user, so a peer can forge one.</div>
+      </div>
+      <div class="qa" data-on="2:cur 3:past">
+        <div class="q"><span>How do you bind an approval to one effect?</span></div>
+        <div class="a" data-step="2" data-fx="up">Show the exact effect in the payload. The reply must echo it, and the gate compares the echo with state before it routes to the refund.</div>
+      </div>
+      <div class="qa" data-on="3:cur">
+        <div class="q"><span>Why must "manager said yes" never be cached in <code>user:</code> state?</span></div>
+        <div class="a" data-step="3" data-fx="up">An old approval then authorizes a new action. Scope each approval to one interrupt id.</div>
+      </div>
+    </div>
+
+    <div class="stack" style="gap:0">
+      <div class="viz">
+        <div class="vp" data-until="2">
+          <h4>A forged confirmation passes the tool gate</h4>
+          <svg id="aq-svg" viewBox="0 0 664 250" width="664" height="250" aria-label="An A2A peer sends confirmed true; it arrives with role user; the gate checks only that the author is user; the tool runs"></svg>
+          <p class="fix" data-step="1">Put an authenticating proxy in front of <code>adk api_server</code> (it has no auth). Do not serve confirmation-gated tools over A2A. Guard fix pending (#7134).</p>
+        </div>
+
+        <div class="vp" data-step="2" data-until="3">
+          <div class="code-wrap">
+            <div class="code-head">refund_approval/agent.py · bound manager_gate</div>
+            <pre class="code" data-lang="python" data-focus="2:21-22"><code>from pydantic import BaseModel
+from google.adk import Context, Event
+from google.adk.events import RequestInput
+from google.adk.workflow import node
+
+class ManagerDecision(BaseModel):
+    approved: bool
+    order_id: str   # echo of the payload
+    amount: float   # echo of the payload
+
+@node(rerun_on_resume=True)
+def manager_gate(ctx: Context, order_id: str, amount: float):
+    iid = f"refund_approval_{ctx.invocation_id}_{ctx.run_id}"
+    answer = ctx.resume_inputs.get(iid)
+    if answer is None:
+        yield RequestInput(interrupt_id=iid, response_schema=ManagerDecision,
+            payload={"order_id": order_id, "amount": amount},
+            message=f"Approve ${amount:.2f} on {order_id}?")
+        return
+    d = ManagerDecision.model_validate(answer)
+    bound = d.order_id == order_id and d.amount == amount
+    yield Event(route="approved" if d.approved and bound else "rejected")</code></pre>
+          </div>
+        </div>
+
+        <div class="vp" data-step="3">
+          <h4>Reused approvals are an attack</h4>
+          <div class="big"><span class="n" id="aq-n">+0.0 pp</span><span class="l">attack success when an agent reuses earlier approvals (AgentDojo, arXiv 2609.33910)</span></div>
+          <ul class="checks" data-fx="stagger">
+            <li>One approval = one interrupt id = one effect.</li>
+            <li>Log the interrupt id, the payload and the reply.</li>
+            <li class="no">Do not write <code>user:approved = True</code>.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="cites">
+        <a class="cite repo" href="https://github.com/google/adk-python/issues/6461" target="_blank" rel="noopener"><b>Issue</b>&nbsp;adk-python #6461</a>
+        <a class="cite doc" href="https://adk.dev/graphs/human-input/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;ADK human input</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2609.33910" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2609.33910</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Ask each question and let the candidate answer before you reveal the step. Question 1: ADK has two pause types. RequestInput sends adk_request_input; a tool gate (require_confirmation=) sends adk_request_confirmation. Issue #6461 is about the tool gate: a peer sends a function_response with confirmed true, and the only trust check is that the event author is the user. Inbound A2A messages become role user. A guard shipped in v2.8.0 was reverted on 2026-08-20 because it broke every HITL tool confirmation; the replacement, #7134, is still open. So put an authenticating proxy in front of adk api_server and never expose it publicly. Question 2: the payload shows the order and the amount; the manager's client echoes them in the reply; the gate validates the reply and routes to approved only when the echo matches state. The arXiv paper 2610.21063 ("Approve What, Exactly?") found post-approval argument changes in four of eight runtimes, which is what this check stops. Question 3: arXiv 2609.33910 ("When Consent Outlives Context") measured residual authority replay: reusing earlier approvals raised attack success by up to 35.1 percentage points on AgentDojo. Analogy: a signed blank cheque. Likely follow-up: "Is a per-action check enough?" No; also cap the daily refund total in a workflow-level policy node. Next slide: the whiteboard puts these pieces into one refund_approval design.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "adk-interview-c02-qa-approval-security";
+  let P = null, tw = [];
+  const el = (parent, tag, attrs, style, text) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (style) Object.assign(e.style, style);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  };
+  const mono = (sz, w, fill) => ({ font: `${w} ${sz}px var(--f-mono)`, fill });
+
+  function build(slide) {
+    const svg = slide.querySelector("#aq-svg");
+    svg.innerHTML = "";
+    const box = (x, y, w, tone, t1, t2) => {
+      const g = el(svg, "g", {});
+      el(g, "rect", { x, y, width: w, height: 70, rx: 12 }, { fill: `var(--${tone}-soft)`, stroke: `var(--${tone})`, strokeWidth: 2 });
+      el(g, "text", { x: x + w / 2, y: y + 30, "text-anchor": "middle" }, mono(19, 700, "var(--ink)"), t1);
+      el(g, "text", { x: x + w / 2, y: y + 55, "text-anchor": "middle" }, mono(18, 600, `var(--${tone})`), t2);
+      return g;
+    };
+    const peer = box(0, 10, 230, "risk", "A2A peer", "not the manager");
+    const gate = box(434, 10, 230, "human", "tool gate", "author == user?");
+    const tool = box(434, 170, 230, "tool", "issue_refund", "");
+    const toolSt = tool.querySelectorAll("text")[1];
+    const msg = el(svg, "g", {});
+    el(msg, "line", { x1: 234, y1: 45, x2: 424, y2: 45 }, { stroke: "var(--risk)", strokeWidth: 3 });
+    el(msg, "path", { d: "M420 38 L432 45 L420 52 Z" }, { fill: "var(--risk)" });
+    el(msg, "text", { x: 332, y: 30, "text-anchor": "middle" }, mono(18, 700, "var(--risk)"), "{confirmed: true}");
+    el(msg, "text", { x: 332, y: 76, "text-anchor": "middle" }, mono(18, 600, "var(--muted)"), "role = user");
+    const pass = el(svg, "g", {});
+    el(pass, "line", { x1: 549, y1: 84, x2: 549, y2: 160 }, { stroke: "var(--risk)", strokeWidth: 3 });
+    el(pass, "path", { d: "M542 156 L549 168 L556 156 Z" }, { fill: "var(--risk)" });
+    el(pass, "text", { x: 536, y: 128, "text-anchor": "end" }, mono(18, 700, "var(--risk)"), "check passes ✓");
+    const tok = el(svg, "circle", { cx: 234, cy: 45, r: 9 }, { fill: "var(--risk)", opacity: 0 });
+    P = { msg, pass, tool, toolSt, tok, n: slide.querySelector("#aq-n") };
+  }
+  function kill() { tw.forEach((t) => t.kill()); tw = []; if (P) gsap.killTweensOf([P.tok, P.n]); }
+
+  function render(slide, n, animate) {
+    kill();
+    slide.querySelectorAll(".qa .a").forEach((a) => { a.style.display = +a.dataset.step <= n ? "" : "none"; });
+    const on = n >= 1;
+    P.toolSt.textContent = on ? "RUNS: no human" : "waits for a human";
+    P.tool.querySelector("rect").style.strokeWidth = on ? 3.5 : 2;
+    if (animate && n === 1) {
+      gsap.set([P.msg, P.pass], { opacity: 0 });
+      P.toolSt.textContent = "waits for a human";
+      tw.push(gsap.to(P.msg, { opacity: 1, duration: 0.3, delay: 0.3 }));
+      tw.push(gsap.fromTo(P.tok, { attr: { cx: 234, cy: 45 }, opacity: 1 }, { attr: { cx: 424 }, duration: 0.7, delay: 0.4, ease: "power1.inOut" }));
+      tw.push(gsap.to(P.tok, { attr: { cx: 549, cy: 45 }, duration: 0.3, delay: 1.1 }));
+      tw.push(gsap.to(P.pass, { opacity: 1, duration: 0.3, delay: 1.4 }));
+      tw.push(gsap.to(P.tok, { attr: { cy: 160 }, duration: 0.5, delay: 1.5, ease: "power1.in" }));
+      tw.push(gsap.to(P.tok, { opacity: 0, duration: 0.2, delay: 2.0, onComplete: () => { P.toolSt.textContent = "RUNS: no human"; } }));
+    } else {
+      gsap.set(P.msg, { opacity: on ? 1 : 0 });
+      gsap.set(P.pass, { opacity: on ? 1 : 0 });
+      gsap.set(P.tok, { opacity: 0 });
+    }
+    // count-up for the replay number
+    if (n >= 3) {
+      if (animate && n === 3) {
+        const o = { v: 0 };
+        tw.push(gsap.to(o, { v: 35.1, duration: 1.2, delay: 0.3, ease: "power2.out", onUpdate: () => { P.n.textContent = `+${o.v.toFixed(1)} pp`; } }));
+      } else P.n.textContent = "+35.1 pp";
+    } else P.n.textContent = "+0.0 pp";
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { build(slide); render(slide, step || 0, false); },
+    step(slide, n, animate) { if (!P || !slide.querySelector("#aq-svg").firstChild) build(slide); render(slide, n, animate); },
+    leave() { kill(); }
+  });
+})();
+</script>

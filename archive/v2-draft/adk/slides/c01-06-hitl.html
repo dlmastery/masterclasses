@@ -1,0 +1,172 @@
+<section class="slide tight" id="adk-c01-hitl" data-tone="human" data-title="Build: approval over $200">
+  <div class="kicker"><span class="pill">Build</span> Acme refund desk · human approval over $200</div>
+  <h2 class="title sm">Gate refunds over $200 with require_confirmation, not a prompt line</h2>
+  <div class="grid fill" style="grid-template-columns:870px 1fr;gap:24px">
+    <div class="stack" style="gap:14px">
+      <div class="code-wrap good" data-step="2">
+        <div class="code-head">refund_agent/agent.py · approval gate added · google-adk 2.13.0</div>
+        <pre class="code xs" style="font-size:13px" data-lang="python" data-focus="2:10-12, 3:20-21, 4:17-18, 5:12-12"><code>from google.adk import Agent
+from google.adk.tools import FunctionTool, ToolContext
+# ORDERS, lookup_order, check_refund_eligibility, the four callbacks: unchanged
+APPROVAL_THRESHOLD_USD = 200.0          # refund_cap still blocks anything over $1,500
+def issue_refund(order_id: str, amount_usd: float, tool_context: ToolContext) -&gt; dict:
+    """Issue a refund to the original payment method. Irreversible."""
+    issued = tool_context.state.get("refunds_issued", [])
+    tool_context.state["refunds_issued"] = issued + [{"order_id": order_id, "amount_usd": amount_usd}]
+    return {"status": "success", "refund_id": f"RF-{order_id}", "amount_usd": amount_usd}
+def needs_approval(order_id: str, amount_usd: float, tool_context: ToolContext) -&gt; bool:
+    """Same parameters as issue_refund: ADK calls this with the tool's arguments."""
+    return amount_usd &gt; APPROVAL_THRESHOLD_USD
+root_agent = Agent(name="refund_agent", model="gemini-3.5-flash",
+    instruction=(
+        "You are a refund desk assistant. Use lookup_order, then check_refund_eligibility. "
+        "Quote the rule you applied. Never promise a refund the tool did not approve. "
+        "Call issue_refund only for an eligible order. If the tool says the call "
+        "was rejected, tell the customer a supervisor declined it."
+    ),
+    tools=[lookup_order, check_refund_eligibility,
+           FunctionTool(issue_refund, require_confirmation=needs_approval)],
+    before_model_callback=block_card_numbers, before_tool_callback=refund_cap,
+    after_tool_callback=redact_pii, after_model_callback=meter_tokens)</code></pre>
+      </div>
+      <div class="callout pitfall" data-step="5">
+        <span>A predicate that falls through returns <code>None</code>, and <code>None</code> skips the gate (<a href="https://github.com/google/adk-python/issues/7010" target="_blank" rel="noopener">issue #7010</a>, open). Always return a real <code>bool</code>.</span>
+      </div>
+    </div>
+    <div class="stack" style="gap:10px">
+      <div class="code-wrap bad" data-step="1" style="align-self:stretch">
+        <div class="code-head">agent.py · instruction only</div>
+        <pre class="code xs" style="font-size:13.5px" data-lang="python"><code>"Ask a supervisor before any refund over $200."</code></pre>
+      </div>
+      <svg class="interactive" id="adk-hitl-svg" viewBox="0 0 498 216" width="498" height="216" aria-label="Refund amounts on a scale with a $200 approval threshold">
+        <line x1="16" y1="68" x2="482" y2="68" style="stroke:var(--line-2)" stroke-width="2.2"/>
+        <g style="fill:var(--muted);font:500 11px var(--f-mono)">
+          <line x1="16" y1="62" x2="16" y2="74" style="stroke:var(--line-2)" stroke-width="2"/><text x="16" y="88" text-anchor="middle">$0</text>
+          <line x1="249" y1="62" x2="249" y2="74" style="stroke:var(--line-2)" stroke-width="2"/><text x="249" y="88" text-anchor="middle">$700</text>
+          <line x1="482" y1="62" x2="482" y2="74" style="stroke:var(--line-2)" stroke-width="2"/><text x="482" y="88" text-anchor="end">$1,400</text>
+        </g>
+        <g id="hl-th">
+          <line x1="82.6" y1="20" x2="82.6" y2="78" style="stroke:var(--human)" stroke-width="2.4" stroke-dasharray="5 4"/>
+          <text x="82.6" y="88" text-anchor="middle" style="fill:var(--human);font:700 11px var(--f-mono)">$200</text>
+          <text x="90" y="14" style="fill:var(--human);font:700 12px var(--f-mono)">APPROVAL_THRESHOLD_USD = 200.0</text>
+        </g>
+        <rect x="10" y="104" width="200" height="74" rx="12" style="fill:var(--state-soft);stroke:var(--state)" stroke-width="1.6"/>
+        <text x="22" y="123" style="fill:var(--state);font:700 12px var(--f-mono)">issued</text>
+        <g id="hl-dlg">
+          <rect x="236" y="98" width="252" height="88" rx="12" style="fill:var(--human-soft);stroke:var(--human)" stroke-width="1.6"/>
+          <text x="250" y="117" style="fill:var(--human);font:700 12px var(--f-mono)">approve issue_refund()?</text>
+          <rect id="hl-yes" x="420" y="126" width="56" height="22" rx="6" style="fill:var(--bg);stroke:var(--state)" stroke-width="1.4"/>
+          <text x="448" y="141" text-anchor="middle" style="fill:var(--state);font:700 12px var(--f-mono)">yes</text>
+          <rect id="hl-no" x="420" y="154" width="56" height="22" rx="6" style="fill:var(--bg);stroke:var(--risk)" stroke-width="1.4"/>
+          <text id="hl-not" x="448" y="169" text-anchor="middle" style="fill:var(--risk);font:700 12px var(--f-mono)">no</text>
+        </g>
+        <g class="hl-tok" data-w="44"><rect x="-22" y="-12" width="44" height="24" rx="12" style="fill:var(--bg)" stroke-width="2"/><text x="0" y="5" text-anchor="middle" style="fill:var(--ink);font:700 13px var(--f-mono)">$80</text></g>
+        <g class="hl-tok" data-w="54"><rect x="-27" y="-12" width="54" height="24" rx="12" style="fill:var(--bg)" stroke-width="2"/><text x="0" y="5" text-anchor="middle" style="fill:var(--ink);font:700 13px var(--f-mono)">$250</text></g>
+        <g class="hl-tok" data-w="66"><rect x="-33" y="-12" width="66" height="24" rx="12" style="fill:var(--bg)" stroke-width="2"/><text x="0" y="5" text-anchor="middle" style="fill:var(--ink);font:700 13px var(--f-mono)">$1,299</text></g>
+        <g id="hl-x" style="stroke:var(--risk)" stroke-width="3" stroke-linecap="round"><line x1="350" y1="138" x2="374" y2="166"/><line x1="374" y1="138" x2="350" y2="166"/></g>
+        <text id="hl-c1" x="4" y="200" style="font:600 12px var(--f-mono)"></text>
+        <text id="hl-c2" x="4" y="214" style="font:600 12px var(--f-mono)"></text>
+      </svg>
+      <div class="code-wrap out" data-step="3" style="align-self:stretch">
+        <div class="code-head">adk run refund_agent · output · illustrative</div>
+        <pre class="code xs" style="font-size:12.5px" data-lang="out"><code><span class="dim">[user]: A-1002 arrived damaged. Refund the $1,299.</span>
+[HITL confirm] Please approve or reject the tool call
+  issue_refund() by responding with a FunctionResponse
+  with an expected ToolConfirmation payload.
+  Type "yes" to confirm, anything else to reject.
+<span data-step="4" data-fx="fade"><span class="dim">[user]: no</span>
+<span class="err">[refund_agent]: I'm sorry, a supervisor declined the
+  $1,299 refund for order A-1002.</span></span></code></pre>
+      </div>
+      <div class="row" style="gap:8px;flex-wrap:wrap">
+        <span class="delta up" data-step="3">$1,299 refund waits for a human</span>
+        <a class="cite repo" href="https://github.com/google/adk-python/blob/v2.13.0/src/google/adk/tools/function_tool.py" target="_blank" rel="noopener"><b>Repo</b>&nbsp;adk-python v2.13.0 · tools/function_tool.py</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">The cap from the last slide is a hard ceiling. Between $200 and $1,500 Acme wants a person to decide. An instruction such as "ask a supervisor before any refund over $200" is only a request to the model; nothing stops the call. require_confirmation moves the gate into the framework: ADK calls needs_approval with the tool's own arguments, so the predicate must take the same parameter names, including tool_context. Over $200, the first call returns the error dict "This tool call requires confirmation, please approve or reject.", adk run asks for yes, and anything else returns "This tool call is rejected." In your own client, watch event.long_running_tool_ids and reply with a FunctionResponse that has the same id and {"confirmed": true or false}. Analogy: the predicate is the till that calls the manager for any refund over the limit. Best practice: read the threshold from app: state so ops can change it without a deploy, and expect the question "Can the model skip the gate?" No: the gate is in FunctionTool, not in the prompt. The refund desk is now complete; the next slide shows the three errors that stop most first runs of it.</aside>
+</section>
+<script>
+(() => {
+  const SX = (v) => 16 + (v / 1400) * 466;
+  const AMT = [80, 250, 1299];
+  const ON_SCALE = AMT.map((v) => [SX(v), 46]);
+  const ISSUED_ALL = [[46, 152], [104, 152], [168, 152]];
+  const GATED = [[46, 152], [284, 152], [362, 152]];
+  const CAP = [
+    [["three refund requests: $80, $250, $1,299", ""], "--muted"],
+    [["prompt only: the model ran all three refunds,", "including $1,299"], "--risk"],
+    [["needs_approval(...) returns amount_usd > 200.0", "same parameters as issue_refund"], "--human"],
+    [["first call: {'error': 'This tool call requires", "confirmation, please approve or reject.'}"], "--human"],
+    [["'no' -> {'error': 'This tool call is rejected.'}", "$250 still waits for a yes or no"], "--risk"],
+    [["'no' -> {'error': 'This tool call is rejected.'}", "$250 still waits for a yes or no"], "--risk"],
+  ];
+  let last = -1, tl = null, E = null;
+  function grab(s) {
+    const toks = [...s.querySelectorAll(".hl-tok")];
+    return { toks, rects: toks.map((t) => t.querySelector("rect")), th: s.querySelector("#hl-th"), dlg: s.querySelector("#hl-dlg"),
+      no: s.querySelector("#hl-no"), noT: s.querySelector("#hl-not"), x: s.querySelector("#hl-x"),
+      c1: s.querySelector("#hl-c1"), c2: s.querySelector("#hl-c2") };
+  }
+  const posFor = (n) => (n === 1 ? ISSUED_ALL : n >= 3 ? GATED : ON_SCALE);
+  function colors(e, n) {
+    e.rects.forEach((r, i) => {
+      let c = "--tool";
+      if (n === 1) c = i === 0 ? "--state" : "--risk";
+      else if (n >= 2) c = i === 0 ? "--state" : "--human";
+      if (n >= 4 && i === 2) c = "--risk";
+      r.style.stroke = `var(${c})`;
+    });
+    e.no.style.fill = n >= 4 ? "var(--risk)" : "var(--bg)";
+    e.noT.style.fill = n >= 4 ? "#fff" : "var(--risk)";
+  }
+  function setFinal(e, n) {
+    posFor(n).forEach(([x, y], i) => gsap.set(e.toks[i], { x, y, autoAlpha: 1 }));
+    gsap.set(e.th, { autoAlpha: n >= 2 ? 1 : 0 });
+    gsap.set(e.dlg, { autoAlpha: n >= 3 ? 1 : 0 });
+    gsap.set(e.x, { autoAlpha: n >= 4 ? 1 : 0, scale: 1, transformOrigin: "50% 50%" });
+    colors(e, n);
+    gsap.set([e.c1, e.c2], { autoAlpha: 1 });
+    const [[a, b], c] = CAP[n];
+    e.c1.textContent = a; e.c2.textContent = b;
+    e.c1.style.fill = e.c2.style.fill = `var(${c})`;
+  }
+  function render(slide, n, animate) {
+    if (!E) E = grab(slide);
+    const e = E;
+    if (tl) tl.kill();
+    gsap.killTweensOf([...e.toks, e.th, e.dlg, e.x, e.c1, e.c2]);
+    setFinal(e, n);
+    const fwd = animate && n === last + 1;
+    last = n;
+    if (!fwd) return;
+    tl = gsap.timeline();
+    tl.from([e.c1, e.c2], { autoAlpha: 0, duration: 0.3 }, 0);
+    if (n === 0) {
+      tl.from(e.toks, { x: -40, autoAlpha: 0, duration: 0.6, stagger: 0.15, ease: "power2.out" }, 0);
+    } else if (n === 1) {
+      ON_SCALE.forEach(([x, y], i) => tl.fromTo(e.toks[i], { x, y }, { x: ISSUED_ALL[i][0], y: ISSUED_ALL[i][1], duration: 0.6, ease: "power2.in" }, 0.1 + i * 0.25));
+    } else if (n === 2) {
+      ISSUED_ALL.forEach(([x, y], i) => tl.fromTo(e.toks[i], { x, y }, { x: ON_SCALE[i][0], y: ON_SCALE[i][1], duration: 0.5, ease: "power2.out" }, 0));
+      tl.fromTo(e.th, { autoAlpha: 0, y: -14 }, { autoAlpha: 1, y: 0, duration: 0.45, ease: "back.out(2)" }, 0.45);
+    } else if (n === 3) {
+      tl.from(e.dlg, { autoAlpha: 0, scale: 0.92, transformOrigin: "50% 50%", duration: 0.4 }, 0);
+      ON_SCALE.forEach(([x, y], i) => tl.fromTo(e.toks[i], { x, y }, { x: GATED[i][0], y: GATED[i][1], duration: 0.65, ease: "power2.inOut" }, 0.2 + i * 0.2));
+    } else if (n === 4) {
+      colors(e, 3);
+      tl.call(() => colors(e, 4), null, 0.35)
+        .fromTo(e.x, { autoAlpha: 0, scale: 0.2 }, { autoAlpha: 1, scale: 1, duration: 0.4, ease: "back.out(3)" }, 0.45);
+    }
+  }
+  Deck.register("adk-c01-hitl", {
+    enter(slide, n) { last = n - 1; render(slide, n, n === 0); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() {
+      if (tl) tl.kill();
+      tl = null;
+      if (E) gsap.killTweensOf([...E.toks, E.th, E.dlg, E.x, E.c1, E.c2]);
+      last = -1;
+    },
+  });
+})();
+</script>

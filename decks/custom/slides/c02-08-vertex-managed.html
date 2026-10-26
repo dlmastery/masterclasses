@@ -1,0 +1,167 @@
+<section class="slide" id="custom-c02-vertex-managed" data-tone="model" data-title="Managed SFT on Gemini">
+  <div class="kicker"><span class="pill">Build</span> Acme refunds assistant · managed SFT on Vertex Gemini</div>
+  <h2 class="title sm">Same refund data, no GPUs: managed SFT on gemini-3.5-flash</h2>
+  <div class="lab-head vm-head"><span class="run">python vertex_sft.py</span><span class="small mono">google-genai==2.33.0</span><a class="cite doc" href="https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/tuning/supervised-tuning/use" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Use supervised fine-tuning</a><a class="cite codelab" href="https://codelabs.developers.google.com/codelabs/production-ready-ai-with-gc/9-ai-finetuning/finetune-gemini-vertex-ai" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;Fine-tune Gemini on Gemini Enterprise Agent Platform</a></div>
+  <div class="grid fill" style="grid-template-columns:764px 1fr;gap:24px">
+    <div class="code-wrap">
+      <div class="code-head">refunds_sft/vertex_sft.py · same rows, split and SYSTEM as Lab 1</div>
+      <pre class="code vm-code" data-lang="python" data-focus="1:5-7, 2:9-16, 3:17-19, 4:20-24"><code>import os, time
+from google import genai
+from google.genai import types
+from common import SYSTEM
+from to_gemini_jsonl import upload_lab1_split  # Lab 1 split -> JSONL
+BUCKET = os.environ["TUNING_BUCKET"]           # gs://my-project-tuning
+upload_lab1_split(BUCKET)   # refund_train.jsonl, refund_val.jsonl in GCS
+client = genai.Client(http_options=types.HttpOptions(api_version="v1beta1"))
+job = client.tunings.tune(
+    base_model="gemini-3.5-flash",
+    training_dataset=types.TuningDataset(gcs_uri=f"{BUCKET}/refund_train.jsonl"),
+    config=types.CreateTuningJobConfig(
+        tuned_model_display_name="refund-agent-v1", epoch_count=3,
+        validation_dataset=types.TuningValidationDataset(
+            gcs_uri=f"{BUCKET}/refund_val.jsonl"),
+        adapter_size=types.AdapterSize.ADAPTER_SIZE_FOUR))
+while not job.has_ended:             # property: state in JOB_STATES_ENDED
+    time.sleep(60)
+    job = client.tunings.get(name=job.name)
+resp = client.models.generate_content(model=job.tuned_model.endpoint,
+    contents="I was charged twice for order {{Order Number}}, refund one",
+    config=types.GenerateContentConfig(system_instruction=SYSTEM,
+        thinking_config=types.ThinkingConfig(
+            thinking_level=types.ThinkingLevel.MINIMAL)))
+print(job.state, resp.text)</code></pre>
+    </div>
+
+    <div class="stack" style="gap:12px">
+      <div class="code-wrap term vm-env">
+        <div class="code-head">run it Monday · Google Cloud project with billing</div>
+        <pre class="code" data-lang="bash"><code>$ pip install "google-genai==2.33.0" "datasets==5.1.0"
+$ gcloud auth application-default login
+$ gcloud services enable aiplatform.googleapis.com
+$ gcloud storage buckets create gs://my-project-tuning --location=us
+$ export GOOGLE_CLOUD_PROJECT=my-project GOOGLE_CLOUD_LOCATION=us
+$ export GOOGLE_GENAI_USE_ENTERPRISE=True
+$ export TUNING_BUCKET=gs://my-project-tuning</code></pre>
+      </div>
+      <div class="panel tight vm-panel">
+        <svg id="vm-svg" viewBox="0 0 580 214" width="580" height="214" aria-label="Job states PENDING, RUNNING, SUCCEEDED, the FAILED branch for a wrong region, and the data stats that set the cost"></svg>
+      </div>
+      <div class="vm-cmp" data-step="5">
+        <div class="vm-col"><b class="c-model">Open weights · Lab 1</b><span>You own the GPU (Ampere+, ≥ 12 GB: L4, A10G, A100), the loss mask, the LoRA, the merge and serving.</span></div>
+        <div class="vm-col"><b class="c-agent">Managed · this slide</b><span>Google owns GPUs, training and serving. You get an endpoint. <span class="delta up">0 GPUs</span> <span class="delta down">no SLA</span></span></div>
+      </div>
+      <div class="callout pitfall vm-pit" data-step="6"><span>Limits: ≤ 131,072 tokens per example, ≤ 1 GB per JSONL file.</span></div>
+    </div>
+  </div>
+  <style>
+    #custom-c02-vertex-managed { gap: 22px; }
+    #custom-c02-vertex-managed .vm-head { margin-top: -6px; }
+    #custom-c02-vertex-managed .vm-head .run { font-size: 15px; }
+    #custom-c02-vertex-managed .vm-code { font-size: 14.5px; line-height: 1.42; padding: 10px 16px 12px; }
+    #custom-c02-vertex-managed .code-head { font-size: 13.5px; padding: 8px 14px; }
+    #custom-c02-vertex-managed .vm-env pre.code { font-size: 13px; line-height: 1.42; padding: 8px 14px 10px; }
+    #custom-c02-vertex-managed .vm-panel { padding: 8px 12px; }
+    #custom-c02-vertex-managed .vm-panel svg { display: block; width: 100%; height: auto; }
+    #custom-c02-vertex-managed .vm-cmp { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    #custom-c02-vertex-managed .vm-col { display: flex; flex-direction: column; gap: 4px; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--surface); font-size: 15.5px; line-height: 1.35; color: var(--ink-2); }
+    #custom-c02-vertex-managed .vm-col b { font: 700 14px/1.3 var(--f-mono); }
+    #custom-c02-vertex-managed .vm-col .delta { font-size: 13px; }
+    #custom-c02-vertex-managed .vm-pit { font-size: 15.5px; line-height: 1.35; padding: 8px 14px; }
+    #custom-c02-vertex-managed svg text { font-variant-ligatures: none; }
+  </style>
+  <aside class="notes">These are the same 2,992 refund rows, the same train and test split and the same system prompt as Lab 1, but now Google runs the training. Set up once: application-default login, enable the Vertex AI API, create a bucket in the us multi-region, and export the project, the location us, the enterprise flag and the bucket. Click 1: a small helper in the repo, to_gemini_jsonl.py, writes each Lab 1 row as one Gemini SFT line, with a systemInstruction and user and model parts, and copies the train and validation files to Cloud Storage. Click 2: client.tunings.tune on gemini-3.5-flash with adapter size four and three epochs; the adapter size sets how many adapter parameters train, like the LoRA rank, and Gemini 3.5 Flash allows 1, 2, 4, 8 or 16. Click 3: poll until the job ends. The location must be the us or eu multi-region, not us-central1, or the job fails. Then read tuning_data_stats: you pay for training tokens times epochs, so truncated or dropped examples cost money and quality at the same time. Click 4: call the tuned endpoint with the same system instruction as training and thinking level MINIMAL, because the model learned from data with no thinking. Think of it as sending laundry out instead of buying a washing machine: no hardware, but you accept their sizes, their queue and no guarantee. Two more gotchas: a raw string in training_dataset raises a pydantic ValidationError, and a second concurrent job hits the global quota of one. A likely question: "When should I pick the open-weights path?" When you need the weights, control of the loss mask, multi-LoRA serving or an SLA, which managed SFT does not give: it is not a Covered Service. Next: the third path, Gemma 4, where TRL masking breaks and Unsloth fixes it.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ST = [
+    { k: "PENDING", x: 0, c: "var(--ink-2)" },
+    { k: "RUNNING", x: 210, c: "var(--ink-2)" },
+    { k: "SUCCEEDED", x: 420, c: "var(--state)" }
+  ];
+  const NW = 140, NY = 30, NH = 42, LY = NY + NH / 2;
+  const MID = [175, 385];
+  const STATS = [
+    ["total_billable_token_count", "tokens × 3 epochs"],
+    ["total_truncated_example_count", "0  ✓"],
+    ["dropped_example_reasons", "[]  ✓"]
+  ];
+  let svg, nodes = [], dot, vals = [], endTxt, tweens = [];
+  const mono = "font-family:var(--f-mono)";
+  const mk = (tag, a, p) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); p.appendChild(e); return e; };
+  const tx = (s, a, p) => { const e = mk("text", a, p); e.textContent = s; return e; };
+
+  function build(slide) {
+    svg = slide.querySelector("#vm-svg");
+    svg.innerHTML = ""; nodes = []; vals = [];
+    tx("job.state · output illustrative", { x: 0, y: 16, "font-size": 14, fill: "var(--muted)", style: mono }, svg);
+    for (let i = 0; i < 2; i++) mk("line", { x1: ST[i].x + NW, y1: LY, x2: ST[i + 1].x, y2: LY, stroke: "var(--line-2)", "stroke-width": 3 }, svg);
+    ST.forEach((s) => {
+      const r = mk("rect", { x: s.x, y: NY, width: NW, height: NH, rx: 10, fill: "var(--surface)", stroke: "var(--faint)", "stroke-width": 2 }, svg);
+      const t = tx(s.k, { x: s.x + NW / 2, y: NY + 27, "font-size": 16, "font-weight": 700, "text-anchor": "middle", fill: "var(--muted)", style: mono }, svg);
+      nodes.push({ r, t, c: s.c });
+    });
+    // FAILED branch (risk colour only here)
+    mk("line", { x1: 70, y1: NY + NH, x2: 70, y2: 96, stroke: "var(--risk)", "stroke-width": 2, "stroke-dasharray": "5 4" }, svg);
+    mk("rect", { x: 10, y: 96, width: 120, height: 28, rx: 8, fill: "var(--risk-soft)", stroke: "var(--risk)", "stroke-width": 2 }, svg);
+    tx("FAILED", { x: 70, y: 115, "font-size": 14, "font-weight": 700, "text-anchor": "middle", fill: "var(--risk)", style: mono }, svg);
+    tx("region not", { x: 70, y: 142, "font-size": 13, "text-anchor": "middle", fill: "var(--risk)", style: mono }, svg);
+    tx("us or eu", { x: 70, y: 158, "font-size": 13, "text-anchor": "middle", fill: "var(--risk)", style: mono }, svg);
+    tx("job.tuning_data_stats · you pay tokens × epochs", { x: 168, y: 104, "font-size": 13.5, fill: "var(--muted)", style: mono }, svg);
+    STATS.forEach(([k], i) => {
+      const y = 128 + i * 22;
+      tx(k, { x: 168, y, "font-size": 13.5, fill: "var(--ink-2)", style: mono }, svg);
+      vals.push(tx("…", { x: 580, y, "font-size": 13.5, "font-weight": 700, "text-anchor": "end", fill: "var(--faint)", style: mono }, svg));
+    });
+    endTxt = tx("endpoint → projects/123456789012/locations/us/endpoints/1234…", { x: 0, y: 206, "font-size": 13, fill: "var(--state)", "font-weight": 600, style: mono, opacity: 0 }, svg);
+    dot = mk("circle", { cx: MID[0], cy: LY, r: 8, fill: "var(--agent)", opacity: 0 }, svg);
+  }
+
+  function setNode(i, on) {
+    const nd = nodes[i];
+    nd.r.setAttribute("stroke", on ? nd.c : "var(--faint)");
+    nd.r.setAttribute("fill", on ? (i === 2 ? "var(--state-soft)" : "var(--surface-2)") : "var(--surface)");
+    nd.t.setAttribute("fill", on ? nd.c : "var(--muted)");
+  }
+  function setVal(i, on) {
+    vals[i].textContent = on ? STATS[i][1] : "…";
+    vals[i].setAttribute("fill", on ? (i === 0 ? "var(--ink)" : "var(--state)") : "var(--faint)");
+  }
+  const kill = () => { tweens.forEach((t) => t.kill()); tweens = []; };
+
+  function render(slide, n, animate) {
+    if (!svg || !slide.contains(svg)) build(slide);
+    kill();
+    if (animate && n === 3) {
+      setNode(0, true); setNode(1, false); setNode(2, false);
+      STATS.forEach((_, i) => setVal(i, false));
+      endTxt.setAttribute("opacity", 0);
+      dot.setAttribute("opacity", 1); dot.setAttribute("cx", MID[0]);
+      const tl = gsap.timeline();
+      tl.call(() => setNode(1, true), null, 0.3)
+        .to(dot, { attr: { cx: MID[1] }, duration: 0.9, ease: "power2.inOut" }, 0.5)
+        .call(() => setNode(2, true))
+        .to(dot, { attr: { opacity: 0 }, duration: 0.3 });
+      STATS.forEach((_, i) => tl.call(() => setVal(i, true), null, "+=0.25"));
+      tweens.push(tl);
+      return;
+    }
+    const st = n >= 3 ? 2 : n >= 2 ? 0 : -1;
+    ST.forEach((_, i) => setNode(i, i <= st));
+    STATS.forEach((_, i) => setVal(i, n >= 3));
+    endTxt.setAttribute("opacity", n >= 4 ? 1 : 0);
+    if (animate && n === 4) tweens.push(gsap.fromTo(endTxt, { attr: { opacity: 0 } }, { attr: { opacity: 1 }, duration: 0.4 }));
+    dot.setAttribute("cx", MID[0]);
+    if (n === 2) {
+      if (animate) tweens.push(gsap.fromTo(dot, { attr: { opacity: 0, cx: ST[0].x + NW } }, { attr: { opacity: 1, cx: MID[0] }, duration: 0.5, ease: "power2.out" }));
+      else dot.setAttribute("opacity", 1);
+    } else dot.setAttribute("opacity", 0);
+  }
+
+  Deck.register("custom-c02-vertex-managed", {
+    enter(slide, step) { build(slide); render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { kill(); }
+  });
+})();
+</script>

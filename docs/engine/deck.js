@@ -431,7 +431,7 @@
     idx = Math.max(0, Math.min(slides.length - 1, idx));
     const next = slides[idx];
     const prev = slides[cur];
-    if (idx === cur) { setStep(toStep, true); return; }
+    if (idx === cur) { setStep(toStep === "max" ? slides[cur]._max : toStep, true); return; }
     prepare(next);
 
     if (prev) {

@@ -1,0 +1,182 @@
+<section class="slide" id="custom-c10-synthetic-checklist" data-tone="state" data-title="Synthetic data checklist">
+  <div class="kicker">Best practices</div>
+  <h2 class="title">Synthetic data rules: seed real, verify cheap first, anchor humans</h2>
+  <div class="sc-grid fill">
+    <div class="sc-left">
+      <div class="stack sc-col" data-step="1">
+        <h4 class="sc-h">Generate and verify</h4>
+        <ul class="checks sc-list" data-fx="stagger">
+          <li><span><b>Seed from real data; stratify by attributes.</b><span class="sc-why">Else: mode collapse (2609.38359).</span></span></li>
+          <li><span><b>Verify in cost order: parse, check, judge.</b><span class="sc-why">The judge sees only clean rows.</span></span></li>
+          <li><span><b>Reject chat-template special tokens.</b><span class="sc-why">WebFovea: 4.9% of episodes (2610.03036).</span></span></li>
+          <li><span><b>Drop or slice closed-book items.</b><span class="sc-why">They test memory, not retrieval.</span></span></li>
+        </ul>
+      </div>
+      <div class="stack sc-col" data-step="2">
+        <h4 class="sc-h">Freeze sets, anchor judges</h4>
+        <ul class="checks sc-list" data-fx="stagger">
+          <li><span><b>Freeze eval sets by hash; never train on them.</b><span class="sc-why">Decontaminate, then adjudicate.</span></span></li>
+          <li><span><b>Pin the judge; keep a 200-item human anchor.</b><span class="sc-why">Newer is not better (2610.09820).</span></span></li>
+          <li><span><b>Compute n_eff before adding judges.</b><span class="sc-why">10 judges ≈ 3.5 (2609.22512).</span></span></li>
+          <li><span><b>Add fresh human data every round.</b><span class="sc-why">Safe ratio is still open (2609.18878).</span></span></li>
+        </ul>
+      </div>
+      <div class="stack sc-col sc-dont" data-step="3">
+        <h4 class="sc-h">Don't</h4>
+        <ul class="checks sc-list" data-fx="stagger">
+          <li class="no"><span><b>Read judge consensus as validity.</b><span class="sc-why">α +0.069, humans flat (2610.13303).</span></span></li>
+          <li class="no"><span><b>Rely on one stale generator library.</b><span class="sc-why">distilabel 1.5.3: 2025-01-28.</span></span></li>
+        </ul>
+      </div>
+      <div class="cites sc-cites" data-step="3">
+        <a class="cite paper" href="https://arxiv.org/abs/2609.22512" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2609.22512</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2610.13303" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.13303</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2610.09820" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.09820</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2610.03036" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.03036</a>
+      </div>
+    </div>
+
+    <div class="sc-right">
+      <div class="panel tight k-human sc-viz">
+        <svg id="sc-neff" viewBox="0 0 500 218" width="500" height="218" role="img" aria-label="Ten judge avatars in a ring. Correlation lines connect them. The ten avatars merge into three and a half independent silhouettes while the counter falls from 10 to 3.46."></svg>
+      </div>
+      <div class="code-wrap" data-step="4" data-fx="right">
+        <div class="code-head">n_eff.py · standard design-effect formula</div>
+        <pre class="code xs" data-lang="python" data-focus="4:5-7, 5:8-11"><code>import numpy as np
+
+# err[j, i] = 1 if judge j is wrong on trusted item i
+def n_eff(err):
+    C = np.corrcoef(err)      # judge x judge error corr.
+    k = C.shape[0]
+    rho = (C.sum() - k) / (k * (k - 1))   # mean off-diagonal
+    return k / (1 + (k - 1) * rho)
+
+# 10 judges, rho = 0.21 on ~100 trusted items
+print(round(10 / (1 + 9 * 0.21), 2))   # 3.46</code></pre>
+      </div>
+      <div class="steps-rail sc-rail">
+        <div data-step="4"><span>Mean off-diagonal error correlation: <code>rho = 0.21</code> on ~100 trusted items.</span></div>
+        <div data-step="5"><span>10 judges count as 3.46. Flat n_eff? Buy human labels instead.</span></div>
+      </div>
+    </div>
+  </div>
+  <style>
+    #custom-c10-synthetic-checklist .sc-grid { display: grid; grid-template-columns: 1fr 532px; gap: 30px; min-height: 0; }
+    #custom-c10-synthetic-checklist .sc-left { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto auto; gap: 26px 26px; align-content: start; }
+    #custom-c10-synthetic-checklist .sc-dont { grid-column: 1 / span 2; }
+    #custom-c10-synthetic-checklist .sc-dont .sc-list { grid-template-columns: 1fr 1fr; column-gap: 26px; }
+    #custom-c10-synthetic-checklist .sc-col { gap: 10px; }
+    #custom-c10-synthetic-checklist .sc-h { margin: 0; color: var(--state); font-size: 20px; }
+    #custom-c10-synthetic-checklist .sc-dont .sc-h { color: var(--risk); }
+    #custom-c10-synthetic-checklist .sc-list { gap: 16px; }
+    #custom-c10-synthetic-checklist .sc-list li { font-size: 19px; line-height: 1.3; }
+    #custom-c10-synthetic-checklist .sc-list b { display: block; color: var(--ink); font-weight: 600; }
+    #custom-c10-synthetic-checklist .sc-why { display: block; font-size: 16px; color: var(--muted); margin-top: 2px; }
+    #custom-c10-synthetic-checklist .sc-right { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    #custom-c10-synthetic-checklist .sc-viz { padding: 8px 14px; }
+    #custom-c10-synthetic-checklist .sc-rail { gap: 6px; }
+    #custom-c10-synthetic-checklist .sc-rail > * { font-size: 15.5px; line-height: 1.34; grid-template-columns: 28px 1fr; gap: 10px; }
+    #custom-c10-synthetic-checklist .sc-rail > *::before { width: 24px; height: 24px; font-size: 13px; }
+    #custom-c10-synthetic-checklist .sc-rail code { font-size: .86em; }
+    #custom-c10-synthetic-checklist .sc-cites { gap: 8px; grid-column: 1 / span 2; align-self: end; }
+    #custom-c10-synthetic-checklist .sc-cites .cite { font-size: 12.5px; padding: 4px 9px 4px 7px; flex: none; white-space: nowrap; }
+    #custom-c10-synthetic-checklist .sc-cites .cite.paper { flex-direction: row; gap: 8px; }
+    #custom-c10-synthetic-checklist pre.code.xs { font-size: 13.5px; padding: 12px 16px 14px; }
+    #custom-c10-synthetic-checklist svg text { font-family: var(--f-mono); }
+  </style>
+  <aside class="notes">This is the checklist for every synthetic data job in the deck, for training data and for eval sets. The first column is about generation: seed from real data and an attribute grid, run cheap exact checks before the judge, and drop template tokens and closed-book items. The second column protects the measurement: freeze eval sets by hash, pin the judge and keep a human anchor, and remember that correlated judges are fewer judges than they look. The formula on the right is the standard design effect: with mean error correlation 0.21, ten judges carry the evidence of about 3.5 independent ones. Analogy: ten witnesses who read the same newspaper are not ten independent witnesses. Likely question: "So should I never use a judge panel?" Use one, but measure n_eff on trusted items first, and when it stops growing, spend the money on human labels.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c10-synthetic-checklist";
+  const K = 10, RHO = 0.21, NEFF = K / (1 + (K - 1) * RHO);   // 3.46
+  const CX = 150, CY = 124, R = 80;
+  // 3.5 merged silhouettes: three full + one half
+  const SIL = [{ x: 90, y: 84, s: 1 }, { x: 210, y: 84, s: 1 }, { x: 90, y: 168, s: 1 }, { x: 210, y: 168, s: 0.5 }];
+  let built = false, J = [], L = [], S = [], txt = null, rhoTxt = null, cv = { v: K }, mv = { m: 0 }, last = 0;
+
+  const el = (p, tag, a, t) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); if (t !== undefined) e.textContent = t; p.appendChild(e); return e; };
+  const home = (i) => ({ x: CX + Math.cos(-Math.PI / 2 + i * 2 * Math.PI / K) * R, y: CY + Math.sin(-Math.PI / 2 + i * 2 * Math.PI / K) * R });
+  const target = (i) => { const s = SIL[Math.floor(i * SIL.length / K)]; return { x: s.x, y: s.y }; };
+
+  function avatar(p, color) {
+    const g = el(p, "g", {});
+    el(g, "circle", { cx: 0, cy: -9, r: 8, fill: color });
+    el(g, "path", { d: "M -13 14 Q -13 0 0 0 Q 13 0 13 14 Z", fill: color });
+    return g;
+  }
+
+  function build(slide) {
+    const svg = slide.querySelector("#sc-neff");
+    svg.innerHTML = ""; J = []; L = []; S = [];
+    el(svg, "text", { x: 0, y: 18, "font-size": 13, fill: "var(--muted)", "letter-spacing": ".06em" }, "LLM JUDGE PANEL · TRUSTED ITEMS");
+    const lines = el(svg, "g", {});
+    // deterministic correlation lines: each judge to the next two around the ring
+    for (let i = 0; i < K; i++) for (const d of [1, 3]) {
+      const a = home(i), b = home((i + d) % K);
+      const ln = el(lines, "line", { x1: a.x, y1: a.y, x2: b.x, y2: b.y, stroke: "var(--human)", "stroke-width": 2, opacity: 0, "stroke-dasharray": 300, "stroke-dashoffset": 300 });
+      L.push(ln);
+    }
+    SIL.forEach((s) => {
+      const g = el(svg, "g", { transform: `translate(${s.x},${s.y}) scale(${1.9 * s.s})`, opacity: 0 });
+      el(g, "circle", { cx: 0, cy: -9, r: 8, fill: "none", stroke: "var(--state)", "stroke-width": 1.6 });
+      el(g, "path", { d: "M -13 14 Q -13 0 0 0 Q 13 0 13 14 Z", fill: "none", stroke: "var(--state)", "stroke-width": 1.6 });
+      S.push(g);
+    });
+    for (let i = 0; i < K; i++) J.push(avatar(svg, "var(--human)"));
+    el(svg, "text", { x: 312, y: 58, "font-size": 13, fill: "var(--muted)" }, "independent judges");
+    txt = el(svg, "text", { x: 312, y: 114, "font-size": 56, "font-weight": 700, fill: "var(--human)" }, "10");
+    rhoTxt = el(svg, "text", { x: 312, y: 146, "font-size": 15, fill: "var(--muted)" }, "rho = ?");
+    el(svg, "text", { x: 312, y: 206, "font-size": 12, fill: "var(--muted)" }, "n_eff = k/(1+(k-1)·rho)");
+    built = true;
+  }
+
+  function place() {
+    const m = mv.m;
+    J.forEach((g, i) => {
+      const a = home(i), b = target(i);
+      const x = a.x + (b.x - a.x) * m, y = a.y + (b.y - a.y) * m;
+      g.setAttribute("transform", `translate(${x},${y})`);
+      g.setAttribute("opacity", 1 - 0.75 * m);
+    });
+    S.forEach((g) => g.setAttribute("opacity", m));
+    L.forEach((ln) => ln.setAttribute("opacity", 0.45 * (1 - m)));
+    const v = cv.v;
+    txt.textContent = v >= 9.995 ? "10" : v.toFixed(2);
+    txt.setAttribute("fill", m > 0.5 ? "var(--state)" : "var(--human)");
+  }
+
+  function setLines(on) { L.forEach((ln) => { ln.setAttribute("stroke-dashoffset", on ? 0 : 300); }); }
+
+  function render(n, animate) {
+    gsap.killTweensOf([cv, mv].concat(L, J));
+    const lines = n >= 4, merged = n >= 5;
+    rhoTxt.textContent = lines ? "rho = " + RHO.toFixed(2) : "rho = ?";
+    if (animate && lines && last < 4) {
+      L.forEach((ln) => ln.setAttribute("opacity", 0.45));
+      gsap.to(L, { attr: { "stroke-dashoffset": 0 }, duration: 0.7, stagger: 0.04, delay: 0.2, ease: "power2.out" });
+    } else setLines(lines);
+    if (animate && merged && last < 5) {
+      cv.v = K; mv.m = 0; place();
+      gsap.to(mv, { m: 1, duration: 1.4, delay: 0.3, ease: "power2.inOut", onUpdate: place });
+      gsap.to(cv, { v: NEFF, duration: 1.4, delay: 0.3, ease: "power2.inOut", onUpdate: place });
+    } else {
+      mv.m = merged ? 1 : 0; cv.v = merged ? NEFF : K; place();
+      if (!lines) L.forEach((ln) => ln.setAttribute("opacity", 0));
+    }
+    last = n;
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) {
+      build(slide);
+      last = step;
+      render(step, false);
+      if (step < 5) gsap.fromTo(J, { attr: { opacity: 0 } }, { attr: { opacity: 1 }, duration: 0.4, stagger: 0.06, delay: 0.3 });
+    },
+    step(slide, n, animate) { if (built) render(n, animate); },
+    leave() { gsap.killTweensOf([cv, mv].concat(L, J)); },
+  });
+})();
+</script>

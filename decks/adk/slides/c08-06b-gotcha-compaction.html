@@ -1,0 +1,95 @@
+<section class="slide" id="adk-c08-gotcha-compaction" data-tone="risk" data-title="Gotcha: compaction needs a pair">
+  <style>
+    #adk-c08-gotcha-compaction .gp-grid { display: grid; grid-template-columns: 790px 1fr; gap: 48px; align-items: start; }
+    #adk-c08-gotcha-compaction .gp-col { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
+    #adk-c08-gotcha-compaction .gotcha { font-size: 20px; line-height: 1.45; padding: 20px 24px; }
+    #adk-c08-gotcha-compaction .gotcha .em { font-family: var(--f-mono); font-size: 18px; color: var(--risk); }
+    #adk-c08-gotcha-compaction #gp-svg { display: block; width: 554px; height: 470px; overflow: visible; }
+    #adk-c08-gotcha-compaction #gp-svg text { font-family: var(--f-mono); }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> Compaction</div>
+  <h2 class="title">Compaction triggers come in pairs: half a pair is a ValueError</h2>
+  <div class="gp-grid fill">
+    <div class="gp-col">
+      <div class="gotcha" data-step="1">
+        <b>Symptom</b><span class="em">ValueError: token_threshold and event_retention_size must be set together.</span>
+        <b class="why">Cause</b><span>Only one half of a trigger pair is set.</span>
+        <b class="fix">Fix</b><span>Set both fields. Import from <code>google.adk.apps.app</code>.</span>
+      </div>
+      <div class="code-wrap good" data-step="2">
+        <div class="code-head">support_app.py · fixed · google-adk==2.13.0</div>
+        <pre class="code" data-lang="python" data-focus="3:5-6"><code>from google.adk.apps.app import App, EventsCompactionConfig
+
+app = App(name="acme_support", root_agent=agent,
+    events_compaction_config=EventsCompactionConfig(
+        token_threshold=20_000,      # pair 1, half 1
+        event_retention_size=6))     # pair 1, half 2</code></pre>
+      </div>
+    </div>
+    <svg id="gp-svg" viewBox="0 0 554 470" aria-label="Two trigger pairs. Pair 1: token_threshold and event_retention_size. Pair 2: compaction_interval and overlap_size. At first only token_threshold is set and a ValueError badge shows. Then event_retention_size fills in and the badge turns OK."></svg>
+  </div>
+  <aside class="notes">The second Acme failure: compaction never runs, because the App does not even build. EventsCompactionConfig has two trigger pairs: token_threshold with event_retention_size, and compaction_interval with overlap_size. Press once: the error text when you set only token_threshold. Press again: the fixed code sets both halves of pair 1; the badge turns OK. Press again: if you set both pairs, the token pair wins for that turn. EventsCompactionConfig is exported from google.adk.apps.app; importing it from the package google.adk.apps raises ImportError, because that package exports only App and ResumabilityConfig. Think of a pair like the two keys of a bank vault: one key alone does not open it. A likely question: "What summarises the events?" With no summarizer, ADK builds an LlmEventSummarizer on the root agent's model; a later slide shows why that default needs care.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c08-gotcha-compaction";
+  const NS = "http://www.w3.org/2000/svg";
+  let R = null, tw = [];
+  function mk(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text !== undefined) e.textContent = text;
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function half(p, x, y, label, on) {
+    const g = mk("g", {}, p);
+    const r = mk("rect", { x, y, width: 262, height: 64, rx: 12, fill: on ? "var(--state-soft)" : "var(--surface)", stroke: on ? "var(--state)" : "var(--line-2)", "stroke-width": 2.2, "stroke-dasharray": on ? "none" : "6 5" }, g);
+    const t = mk("text", { x: x + 131, y: y + 38, "text-anchor": "middle", "font-size": 16, "font-weight": 700, fill: on ? "var(--ink)" : "var(--muted)" }, g, label);
+    g._r = r; g._t = t;
+    return g;
+  }
+  function build(svg) {
+    svg.innerHTML = "";
+    R = {};
+    mk("text", { x: 0, y: 22, "font-size": 17, "font-weight": 700, fill: "var(--ink)" }, svg, "pair 1 · token-based");
+    R.a = half(svg, 0, 40, "token_threshold", true);
+    R.b = half(svg, 278, 40, "event_retention_size", false);
+    R.badge = mk("g", {}, svg);
+    R.bR = mk("rect", { x: 157, y: 128, width: 240, height: 46, rx: 23, fill: "var(--risk)" }, R.badge);
+    R.bT = mk("text", { x: 277, y: 158, "text-anchor": "middle", "font-size": 18, "font-weight": 800, fill: "#fff" }, R.badge, "ValueError");
+    R.p2 = mk("g", {}, svg);
+    mk("text", { x: 0, y: 252, "font-size": 17, "font-weight": 700, fill: "var(--ink)" }, R.p2, "pair 2 · sliding window");
+    half(R.p2, 0, 270, "compaction_interval", false);
+    half(R.p2, 278, 270, "overlap_size", false);
+    mk("text", { x: 0, y: 380, "font-size": 16, fill: "var(--ink-2)" }, R.p2, "set one full pair, or both pairs;");
+    mk("text", { x: 0, y: 406, "font-size": 16, fill: "var(--ink-2)" }, R.p2, "with both, the token pair wins");
+  }
+  function setB(on) {
+    R.b._r.setAttribute("fill", on ? "var(--state-soft)" : "var(--surface)");
+    R.b._r.setAttribute("stroke", on ? "var(--state)" : "var(--line-2)");
+    R.b._r.setAttribute("stroke-dasharray", on ? "none" : "6 5");
+    R.b._t.setAttribute("fill", on ? "var(--ink)" : "var(--muted)");
+    R.bR.setAttribute("fill", on ? "var(--state)" : "var(--risk)");
+    R.bT.textContent = on ? "OK: App builds" : "ValueError";
+  }
+  function clear() { tw.forEach((t) => t.kill()); tw = []; }
+  function render(slide, n, animate) {
+    const svg = slide.querySelector("#gp-svg");
+    if (!R || !svg.childElementCount) build(svg);
+    clear();
+    gsap.killTweensOf([R.badge, R.b, R.p2]);
+    setB(n >= 2);
+    gsap.set(R.badge, { opacity: n >= 1 ? 1 : 0, scale: 1 });
+    if (animate && n === 1) tw.push(gsap.fromTo(R.badge, { opacity: 0, scale: 0.5, transformOrigin: "50% 50%" }, { opacity: 1, scale: 1, duration: 0.4, ease: "back.out(2.4)" }));
+    if (animate && n === 2) tw.push(gsap.fromTo(R.b, { x: 40, opacity: 0.3 }, { x: 0, opacity: 1, duration: 0.6, ease: "power3.out" }));
+    gsap.set(R.p2, { opacity: n >= 3 ? 1 : 0.25 });
+    if (animate && n === 3) tw.push(gsap.fromTo(R.p2, { opacity: 0.25 }, { opacity: 1, duration: 0.5 }));
+  }
+  Deck.register(ID, {
+    enter(slide, step) { R = null; render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { clear(); },
+  });
+})();
+</script>

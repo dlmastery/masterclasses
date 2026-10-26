@@ -1,0 +1,234 @@
+<section class="slide tight" id="adk-c05-lab-resume-process" data-tone="human" data-title="Lab 5.4: resume in a new process">
+  <style>
+    #adk-c05-lab-resume-process pre.code, #adk-c05-lab-resume-process code { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #adk-c05-lab-resume-process .lab-head { gap: 14px; flex-wrap: nowrap; }
+    #adk-c05-lab-resume-process .lab-head .run { font-size: 14.5px; white-space: nowrap; }
+    #adk-c05-lab-resume-process .lab-head .pins { font: 500 13.5px/1.3 var(--f-mono); color: var(--muted); white-space: nowrap; }
+    #adk-c05-lab-resume-process .lab-head .cite { font-size: 13px; padding: 4px 9px; margin-left: auto; }
+    #adk-c05-lab-resume-process .rp-body { display: grid; grid-template-columns: 770px 1fr; gap: 24px; align-items: start; }
+    #adk-c05-lab-resume-process .rp-col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    #adk-c05-lab-resume-process .code-head { padding: 6px 14px; font-size: 13px; }
+    #adk-c05-lab-resume-process .rp-code pre.code { font-size: 12px; line-height: 1.42; padding: 10px 14px 12px; }
+    #adk-c05-lab-resume-process .out pre.code { font-size: 14px; line-height: 1.42; padding: 7px 14px 9px; }
+    #adk-c05-lab-resume-process .rp-col > .code-wrap { width: 100%; }
+    #adk-c05-lab-resume-process .rp-cite .cite { font-size: 12.5px; padding: 4px 9px; }
+    #adk-c05-lab-resume-process .rp-rail { grid-template-columns: 1fr 1fr; gap: 10px 18px; }
+    #adk-c05-lab-resume-process .rp-rail > * { font-size: 14.5px; line-height: 1.35; grid-template-columns: 28px 1fr; gap: 9px; }
+    #adk-c05-lab-resume-process .rp-rail > *::before { width: 25px; height: 25px; font-size: 13px; border-radius: 7px; }
+    #adk-c05-lab-resume-process .rp-rail code { font-size: 13px; }
+    #adk-c05-lab-resume-process #rp-svg { display: block; }
+    #adk-c05-lab-resume-process #rp-svg text { font-family: var(--f-mono); }
+  </style>
+  <div class="kicker"><span class="pill">Lab 5</span> Acme refunds and payouts · step 4 of 4</div>
+  <h2 class="title">A new process answers the pause and replays the finished nodes</h2>
+  <div class="lab-head">
+    <span class="run">python -m payouts.app resume yes</span>
+    <span class="pins">google-adk 2.13.0 · no API key · fresh run: delete payouts.db, pending.json, side_effects.log</span>
+    <a class="cite doc" href="https://adk.dev/runtime/resume/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;adk.dev/runtime/resume</a>
+  </div>
+  <div class="rp-body fill">
+    <div class="rp-col">
+      <div class="code-wrap rp-code">
+        <div class="code-head">payouts/app.py · driver (nodes, app and runner: step 3)</div>
+        <pre class="code xs" data-lang="python" data-focus="1:16-19, 2:9-12, 3:13-15, 4:13"><code># part 2 of payouts/app.py: asyncio, json, sys, types, runner
+# are imported and built in part 1 (step 3)
+
+async def main(cmd: str, arg: str):
+  if cmd == "start":
+    await runner.session_service.create_session(app_name="payouts", user_id="ops", session_id="s1")
+    msg, inv = types.Content(role="user", parts=[types.Part(text=arg)]), None
+  else:
+    pending = json.load(open("pending.json"))
+    inv = pending["invocation_id"]
+    msg = types.Content(role="user", parts=[types.Part(function_response=types.FunctionResponse(
+        id=pending["interrupt_id"], name="adk_request_input", response={"result": arg}))])
+  async for ev in runner.run_async(user_id="ops", session_id="s1", invocation_id=inv, new_message=msg):
+    if ev.content and ev.content.parts and ev.content.parts[0].text:
+      print(f"[{ev.author}] {ev.content.parts[0].text}")
+    if ev.long_running_tool_ids:
+      json.dump({"invocation_id": ev.invocation_id,
+                 "interrupt_id": next(iter(ev.long_running_tool_ids))}, open("pending.json", "w"))
+      print("PAUSED -> pending.json")
+    if ev.output is not None and ev.node_info and "/pay@" in (ev.node_info.path or ""):  # the pay node
+      print("OUTPUT:", ev.output)
+
+if __name__ == "__main__":
+  asyncio.run(main(sys.argv[1], sys.argv[2]))</code></pre>
+      </div>
+      <div class="steps-rail rp-rail">
+        <div data-step="1"><span>Process 1: on <code>long_running_tool_ids</code>, save both ids and exit.</span></div>
+        <div data-step="2"><span>Process 2 sends <code>{"result": "yes"}</code>. The hand-off node outputs <code>"yes"</code> (not JSON, so a <code>str</code>) to <code>pay</code>.</span></div>
+        <div data-step="3"><span>Finished nodes fast-forward from history. Only <code>analyst_review</code> and <code>pay</code> run.</span></div>
+        <div data-step="4"><span>After a crash, call <code>run_async(invocation_id=inv)</code> with no new message. That needs <code>ResumabilityConfig</code> and a Runner: not <code>adk web</code> or <code>adk run</code>.</span></div>
+      </div>
+    </div>
+    <div class="rp-col">
+      <svg id="rp-svg" viewBox="0 0 598 240" width="598" height="240" aria-label="Two processes: the second replays kyc_lookup from history and runs only analyst_review and pay">
+        <defs>
+          <marker id="rp-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker>
+        </defs>
+        <text x="0" y="20" font-size="13" font-weight="700" fill="var(--ink-2)">process 1 · start "ACME-GmbH"</text>
+        <g class="rp-ctr">
+          <rect class="rp-ctr-box" x="398" y="2" width="200" height="28" rx="14" fill="var(--state-soft)" stroke="var(--state)" stroke-width="1.5"/>
+          <text class="rp-ctr-t" x="498" y="21" font-size="13" font-weight="700" text-anchor="middle" fill="var(--state)">side_effects.log: 0 lines</text>
+        </g>
+        <!-- lane 1 -->
+        <g class="rp-l1">
+          <rect class="rp-kyc1" x="0" y="42" width="150" height="50" rx="10" fill="var(--state-soft)" stroke="var(--state)" stroke-width="2"/>
+          <text class="rp-kyc1" x="75" y="63" font-size="13.5" font-weight="700" text-anchor="middle" fill="var(--ink)">kyc_lookup</text>
+          <text class="rp-kyc1" x="75" y="81" font-size="11.5" text-anchor="middle" fill="var(--state)">ran · wrote 1 line</text>
+          <line class="rp-w1" x1="152" y1="67" x2="218" y2="67" stroke="var(--muted)" stroke-width="2" marker-end="url(#rp-arr)"/>
+          <rect class="rp-rev1" x="222" y="42" width="170" height="50" rx="10" fill="var(--human-soft)" stroke="var(--human)" stroke-width="2"/>
+          <text class="rp-rev1" x="307" y="63" font-size="13.5" font-weight="700" text-anchor="middle" fill="var(--ink)">analyst_review</text>
+          <text class="rp-rev1" x="307" y="81" font-size="11.5" text-anchor="middle" fill="var(--human)">RequestInput · paused</text>
+          <g class="rp-pause"><rect x="374" y="34" width="5" height="16" rx="1.5" fill="var(--human)"/><rect x="383" y="34" width="5" height="16" rx="1.5" fill="var(--human)"/></g>
+          <line class="rp-w1b" x1="394" y1="67" x2="436" y2="67" stroke="var(--muted)" stroke-width="2" stroke-dasharray="4 4" marker-end="url(#rp-arr)"/>
+          <rect class="rp-exit" x="440" y="42" width="158" height="50" rx="10" fill="var(--risk-soft)" stroke="var(--risk)" stroke-width="2" stroke-dasharray="6 4"/>
+          <text class="rp-exit" x="519" y="63" font-size="13.5" font-weight="700" text-anchor="middle" fill="var(--risk)">exit</text>
+          <text class="rp-exit" x="519" y="81" font-size="11.5" text-anchor="middle" fill="var(--ink-2)">pending.json saved</text>
+          <line class="rp-sep" x1="0" y1="112" x2="598" y2="112" stroke="var(--risk)" stroke-width="1.5" stroke-dasharray="7 6"/>
+        </g>
+        <!-- lane 2 -->
+        <text class="rp-h2" x="0" y="130" font-size="13" font-weight="700" fill="var(--ink-2)">process 2 · resume yes</text>
+        <g class="rp-chip">
+          <rect x="230" y="113" width="162" height="24" rx="12" fill="var(--human)"/>
+          <text x="311" y="129" font-size="12" font-weight="700" text-anchor="middle" fill="#fff">FunctionResponse: yes</text>
+        </g>
+        <g class="rp-l2">
+          <rect class="rp-kyc2" x="0" y="140" width="150" height="50" rx="10" fill="none" stroke="var(--muted)" stroke-width="2" stroke-dasharray="5 4"/>
+          <text class="rp-kyc2" x="75" y="161" font-size="13.5" font-weight="700" text-anchor="middle" fill="var(--muted)">kyc_lookup</text>
+          <text class="rp-kyc2 rp-kyc2s" x="75" y="179" font-size="10.5" text-anchor="middle" fill="var(--muted)">replayed from history</text>
+          <line class="rp-w2" x1="152" y1="165" x2="218" y2="165" stroke="var(--muted)" stroke-width="2" marker-end="url(#rp-arr)"/>
+          <rect class="rp-rev2" x="222" y="140" width="170" height="50" rx="10" fill="var(--human-soft)" stroke="var(--human)" stroke-width="2"/>
+          <text class="rp-rev2" x="307" y="161" font-size="13.5" font-weight="700" text-anchor="middle" fill="var(--ink)">analyst_review</text>
+          <text class="rp-rev2 rp-rev2s" x="307" y="179" font-size="11.5" text-anchor="middle" fill="var(--human)">answer: yes</text>
+          <line class="rp-w2b" x1="394" y1="165" x2="436" y2="165" stroke="var(--muted)" stroke-width="2" marker-end="url(#rp-arr)"/>
+          <rect class="rp-pay" x="440" y="140" width="158" height="50" rx="10" fill="var(--tool-soft)" stroke="var(--tool)" stroke-width="2"/>
+          <text class="rp-pay" x="519" y="161" font-size="13.5" font-weight="700" text-anchor="middle" fill="var(--ink)">pay</text>
+          <text class="rp-pay rp-pays" x="519" y="179" font-size="11.5" text-anchor="middle" fill="var(--tool)">waiting</text>
+        </g>
+        <!-- retry row: bar widths are proportional to 0.5 s and 1.0 s -->
+        <g class="rp-att">
+          <text x="0" y="226" font-size="12" fill="var(--muted)">pay attempts</text>
+          <circle class="rp-a1" cx="170" cy="222" r="10" fill="var(--risk)"/><text class="rp-a1" x="170" y="226.5" font-size="12" font-weight="700" text-anchor="middle" fill="#fff">1</text>
+          <rect class="rp-b1" data-w="100" x="182" y="218" width="100" height="8" rx="4" fill="var(--line-2)"/>
+          <text class="rp-b1" x="232" y="210" font-size="11" text-anchor="middle" fill="var(--muted)">0.5 s</text>
+          <circle class="rp-a2" cx="294" cy="222" r="10" fill="var(--risk)"/><text class="rp-a2" x="294" y="226.5" font-size="12" font-weight="700" text-anchor="middle" fill="#fff">2</text>
+          <rect class="rp-b2" data-w="200" x="306" y="218" width="200" height="8" rx="4" fill="var(--line-2)"/>
+          <text class="rp-b2" x="406" y="210" font-size="11" text-anchor="middle" fill="var(--muted)">1.0 s</text>
+          <circle class="rp-a3" cx="518" cy="222" r="10" fill="var(--state)"/><text class="rp-a3" x="518" y="226.5" font-size="12" font-weight="700" text-anchor="middle" fill="#fff">3</text>
+          <text class="rp-a3" x="536" y="227" font-size="12.5" font-weight="700" fill="var(--state)">PAID</text>
+        </g>
+      </svg>
+      <div class="code-wrap out" data-step="1">
+        <div class="code-head">output · illustrative · two processes</div>
+        <pre class="code" data-lang="text"><code><span data-step="1"><span class="dim">$</span> python -m payouts.app start "ACME-GmbH"
+PAUSED -&gt; pending.json</span>
+<span data-step="2"><span class="dim">$</span> python -m payouts.app resume yes</span>
+<span data-step="3">[payouts] gateway attempt 1
+[payouts] gateway attempt 2
+[payouts] gateway attempt 3
+<span class="ok">OUTPUT: PAID idempotency_key=payout-e-9c1…</span></span>
+<span data-step="4"><span class="dim">$</span> cat side_effects.log
+<span class="ok">kyc_lookup ACME-GmbH</span>          <span class="dim"># exactly one line</span></span></code></pre>
+      </div>
+      <div class="rp-cite" data-step="4"><a class="cite doc" href="https://adk.dev/runtime/resume/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Resume: "resuming from the ADK Web UI or the CLI is not supported"</a></div>
+    </div>
+  </div>
+  <aside class="notes">This is the last step of the payouts lab: two separate Python processes share one SQLite session. For a fresh run, delete payouts.db, pending.json and side_effects.log first, because start creates the session s1 again. Process 1 runs kyc_lookup, which writes one line to side_effects.log, then analyst_review pauses with a RequestInput; the driver saves the invocation id and the interrupt id to pending.json and the interpreter exits. Process 2 is a new interpreter: it sends a FunctionResponse named adk_request_input with response {"result": "yes"}, exactly what adk run sends. analyst_review uses the default hand-off pattern, so the reply becomes its output; the engine JSON-parses string results when it can, and "yes" is not JSON, so pay receives the str "yes". The workflow scans the recorded events, fast-forwards kyc_lookup from its stored output, and runs only analyst_review and pay, which retries twice before it succeeds. Step 4 is the crash case: ResumabilityConfig adds cross-call resume and checkpoint events in payouts.db, so after a crash you call run_async with only the invocation id and no new message; without ResumabilityConfig that call fails with "ValueError: Running an agent requires a new_message or a resumable app." The docs say this crash resume is not supported from adk web or the CLI, while answering a pause works everywhere. Try it: press Ctrl-C during attempt 2 and continue with the invocation id; kyc_lookup replays and the log still has one line, and the attempt counter starts again. Think of a film editor who jumps straight to the cut point instead of shooting the first scenes again. A likely question: "Then why do I still need an idempotency key?" Because resume is at-least-once: a crash between the charge and the persisted event re-runs pay, so the gateway must dedupe on the same key, payout- plus the invocation id. Next, a build-up slide goes back to the refund gate and makes it one decorator.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c05-lab-resume-process";
+  let tl = null, loop = null;
+  function clear() { if (tl) { tl.kill(); tl = null; } if (loop) { loop.kill(); loop = null; } }
+  const Q = (s, sel) => Array.from(s.querySelectorAll("#rp-svg " + sel));
+
+  function render(slide, n, animate) {
+    clear();
+    const kyc1 = Q(slide, ".rp-kyc1"), w1 = Q(slide, ".rp-w1, .rp-w1b"), rev1 = Q(slide, ".rp-rev1");
+    const pause = Q(slide, ".rp-pause"), exit = Q(slide, ".rp-exit, .rp-sep");
+    const h2 = Q(slide, ".rp-h2"), chip = Q(slide, ".rp-chip");
+    const kyc2 = Q(slide, ".rp-kyc2"), rev2 = Q(slide, ".rp-rev2"), pay = Q(slide, ".rp-pay"), w2 = Q(slide, ".rp-w2, .rp-w2b");
+    const a1 = Q(slide, ".rp-a1"), a2 = Q(slide, ".rp-a2"), a3 = Q(slide, ".rp-a3"), b1 = Q(slide, ".rp-b1"), b2 = Q(slide, ".rp-b2");
+    const att = Q(slide, ".rp-att > text:first-child");
+    const ctrT = slide.querySelector("#rp-svg .rp-ctr-t"), ctrBox = slide.querySelector("#rp-svg .rp-ctr-box");
+    const kyc2s = slide.querySelector("#rp-svg .rp-kyc2s"), rev2s = slide.querySelector("#rp-svg .rp-rev2s"), pays = slide.querySelector("#rp-svg .rp-pays");
+    const all = Q(slide, "*");
+    gsap.killTweensOf(all);
+    gsap.set(Q(slide, ".rp-b1 rect, rect.rp-b1"), { attr: { width: 100 } });
+    gsap.set(Q(slide, "rect.rp-b2"), { attr: { width: 200 } });
+
+    // final state for step n (correct when jumping to any step)
+    const G = 0.2;   // ghost level: every lane is drawn from step 0
+    const vis = (els, on, ghost) => gsap.set(els, { opacity: on ? 1 : (ghost || 0), x: 0, y: 0, scale: 1 });
+    vis(kyc1, n >= 1, G); vis(w1, n >= 1, G); vis(rev1, n >= 1, G); vis(pause, n >= 1); vis(exit, n >= 1, G);
+    vis(h2, n >= 2, G); vis(chip, n === 2);
+    gsap.set([...kyc2, ...rev2, ...pay, ...w2], { opacity: n >= 3 ? 1 : (n === 2 ? 0.28 : G) });
+    vis([...att, ...a1, ...a2, ...a3, ...b1, ...b2], n >= 3, G);
+    ctrT.textContent = n >= 1 ? "side_effects.log: 1 line" : "side_effects.log: 0 lines";
+    gsap.set(ctrBox, { attr: { "stroke-width": n >= 4 ? 3.5 : 1.5, fill: "var(--state-soft)" } });
+    kyc2s.textContent = "replayed from history";
+    rev2s.textContent = n >= 3 ? "answer: yes" : "waiting";
+    pays.textContent = n >= 4 ? "key payout-e-9c1…" : (n >= 3 ? "attempt 3/4 · ok" : "waiting");
+    if (n === 1 || n === 2) loop = gsap.to(pause, { opacity: 0.25, duration: 0.6, repeat: -1, yoyo: true, ease: "sine.inOut" });
+
+    if (!animate) return;
+    tl = gsap.timeline();
+    if (n === 1) {
+      ctrT.textContent = "side_effects.log: 0 lines";
+      gsap.set([...kyc1, ...w1, ...rev1, ...exit], { opacity: 0.2 }); gsap.set(pause, { opacity: 0 });
+      tl.fromTo(kyc1, { opacity: 0.2, y: 8 }, { opacity: 1, y: 0, duration: 0.35 })
+        .add(() => { ctrT.textContent = "side_effects.log: 1 line"; })
+        .fromTo(ctrBox, { scale: 1 }, { scale: 1.08, transformOrigin: "50% 50%", duration: 0.18, yoyo: true, repeat: 1 })
+        .to(Q(slide, ".rp-w1"), { opacity: 1, duration: 0.25 })
+        .fromTo(rev1, { opacity: 0.2, y: 8 }, { opacity: 1, y: 0, duration: 0.35 })
+        .to(pause, { opacity: 1, duration: 0.2 })
+        .to(Q(slide, ".rp-w1b"), { opacity: 1, duration: 0.25 })
+        .fromTo(exit, { opacity: 0.2 }, { opacity: 1, duration: 0.4 });
+    } else if (n === 2) {
+      gsap.set(chip, { opacity: 0 });
+      tl.fromTo(h2, { opacity: 0.2, x: -10 }, { opacity: 1, x: 0, duration: 0.3 })
+        .fromTo([...kyc2, ...rev2, ...pay, ...w2], { opacity: 0.2 }, { opacity: 0.28, duration: 0.3 }, "<")
+        .fromTo(chip, { opacity: 0, x: 200, y: -50 }, { opacity: 1, x: 0, y: 0, duration: 0.8, ease: "power2.inOut" });
+    } else if (n === 3) {
+      rev2s.textContent = "waiting"; pays.textContent = "waiting";
+      gsap.set([...kyc2, ...rev2, ...pay, ...w2], { opacity: 0.28 });
+      gsap.set([...att, ...a1, ...a2, ...a3, ...b1, ...b2], { opacity: 0.2 });
+      const chipShown = Q(slide, ".rp-chip");
+      gsap.set(chipShown, { opacity: 1 });
+      tl.to(kyc2, { opacity: 1, duration: 0.3 })
+        .fromTo(kyc2s, { opacity: 0 }, { opacity: 1, duration: 0.2, repeat: 3, yoyo: true })
+        .fromTo(ctrBox, { scale: 1 }, { scale: 1.08, transformOrigin: "50% 50%", duration: 0.18, yoyo: true, repeat: 1 }, "<")
+        .to(chipShown, { y: 32, opacity: 0, duration: 0.4 })
+        .to([...rev2, ...Q(slide, ".rp-w2")], { opacity: 1, duration: 0.3 }, "<")
+        .add(() => { rev2s.textContent = "answer: yes"; })
+        .to([...pay, ...Q(slide, ".rp-w2b")], { opacity: 1, duration: 0.3 })
+        .to(att, { opacity: 1, duration: 0.2 })
+        .add(() => { pays.textContent = "attempt 1/4 · 503"; })
+        .fromTo(a1, { opacity: 0, scale: 0.3, transformOrigin: "50% 50%" }, { opacity: 1, scale: 1, duration: 0.25, ease: "back.out(3)" })
+        .set(b1, { opacity: 1 })
+        .fromTo(Q(slide, "rect.rp-b1"), { attr: { width: 0 } }, { attr: { width: 100 }, duration: 0.6, ease: "none" })
+        .add(() => { pays.textContent = "attempt 2/4 · 503"; })
+        .fromTo(a2, { opacity: 0, scale: 0.3, transformOrigin: "50% 50%" }, { opacity: 1, scale: 1, duration: 0.25, ease: "back.out(3)" })
+        .set(b2, { opacity: 1 })
+        .fromTo(Q(slide, "rect.rp-b2"), { attr: { width: 0 } }, { attr: { width: 200 }, duration: 1.2, ease: "none" })
+        .add(() => { pays.textContent = "attempt 3/4 · ok"; })
+        .fromTo(a3, { opacity: 0, scale: 0.3, transformOrigin: "50% 50%" }, { opacity: 1, scale: 1, duration: 0.3, ease: "back.out(3)" });
+    } else if (n === 4) {
+      pays.textContent = "attempt 3/4 · ok";
+      loop = gsap.to(ctrBox, { attr: { "stroke-width": 6 }, duration: 0.5, repeat: 5, yoyo: true, ease: "sine.inOut", delay: 0.6 });
+      tl.add(() => { pays.textContent = "key payout-e-9c1…"; })
+        .fromTo(pays, { opacity: 0 }, { opacity: 1, duration: 0.4 })
+        .fromTo(ctrBox, { attr: { "stroke-width": 1.5 } }, { attr: { "stroke-width": 3.5 }, duration: 0.3 }, "<")
+        .fromTo(Q(slide, ".rp-ctr"), { scale: 1 }, { scale: 1.06, transformOrigin: "50% 50%", duration: 0.2, yoyo: true, repeat: 1 });
+    }
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { clear(); if (slide) gsap.killTweensOf(slide.querySelectorAll("#rp-svg *")); },
+  });
+})();
+</script>

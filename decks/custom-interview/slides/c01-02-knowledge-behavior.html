@@ -1,0 +1,73 @@
+<section class="slide" id="custom-interview-c01-knowledge-behavior" data-tone="agent" data-title="Knowledge vs behavior">
+  <style>
+    #custom-interview-c01-knowledge-behavior .tile { display: grid; gap: 10px; padding: 16px 20px; }
+    #custom-interview-c01-knowledge-behavior .tile .hd { display: flex; gap: 16px; align-items: baseline; }
+    #custom-interview-c01-knowledge-behavior .tile .hd .n { font: 650 50px/1 var(--f-display); letter-spacing: -0.04em; color: var(--aurora); }
+    #custom-interview-c01-knowledge-behavior .tile .hd .l { font-size: 18px; color: var(--ink-2); line-height: 1.3; }
+    #custom-interview-c01-knowledge-behavior ul.checks { gap: 6px; }
+    #custom-interview-c01-knowledge-behavior ul.checks li { font-size: 18px; }
+    #custom-interview-c01-knowledge-behavior ul.checks li.warn::before { content: "!"; background: var(--tool); }
+    #custom-interview-c01-knowledge-behavior pre.code, #custom-interview-c01-knowledge-behavior pre.code * { font-variant-ligatures: none; }
+    #custom-interview-c01-knowledge-behavior pre.code.xs { font-size: 16px; line-height: 1.4; padding: 8px 14px; }
+    #custom-interview-c01-knowledge-behavior .code-head { padding: 6px 14px; font-size: 14px; }
+    #custom-interview-c01-knowledge-behavior .brs { display: grid; grid-template-columns: 190px 1fr 56px; gap: 8px 12px; align-items: center; font-size: 18px; }
+    #custom-interview-c01-knowledge-behavior .brs .bar { height: 16px; }
+    #custom-interview-c01-knowledge-behavior .brs b { font: 700 18px/1 var(--f-mono); }
+    #custom-interview-c01-knowledge-behavior .qa .a { font-size: 20px; }
+    #custom-interview-c01-knowledge-behavior .tile .hd .n { white-space: nowrap; font-size: 44px; }
+    #custom-interview-c01-knowledge-behavior .cite.paper { flex-direction: row; gap: 10px; border-radius: 10px; padding: 6px 12px; }
+    #custom-interview-c01-knowledge-behavior .cites { flex-wrap: wrap; }
+  </style>
+  <div class="kicker">Interview · Choosing the lever · 1 of 2</div>
+  <h2 class="title">Knowledge goes to retrieval, behavior goes to training</h2>
+  <div class="grid fill" style="grid-template-columns: 1fr 640px; gap: 36px">
+    <div class="stack" style="gap:26px">
+      <div class="qa">
+        <div class="q">Your refund assistant quotes the wrong refund policy and sounds too formal. What do you change?</div>
+        <div class="a" data-step="1"><b>Two failures.</b> Policy → retrieval. Tone → prompt, then SFT or DPO. Build 20-50 eval tasks first.</div>
+      </div>
+      <div class="qa">
+        <div class="q">Why not fine-tune the refund policy into the weights?</div>
+        <div class="a" data-step="2">Facts go stale. SFT on facts the base cannot recall <b>raises hallucination</b>. Doc training also breaks instruction following.</div>
+      </div>
+      <div class="callout insight" data-step="3" data-fx="pop">Ask one question per failure: is a fact missing, or is the behavior wrong?</div>
+      <div class="cites push" style="gap:8px">
+        <a class="cite doc" data-step="1" href="https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents" target="_blank" rel="noopener"><b>Anthropic</b>&nbsp;Demystifying evals for AI agents</a>
+        <a class="cite doc" data-step="2" href="https://thinkingmachines.ai/blog/on-policy-distillation/" target="_blank" rel="noopener"><b>Thinking Machines</b>&nbsp;On-policy distillation</a>
+        <a class="cite paper" data-step="2" href="https://arxiv.org/abs/2608.30987" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2608.30987</a>
+      </div>
+    </div>
+
+    <div class="stack" style="gap:16px">
+      <!-- tile 1: eval first (stays on screen) -->
+      <div class="panel k-state tight tile" data-step="1" data-fx="scale">
+        <div class="hd"><span class="n" style="--aurora:var(--state)">20-50</span><span class="l">eval tasks from real failures, built before any change</span></div>
+        <ul class="checks">
+          <li>Two experts reach the same verdict.</li>
+          <li>Each task has a reference answer.</li>
+          <li class="warn">0% over many trials (pass@100) usually means a broken task or grader. Check it first.</li>
+        </ul>
+        <div class="code-wrap">
+          <div class="code-head">refund_evals.jsonl · one task · illustrative</div>
+          <pre class="code xs" data-lang="json"><code>{"input": "Order 4411 arrived broken. Refund?",
+ "gold_decision": "approve", "gold_amount": 89.0,
+ "reference": "Clause 3.2: damaged item, full refund"}</code></pre>
+        </div>
+      </div>
+      <!-- tile 2: forgetting cost (stays on screen) -->
+      <div class="panel k-model tight tile" data-step="2" data-fx="scale">
+        <div class="hd"><span class="n" style="--aurora:var(--model)">85% → 45%</span><span class="l">IFEval (instruction-following benchmark) after doc mid-training</span></div>
+        <div class="brs">
+          <span>base Qwen3-8B</span><div class="bar"><i data-fx="bar" style="--v:85%;--aurora:var(--ink-2)"></i></div><b>85%</b>
+          <span>docs only</span><div class="bar"><i data-fx="bar" style="--v:45%;--aurora:var(--risk)"></i></div><b class="c-risk">45%</b>
+          <span>70/30 docs/chat</span><div class="bar"><i data-fx="bar" style="--v:79%;--aurora:var(--tool)"></i></div><b>79%</b>
+          <span>mix + distill</span><div class="bar"><i data-fx="bar" style="--v:83%;--aurora:var(--state)"></i></div><b class="c-state">83%</b>
+        </div>
+        <span class="small">Thinking Machines, Qwen3-8B. The fix keeps internal QA at 41% (base 18%).</span>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    Read each question aloud, pause, and let the students answer before you reveal the model answer. Q1 is the classic trap: candidates who say "fine-tune it" for both failures lose points, because the policy is a fact and belongs in retrieval, and the tone is behavior, so you fix the prompt first and train only if the eval still fails. The first tile shows what to build before any change: 20-50 tasks from real failures, each with a reference answer, stored as one JSONL line per task like the example. The warning line is Anthropic's: with frontier models, a 0% pass rate over many trials, such as pass@100, most often means the task or the grader is broken, not the model. This is a different situation from the probe later in this chapter, where pass@8 = 0 on a small base model means SFT first; and the debug slide shows how a broken probe can also fake a zero. Q2: SFT on facts the base cannot recall raises hallucination (arXiv 2608.30987), and the facts go stale. The second tile has the Thinking Machines numbers on Qwen3-8B: training on internal docs only raised internal QA from 18% to 43% but cut IFEval, an instruction-following benchmark, from 85% to 45%. A 70/30 docs/chat mix brought IFEval back to 79%, and on-policy distillation on top brought it to 83% while it kept 41% QA. Last click: the one question that classifies every failure. Analogy: you update the policy binder; you do not retrain the employee every time a clause changes. Likely follow-up: "When would you put facts in the weights?" Only for stable, high-volume facts, with a chat-data mix and an instruction-following regression check. Next: when does context alone beat training?
+  </aside>
+</section>

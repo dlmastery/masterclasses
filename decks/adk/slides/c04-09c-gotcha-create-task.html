@@ -1,0 +1,148 @@
+<section class="slide tight" id="adk-c04-gotcha-create-task" data-tone="risk" data-title="Gotcha: create_task">
+  <style>
+    #adk-c04-gotcha-create-task .gc-grid { display: grid; grid-template-columns: 740px 1fr; gap: 28px; align-items: start; }
+    #adk-c04-gotcha-create-task .gc-col { display: flex; flex-direction: column; gap: 22px; }
+    #adk-c04-gotcha-create-task .gotcha { font-size: 20px; line-height: 1.45; padding: 20px 22px; gap: 12px 16px; }
+    #adk-c04-gotcha-create-task .gotcha > b { font-size: 14px; }
+    #adk-c04-gotcha-create-task .gotcha .src { color: var(--muted); font: 500 15px/1.4 var(--f-mono); }
+    #adk-c04-gotcha-create-task pre.code { font-size: 17px; }
+    #adk-c04-gotcha-create-task .cap { position: relative; height: 34px; }
+    #adk-c04-gotcha-create-task .cap > p { position: absolute; left: 0; right: 0; top: 0; margin: 0; font-size: 21px; line-height: 1.4; color: var(--ink-2); }
+    #adk-c04-gotcha-create-task .cap code { font-size: .9em; }
+    #adk-c04-gotcha-create-task svg text { font-family: var(--f-mono); }
+    #adk-c04-gotcha-create-task .gd-h { fill: var(--ink); font-size: 18px; font-weight: 700; }
+    #adk-c04-gotcha-create-task .gd-par { fill: var(--agent-soft); stroke: var(--agent); stroke-width: 2; }
+    #adk-c04-gotcha-create-task .gd-par.bad { fill: var(--risk-soft); stroke: var(--risk); stroke-width: 3.5; }
+    #adk-c04-gotcha-create-task .gd-pt { fill: var(--ink); font-size: 18px; font-weight: 700; }
+    #adk-c04-gotcha-create-task .gd-wire { fill: none; stroke: var(--line-2); stroke-width: 2.5; stroke-dasharray: 6 5; }
+    #adk-c04-gotcha-create-task .gd-kid { stroke-width: 2.5; }
+    #adk-c04-gotcha-create-task .gd-kt { font-size: 16px; font-weight: 700; }
+    #adk-c04-gotcha-create-task .gd-log { fill: var(--muted); font-size: 17px; }
+    #adk-c04-gotcha-create-task .gd-alarm { fill: var(--risk); font-size: 17px; font-weight: 700; }
+    #adk-c04-gotcha-create-task .gd-div { stroke: var(--line); stroke-width: 1.5; stroke-dasharray: 5 6; }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> Dynamic graphs · 3 of 3</div>
+  <h2 class="title">A child started with create_task fails without a sound</h2>
+  <div class="gc-grid fill">
+    <div class="gc-col">
+      <div class="gotcha">
+        <b>Symptom</b><span>A child fails, and nothing reports it.</span>
+        <b class="why">Cause</b><span><code>asyncio.create_task</code>: "errors are silently swallowed". <span class="src">agents/context.py:453-456</span></span>
+        <b class="fix">Fix</b><span>Await the child directly, or through <code>asyncio.gather</code>.</span>
+      </div>
+      <div class="code-wrap">
+        <div class="code-head">expense_audit/agent.py · orchestrate, excerpt</div>
+        <pre class="code" data-lang="python" data-focus="1:1-2, 2:4-7"><code># BAD: a failing child is never reported
+asyncio.create_task(ctx.run_node(auditor, node_input=l))
+
+# GOOD: await directly or through gather; errors raise
+raw = await asyncio.gather(*[
+    ctx.run_node(auditor, node_input=l, use_sub_branch=True)
+    for l in lines])</code></pre>
+      </div>
+      <div class="cap">
+        <p data-until="1">Two ways to start the same child.</p>
+        <p data-step="1" data-until="2"><code>create_task</code>: the child dies. No log line, no error.</p>
+        <p data-step="2" data-until="3"><code>gather</code>: the child's error is raised in the parent.</p>
+        <p data-step="3">Rule: await every <code>ctx.run_node</code> call.</p>
+      </div>
+    </div>
+    <svg id="gd-svg" viewBox="0 0 624 470" width="624" height="470" aria-label="A create_task child fails and turns to dust with no log line; a gathered child raises its error to the parent">
+      <text class="gd-h" x="0" y="22">asyncio.create_task</text>
+      <path class="gd-wire" d="M230 82 L330 82"/>
+      <rect class="gd-par" x="0" y="50" width="230" height="64" rx="12"/>
+      <text class="gd-pt" x="115" y="88" text-anchor="middle">orchestrate</text>
+      <g id="gd-ka"><circle class="gd-kid" cx="380" cy="82" r="44"/><text class="gd-kt" x="380" y="88" text-anchor="middle">line-1</text></g>
+      <g id="gd-dust"></g>
+      <text class="gd-log" id="gd-loga" x="0" y="160">log: (no line)</text>
+      <text class="gd-log" id="gd-logs" x="0" y="190">the parent never hears</text>
+      <line class="gd-div" x1="0" y1="224" x2="624" y2="224"/>
+      <g id="gd-bhalf">
+        <text class="gd-h" x="0" y="264">asyncio.gather</text>
+        <path class="gd-wire" d="M230 324 L330 324"/>
+        <rect class="gd-par" id="gd-pb" x="0" y="292" width="230" height="64" rx="12"/>
+        <text class="gd-pt" x="115" y="330" text-anchor="middle">orchestrate</text>
+        <g id="gd-kb"><circle class="gd-kid" cx="380" cy="324" r="44"/><text class="gd-kt" x="380" y="330" text-anchor="middle">line-1</text></g>
+      </g>
+      <circle id="gd-spark" r="9" style="fill:var(--risk)"/>
+      <text class="gd-alarm" id="gd-logb" x="0" y="402">child error raised in the parent</text>
+      <text class="gd-log" id="gd-logb2" x="0" y="432">the workflow reports the failure</text>
+    </svg>
+  </div>
+  <aside class="notes">The third bug is the quietest. Never start a child with asyncio.create_task: the ADK source says plainly that errors are silently swallowed, in agents/context.py lines 453 to 456. The top half of the animation shows that child dying with no log line, and the parent never hears. The bottom half is the same child under gather: its error is raised in the parent, and the workflow reports the failure. The fix is the code you already have from the lab: await every ctx.run_node call, directly or through asyncio.gather. Think of create_task as sending a junior adjuster out with no phone: if the car breaks down, the office never hears. A likely question: "What if I want the other children to keep going when one fails?" Then handle it on purpose, for example with return_exceptions=True on gather, and decide in code what a failed line means; do not let the error vanish. Next: two papers that measure what these graph shapes cost.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c04-gotcha-create-task";
+  const NS = "http://www.w3.org/2000/svg";
+  const KA = [380, 82], KB = [380, 324], PB = [230, 324];
+  const N_DUST = 18;
+  let tl = null;
+  const clamp = (x) => Math.max(0, Math.min(1, x));
+  const q = (s, sel) => s.querySelector(sel);
+  // deterministic dust directions
+  const DUST = Array.from({ length: N_DUST }, (_, i) => {
+    const a = (i / N_DUST) * Math.PI * 2 + (i % 3) * 0.21;
+    const d = 50 + ((i * 37) % 40);
+    return [Math.cos(a) * d * 0.9, Math.sin(a) * d * 0.6 + 12, 3 + (i % 3)];
+  });
+  function ensure(s) {
+    const g = q(s, "#gd-dust");
+    if (g.childNodes.length) return;
+    DUST.forEach((p) => { const c = document.createElementNS(NS, "circle"); c.setAttribute("r", p[2]); c.style.fill = "var(--faint)"; g.appendChild(c); });
+  }
+  function kid(g, red) {
+    const c = g.querySelector("circle"), t = g.querySelector("text");
+    c.style.fill = red ? "var(--risk-soft)" : "var(--agent-soft)";
+    c.style.stroke = red ? "var(--risk)" : "var(--agent)";
+    t.style.fill = red ? "var(--risk)" : "var(--agent)";
+  }
+  // a in [0,1]: create_task child fails, then turns to grey dust; no log line
+  function renderA(s, a) {
+    ensure(s);
+    const ka = q(s, "#gd-ka");
+    kid(ka, a > 0.15);
+    ka.setAttribute("opacity", String(1 - clamp((a - 0.35) / 0.2)));
+    const burst = clamp((a - 0.35) / 0.6);
+    q(s, "#gd-dust").querySelectorAll("circle").forEach((c, i) => {
+      const p = DUST[i];
+      c.setAttribute("cx", KA[0] + p[0] * burst);
+      c.setAttribute("cy", KA[1] + p[1] * burst + 20 * burst * burst);
+      c.setAttribute("opacity", a < 0.35 ? "0" : String(0.9 - 0.65 * burst));
+    });
+    q(s, "#gd-loga").setAttribute("opacity", String(clamp((a - 0.75) / 0.25)));
+    q(s, "#gd-logs").setAttribute("opacity", String(clamp((a - 0.85) / 0.15)));
+  }
+  // b in [0,1]: gathered child fails, the error travels up, the parent turns red
+  function renderB(s, b, shown) {
+    q(s, "#gd-bhalf").setAttribute("opacity", shown ? "1" : "0.25");
+    kid(q(s, "#gd-kb"), shown && b > 0.15);
+    const m = clamp((b - 0.3) / 0.45);
+    const sp = q(s, "#gd-spark");
+    sp.setAttribute("cx", KB[0] - 44 + (PB[0] - KB[0] + 44) * m);
+    sp.setAttribute("cy", KB[1]);
+    sp.setAttribute("opacity", shown && b > 0.3 && b < 0.8 ? "1" : "0");
+    q(s, "#gd-pb").classList.toggle("bad", shown && b >= 0.75);
+    q(s, "#gd-logb").setAttribute("opacity", shown ? String(clamp((b - 0.75) / 0.2)) : "0");
+    q(s, "#gd-logb2").setAttribute("opacity", shown ? String(clamp((b - 0.85) / 0.15)) : "0");
+  }
+  function stop() { if (tl) tl.kill(); tl = null; }
+  function build(s, n, animate) {
+    stop();
+    const A = { a: n >= 1 ? 1 : 0 }, B = { b: n >= 2 ? 1 : 0 };
+    if (animate && n === 1) A.a = 0;
+    if (animate && n === 2) B.b = 0;
+    renderA(s, A.a); renderB(s, B.b, n >= 2);
+    if (animate && (n === 1 || n === 2)) {
+      tl = gsap.timeline({ delay: 0.4 });
+      if (n === 1) tl.to(A, { a: 1, duration: 2.0, ease: "power1.inOut", onUpdate: () => renderA(s, A.a) });
+      else tl.to(B, { b: 1, duration: 1.8, ease: "power1.inOut", onUpdate: () => renderB(s, B.b, true) });
+    }
+  }
+  Deck.register(ID, {
+    enter(slide, n) { build(slide, n || 0, false); },
+    step(slide, n, animate) { build(slide, n, animate); },
+    leave() { stop(); }
+  });
+})();
+</script>

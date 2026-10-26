@@ -98,6 +98,17 @@ for (let i = 0; i < n; i++) {
     if (t && t.getBoundingClientRect().height / sc > 110) out.push({ type: "long-title", note: "title wraps to 3+ lines" });
     const prose = [...s.querySelectorAll("p, li, .lede, .callout, .panel > span")].filter((e) => !e.closest("pre, table, .gotcha, .paper, .notes")).map((e) => e.textContent).join(" ").split(/\s+/).filter(Boolean).length;
     if (prose > 110) out.push({ type: "wordy", note: `${prose} words of prose` });
+    // 4c. legibility + density: tiny text, long code, too many panels
+    let tiny = 0;
+    s.querySelectorAll("*").forEach((el) => {
+      if (el.closest(".notes, .cites, .kicker") || !visible(el) || !el.childNodes.length) return;
+      const own = [...el.childNodes].some((c) => c.nodeType === 3 && c.textContent.trim());
+      if (own && parseFloat(getComputedStyle(el).fontSize) < (el.closest("pre.code") ? 15.9 : 13.9)) tiny++;
+    });
+    if (tiny) out.push({ type: "tiny-text", note: `${tiny} elements below 14px (code below 16px)` });
+    s.querySelectorAll("pre.code").forEach((p) => { if (!visible(p)) return; const n = p.textContent.split("\n").length; if (n > 18) out.push({ type: "long-code", note: `${n} lines (max 18)` }); });
+    const panels = [...s.querySelectorAll(".code-wrap, .gotcha, .paper, .diagram, svg, .panel, .card, .steps-rail, table")].filter((e) => visible(e) && !e.parentElement.closest(".code-wrap, .gotcha, .paper, .diagram, svg, .panel, .card, table")).length;
+    if (panels > 4) out.push({ type: "crowded", note: `${panels} panels (max 4)` });
     if (!/-interview$/.test(document.location.pathname.replace(/\/$/, "")) && s.querySelector(".qa")) out.push({ type: "qa-in-main-deck" });
     // 5. slide hygiene
     if (!s.querySelector(".title, .display")) out.push({ type: "no-title" });

@@ -1,0 +1,152 @@
+<section class="slide tight" id="adk-c07-gotcha-skills" data-tone="agent" data-title="Gotcha: Agent Skills">
+  <style>
+    #adk-c07-gotcha-skills .gs-main { display: grid; grid-template-columns: 620px 1fr; gap: 28px; align-items: start; }
+    #adk-c07-gotcha-skills .gs-col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    #adk-c07-gotcha-skills .gotcha { font-size: 15px; line-height: 1.36; padding: 10px 16px; grid-template-columns: 84px 1fr; gap: 4px 12px; }
+    #adk-c07-gotcha-skills .gotcha > b { font-size: 12.5px; }
+    #adk-c07-gotcha-skills .gotcha code { font-size: 13.5px; }
+    #adk-c07-gotcha-skills .em { font: 600 14px/1.4 var(--f-mono); color: var(--risk); white-space: nowrap; }
+    #adk-c07-gotcha-skills .gs-cites { display: flex; flex-wrap: wrap; gap: 8px; }
+    #adk-c07-gotcha-skills .gs-cites .cite { font-size: 13px; padding: 5px 9px 5px 7px; }
+    #adk-c07-gotcha-skills .code-head { padding: 7px 14px; font-size: 14px; }
+    #adk-c07-gotcha-skills pre.code { font-size: 12.5px; line-height: 1.45; padding: 8px 14px 10px; }
+    #adk-c07-gotcha-skills .gs-bad pre.code { font-size: 12.5px; }
+    #adk-c07-gotcha-skills pre.code .arr { color: #ff8a8a; }
+    /* scene: three rows, red until each fix */
+    #adk-c07-gotcha-skills .sc { position: relative; width: 744px; height: 206px; }
+    #adk-c07-gotcha-skills .rl { position: absolute; left: 0; font: 700 12px/1 var(--f-mono); color: var(--muted); letter-spacing: .05em; text-transform: uppercase; }
+    #adk-c07-gotcha-skills .fo { position: absolute; height: 42px; padding: 0 12px; border-radius: 10px; border: 2px solid var(--risk); background: var(--risk-soft);
+      display: flex; align-items: center; gap: 8px; font: 700 14px/1 var(--f-mono); color: var(--risk); white-space: nowrap; transition: none; }
+    #adk-c07-gotcha-skills .fo i { font-style: normal; font-size: 12px; color: var(--muted); font-weight: 600; }
+    #adk-c07-gotcha-skills .fo.ok { border-color: var(--state); background: var(--state-soft); color: var(--state); }
+    #adk-c07-gotcha-skills .fo.ghost { border: 2px dashed var(--line-2); background: var(--bg); color: var(--muted); }
+    #adk-c07-gotcha-skills .sg { position: absolute; font: 800 26px/42px var(--f-body); color: var(--risk); width: 40px; text-align: center; }
+    #adk-c07-gotcha-skills .sg.ok { color: var(--state); }
+    #adk-c07-gotcha-skills .ss { position: absolute; font: 700 13px/42px var(--f-mono); color: var(--risk); white-space: nowrap; }
+    #adk-c07-gotcha-skills .ss.ok { color: var(--state); }
+    #adk-c07-gotcha-skills .tok { position: absolute; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; background: var(--tool); opacity: 0; }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> Agent Skills</div>
+  <h2 class="title">Skills fail on folder names, missing executors and a string tool list</h2>
+  <div class="gs-main fill">
+    <div class="gs-col">
+      <div class="code-wrap bad gs-bad">
+        <div class="code-head">skills/refund_policy/SKILL.md + agent.py</div>
+        <pre class="code" data-lang="out" data-focus="1:1-3, 2:9, 3:6"><code># folder: skills/refund_policy/        <span class="arr">← snake_case</span>
+---
+name: refund-policy
+description: Decide refund eligibility and partial refunds.
+metadata:
+  adk_additional_tools: lookup_order   <span class="arr">← a string</span>
+---
+# agent.py: no code_executor
+SkillToolset(skills=[refund_skill], additional_tools=[lookup_order])</code></pre>
+      </div>
+      <div class="gotcha" data-step="1">
+        <b>Symptom</b><span><span class="em">ValueError: Skill name … does not match directory name …</span></span>
+        <b class="why">Cause</b><span>The loader compares the folder with <code>name:</code>. Names are kebab-case (snake_case only with the <code>SNAKE_CASE_SKILL_NAME</code> feature).</span>
+        <b class="fix">Fix</b><span>Rename the folder to <code>refund-policy/</code>. Name &le; 64 chars, description &le; 1024.</span>
+      </div>
+      <div class="gotcha" data-step="2">
+        <b>Symptom</b><span><code>run_skill_script</code> returns <span class="em">"error_code": "NO_CODE_EXECUTOR"</span></span>
+        <b class="why">Cause</b><span>No executor on the toolset or on the agent.</span>
+        <b class="fix">Fix</b><span>Pass <code>code_executor=</code> or <code>environment=</code>, not both. Laptop: <code>UnsafeLocalCodeExecutor</code>. Production: <code>ContainerCodeExecutor</code> or <code>GkeCodeExecutor</code>.</span>
+      </div>
+      <div class="gotcha" data-step="3">
+        <b>Symptom</b><span><span class="em">ValueError: adk_additional_tools must be a list of strings</span></span>
+        <b class="why">Cause</b><span>The YAML value is one string, not a list.</span>
+        <b class="fix">Fix</b><span>Write a YAML list. Each name matches a function in <code>additional_tools=</code>.</span>
+      </div>
+    </div>
+    <div class="gs-col">
+      <div class="sc" id="gs-sc">
+        <span class="rl" style="top:0">load_skill_from_dir</span>
+        <div class="fo" id="gs-dir" style="left:0;top:16px;width:236px"><i>folder</i><span id="gs-dirt">refund_policy/</span></div>
+        <span class="sg" id="gs-eq" style="left:244px;top:16px">≠</span>
+        <div class="fo" id="gs-fm" style="left:292px;top:16px;width:236px"><i>name:</i><span>refund-policy</span></div>
+        <span class="ss" id="gs-st1" style="left:548px;top:16px">ValueError</span>
+        <span class="rl" style="top:72px">run_skill_script</span>
+        <div class="fo ok" style="left:0;top:88px;width:150px;color:var(--ink);border-color:var(--tool);background:var(--tool-soft)">prorate.py</div>
+        <div class="fo" id="gs-slot" style="left:190px;top:88px;width:250px">no executor</div>
+        <div class="fo ok" id="gs-outb" style="left:480px;top:88px;width:78px;opacity:0">72.0</div>
+        <span class="ss" id="gs-st2" style="left:578px;top:88px">error dict</span>
+        <span class="tok" id="gs-tok" style="left:150px;top:109px"></span>
+        <span class="rl" style="top:144px">frontmatter metadata</span>
+        <div class="fo" id="gs-str" style="left:0;top:160px;width:372px"><i>adk_additional_tools:</i><span>"lookup_order"</span></div>
+        <span class="sg" id="gs-ar" style="left:380px;top:160px;opacity:0">→</span>
+        <div class="fo ok" id="gs-list" style="left:428px;top:160px;width:200px;opacity:0"><i>list:</i><span>- lookup_order</span></div>
+      </div>
+      <div class="code-wrap good" data-step="1">
+        <div class="code-head">skills/refund-policy/SKILL.md</div>
+        <pre class="code" data-lang="yaml" data-focus="1:1-3, 3:6-7"><code># folder: skills/refund-policy/      = name
+---
+name: refund-policy        # kebab-case, max 64 chars
+description: Decide refund eligibility and partial refunds.
+metadata:
+  adk_additional_tools:    # a YAML list
+    - lookup_order
+---</code></pre>
+      </div>
+      <div class="code-wrap good" data-step="2">
+        <div class="code-head">agent.py · laptop</div>
+        <pre class="code" data-lang="python" data-focus="2:4-5"><code>from google.adk.code_executors import UnsafeLocalCodeExecutor
+from google.adk.tools.skill_toolset import SkillToolset
+# refund_skill, lookup_order: as in Lab 7 step 5
+skills = SkillToolset(skills=[refund_skill], additional_tools=[lookup_order],
+                      code_executor=UnsafeLocalCodeExecutor())  # exec() in-process</code></pre>
+      </div>
+      <div class="gs-cites">
+        <a class="cite doc" href="https://adk.dev/skills/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Skills for ADK agents</a>
+        <a class="cite doc" href="https://agentskills.io/specification" target="_blank" rel="noopener"><b>Spec</b>&nbsp;Agent Skills</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">All three errors come from the skill loader and the toolset, before the model sees the skill, and the first frame shows the broken folder. One: load_skill_from_dir compares the folder name with the frontmatter name; the full message is "ValueError: Skill name 'refund-policy' does not match directory name 'refund_policy'." Names must be lowercase kebab-case unless you turn on the experimental SNAKE_CASE_SKILL_NAME feature, with at most 64 characters, and the description at most 1024. Two: a skill with a script needs an executor; without one, run_skill_script returns an error dict, "Neither Environment nor CodeExecutor is configured. An environment or code executor is required to run scripts.", with error_code NO_CODE_EXECUTOR, and passing both code_executor and environment raises a ValueError. UnsafeLocalCodeExecutor is for a laptop only, because it runs exec() in your process and script_timeout does not apply; in production use ContainerCodeExecutor or GkeCodeExecutor. Three: adk_additional_tools must be a YAML list even for one tool. Analogy: a skill folder is a labelled drawer; if the label and the drawer disagree, the clerk refuses to open it. A likely question: "Why not run scripts locally in production?" Because exec() shares your process and its memory, and nothing stops a slow script.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c07-gotcha-skills";
+  let tw = [];
+  function clear() { tw.forEach((t) => t.kill()); tw = []; }
+
+  function render(slide, n, animate) {
+    clear();
+    const q = (s) => slide.querySelector("#" + s);
+    n = Math.max(0, Math.min(3, n | 0));
+    // row A: folder vs name
+    const a = n >= 1;
+    q("gs-dirt").textContent = a ? "refund-policy/" : "refund_policy/";
+    q("gs-dir").className = "fo" + (a ? " ok" : ""); q("gs-fm").className = "fo" + (a ? " ok" : "");
+    q("gs-eq").textContent = a ? "=" : "≠"; q("gs-eq").className = "sg" + (a ? " ok" : "");
+    q("gs-st1").textContent = a ? "the skill loads" : "ValueError"; q("gs-st1").className = "ss" + (a ? " ok" : "");
+    if (animate && n === 1) tw.push(gsap.fromTo([q("gs-dir"), q("gs-fm"), q("gs-eq")], { scale: 1.08 }, { scale: 1, duration: 0.4, ease: "back.out(3)", stagger: 0.08 }));
+
+    // row B: executor slot
+    const b = n >= 2, slot = q("gs-slot"), outb = q("gs-outb"), tok = q("gs-tok");
+    slot.textContent = b ? "UnsafeLocal… · laptop" : "no executor";
+    slot.className = "fo" + (b ? " ok" : "");
+    q("gs-st2").textContent = b ? "stdout" : "error dict"; q("gs-st2").className = "ss" + (b ? " ok" : "");
+    if (animate && n === 2) {
+      gsap.set(outb, { opacity: 0 });
+      tw.push(gsap.timeline({ delay: 0.3 })
+        .set(tok, { opacity: 1, x: 0 })
+        .to(tok, { x: 330, duration: 0.9, ease: "power1.inOut" })
+        .to(tok, { opacity: 0, duration: 0.15 })
+        .fromTo(outb, { opacity: 0, scale: 1.3 }, { opacity: 1, scale: 1, duration: 0.3, ease: "back.out(3)" }));
+    } else { gsap.set(outb, { opacity: b ? 1 : 0, scale: 1 }); gsap.set(tok, { opacity: 0, x: 0 }); }
+
+    // row C: string -> list
+    const c = n >= 3, str = q("gs-str");
+    str.className = "fo" + (c ? " ghost" : "");
+    str.style.textDecoration = c ? "line-through" : "";
+    if (animate && n === 3) tw.push(gsap.fromTo([q("gs-ar"), q("gs-list")], { opacity: 0, x: -20 }, { opacity: 1, x: 0, duration: 0.5, stagger: 0.15, ease: "power3.out" }));
+    else gsap.set([q("gs-ar"), q("gs-list")], { opacity: c ? 1 : 0, x: 0 });
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { clear(); if (slide) gsap.killTweensOf(slide.querySelectorAll(".sc, .sc *")); },
+  });
+})();
+</script>

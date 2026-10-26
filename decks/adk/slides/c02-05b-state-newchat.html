@@ -1,0 +1,105 @@
+<section class="slide tight" id="adk-c02-state-newchat" data-tone="state" data-title="Build: a new chat keeps the customer">
+  <style>
+    #adk-c02-state-newchat .c02w-grid { display: grid; grid-template-columns: 790px 1fr; gap: 30px; align-items: start; }
+    #adk-c02-state-newchat .c02w-left, #adk-c02-state-newchat .c02w-right { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+    #adk-c02-state-newchat .out { align-self: stretch; }
+  </style>
+  <div class="kicker"><span class="pill">Build</span> Acme claims API · remember the customer</div>
+  <h2 class="title">A new chat for Tom keeps only the app: and user: keys</h2>
+  <div class="c02w-grid fill">
+    <div class="c02w-left">
+      <div class="code-wrap">
+        <div class="code-head">labs/adk/lab2-claims-api/claims/claims_faq.py · excerpt</div>
+        <pre class="code c17" data-lang="python" data-focus="1:4-6, 2:8, 3:11-12"><code>faq_agent = Agent(
+    name="claims_faq_agent",
+    model="gemini-3.5-flash",
+    instruction=("Help {user:customer_name} at {app:company_name}. "
+                 "Reply in {user:language?}. "
+                 "Quote get_policy exactly."),
+    tools=[get_policy],
+    output_key="last_answer",           # this chat only
+)
+# ... in main(), after the turn in s1:
+s2 = await svc.create_session(app_name="claims_api", user_id="u-tom")
+print("s2.state:", s2.state)          # app: and user: keys only</code></pre>
+      </div>
+      <div class="code-wrap out" data-step="3">
+        <div class="code-head">output · illustrative</div>
+        <pre class="code sm" data-lang="output"><code><span class="ok">s2.state: {'app:company_name': 'Acme',
+  'user:customer_name': 'Tom',
+  'user:language': 'English',
+  'user:topics_asked': ['glass']}</span></code></pre>
+      </div>
+    </div>
+    <div class="c02w-right">
+      <svg class="c02b-svg" id="c02w-svg" viewBox="0 0 580 440" width="572" height="434" aria-label="Four state buckets: app, user, no prefix and temp">
+        <g class="stag"><rect x="1" y="1" width="150" height="36" rx="18"/><text id="c02w-tag" x="76" y="25" text-anchor="middle">session 1</text></g>
+        <g class="wp" id="c02w-wp"><rect x="166" y="1" width="413" height="36" rx="18"/><text id="c02w-wpt" x="372" y="25" text-anchor="middle"></text></g>
+        <rect class="bk" id="c02w-b0" x="1" y="52" width="278" height="182" rx="16" fill-opacity="1"/>
+        <text class="bh" x="18" y="84">app:</text><text class="bs warn" x="262" y="84" text-anchor="end">every user</text>
+        <rect class="bk" id="c02w-b1" x="301" y="52" width="278" height="182" rx="16" fill-opacity=".75"/>
+        <text class="bh" x="318" y="84">user:</text><text class="bs" x="562" y="84" text-anchor="end">u-tom, every chat</text>
+        <rect class="bk" id="c02w-b2" x="1" y="252" width="278" height="182" rx="16" fill-opacity=".45"/>
+        <text class="bh" x="18" y="284">no prefix</text><text class="bs" x="262" y="284" text-anchor="end">this chat</text>
+        <rect class="bk t" id="c02w-b3" x="301" y="252" width="278" height="182" rx="16" fill-opacity=".2"/>
+        <text class="bh" x="318" y="284">temp:</text><text class="bs" x="562" y="284" text-anchor="end">this turn</text>
+        <g class="ch" id="c02w-k0"><rect x="14" y="102" width="252" height="34" rx="17"/><text x="140" y="125" text-anchor="middle">company_name</text></g>
+        <g class="ch" id="c02w-k1"><rect x="314" y="102" width="252" height="34" rx="17"/><text x="440" y="125" text-anchor="middle">customer_name</text></g>
+        <g class="ch" id="c02w-k2"><rect x="314" y="144" width="252" height="34" rx="17"/><text x="440" y="167" text-anchor="middle">language</text></g>
+        <g class="ch" id="c02w-k3"><rect x="314" y="186" width="252" height="34" rx="17"/><text x="440" y="209" text-anchor="middle">topics_asked</text></g>
+        <g class="ch" id="c02w-k4"><rect x="14" y="302" width="252" height="34" rx="17"/><text x="140" y="325" text-anchor="middle">last_answer</text></g>
+        <g class="ch t" id="c02w-k5"><rect x="314" y="302" width="252" height="34" rx="17"/><text x="440" y="325" text-anchor="middle">last_topic</text></g>
+        <rect class="wipe" id="c02w-wipe" x="580" y="46" width="44" height="392" rx="8" opacity="0"/>
+      </svg>
+      <div class="c02-cap">
+        <p data-until="1">State after the turn in session 1. <code>temp:</code> was never stored.</p>
+        <p data-step="1" data-until="2">The instruction reads state. <code>{user:language?}</code> renders <code>''</code> if missing.</p>
+        <p data-step="2" data-until="3"><code>output_key</code> writes <code>last_answer</code> with no prefix: this chat only.</p>
+        <p data-step="3">Session 2 gets <code>app:</code> and <code>user:</code> back. Unprefixed keys stay behind.</p>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Same file, the agent and the second session. Step 0: this is the state after Tom asked about glass in session 1; the temp:last_topic key was trimmed before commit, so it was never stored. Click 1: the instruction reads state with curly-brace templates. The question mark in {user:language?} makes the key optional, so a missing key renders as an empty string; without the question mark a missing key raises a KeyError on the first turn, so seed required keys at create time. Click 2: output_key writes the final answer into last_answer, which has no prefix, so it belongs to this chat only. Click 3: create a second session for the same user: it starts with the app: and user: keys and nothing else. The in-memory service keeps these only while the process runs; the next slide moves sessions into a SQLite file. Analogy: a new call opens the same customer file, with a clean notepad. A likely question: "Can I read user: keys before any session exists?" Yes, with get_user_state on services that support it.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c02-state-newchat", P = "#c02w-";
+  const WP = { 0: "after the turn in s1", 1: "instruction reads {user:…}", 2: "output_key=\"last_answer\"", 3: "create_session → s2" };
+  let els = [];
+  function render(slide, n, animate) {
+    if (window.c02Focus) window.c02Focus(slide, n);
+    const q = (s) => slide.querySelector(P + s);
+    els = [...slide.querySelectorAll(".c02b-svg g, .c02b-svg rect")];
+    gsap.killTweensOf(els);
+    q("wpt").textContent = WP[n] || "";
+    if (animate) gsap.fromTo(q("wp"), { scale: 0.85, svgOrigin: "372 19" }, { scale: 1, svgOrigin: "372 19", duration: 0.35, ease: "back.out(2)" });
+    else gsap.set(q("wp"), { scale: 1, svgOrigin: "372 19" });
+    q("tag").textContent = n >= 3 ? "session 2" : "session 1";
+    ["k0", "k1", "k2", "k3"].forEach((id) => gsap.set(q(id), { x: 0, y: 0, opacity: 1 }));
+    gsap.set(q("k5"), { opacity: 0 });
+    // step 1: the three keys the instruction reads light up
+    ["k0", "k1", "k2"].forEach((id) => q(id).classList.toggle("read", n === 1));
+    // step 2: output_key drops last_answer into the no-prefix bucket; step 3: it stays behind
+    const k4 = q("k4");
+    if (animate && n === 2) gsap.fromTo(k4, { x: 232, y: -300, opacity: 0 }, { x: 0, y: 0, opacity: 1, duration: 0.8, delay: 0.2, ease: "power3.out" });
+    else if (animate && n === 3) { gsap.set(k4, { x: 0, y: 0, opacity: 1 }); gsap.to(k4, { opacity: 0, duration: 0.4, delay: 0.55 }); }
+    else gsap.set(k4, { x: 0, y: 0, opacity: n === 2 ? 1 : 0 });
+    [0, 1, 2, 3].forEach((i) => {
+      const bk = q("b" + i);
+      bk.classList.toggle("kept", n >= 3 && i < 2);
+      gsap.set(bk, { opacity: n >= 3 && i >= 2 ? 0.45 : 1 });
+    });
+    const w = q("wipe");
+    if (animate && n === 3) {
+      gsap.set(w, { attr: { x: 580 }, opacity: 0.35 });
+      gsap.to(w, { attr: { x: -44 }, duration: 0.9, ease: "power2.inOut" });
+      gsap.to(w, { opacity: 0, duration: 0.2, delay: 0.85 });
+    } else gsap.set(w, { attr: { x: 580 }, opacity: 0 });
+  }
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { gsap.killTweensOf(els); },
+  });
+})();
+</script>

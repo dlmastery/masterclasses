@@ -1,0 +1,50 @@
+<section class="slide tight" id="adk-c05-industry-temporal-code" data-tone="agent" data-title="Industry: the Temporal plugin code">
+  <style>
+    #adk-c05-industry-temporal-code pre.code, #adk-c05-industry-temporal-code code { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #adk-c05-industry-temporal-code .lab-head { flex-wrap: nowrap; gap: 14px; }
+    #adk-c05-industry-temporal-code .tc-body { display: grid; grid-template-columns: 860px 1fr; gap: 36px; align-items: start; }
+    #adk-c05-industry-temporal-code .tc-right { display: flex; flex-direction: column; gap: 26px; min-width: 0; padding-top: 8px; }
+    #adk-c05-industry-temporal-code .tc-cap { display: grid; font-size: 20px; line-height: 1.4; color: var(--ink-2); }
+    #adk-c05-industry-temporal-code .tc-cap > p { grid-area: 1 / 1; margin: 0; }
+    #adk-c05-industry-temporal-code .tc-cap code { font-size: 18px; }
+    #adk-c05-industry-temporal-code .callout { font-size: 19px; line-height: 1.4; }
+    #adk-c05-industry-temporal-code .callout code { font-size: 17px; }
+  </style>
+  <div class="kicker"><span class="pill">In production</span> Kyndryl · Temporal</div>
+  <h2 class="title">TemporalModel and activity_as_tool turn each call into an Activity</h2>
+  <div class="lab-head">
+    <span class="run">pip install "temporalio[google-adk]==1.34.0" "google-adk==2.13.0"</span>
+    <span class="run">temporal server start-dev</span>
+  </div>
+  <div class="tc-body fill">
+    <div class="code-wrap">
+      <div class="code-head">payout_workflow.py · temporalio 1.34.0 · excerpt</div>
+      <pre class="code" data-lang="python" data-focus="1:6, 2:11-12, 3:13-15"><code>from temporalio.contrib.google_adk_agents import (
+    GoogleAdkPlugin, TemporalModel)
+from temporalio.contrib.google_adk_agents.workflow import activity_as_tool
+# also imported: timedelta, temporalio.workflow, google.adk.Agent
+charge_gateway = ...   # stub: your @activity.defn gateway call
+plugin = GoogleAdkPlugin()   # the SAME instance for Client and Worker
+@workflow.defn
+class PayoutAgentWorkflow:
+    @workflow.run
+    async def run(self, prompt: str) -&gt; str:
+        pay_tool = activity_as_tool(          # tool call = an Activity
+            charge_gateway, start_to_close_timeout=timedelta(seconds=60))
+        agent = Agent(name="payout_agent", tools=[pay_tool],
+                      model=TemporalModel("gemini-3.5-flash"),  # Activity
+                      instruction="Use charge_gateway to pay payouts.")
+        # ... run the agent, return its final reply</code></pre>
+    </div>
+    <div class="tc-right">
+      <div class="diagram" style="width:496px;height:330px"
+           data-wires="wf>model@3 {model} [invoke_model]; wf>tool@2 {tool} [Activity]">
+        <div class="node n-agent" id="wf" style="left:0;top:120px;width:190px" data-on="1:hot"><span class="nt">Workflow</span><span class="ns">agent loop</span></div>
+        <div class="node n-model" id="model" style="left:290px;top:0;width:206px" data-step="3"><span class="nt">model call</span><span class="ns">TemporalModel</span></div>
+        <div class="node n-tool" id="tool" style="left:290px;top:240px;width:206px" data-step="2"><span class="nt">charge_gateway</span><span class="ns">activity_as_tool</span></div>
+      </div>
+      <div class="callout insight" data-step="4"><span>Replay re-sends <code>charge_gateway</code> with the same inputs. The gateway still needs the <code>payout-</code> key.</span></div>
+    </div>
+  </div>
+  <aside class="notes">This is the payout agent from this chapter, written for Temporal. Install the pinned versions, temporalio 1.34.0 with the google-adk extra and google-adk 2.13.0, and start a local dev server; the Worker needs GOOGLE_API_KEY. First click: the same GoogleAdkPlugin instance goes to the Client and to the Worker, as the Temporal docs show. Second click: activity_as_tool wraps charge_gateway, your own Activity that calls the gateway, so each tool call is a separate, retryable Activity with a 60-second timeout. Third click: TemporalModel wraps the model, so each model call becomes an invoke_model Activity. Fourth click, the lesson: replay re-sends charge_gateway with the same inputs, so neither Temporal nor ResumabilityConfig makes the ACME-GmbH payout idempotent for you; the gateway still needs the payout- key. The integration package is moving: on sdk-python main the module re-exports temporalio.google_adk from the new temporalio-google-adk 0.0.1 package, but 1.34.0 keeps the contrib path on this slide. The docs page is marked pre-release. A likely question: "Do I need Temporal if ADK has ResumabilityConfig?" ResumabilityConfig checkpoints your ADK workflow in one session store; Temporal adds per-call retries and a history that any worker can replay.</aside>
+</section>

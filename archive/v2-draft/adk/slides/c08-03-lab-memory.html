@@ -1,0 +1,235 @@
+<section class="slide tight" id="adk-c08-lab-memory" data-tone="state" data-title="Lab 8.2: Memory Bank across sessions">
+  <style>
+    #adk-c08-lab-memory .lab-head { gap: 12px; flex-wrap: nowrap; }
+    #adk-c08-lab-memory .lab-head .run { font-size: 14.5px; padding: 7px 11px; white-space: nowrap; }
+    #adk-c08-lab-memory .lab-head .cite { font-size: 13px; padding: 4px 9px; white-space: nowrap; margin-left: auto; }
+    #adk-c08-lab-memory .mb-body { display: grid; grid-template-columns: 668px minmax(0, 1fr); gap: 24px; align-items: start; }
+    #adk-c08-lab-memory .mb-col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    #adk-c08-lab-memory .code-head { padding: 7px 14px; font-size: 13.5px; }
+    #adk-c08-lab-memory .mb-main pre.code { font-size: 16px; line-height: 1.45; padding: 10px 14px 12px; }
+    #adk-c08-lab-memory .out pre.code { font-size: 13px; line-height: 1.45; padding: 8px 14px 10px; }
+    #adk-c08-lab-memory #mb-svg { display: block; width: 100%; height: auto; overflow: visible; }
+    #adk-c08-lab-memory #mb-svg text { font-family: var(--f-mono); }
+    #adk-c08-lab-memory .mb-rail { gap: 8px; }
+    #adk-c08-lab-memory .mb-rail > * { font-size: 15px; line-height: 1.35; grid-template-columns: 28px 1fr; gap: 10px; }
+    #adk-c08-lab-memory .mb-rail > *::before { width: 26px; height: 26px; font-size: 13px; border-radius: 7px; }
+    #adk-c08-lab-memory .mb-rail code { font-size: 13px; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 8</span> Bluefin Telecom support · step 2 of 3</div>
+  <h2 class="title">Memory Bank remembers the SMS preference across sessions</h2>
+  <div class="lab-head">
+    <span class="run">python support_memory.py day1 &amp;&amp; python support_memory.py day2</span>
+    <a class="cite codelab" href="https://codelabs.developers.google.com/next26/dev-keynote/enhancing-agents-with-memory" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;Next '26 Developer Keynote: Enhancing Agents with Memory</a>
+  </div>
+  <div class="mb-body fill">
+    <div class="code-wrap mb-main">
+      <div class="code-head">support_memory.py · the lines that matter</div>
+      <pre class="code" data-lang="python" data-focus="1:3-7, 2:8-14, 3:15-20, 4:21-21"><code># imports: asyncio, os, sys, types, Agent, Runner, preload_memory,
+#   VertexAiMemoryBankService, InMemorySessionService
+async def save_to_memory(callback_context) -&gt; None:
+    await callback_context.add_session_to_memory()
+agent = Agent(name="support_agent", model="gemini-3.5-flash",
+    instruction="Bluefin support. Use remembered preferences.",
+    tools=[preload_memory], after_agent_callback=save_to_memory)
+memory = VertexAiMemoryBankService(
+    project=os.environ["GOOGLE_CLOUD_PROJECT"],
+    location=os.environ["GOOGLE_CLOUD_LOCATION"],
+    agent_engine_id=os.environ["AGENT_ENGINE_ID"])
+runner = Runner(agent=agent, app_name="bluefin_support",
+    session_service=InMemorySessionService(),
+    memory_service=memory, auto_create_session=True)
+async def wait_for_memory() -&gt; None:   # day2 calls this first
+    for _ in range(12):                # generation is asynchronous
+        r = await memory.search_memory(app_name="bluefin_support",
+                                       user_id="cust-42", query="SMS")
+        if r.memories: return
+        await asyncio.sleep(5)
+# main(day): run_async(user_id="cust-42", session_id=day), print</code></pre>
+    </div>
+    <div class="mb-col">
+      <svg id="mb-svg" viewBox="0 0 800 300" aria-label="Two sessions. Day1: the user turn goes to the model, the agent answers, and after_agent_callback writes two facts, Family 4-line and SMS only, into Memory Bank inside an Agent Runtime. Day2: the new user turn goes into the system context, preload_memory pulls the two facts into the same context before the model call, and the agent answers by SMS. The memory scope is bluefin_support / cust-42, and delete_memory erases it."></svg>
+      <div class="steps-rail mb-rail">
+        <div data-step="1"><span><code>after_agent_callback</code> runs after every turn and sends the session so far to Memory Bank.</span></div>
+        <div data-step="2"><span>The bank lives in an Agent Runtime in your project, a billed resource. Create it once with <code>agentplatform.Client(...).runtimes.create()</code>; delete it when you finish.</span></div>
+        <div data-step="3"><span>Day 2 polls <code>search_memory</code> until the facts exist. Then <code>preload_memory</code> searches with the user turn and injects matches <b>before</b> the model call. <code>tools=[load_memory]</code> lets the model decide.</span></div>
+        <div data-step="4"><span>Scope is <code>app_name</code> + <code>user_id</code>. Erase with <code>delete_memory</code> (2.13), not <code>delete_session</code>.</span></div>
+      </div>
+      <div class="code-wrap out">
+        <div class="code-head">terminal · output illustrative</div>
+        <pre class="code" data-lang="none"><code>$ pip install "google-adk[gcp]==2.13.0" "google-cloud-agentplatform&gt;=2.2,&lt;3"
+$ gcloud services enable aiplatform.googleapis.com
+$ gcloud auth application-default login
+$ export GOOGLE_CLOUD_PROJECT=my-proj GOOGLE_CLOUD_LOCATION=us-central1
+$ export AGENT_ENGINE_ID=$(python create_bank.py)
+$ python support_memory.py day1 &amp;&amp; python support_memory.py day2
+<span data-step="1" data-fx="fade"><span class="ok">[day1] agent&gt; Got it: Family 4-line, and SMS only.</span></span>
+<span data-step="3" data-fx="fade"><span class="ok">[day2] agent&gt; I'll review your Family 4-line bill and follow up by SMS.</span></span></code></pre>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">This is step two of the Bluefin lab: the customer tells us once, on day one, that she is on the Family 4-line plan and wants SMS only, and on day two the agent already knows. Run the two python commands; adk web with --memory_service_uri="agentengine://$AGENT_ENGINE_ID" is the dev-UI alternative with no code change. create_bank.py is four lines: agentplatform.Client(project, location), then client.runtimes.create(), then print the id; pin google-cloud-agentplatform 2.2 or later, because an old SDK only has Client.agent_engines. Two lines do the work: after_agent_callback calls add_session_to_memory after every turn, and preload_memory searches with the new user turn and injects the matches into the system context before the model runs. Memory generation is asynchronous on the service, so day two polls search_memory for up to a minute before it asks. Think of Memory Bank as the notes a good call-centre agent writes after a call, which the next agent reads before picking up the phone. Memories are keyed by app_name plus user_id, so a new user id looks like a stranger. A likely question is "how do I honour a forget-me request?": delete_session does not touch memories, so call the new delete_memory API from 2.13. The Agent Runtime bills to your project, so delete it in the console when you finish. Next, step 3 takes the same customer, cust-42, onto a voice billing call with run_live.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c08-lab-memory";
+  const NS = "http://www.w3.org/2000/svg";
+  const Y1 = 50, Y2 = 182;                              // lane centres
+  const CX = 698, CT = 66, CB = 156, RX = 64, RY = 12;  // Memory Bank cylinder
+  const CW = 112;                                       // fact chip width
+  const IN = [{ x: CX - CW / 2, y: 84 }, { x: CX - CW / 2, y: 116 }];   // chips inside the bank
+  const SLOT = [{ x: 204, y: 150 }, { x: 204, y: 188 }];               // chips in the day2 system context
+  const FROM = [{ x: 372, y: Y1 - 22 }, { x: 384, y: Y1 - 22 }];
+  const FACTS = ["Family 4-line", "SMS only"];
+  let tw = [], loop = null, R = null;
+
+  function mk(tag, attrs, parent) {
+    const e = document.createElementNS(NS, tag);
+    for (const [a, v] of Object.entries(attrs)) e.setAttribute(a, v);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function txt(p, x, y, s, a) { const t = mk("text", Object.assign({ x, y, "font-size": 13, fill: "var(--ink-2)" }, a || {}), p); t.textContent = s; return t; }
+  function box(p, x, y, w, h, tone, label, sub, subTone) {
+    const g = mk("g", {}, p);
+    mk("rect", { x, y, width: w, height: h, rx: 10, fill: `var(--${tone}-soft)`, stroke: `var(--${tone})`, "stroke-width": 1.8 }, g);
+    txt(g, x + w / 2, y + (sub ? h / 2 - 3 : h / 2 + 5), label, { "font-size": 13, "font-weight": 700, "text-anchor": "middle", fill: "var(--ink)" });
+    if (sub) txt(g, x + w / 2, y + h / 2 + 14, sub, { "font-size": 12, "font-weight": subTone ? 700 : 400, "text-anchor": "middle", fill: subTone ? `var(--${subTone})` : "var(--muted)" });
+    return g;
+  }
+  function chip(p, label) {
+    const g = mk("g", {}, p);
+    mk("rect", { x: 0, y: 0, width: CW, height: 24, rx: 12, fill: "var(--bg)", stroke: "var(--state)", "stroke-width": 1.8 }, g);
+    txt(g, CW / 2, 16.5, label, { "font-size": 12.5, "font-weight": 700, "text-anchor": "middle", fill: "var(--state)" });
+    return g;
+  }
+  function arrow(p, d, color, dash, marker) {
+    const path = mk("path", { d, fill: "none", stroke: color, "stroke-width": 2.2, "stroke-linecap": "round", "stroke-dasharray": dash || "none" }, p);
+    if (marker) path.setAttribute("marker-end", `url(#${marker})`);
+    return path;
+  }
+
+  function build(svg) {
+    svg.innerHTML = "";
+    R = {};
+    const defs = mk("defs", {}, svg);
+    const mkr = mk("marker", { id: "mb-ah", viewBox: "0 0 10 10", refX: 8, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto-start-reverse" }, defs);
+    mk("path", { d: "M0,0 L10,5 L0,10 z", fill: "var(--state)" }, mkr);
+    const mkg = mk("marker", { id: "mb-ag", viewBox: "0 0 10 10", refX: 8, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto-start-reverse" }, defs);
+    mk("path", { d: "M0,0 L10,5 L0,10 z", fill: "var(--line-2)" }, mkg);
+    // lane headers
+    txt(svg, 0, 14, "day1 · session \"day1\"", { "font-size": 12.5, "font-weight": 700, fill: "var(--muted)" });
+    txt(svg, 0, 136, "day2 · new session", { "font-size": 12.5, "font-weight": 700, fill: "var(--muted)" });
+    // Agent Runtime frame (step 2) around the bank
+    R.rt = mk("g", {}, svg);
+    mk("rect", { x: 600, y: 2, width: 196, height: 234, rx: 14, fill: "none", stroke: "var(--state)", "stroke-width": 1.5, "stroke-dasharray": "6 4" }, R.rt);
+    txt(R.rt, 690, 24, "Agent Runtime", { "font-size": 13, "font-weight": 700, "text-anchor": "middle", fill: "var(--state)" });
+    R.ring = mk("g", {}, R.rt);
+    mk("circle", { cx: 776, cy: 20, r: 8, fill: "none", stroke: "var(--line-2)", "stroke-width": 2.4 }, R.ring);
+    R.arc = mk("path", { d: "M776,12 A8,8 0 0 1 784,20", fill: "none", stroke: "var(--state)", "stroke-width": 2.6, "stroke-linecap": "round" }, R.ring);
+    R.ready = mk("path", { d: "M770,20 l4,4 l8,-8", fill: "none", stroke: "var(--state)", "stroke-width": 2.4, "stroke-linecap": "round", "stroke-linejoin": "round" }, R.rt);
+    // Memory Bank cylinder
+    const bank = mk("g", {}, svg);
+    mk("path", { d: `M${CX - RX},${CT} V${CB} A${RX},${RY} 0 0 0 ${CX + RX},${CB} V${CT}`, fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 2 }, bank);
+    mk("ellipse", { cx: CX, cy: CT, rx: RX, ry: RY, fill: "var(--surface)", stroke: "var(--state)", "stroke-width": 2 }, bank);
+    txt(bank, CX, 196, "Memory Bank", { "font-size": 14, "font-weight": 700, "text-anchor": "middle", fill: "var(--state)" });
+    // step 4 caption under the frame: scope key and erase
+    R.scope = txt(svg, CX, 258, "scope: bluefin_support / cust-42", { "font-size": 12.5, "font-weight": 700, "text-anchor": "middle", fill: "var(--ink)" });
+    R.del = mk("g", {}, svg);
+    mk("rect", { x: CX - 70, y: 270, width: 140, height: 24, rx: 7, fill: "var(--risk-soft)", stroke: "var(--risk)", "stroke-width": 1.3 }, R.del);
+    txt(R.del, CX, 287, "delete_memory()", { "font-size": 12.5, "font-weight": 700, "text-anchor": "middle", fill: "var(--risk)" });
+    // day1 lane
+    R.u1 = box(svg, 0, Y1 - 22, 190, 44, "human", "user> Family 4-line,", "SMS only please");
+    R.w1 = arrow(svg, `M194,${Y1} H220`, "var(--line-2)", null, "mb-ag");
+    R.m1 = box(svg, 224, Y1 - 22, 108, 44, "model", "model call");
+    R.w2 = arrow(svg, `M336,${Y1} H362`, "var(--line-2)", null, "mb-ag");
+    R.a1 = box(svg, 366, Y1 - 22, 126, 44, "agent", "agent> noted");
+    R.cb = arrow(svg, `M496,${Y1} C560,${Y1} 590,${CT + 30} ${CX - RX - 6},${CT + 30}`, "var(--state)", "6 4", "mb-ah");
+    R.cbl = txt(svg, 420, 14, "after_agent_callback", { "font-size": 12.5, "font-weight": 700, fill: "var(--state)" });
+    // day2 lane: user turn -> system context <- preload_memory; then the model call
+    R.u2 = box(svg, 0, Y2 - 22, 170, 44, "human", "user> bill looks", "wrong this month");
+    R.w0 = arrow(svg, `M174,${Y2} H192`, "var(--line-2)", null, "mb-ag");
+    R.slot = mk("g", {}, svg);
+    mk("rect", { x: 196, y: 140, width: 120, height: 84, rx: 10, fill: "none", stroke: "var(--state)", "stroke-width": 1.6, "stroke-dasharray": "5 4" }, R.slot);
+    txt(R.slot, 256, 242, "system context", { "font-size": 12, "font-weight": 700, "text-anchor": "middle", fill: "var(--state)" });
+    R.w3 = arrow(svg, `M320,${Y2} H344`, "var(--line-2)", null, "mb-ag");
+    R.m2 = box(svg, 348, Y2 - 22, 94, 44, "model", "model call");
+    R.w4 = arrow(svg, `M446,${Y2} H466`, "var(--line-2)", null, "mb-ag");
+    R.a2 = box(svg, 470, Y2 - 22, 124, 44, "agent", "agent> follow-up", "by SMS", "state");
+    R.pl = arrow(svg, `M${CX - RX - 4},126 C 470,112 256,104 256,134`, "var(--state)", "6 4", "mb-ah");
+    R.pll = txt(svg, 440, 100, "preload_memory", { "font-size": 12.5, "font-weight": 700, "text-anchor": "middle", fill: "var(--state)" });
+    // fact chips: stored copies (day1) and preloaded copies (day2)
+    R.store = FACTS.map((f) => chip(svg, f));
+    R.pre = FACTS.map((f) => chip(svg, f));
+  }
+
+  function clear() { tw.forEach((t) => t.kill()); tw = []; if (loop) { loop.kill(); loop = null; } }
+  function show(el, on, animate, delay, from) {
+    gsap.killTweensOf(el);
+    if (!on) { gsap.set(el, { opacity: 0 }); return; }
+    if (animate) tw.push(gsap.fromTo(el, Object.assign({ opacity: 0, scale: 1, transformOrigin: "50% 50%" }, from || {}), { opacity: 1, x: 0, y: 0, scale: 1, duration: 0.45, delay: delay || 0, ease: "power2.out" }));
+    else gsap.set(el, { opacity: 1, x: 0, y: 0, scale: 1 });
+  }
+  function drawPath(p, on, animate, delay) {
+    gsap.killTweensOf(p);
+    const L = p.getTotalLength();
+    if (!on) { gsap.set(p, { opacity: 0 }); return; }
+    if (animate) tw.push(gsap.fromTo(p, { opacity: 1, strokeDasharray: `${L} ${L}`, strokeDashoffset: L }, { strokeDashoffset: 0, duration: 0.6, delay: delay || 0, ease: "power2.inOut", onComplete: () => p.setAttribute("style", "") }));
+    else { p.setAttribute("style", ""); gsap.set(p, { opacity: 1 }); }
+  }
+  function place(g, pos, on) { gsap.killTweensOf(g); gsap.set(g, { x: pos.x, y: pos.y, opacity: on ? 1 : 0 }); }
+
+  function render(slide, n, animate) {
+    const svg = slide.querySelector("#mb-svg");
+    if (!svg) return;
+    if (!svg.childElementCount) build(svg);
+    clear();
+    const a = (k) => animate && n === k;
+    // step 0: day1 user turn, empty bank
+    show(R.u1, true, false);
+    // step 1: day1 answer; after_agent_callback writes the two facts
+    show(R.w1, n >= 1, a(1), 0); show(R.m1, n >= 1, a(1), 0.1, { scale: 0.9 });
+    show(R.w2, n >= 1, a(1), 0.35); show(R.a1, n >= 1, a(1), 0.45);
+    drawPath(R.cb, n >= 1, a(1), 0.8); show(R.cbl, n >= 1, a(1), 0.8);
+    R.store.forEach((c, i) => {
+      if (n < 1) { place(c, IN[i], false); return; }
+      if (a(1)) {
+        gsap.set(c, { x: FROM[i].x, y: FROM[i].y, opacity: 0 });
+        tw.push(gsap.to(c, { opacity: 1, duration: 0.25, delay: 0.9 + i * 0.2 }));
+        tw.push(gsap.to(c, { x: IN[i].x, y: IN[i].y, duration: 0.8, delay: 1.0 + i * 0.2, ease: "power2.inOut" }));
+      } else place(c, IN[i], true);
+    });
+    // step 2: the bank lives in an Agent Runtime; generation is asynchronous (spinner)
+    show(R.rt, n >= 2, a(2));
+    gsap.set(R.ring, { opacity: n === 2 ? 1 : 0 });
+    gsap.set(R.ready, { opacity: n >= 3 ? 1 : 0 });
+    gsap.killTweensOf(R.arc);
+    gsap.set(R.arc, { rotation: 0, svgOrigin: "776 20" });
+    if (n === 2) loop = gsap.to(R.arc, { rotation: 360, svgOrigin: "776 20", duration: 1.1, ease: "none", repeat: -1 });
+    // step 3: day2; preload_memory pulls the facts into the system context, then the model fires
+    show(R.u2, n >= 3, a(3), 0); show(R.w0, n >= 3, a(3), 0.1); show(R.slot, n >= 3, a(3), 0.15);
+    drawPath(R.pl, n >= 3, a(3), 0.3); show(R.pll, n >= 3, a(3), 0.3);
+    R.pre.forEach((c, i) => {
+      if (n < 3) { place(c, SLOT[i], false); return; }
+      if (a(3)) {
+        gsap.set(c, { x: IN[i].x, y: IN[i].y, opacity: 0 });
+        tw.push(gsap.to(c, { opacity: 1, duration: 0.2, delay: 0.6 + i * 0.15 }));
+        tw.push(gsap.to(c, { x: SLOT[i].x, y: SLOT[i].y, duration: 0.9, delay: 0.65 + i * 0.15, ease: "power2.inOut" }));
+      } else place(c, SLOT[i], true);
+    });
+    show(R.w3, n >= 3, a(3), 1.7); show(R.m2, n >= 3, a(3), 1.8, { scale: 0.9 });
+    if (a(3)) tw.push(gsap.fromTo(R.m2, { scale: 1 }, { scale: 1.08, svgOrigin: "395 182", duration: 0.18, yoyo: true, repeat: 3, delay: 2.2 }));
+    show(R.w4, n >= 3, a(3), 2.6); show(R.a2, n >= 3, a(3), 2.7);
+    // step 4: scope key and erase
+    show(R.scope, n >= 4, a(4)); show(R.del, n >= 4, a(4), 0.2);
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) {
+      clear();
+      if (slide) gsap.killTweensOf(slide.querySelectorAll("#mb-svg *"));
+    },
+  });
+})();
+</script>

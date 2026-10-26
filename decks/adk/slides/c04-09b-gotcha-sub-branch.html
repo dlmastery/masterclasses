@@ -1,0 +1,112 @@
+<section class="slide tight" id="adk-c04-gotcha-sub-branch" data-tone="risk" data-title="Gotcha: use_sub_branch">
+  <style>
+    #adk-c04-gotcha-sub-branch .gs-grid { display: grid; grid-template-columns: 760px 1fr; gap: 28px; align-items: start; }
+    #adk-c04-gotcha-sub-branch .gs-col { display: flex; flex-direction: column; gap: 22px; }
+    #adk-c04-gotcha-sub-branch .gotcha { font-size: 19px; line-height: 1.45; padding: 20px 22px; gap: 12px 16px; }
+    #adk-c04-gotcha-sub-branch .gotcha > b { font-size: 14px; }
+    #adk-c04-gotcha-sub-branch pre.code { font-size: 17px; }
+    #adk-c04-gotcha-sub-branch .cap { position: relative; height: 64px; }
+    #adk-c04-gotcha-sub-branch .cap > p { position: absolute; left: 0; right: 0; top: 0; margin: 0; font-size: 21px; line-height: 1.4; color: var(--ink-2); }
+    #adk-c04-gotcha-sub-branch .cap code { font-size: .9em; }
+    #adk-c04-gotcha-sub-branch .cites .cite { font-size: 14px; }
+    #adk-c04-gotcha-sub-branch svg text { font-family: var(--f-mono); }
+    #adk-c04-gotcha-sub-branch .gs-h { font-size: 17px; font-weight: 700; fill: var(--ink); }
+    #adk-c04-gotcha-sub-branch .gs-h.bad { fill: var(--risk); }
+    #adk-c04-gotcha-sub-branch .gs-h.good { fill: var(--state); }
+    #adk-c04-gotcha-sub-branch .gs-w text { font-size: 16px; font-weight: 800; fill: #fff; }
+    #adk-c04-gotcha-sub-branch .gs-lane { fill: var(--surface-2); stroke: var(--line-2); stroke-width: 1.5; }
+    #adk-c04-gotcha-sub-branch .gs-lane.bad { stroke: var(--risk); stroke-width: 2.5; }
+    #adk-c04-gotcha-sub-branch .gs-div { stroke: var(--line); stroke-width: 1.5; stroke-dasharray: 5 6; }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> Dynamic graphs · 2 of 3</div>
+  <h2 class="title">Parallel workers need use_sub_branch=True, or they read each other</h2>
+  <div class="gs-grid fill">
+    <div class="gs-col">
+      <div class="gotcha">
+        <b>Symptom</b><span>Garbled events. The hotel auditor's context holds the dinner auditor's output.</span>
+        <b class="why">Cause</b><span><code>use_sub_branch</code> was left <code>False</code>. Before 2.12, a shared-event-list bug did the same (#7488).</span>
+        <b class="fix">Fix</b><span><code>use_sub_branch=True</code> on every gathered call, and <code>google-adk&gt;=2.12</code>.</span>
+      </div>
+      <div class="code-wrap good">
+        <div class="code-head">expense_audit/agent.py · orchestrate, excerpt</div>
+        <pre class="code" data-lang="python" data-focus="2:3-3, 3:4-4, 4:6-6"><code>raw = await asyncio.gather(*[
+    ctx.run_node(auditor, node_input=l,
+                 use_sub_branch=True,   # one branch per worker
+                 run_id=f"line-{i}")    # not run_id="1"
+    for i, l in enumerate(lines)])
+yield Event(output=raw)                 # not: return raw</code></pre>
+      </div>
+    </div>
+    <div class="gs-col">
+      <svg id="gs-svg" viewBox="0 0 604 440" width="604" height="440" aria-label="Without sub-branches, three workers write into one shared event list and the events interleave. With use_sub_branch=True each worker writes only to its own list.">
+        <text class="gs-h bad" x="0" y="20">one shared branch</text>
+        <g id="gs-top"></g>
+        <line class="gs-div" x1="0" y1="214" x2="604" y2="214"/>
+        <text class="gs-h good" x="0" y="252">use_sub_branch=True</text>
+        <g id="gs-bot"></g>
+      </svg>
+      <div class="cap">
+        <p data-until="1">Three auditors run at the same time, one per expense line.</p>
+        <p data-step="1" data-until="2">One shared branch: every worker sees every event.</p>
+        <p data-step="2" data-until="3">One branch per worker: each sees only its own events.</p>
+        <p data-step="3" data-until="4">A custom <code>run_id</code> needs a letter. "1" collides with auto ids.</p>
+        <p data-step="4">A generator node must yield its output. <code>return</code> does not work.</p>
+      </div>
+      <div class="cites">
+        <a class="cite repo" href="https://github.com/google/adk-python/issues/7488" target="_blank" rel="noopener"><b>Repo</b>&nbsp;adk-python #7488</a>
+        <a class="cite doc" href="https://adk.dev/graphs/dynamic/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;adk.dev/graphs/dynamic</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">The second bug: set use_sub_branch=True on every gathered ctx.run_node call so that each auditor sees only its own events. The docs call it "critical for parallel isolation". Without it the three auditors share one branch, so the hotel auditor's context can hold the dinner auditor's output, and the events look garbled. Before 2.12 a shared-event-list bug (issue 7488) leaked one worker's output into another even with the flag, so upgrade as well. The top half of the animation is the shared branch: three workers' events interleave in one list. The bottom half is one branch per worker. Two smaller rules sit in the same lines of code: a custom run_id must contain a non-numeric character, so use f"line-{i}" and not "1", because numeric ids collide with the ids ADK generates; and in a generator node, return value is a SyntaxError in an async generator and is silently discarded in a sync one, so always yield Event(output=...). Analogy: three adjusters sharing one notepad will copy each other's numbers. A likely question: "Does a static fan-out tuple need this?" No, static branches are already separate; it is for runs you start yourself.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c04-gotcha-sub-branch";
+  const NS = "http://www.w3.org/2000/svg";
+  const TONES = ["agent", "tool", "human"];
+  const MIX = [0, 1, 0, 2, 1, 2, 0, 1, 2, 0, 2, 1];      // interleaved order on the shared list
+  const CW = 34, GAP = 6, X0 = 90;
+  let tl = null;
+  const mk = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); parent.appendChild(e); return e; };
+  function worker(g, x, y, i) {
+    const w = mk("g", { class: "gs-w" }, g);
+    mk("circle", { cx: x, cy: y, r: 20, style: `fill:var(--${TONES[i]})` }, w);
+    mk("text", { x, y: y + 6, "text-anchor": "middle" }, w).textContent = "W" + (i + 1);
+  }
+  function build(slide) {
+    const top = slide.querySelector("#gs-top"), bot = slide.querySelector("#gs-bot");
+    if (top.childNodes.length) return;
+    [0, 1, 2].forEach((i) => worker(top, 22, 64 + i * 50, i));
+    mk("rect", { class: "gs-lane bad", x: X0 - 8, y: 92, width: 604 - X0 + 8, height: 60, rx: 12 }, top);
+    MIX.forEach((w, k) => mk("rect", { class: "gs-c", x: X0 + k * (CW + GAP), y: 104, width: CW, height: 36, rx: 7, style: `fill:var(--${TONES[w]})` }, top));
+    [0, 1, 2].forEach((i) => {
+      const y = 276 + i * 54;
+      worker(bot, 22, y + 22, i);
+      mk("rect", { class: "gs-lane", x: X0 - 8, y, width: 604 - X0 + 8, height: 44, rx: 10 }, bot);
+      for (let k = 0; k < 4; k++) mk("rect", { class: "gs-c", x: X0 + k * (CW + GAP), y: y + 6, width: CW, height: 32, rx: 7, style: `fill:var(--${TONES[i]})` }, bot);
+    });
+  }
+  function stop() { if (tl) { tl.kill(); tl = null; } }
+  function render(slide, n, animate) {
+    stop();
+    build(slide);
+    const tc = [...slide.querySelectorAll("#gs-top .gs-c")], bc = [...slide.querySelectorAll("#gs-bot .gs-c")];
+    gsap.killTweensOf([...tc, ...bc]);
+    gsap.set(tc, { opacity: n >= 1 ? 1 : 0, y: 0 });
+    gsap.set(bc, { opacity: n >= 2 ? 1 : 0, y: 0 });
+    gsap.set(slide.querySelector("#gs-bot"), { opacity: n >= 2 ? 1 : 0.25 });
+    if (!animate) return;
+    if (n === 1) tl = gsap.timeline().fromTo(tc, { opacity: 0, y: -40 }, { opacity: 1, y: 0, duration: 0.3, stagger: 0.16, ease: "power2.out" });
+    if (n === 2) {
+      gsap.set(bc, { opacity: 0 });
+      tl = gsap.timeline().fromTo(bc, { opacity: 0, x: -20 }, { opacity: 1, x: 0, duration: 0.3, stagger: { each: 0.12, grid: [3, 4], from: "start" }, ease: "power2.out" });
+    }
+  }
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { stop(); }
+  });
+})();
+</script>

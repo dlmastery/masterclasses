@@ -1,0 +1,39 @@
+<section class="slide tight" id="adk-c04-practices-bound" data-tone="agent" data-title="Practices: bound the shape">
+  <style>
+    #adk-c04-practices-bound .pb-grid { display: grid; grid-template-columns: 1fr 740px; gap: 40px; align-items: start; }
+    #adk-c04-practices-bound ul.checks { gap: 26px; }
+    #adk-c04-practices-bound ul.checks li { font-size: 24px; line-height: 1.4; grid-template-columns: 34px 1fr; gap: 16px; }
+    #adk-c04-practices-bound ul.checks li::before { width: 32px; height: 32px; font-size: 18px; border-radius: 9px; }
+    #adk-c04-practices-bound ul.checks code { font-size: .86em; }
+    #adk-c04-practices-bound pre.code { font-size: 18px; }
+  </style>
+  <div class="kicker">Best practices · Acme back office · 2 of 3</div>
+  <h2 class="title">Bound the shape: every loop and fan-out gets a hard limit</h2>
+  <div class="pb-grid fill">
+    <ul class="checks">
+      <li data-step="1">Fan out only independent checks. Each one reads the original claim.</li>
+      <li data-step="2">Give every loop <code>MAX_ROUNDS</code> and an <code>escalate</code> exit.</li>
+      <li data-step="3">Keep the orchestrator thin. Put side effects in child nodes.</li>
+    </ul>
+    <div class="code-wrap" data-step="2">
+      <div class="code-head">labs/adk/c04-copy-review/copy_review/agent.py · excerpt</div>
+      <pre class="code" data-lang="python" data-focus="2:7-8"><code>MAX_ROUNDS = 3
+
+def gate(ctx: Context, node_input: Review):
+  ctx.state["round"] = ctx.state["round"] + 1
+  if node_input.grade == "compliant":
+    yield Event(route="done")
+  elif ctx.state["round"] &gt;= MAX_ROUNDS:
+    yield Event(route="escalate")
+  else:
+    yield Event(state={"feedback": node_input.feedback},
+                route="retry")
+
+root_agent = Workflow(name="copy_review", edges=[
+    ("START", brief, write_copy, review_copy, gate),
+    (gate, {"retry": write_copy, "done": publish,
+            "escalate": escalate})])</code></pre>
+    </div>
+  </div>
+  <aside class="notes">The second rule bounds the shape you picked. Fan out only checks that are independent, and let each branch read the original claim, not a rewrite from another branch; the paper on flat topologies showed why. Give every loop a hard MAX_ROUNDS and a second exit, escalate, so a reviewer that never says compliant ends in a person's queue, not in a runaway bill; the gate on the right is the whole mechanism, and the round count lives in state, so it survives a resume and shows up in evals. Keep the orchestrator thin: it re-runs from the top on every resume, while child nodes started with ctx.run_node are replayed from history, so database writes and emails belong in children. Analogy: every loop is a meeting with a fixed end time and a named person who decides if it runs over. A likely question: "How do I pick MAX_ROUNDS?" Measure rounds-to-compliant on your eval set with the @ counter from the trace, and set the bound a little above what almost every case needs.</aside>
+</section>

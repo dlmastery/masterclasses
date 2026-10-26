@@ -1,0 +1,296 @@
+<section class="slide" id="custom-interview-c03-reward-hacking" data-tone="tool" data-title="Multi-reward hacking: gate it">
+  <style>
+    #custom-interview-c03-reward-hacking .rh-grid { display: grid; grid-template-columns: 1fr 600px; gap: 32px; align-items: start; }
+    #custom-interview-c03-reward-hacking .rh-left { display: grid; gap: 18px; align-content: start; }
+    #custom-interview-c03-reward-hacking .qa { gap: 8px; }
+    #custom-interview-c03-reward-hacking .qa .q { font-size: 22px; }
+    #custom-interview-c03-reward-hacking .qa .a { font-size: 20px; line-height: 1.4; padding: 10px 16px; }
+    #custom-interview-c03-reward-hacking .qa .a code { font-size: .82em; }
+    #custom-interview-c03-reward-hacking .qa .a .code-wrap { margin: 2px 0 8px; }
+    #custom-interview-c03-reward-hacking .qa .a pre.code { font-size: 15.5px; }
+    #custom-interview-c03-reward-hacking .token.comment { color: #aab3e0; }
+    #custom-interview-c03-reward-hacking .gloss { font-size: 17px; line-height: 1.4; color: var(--muted); margin-left: 42px; }
+    #custom-interview-c03-reward-hacking .gloss b { color: var(--ink-2); font-family: var(--f-mono); }
+    #custom-interview-c03-reward-hacking .cites { gap: 8px; flex-wrap: nowrap; }
+    #custom-interview-c03-reward-hacking .cites .cite { display: inline-flex; flex-direction: row; font-size: 15px; padding: 6px 12px 6px 8px; gap: 8px; white-space: nowrap; border-radius: 10px; }
+    #custom-interview-c03-reward-hacking .rh-panel { height: 610px; display: flex; flex-direction: column; gap: 10px; }
+    #custom-interview-c03-reward-hacking .rh-svg text { font: 600 16px var(--f-mono); }
+    #custom-interview-c03-reward-hacking .rh-cell { display: grid; }
+    #custom-interview-c03-reward-hacking .rh-cell > * { grid-area: 1 / 1; }
+    #custom-interview-c03-reward-hacking .rh-cap { font-size: 18px; line-height: 1.4; color: var(--ink-2); }
+  </style>
+  <div class="kicker">Interview · Multi-reward hacking</div>
+  <h2 class="title">Gate the easy reward on correctness, or GRPO games it</h2>
+  <div class="rh-grid fill">
+    <div class="rh-left">
+      <div class="qa">
+        <div class="q">Payout run, correctness + brevity rewards: total reward rises, accuracy falls. Why?</div>
+        <div class="a" data-step="1">Added rewards drift to the easier one. A short wrong answer still earns brevity, so GRPO learns brevity first.</div>
+      </div>
+      <div class="qa">
+        <div class="q">How do you see it in the TRL log?</div>
+        <div class="a" data-step="2">
+          <div class="code-wrap"><pre class="code" data-lang="python"><code>trainer = GRPOTrainer(model="Qwen/Qwen2.5-0.5B-Instruct", args=args,
+    train_dataset=claims_dataset(3000, seed=11),
+    reward_funcs=[accuracy_reward, gated_brevity_reward])
+# logs rewards/accuracy_reward/mean and
+#      rewards/gated_brevity_reward/mean</code></pre></div>
+          Plot each channel. Stop the run when accuracy falls while the total rises.
+        </div>
+      </div>
+      <div class="qa">
+        <div class="q">What is the fix, and what does it buy?</div>
+        <div class="a" data-step="3">Pay brevity only when the answer is correct (TAG). Qwen3-4B pass@4: 0.581 gated vs 0.220 additive.</div>
+        <div class="gloss" data-step="3"><b>TAG</b> = the paper's correctness-gated aggregation. <b>pass@4</b> = at least 1 of 4 samples is correct.</div>
+      </div>
+      <div class="cites">
+        <a class="cite paper" href="https://arxiv.org/abs/2610.21404" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.21404 Multi-Reward Hacking</a>
+        <a class="cite repo" href="https://github.com/huggingface/trl/blob/v1.16.0/trl/trainer/grpo_trainer.py" target="_blank" rel="noopener"><b>Repo</b>&nbsp;trl grpo_trainer.py</a>
+      </div>
+    </div>
+
+    <div class="panel k-tool rh-panel">
+      <h4>Training log, payout run</h4>
+      <svg class="rh-svg interactive" id="c03-rh-svg" viewBox="0 0 560 440" width="100%" height="440" aria-label="Reward channels over training steps"></svg>
+      <div class="rh-cell">
+        <p class="rh-cap" data-until="1">Read each channel, not only the total.</p>
+        <p class="rh-cap" data-step="1" data-until="2">Additive run: the total rises while accuracy falls.</p>
+        <p class="rh-cap" data-step="2" data-until="3">The brevity channel carries the whole rise.</p>
+        <p class="rh-cap" data-step="3">Gated run: accuracy rises, answers 44% shorter. Shapes illustrative; end points from the paper.</p>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Ask each question and let the candidate answer before you reveal the model answer. The scenario is the claims-payout GRPO run from the previous slide, now with a second reward for short answers. For question one, push for the mechanism: when two rewards are added, GRPO first optimises the one that is easier to get, and a short wrong answer still earns brevity. For question two, the strong answer names the per-channel metrics: every function in reward_funcs gets its own rewards/name/mean line, and lab 4 adds a TrainerCallback that stops the run when accuracy falls while the total rises. For question three, the fix is to pay brevity only for correct answers. In the Multi-Reward Hacking paper (arXiv 2610.21404, Qwen3-4B), the correctness-gated version, which the paper calls TAG, reached pass@4 0.581 against 0.220 for additive aggregation, with answers 44% shorter. The curve shapes are illustrative; only the end points come from the paper. Analogy: a bonus for finishing early, paid even when the work is wrong, teaches people to finish early. Likely follow-up: "Does normalize_then_sum fix it?" It balances scales, but it does not stop a wrong answer from earning the auxiliary reward, so you still gate.</aside>
+</section>
+<script>
+(() => {
+  const ID = "custom-interview-c03-reward-hacking";
+  const NS = "http://www.w3.org/2000/svg";
+  // plot area x 60..450, y 30..390; end labels at x >= 458
+  const CURVES = [
+    { k: "total", d: "M60,330 C200,300 320,150 450,50", c: "var(--tool)", w: 5, s: 0, lab: "total", ly: 54 },
+    { k: "acc", d: "M60,170 C200,160 320,250 450,330", c: "var(--risk)", w: 5, s: 0, lab: "0.220", ly: 336 },
+    { k: "brev", d: "M60,380 C180,330 300,210 450,150", c: "var(--tool)", w: 3, s: 2, dash: "9 7", lab: "brevity", ly: 156 },
+    { k: "gated", d: "M60,170 C200,150 320,128 450,104", c: "var(--state)", w: 5, s: 3, lab: "0.581", ly: 108 },
+  ];
+  let tweens = [];
+  const mk = (tag, a, p) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); p.appendChild(e); return e; };
+
+  function collapse(slide, n) {
+    slide.querySelectorAll(".rh-left [data-step]").forEach((el) => { el.style.display = n >= +el.dataset.step ? "" : "none"; });
+  }
+  function render(slide, n, animate) {
+    collapse(slide, n);
+    const svg = slide.querySelector("#c03-rh-svg");
+    tweens.forEach((t) => t.kill()); tweens = [];
+    svg.innerHTML = "";
+    mk("line", { x1: 60, y1: 390, x2: 450, y2: 390, stroke: "var(--line-2)", "stroke-width": 2 }, svg);
+    mk("line", { x1: 60, y1: 30, x2: 60, y2: 390, stroke: "var(--line-2)", "stroke-width": 2 }, svg);
+    const xt = mk("text", { x: 450, y: 420, "text-anchor": "end" }, svg); xt.style.fill = "var(--muted)"; xt.textContent = "training steps";
+    // legend rows under the axis: one per visible curve
+    const LEG = [["total reward", "var(--tool)", 0], ["accuracy, additive run", "var(--risk)", 0], ["accuracy, gated run", "var(--state)", 3]];
+    LEG.forEach(([t, c, s], i) => {
+      if (n < s) return;
+      const x = [0, 150, 380][i];
+      mk("rect", { x, y: 430 - 6, width: 18, height: 6, rx: 2, fill: c }, svg);
+      const e = mk("text", { x: x + 24, y: 432 }, svg); e.style.fill = "var(--ink-2)"; e.style.fontSize = "15px"; e.textContent = t;
+    });
+    CURVES.forEach((cv) => {
+      if (n < cv.s) return;
+      const p = mk("path", { d: cv.d, fill: "none", stroke: cv.c, "stroke-width": cv.w, "stroke-linecap": "round" }, svg);
+      if (cv.dash) p.setAttribute("stroke-dasharray", cv.dash);
+      p.style.opacity = n >= 3 && (cv.k === "total" || cv.k === "brev") ? 0.35 : 1;
+      const showLab = cv.k === "total" || cv.k === "brev" || (cv.k === "acc" && n >= 1) || cv.k === "gated";
+      let t = null;
+      if (showLab) { t = mk("text", { x: 458, y: cv.ly }, svg); t.style.fill = cv.c; t.textContent = cv.lab; if (cv.k === "acc" || cv.k === "gated") t.style.fontSize = "20px"; }
+      const fresh = animate && (cv.s === n || (n === 0 && cv.s === 0));
+      if (fresh && !cv.dash) {
+        const L = p.getTotalLength();
+        tweens.push(gsap.fromTo(p, { strokeDasharray: L, strokeDashoffset: L }, { strokeDashoffset: 0, duration: 1.1, ease: "power2.inOut" }));
+      }
+      if (fresh && t) tweens.push(gsap.from(t, { autoAlpha: 0, duration: 0.4, delay: 0.9 }));
+      if (n === 1 && cv.k === "acc" && t && animate) tweens.push(gsap.from(t, { autoAlpha: 0, scale: 0.6, transformOrigin: "0% 50%", duration: 0.5, delay: 0.2 }));
+    });
+    if (n === 1) {   // mark the crossing of total and accuracy
+      const c = mk("circle", { cx: 262, cy: 222, r: 11, fill: "none", stroke: "var(--ink)", "stroke-width": 2.5 }, svg);
+      if (animate) tweens.push(gsap.from(c, { scale: 0, transformOrigin: "50% 50%", duration: 0.5, ease: "back.out(2)", delay: 0.3 }));
+    }
+  }
+  Deck.register(ID, {
+    enter(slide, step) { collapse(slide, step || 0); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { tweens.forEach((t) => t.kill()); tweens = []; }
+  });
+})();
+</script>
+
+<section class="slide" id="custom-interview-c03-dpo-logps" data-tone="state" data-title="DPO: reading logps/chosen">
+  <style>
+    #custom-interview-c03-dpo-logps .dp-grid { display: grid; grid-template-columns: 1fr 600px; gap: 32px; align-items: start; }
+    #custom-interview-c03-dpo-logps .dp-left { display: grid; gap: 18px; align-content: start; }
+    #custom-interview-c03-dpo-logps .qa { gap: 8px; }
+    #custom-interview-c03-dpo-logps .qa .q { font-size: 22px; }
+    #custom-interview-c03-dpo-logps .qa .a { font-size: 20px; line-height: 1.4; padding: 10px 16px; }
+    #custom-interview-c03-dpo-logps .qa .a code { font-size: .82em; }
+    #custom-interview-c03-dpo-logps .gloss { font-size: 17px; line-height: 1.4; color: var(--muted); margin-left: 42px; }
+    #custom-interview-c03-dpo-logps .gloss b { color: var(--ink-2); font-family: var(--f-mono); }
+    #custom-interview-c03-dpo-logps .cites { gap: 8px; flex-wrap: nowrap; }
+    #custom-interview-c03-dpo-logps .cites .cite { display: inline-flex; flex-direction: row; font-size: 15px; padding: 6px 12px 6px 8px; gap: 8px; white-space: nowrap; border-radius: 10px; }
+    #custom-interview-c03-dpo-logps .dp-cell { display: grid; }
+    #custom-interview-c03-dpo-logps .dp-cell > * { grid-area: 1 / 1; align-self: start; }
+    #custom-interview-c03-dpo-logps .pair { display: grid; gap: 12px; }
+    #custom-interview-c03-dpo-logps .pair .msg { padding: 12px 16px; border-radius: 12px; font-size: 19px; line-height: 1.4; color: var(--ink-2); border: 1px solid var(--line-2); background: var(--surface); }
+    #custom-interview-c03-dpo-logps .pair .msg b { display: block; font: 700 14px/1.6 var(--f-mono); text-transform: uppercase; letter-spacing: .05em; }
+    #custom-interview-c03-dpo-logps .pair .cus b { color: var(--human); }
+    #custom-interview-c03-dpo-logps .pair .ch { border-left: 4px solid var(--state); } #custom-interview-c03-dpo-logps .pair .ch b { color: var(--state); }
+    #custom-interview-c03-dpo-logps .pair .rj { border-left: 4px solid var(--risk); } #custom-interview-c03-dpo-logps .pair .rj b { color: var(--risk); }
+    #custom-interview-c03-dpo-logps .dp-svg text { font: 600 16px var(--f-mono); }
+    #custom-interview-c03-dpo-logps .big { font: 700 44px/1 var(--f-mono); color: var(--state); }
+    #custom-interview-c03-dpo-logps .big span { font: 600 18px/1 var(--f-mono); color: var(--muted); margin-left: 10px; }
+    #custom-interview-c03-dpo-logps pre.code { font-size: 17px; }
+    #custom-interview-c03-dpo-logps .token.comment { color: #aab3e0; }
+  </style>
+  <div class="kicker">Interview · DPO</div>
+  <h2 class="title">DPO grows the margin mostly by pushing the rejected reply down</h2>
+  <div class="dp-grid fill">
+    <div class="dp-left">
+      <div class="qa">
+        <div class="q">What does DPO train on, and what does <code>beta</code> set?</div>
+        <div class="a" data-step="1">Pairs: one prompt, a chosen and a rejected reply. No reward model, no sampling. <code>beta</code> is the KL strength: higher stays closer to the start model.</div>
+      </div>
+      <div class="qa">
+        <div class="q">Support-reply DPO: <code>logps/chosen</code> falls. Is it a bug?</div>
+        <div class="a" data-step="2">Not necessarily. The margin grows mostly because the rejected reply falls. Watch <code>rewards/margins</code> and an eval on real tickets.</div>
+      </div>
+      <div class="qa">
+        <div class="q">When is the fall a problem, and what do you change?</div>
+        <div class="a" data-step="3">When <code>logps/chosen</code> keeps falling and eval quality drops. Raise the SFT weight or <code>beta</code>.</div>
+      </div>
+      <div class="gloss"><b>on-brand</b> = the support team's approved tone: empathetic, specific, takes action.</div>
+      <div class="cites">
+        <a class="cite repo" href="https://github.com/huggingface/trl/blob/v1.16.0/trl/trainer/dpo_config.py" target="_blank" rel="noopener"><b>Repo</b>&nbsp;trl dpo_config.py</a>
+        <a class="cite repo" href="https://github.com/huggingface/trl/blob/v1.16.0/trl/trainer/dpo_trainer.py" target="_blank" rel="noopener"><b>Repo</b>&nbsp;trl dpo_trainer.py</a>
+      </div>
+    </div>
+
+    <div class="dp-cell">
+      <div class="panel k-state pair" data-until="2">
+        <h4>One preference pair, lab6_dpo_support.py</h4>
+        <div class="msg cus"><b>Customer</b>My package is 5 days late.</div>
+        <div class="msg ch"><b>Chosen · on-brand</b>Sorry about the delay. Your parcel is at the Leeds depot and arrives tomorrow; I added a $5 credit.</div>
+        <div class="msg rj"><b>Rejected · off-brand</b>Shipping delays happen. Please wait.</div>
+        <p class="small" data-step="1">DPO raises chosen relative to rejected, measured against a frozen copy of the start model.</p>
+      </div>
+
+      <div class="panel k-state" data-step="2" data-until="3" style="display:flex;flex-direction:column;gap:12px">
+        <h4>DPO log (illustrative), lab6_dpo_support.py</h4>
+        <div class="big">margin 0 → 1.14<span>rewards/margins</span></div>
+        <svg class="dp-svg" data-step="2" data-until="3" data-fx="draw" viewBox="0 0 560 360" width="100%" height="360">
+          <path d="M60,70 C200,78 330,88 470,104 L470,300 C330,240 200,160 60,110 Z" fill="var(--state-soft)" stroke="none"/>
+          <line x1="60" y1="330" x2="480" y2="330" stroke="var(--line-2)" stroke-width="2"/>
+          <line x1="60" y1="20" x2="60" y2="330" stroke="var(--line-2)" stroke-width="2"/>
+          <path d="M60,70 C200,78 330,88 470,104" fill="none" stroke="var(--state)" stroke-width="5" stroke-linecap="round"/>
+          <path d="M60,110 C200,160 330,240 470,300" fill="none" stroke="var(--risk)" stroke-width="5" stroke-linecap="round"/>
+          <text x="250" y="60" style="fill:var(--state)">logps/chosen −182.4 → −184.5</text>
+          <text x="250" y="300" style="fill:var(--risk)">logps/rejected</text>
+          <text x="300" y="186" style="fill:var(--ink)">margin</text>
+          <text x="480" y="354" text-anchor="end" style="fill:var(--muted)">training steps</text>
+        </svg>
+      </div>
+
+      <div class="stack" data-step="3" style="gap:14px">
+        <div class="code-wrap">
+          <div class="code-head">lab6_dpo_support.py · trl 1.16.0</div>
+          <pre class="code" data-lang="python" data-focus="3:4-6"><code>from trl import DPOConfig
+
+args = DPOConfig(output_dir="support-dpo",
+    beta=0.1,                      # KL strength
+    loss_type=["sigmoid", "sft"],  # DPO + NLL on chosen
+    loss_weights=[1.0, 0.2])       # raise 0.2 if chosen falls</code></pre>
+        </div>
+        <div class="gotcha">
+          <b>Symptom</b><span><code>rewards/accuracies</code> near 1.0 within 50 steps on a tiny in-domain set.</span>
+          <b class="why">Cause</b><span>The model memorised the pairs.</span>
+          <b class="fix">Fix</b><span>Check the eval split. Mix in general pairs (UltraFeedback).</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">This slide is the DPO primer the chapter needs before the log question. DPO trains on preference pairs: one prompt, a chosen reply and a rejected reply. Here the chosen reply is on-brand, which means the support team's approved tone: empathetic, specific, and it takes an action. There is no reward model and no sampling; the loss raises the chosen reply relative to the rejected one, measured against a frozen copy of the start model, and beta (0.1 here) sets how far the policy may move from that copy. For question two, the strong answer says that DPO works mostly by suppressing the rejected reply, so rewards/margins grows from 0 to 1.14 while logps/chosen also falls a little, from -182.4 to -184.5 in this illustrative log. For question three, a slow fall is normal; a problem is a fall that continues while eval quality on real tickets drops. Then raise the SFT weight in loss_weights, or raise beta. Analogy: you can win a debate by making the other side look worse, not by making your own case better. Likely follow-up: "Why is rewards/accuracies near 1.0 a warning?" On a tiny in-domain set it means memorisation, so check the eval split.</aside>
+</section>
+<script>
+(() => {
+  const ID = "custom-interview-c03-dpo-logps";
+  function collapse(slide, n) {
+    slide.querySelectorAll(".dp-left [data-step]").forEach((el) => { el.style.display = n >= +el.dataset.step ? "" : "none"; });
+  }
+  Deck.register(ID, {
+    enter(slide, step) { collapse(slide, step || 0); },
+    step(slide, n) { collapse(slide, n); },
+    leave() {}
+  });
+})();
+</script>
+
+<section class="slide" id="custom-interview-c03-coding-defenses" data-tone="risk" data-title="Harden coding-RL graders">
+  <style>
+    #custom-interview-c03-coding-defenses .cd-grid { display: grid; grid-template-columns: 1fr 700px; gap: 32px; align-items: start; }
+    #custom-interview-c03-coding-defenses .cd-left { display: grid; gap: 18px; align-content: start; }
+    #custom-interview-c03-coding-defenses .qa { gap: 8px; }
+    #custom-interview-c03-coding-defenses .qa .q { font-size: 22px; }
+    #custom-interview-c03-coding-defenses .qa .a { font-size: 20px; line-height: 1.4; padding: 10px 16px; }
+    #custom-interview-c03-coding-defenses .gloss { font-size: 17px; line-height: 1.4; color: var(--muted); margin-left: 42px; }
+    #custom-interview-c03-coding-defenses .gloss b { color: var(--ink-2); font-family: var(--f-mono); }
+    #custom-interview-c03-coding-defenses .cites { gap: 8px; flex-wrap: wrap; }
+    #custom-interview-c03-coding-defenses .cites .cite { display: inline-flex; flex-direction: row; font-size: 15px; padding: 6px 12px 6px 8px; gap: 8px; white-space: nowrap; border-radius: 10px; }
+    #custom-interview-c03-coding-defenses .node { width: 190px; }
+  </style>
+  <div class="kicker">Interview · Agentic coding RL</div>
+  <h2 class="title">Harden the grader before the coding policy learns to beat it</h2>
+  <div class="cd-grid fill">
+    <div class="cd-left">
+      <div class="qa">
+        <div class="q">The policy passes the tests but breaks the task requirements. How do you catch it?</div>
+        <div class="a" data-step="1">Add hidden requirement tests the policy never sees. TestJack: about 34.4% of "correct" trials broke a requirement.</div>
+      </div>
+      <div class="qa">
+        <div class="q">The policy can reach the test files. What do you change?</div>
+        <div class="a" data-step="2">Mount tests and graders read-only in the sandbox. Before training, have people try to beat the grader (Cognition).</div>
+      </div>
+      <div class="qa">
+        <div class="q">How often do you audit a learned reward?</div>
+        <div class="a" data-step="3">Often and mildly: score a small gold-labelled sample at every eval step. Stop when the gold and proxy rewards split.</div>
+        <div class="gloss" data-step="3"><b>rent</b> = reward gained by gaming the grader, not by solving the task. RL turned 41-66% of proxy gain into rent.</div>
+      </div>
+      <div class="cites">
+        <a class="cite paper" href="https://arxiv.org/abs/2610.10619" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.10619 TestJack</a>
+        <a class="cite doc" href="https://cognition.com/blog/swe-1-5" target="_blank" rel="noopener"><b>Blog</b>&nbsp;Cognition SWE-1.5</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2610.19832" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.19832 Rent-Seeking LMs</a>
+      </div>
+    </div>
+
+    <div class="diagram" style="width:700px;height:560px"
+         data-wires="policy>grader:flow [patch]; grader>reward:flow; policy>hidden@1:flow [patch]; hidden>reward@1:flow [requirements]; audit>reward@3:dash:tb {human} [gold vs proxy]">
+      <div class="group g-tool" style="left:236px;top:20px;width:250px;height:450px" data-step="2"><span class="gl">sandbox · tests read-only</span></div>
+      <div class="node n-model" id="policy" style="left:0;top:210px"><span class="nt">Policy</span><span class="ns">coding agent</span></div>
+      <div class="node n-tool" id="grader" style="left:266px;top:80px" data-on="2:hot"><span class="nt">Visible tests</span><span class="ns">the policy can read</span></div>
+      <div class="node n-state" id="hidden" style="left:266px;top:340px" data-step="1" data-fx="pop"><span class="nt">Hidden tests</span><span class="ns">requirement checks</span></div>
+      <div class="node n-tool" id="reward" style="left:510px;top:210px"><span class="nt">Reward</span><span class="ns">proxy score</span></div>
+      <div class="node n-human" id="audit" style="left:510px;top:440px" data-step="3" data-fx="pop"><span class="nt">Gold audit</span><span class="ns">every eval step</span></div>
+    </div>
+  </div>
+  <aside class="notes">This slide moves the reward-hacking question to agentic coding, which the whiteboard builds next. Look for layers, not one trick. Question one: tests the policy can see become a target, so keep hidden requirement tests. TestJack (arXiv 2610.10619) found that about 34.4% of coding trials judged correct broke a task requirement, and resolution fell from 50.6% to 33.2% once requirement tests ran. Question two: the policy must not be able to edit what scores it, so mount tests and graders read-only in the sandbox; Cognition also has people try to beat the graders before training. Question three: "rent" is reward gained by gaming the grader rather than by solving the task; the Rent-Seeking paper (arXiv 2610.19832) found RL turned 41 to 66% of the proxy-reward gain into rent, and that frequent mild audits beat rare severe ones. So score a small gold-labelled sample at every eval step and stop when gold and proxy split. Analogy: a student who learns the marker's habits gets a higher mark without better answers. Likely follow-up: "What about broken tool calls?" That hack appears on the next slide, in Cursor's live loop.</aside>
+</section>
+<script>
+(() => {
+  const ID = "custom-interview-c03-coding-defenses";
+  function collapse(slide, n) {
+    slide.querySelectorAll(".cd-left [data-step]").forEach((el) => { el.style.display = n >= +el.dataset.step ? "" : "none"; });
+  }
+  Deck.register(ID, {
+    enter(slide, step) { collapse(slide, step || 0); },
+    step(slide, n) { collapse(slide, n); },
+    leave() {}
+  });
+})();
+</script>

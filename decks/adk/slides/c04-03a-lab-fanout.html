@@ -1,0 +1,62 @@
+<section class="slide tight" id="adk-c04-lab-fanout" data-tone="agent" data-title="Lab 4.1: fan-out + JoinNode">
+  <style>
+    #adk-c04-lab-fanout .lab-head { gap: 14px; flex-wrap: nowrap; font-size: 17px; }
+    #adk-c04-lab-fanout .lab-head .pins { font: 500 16px/1.3 var(--f-mono); color: var(--ink-2); white-space: nowrap; }
+    #adk-c04-lab-fanout .lab-head .pins b { color: var(--state); }
+    #adk-c04-lab-fanout .lab-head .cite { margin-left: auto; font-size: 14px; white-space: nowrap; }
+    #adk-c04-lab-fanout .fo-grid { display: grid; grid-template-columns: 700px 1fr; gap: 28px; align-items: start; }
+    #adk-c04-lab-fanout .fo-left { display: flex; flex-direction: column; gap: 22px; }
+    #adk-c04-lab-fanout pre.code { font-size: 17px; }
+    #adk-c04-lab-fanout .cap { position: relative; height: 64px; }
+    #adk-c04-lab-fanout .cap > p { position: absolute; left: 0; right: 0; top: 0; margin: 0; font-size: 21px; line-height: 1.4; color: var(--ink-2); }
+    #adk-c04-lab-fanout .cap code { font-size: .9em; }
+    #adk-c04-lab-fanout .fo-diag .node { padding: 12px 14px; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 4</span> Acme back office · step 1 of 8</div>
+  <h2 class="title">Three claim checks fan out in parallel, and a JoinNode waits for all</h2>
+  <div class="lab-head">
+    <span class="run">pip install "google-adk==2.13.0"</span>
+    <span class="pins">claim_checks/ = __init__.py + agent.py · <b>no .env</b>, no LLM</span>
+    <a class="cite codelab" href="https://codelabs.developers.google.com/adk2/instructions" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;ADK 2 Orchestration · L2a</a>
+  </div>
+  <div class="fo-grid fill">
+    <div class="fo-left">
+      <div class="code-wrap">
+        <div class="code-head">labs/adk/c04-claim-checks/claim_checks/agent.py · excerpt</div>
+        <pre class="code" data-lang="python" data-focus="1:1-3, 2:13-13, 3:7-7, 4:11-11"><code>async def policy_check(node_input: dict) -&gt; dict:
+  await asyncio.sleep(0.3)        # stands in for the policy DB
+  return POLICIES.get(node_input["policy_id"], INACTIVE)
+
+# fraud_score (0.5 s), damage_estimate (0.2 s): same shape
+
+join_checks = JoinNode(name="join_checks")
+
+root_agent = Workflow(
+    name="claim_checks",
+    max_concurrency=3,            # optional cap
+    edges=[("START", parse_claim,
+            (policy_check, fraud_score, damage_estimate),
+            join_checks, decide)])</code></pre>
+      </div>
+      <div class="cap">
+        <p data-until="1"><code>parse_claim</code> turns "POL-77 rear-end collision 4200" into a dict.</p>
+        <p data-step="1" data-until="2">Each check is <code>async</code>, so the three waits overlap.</p>
+        <p data-step="2" data-until="3">A tuple inside the chain is the fan-out. Each branch gets the same dict.</p>
+        <p data-step="3" data-until="4"><code>JoinNode</code> fires once, after all three branches finish.</p>
+        <p data-step="4"><code>max_concurrency</code> only caps the branches. It does not make them.</p>
+      </div>
+    </div>
+    <div class="diagram fo-diag" style="width:664px;height:560px"
+         data-wires="start>parse:bt; parse>pc@2:bt:flow; parse>fs@2:bt:flow [same dict]; parse>de@2:bt:flow; pc>join@3:bt; fs>join@3:bt; de>join@3:bt; join>decide@3:bt{state}">
+      <div class="group g-agent" style="left:-10px;top:214px;width:684px;height:110px" data-step="4" data-fx="fade"><span class="gl">max_concurrency = 3</span></div>
+      <div class="node n-human pill" id="start" style="left:252px;top:0;width:160px"><span class="nt">START</span></div>
+      <div class="node n-tool" id="parse" style="left:222px;top:100px;width:220px"><span class="nt">parse_claim</span><span class="ns">sync · splits text</span></div>
+      <div class="node n-tool" id="pc" style="left:0;top:234px;width:200px" data-step="1" data-fx="pop"><span class="nt">policy_check</span><span class="ns">async · 0.3 s</span></div>
+      <div class="node n-tool" id="fs" style="left:232px;top:234px;width:200px" data-step="1" data-fx="pop"><span class="nt">fraud_score</span><span class="ns">async · 0.5 s</span></div>
+      <div class="node n-tool" id="de" style="left:464px;top:234px;width:200px" data-step="1" data-fx="pop"><span class="nt">damage_estimate</span><span class="ns">async · 0.2 s</span></div>
+      <div class="node n-agent" id="join" style="left:212px;top:372px;width:240px" data-step="3" data-fx="pop" data-on="3:hot"><span class="nt">join_checks</span><span class="ns">JoinNode · waits for 3</span></div>
+      <div class="node n-state" id="decide" style="left:242px;top:490px;width:180px" data-step="3" data-fx="pop"><span class="nt">decide</span><span class="ns">one verdict</span></div>
+    </div>
+  </div>
+  <aside class="notes">This is step 1 of the Acme back-office lab: one claim, three independent checks, one decision. Make a folder claim_checks with an __init__.py that says "from . import agent" and the agent.py from labs/adk/c04-claim-checks; the file has no model call, so it runs offline with no API key and no .env. Walk the four focus steps: each check is async and sleeps 0.3, 0.5 or 0.2 seconds to stand in for a policy database, a fraud model and an estimator; the tuple inside the edges chain is what makes the fan-out, and every branch gets the same dict from parse_claim; the JoinNode is the barrier that fires once, after all three; max_concurrency=3 is only an optional cap on graph-scheduled nodes ("None or <= 0 means unlimited"), not what creates the branches. Think of the JoinNode as the claims supervisor who signs only when all three reports are on the desk. A likely question: "Can a branch be an LLM agent?" Yes, agents and functions mix freely as fan-out branches; Lab 4 step 4 adds the first LLM nodes. Next: what decide receives from the join.</aside>
+</section>

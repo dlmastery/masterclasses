@@ -1,0 +1,154 @@
+<section class="slide tight" id="adk-c03-lab-sequence" data-tone="agent" data-title="Lab 3.1: a typed chain">
+  <style>
+    #adk-c03-lab-sequence .lab-head { gap: 14px; flex-wrap: nowrap; }
+    #adk-c03-lab-sequence .lab-head .run { font-size: 16px; white-space: nowrap; }
+    #adk-c03-lab-sequence .lab-head .cite { font-size: 14px; margin-left: auto; }
+    #adk-c03-lab-sequence .sq-diag { margin-top: 18px; }
+    #adk-c03-lab-sequence .sq-diag .node { padding: 12px 18px; }
+    #adk-c03-lab-sequence .sq-diag .node .nt { font-size: 21px; }
+    #adk-c03-lab-sequence .sq-diag .node .ns { font-size: 15px; }
+    #adk-c03-lab-sequence .sq-diag .group > .gl { font-size: 15px; }
+    #adk-c03-lab-sequence .sq-ok { position: absolute; top: 18px; width: 28px; height: 28px; margin-left: -14px; border-radius: 50%; display: grid; place-items: center; z-index: 3;
+      font: 700 15px/1 var(--f-mono); color: #fff; background: var(--state); box-shadow: 0 0 0 3px var(--bg); opacity: 0; }
+    #adk-c03-lab-sequence .sq-main { display: grid; grid-template-columns: 900px 1fr; gap: 24px; align-items: start; }
+    #adk-c03-lab-sequence .sq-swap { display: grid; }
+    #adk-c03-lab-sequence .sq-swap > * { grid-area: 1 / 1; }
+    #adk-c03-lab-sequence .sq-main .code-head { padding: 8px 16px; font-size: 14px; }
+    #adk-c03-lab-sequence .sq-main .code-head .cite { margin-left: auto; font-size: 13px; padding: 3px 8px; }
+    #adk-c03-lab-sequence .sq-main pre.code { font-size: 16px; line-height: 1.5; padding: 12px 16px 14px; }
+    #adk-c03-lab-sequence .sq-right { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+    #adk-c03-lab-sequence .sq-right .out pre.code { font-size: 14px; line-height: 1.5; padding: 10px 14px 12px; white-space: pre-wrap; }
+    #adk-c03-lab-sequence .sq-right .out pre.code code { white-space: pre-wrap; }
+    #adk-c03-lab-sequence .sq-right .out .cm { color: #c3c9ee; }
+    #adk-c03-lab-sequence .sq-right .out .hl { color: #7ee2b8; }
+    #adk-c03-lab-sequence .sq-rail > * { font-size: 17px; line-height: 1.38; }
+    #adk-c03-lab-sequence .sq-rail code { font-size: 15px; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 3</span> Acme support desk · step 1 of 4</div>
+  <h2 class="title">A chain tuple wires four nodes and checks typed edges at build time</h2>
+  <div class="lab-head">
+    <span class="run">adk run refund_flow "refund A-1001 arrived broken"</span>
+    <a class="cite doc" href="https://adk.dev/graphs/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;adk.dev Graphs</a>
+    <a class="cite repo" href="https://github.com/google/adk-python/tree/v2.13.0/contributing/samples/workflows/sequence" target="_blank" rel="noopener" style="margin-left:0"><b>Repo</b>&nbsp;samples/workflows/sequence</a>
+  </div>
+  <div class="diagram sq-diag" style="width:1392px;height:112px"
+       data-wires="start>parse@1 [text]; parse>check@2 [A-1001]; check>reply@3 [RefundCase]; reply>audit@4:flow:dash{state} [reply_text]">
+    <div class="group g-agent" style="left:0;top:4px;width:1392px;height:104px" data-step="4" data-fx="fade"><span class="gl">Workflow(name="refund_flow") · the build checks each edge where both ends declare a type</span></div>
+    <div class="node n-human pill" id="start" style="left:30px;top:30px;width:120px"><span class="nt">START</span></div>
+    <div class="node n-tool" id="parse" style="left:245px;top:20px;width:210px" data-step="1" data-fx="pop"><span class="nt">parse_request</span><span class="ns">FunctionNode</span></div>
+    <div class="node n-tool" id="check" style="left:555px;top:20px;width:210px" data-step="2" data-fx="pop"><span class="nt">check_policy</span><span class="ns">FunctionNode</span></div>
+    <div class="node n-model" id="reply" style="left:865px;top:20px;width:200px" data-step="3" data-fx="pop"><span class="nt">write_reply</span><span class="ns">Agent · LLM call</span></div>
+    <div class="node n-tool" id="audit" style="left:1165px;top:20px;width:200px" data-step="4" data-fx="pop"><span class="nt">audit_log</span><span class="ns">FunctionNode</span></div>
+    <span class="sq-ok" style="left:197px">✓</span>
+    <span class="sq-ok" style="left:507px">✓</span>
+    <span class="sq-ok" style="left:815px">✓</span>
+    <span class="sq-ok" style="left:1115px">✓</span>
+  </div>
+  <div class="sq-main fill">
+    <div class="sq-swap">
+      <div class="code-wrap" data-until="2">
+        <div class="code-head">refund_flow/agent.py · part 1 of 4 · parse_request</div>
+        <pre class="code" data-lang="python" data-focus="1:9-12"><code>from google.adk import Agent, Context, Event, Workflow
+from pydantic import BaseModel
+
+ORDERS = {
+  "A-1001": {"amount": 89.00, "days_since_delivery": 12, "category": "electronics"},
+  "A-1002": {"amount": 1450.00, "days_since_delivery": 41, "category": "furniture"},
+}
+
+def parse_request(node_input: str) -&gt; str:
+  """'refund A-1001 arrived broken' -&gt; 'A-1001'."""
+  order_id = next(t for t in node_input.split() if t.upper().startswith("A-")).upper()
+  return order_id</code></pre>
+      </div>
+      <div class="code-wrap" data-step="2" data-until="3">
+        <div class="code-head">refund_flow/agent.py · part 2 of 4 · check_policy</div>
+        <pre class="code" data-lang="python" data-focus="2:10-12"><code>class RefundCase(BaseModel):
+  order_id: str
+  amount: float
+  days_since_delivery: int
+  eligible: bool
+
+def check_policy(ctx: Context, node_input: str) -&gt; RefundCase:
+  order = ORDERS[node_input]
+  eligible = order["days_since_delivery"] &lt;= 30          # 30-day policy
+  ctx.state["refund_case"] = {"order_id": node_input, **order, "eligible": eligible}
+  return RefundCase(order_id=node_input, amount=order["amount"],
+      days_since_delivery=order["days_since_delivery"], eligible=eligible)</code></pre>
+      </div>
+      <div class="code-wrap" data-step="3" data-until="4">
+        <div class="code-head">refund_flow/agent.py · part 3 of 4 · write_reply</div>
+        <pre class="code" data-lang="python" data-focus="3:4-9"><code># {refund_case} reads ctx.state, not the RefundCase on the edge
+write_reply = Agent(
+    name="write_reply",
+    model="gemini-3.5-flash",
+    instruction=("You are a refunds agent. Case: {refund_case}. "
+                 "If eligible is true, confirm the refund amount. Otherwise "
+                 "explain the 30-day policy politely and offer store credit. "
+                 "Max 3 sentences."),
+    output_key="reply_text",
+)</code></pre>
+      </div>
+      <div class="code-wrap" data-step="4">
+        <div class="code-head">refund_flow/agent.py · part 4 of 4 · audit_log and the graph</div>
+        <pre class="code" data-lang="python" data-focus="4:1-3, 5:5-8"><code>def audit_log(reply_text: str):   # bound from ctx.state["reply_text"]
+  yield Event(message=f"[audit] reply length={len(reply_text)} chars. "
+                      "WORKFLOW COMPLETED.")
+
+root_agent = Workflow(
+    name="refund_flow",
+    edges=[("START", parse_request, check_policy, write_reply, audit_log)],
+)</code></pre>
+      </div>
+    </div>
+    <div class="sq-right">
+      <div class="sq-swap">
+        <div class="code-wrap out" data-until="5">
+          <div class="code-head">setup · run it Monday</div>
+          <pre class="code" data-lang="none"><code><span class="hl">pip install "google-adk==2.13.0"</span>   <span class="cm"># Python 3.11+</span>
+refund_flow/
+├── __init__.py   <span class="cm">from . import agent</span>
+├── agent.py      <span class="cm">the 4 parts on the left</span>
+└── .env          <span class="hl">GOOGLE_GENAI_USE_ENTERPRISE=FALSE</span>
+                  <span class="hl">GOOGLE_API_KEY=</span><span class="cm">&lt;AI Studio key&gt;</span>
+<span class="cm"># FALSE = Gemini API key, not Vertex AI
+# run adk from the parent folder of refund_flow/</span></code></pre>
+        </div>
+        <div class="code-wrap out" data-step="5">
+          <div class="code-head">output · illustrative</div>
+          <pre class="code" data-lang="none"><code><span class="hl">$ adk run refund_flow "refund A-1001 arrived broken"</span>
+[write_reply]: Thanks for reaching out about order A-1001. Your refund of $89.00 has been approved and will reach your card in 3–5 business days.
+<span class="hl">[refund_flow]: [audit] reply length=142 chars. WORKFLOW COMPLETED.</span></code></pre>
+        </div>
+      </div>
+      <div class="steps-rail sq-rail">
+        <div data-step="1"><span>A plain function becomes a <code>FunctionNode</code>. Its type hints set the input and output schemas.</span></div>
+        <div data-step="2"><span>The <code>ctx.state</code> write goes into the event's <code>state_delta</code>. The return value goes to the next node.</span></div>
+        <div data-step="3"><span>The prompt reads <code>{refund_case}</code> from state. <code>output_key</code> saves the reply as <code>reply_text</code>.</span></div>
+        <div data-step="4"><span><code>yield Event(message=…)</code> so <code>adk run</code> prints it. A plain <code>return</code> only sets output.</span></div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">This is step 1 of the Acme support desk: a refund ticket goes through four nodes in a fixed order. Step 0 is the setup box: install the pinned version, make the folder with an __init__.py that imports agent, and put the Gemini API key in .env. On Windows, create the empty file in your editor or with New-Item instead of touch. Then press through the nodes; each press shows the code for that node only. A plain Python function becomes a FunctionNode, and its type hints become its schemas. check_policy writes refund_case into ctx.state and also returns a typed RefundCase to the next node. The write_reply prompt reads {refund_case} from state, not the RefundCase on the edge, and stores its answer under output_key reply_text. audit_log gets reply_text by name from state, because parameter binding defaults to state, and it yields an Event with a message so adk run prints it. Think of the chain tuple as an assembly line that checks each part fits before the line starts: the Workflow compares the schemas on every edge where both ends declare a type, when you build it. A likely question: "Why yield an Event instead of return?" A plain return only sets the node output, and adk run prints nothing for output-only events. Next slide: follow the data through this run.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c03-lab-sequence";
+  let tw = [];
+  function clear() { tw.forEach((t) => t.kill()); tw = []; }
+  function render(slide, n, animate) {
+    clear();
+    // step 5: each edge gets a schema check mark, left to right (build-time validation)
+    const oks = slide.querySelectorAll(".sq-ok");
+    if (n >= 5) {
+      if (animate && n === 5) oks.forEach((o, i) => tw.push(gsap.fromTo(o, { opacity: 0, scale: 0.2 }, { opacity: 1, scale: 1, duration: 0.35, delay: 0.2 + i * 0.18, ease: "back.out(3)" })));
+      else gsap.set(oks, { opacity: 1, scale: 1 });
+    } else gsap.set(oks, { opacity: 0, scale: 1 });
+  }
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { clear(); if (slide) gsap.killTweensOf(slide.querySelectorAll(".sq-ok")); },
+  });
+})();
+</script>

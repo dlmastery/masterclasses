@@ -1,0 +1,291 @@
+<section class="slide tight" id="rag-c04-gotcha-rerankers" data-tone="agent" data-title="Gotcha: reranker positions and logits">
+  <style>
+    #rag-c04-gotcha-rerankers .gr-main { display: grid; grid-template-columns: 832px 1fr; gap: 28px; align-items: start; }
+    #rag-c04-gotcha-rerankers .gr-left, #rag-c04-gotcha-rerankers .gr-right { gap: 10px; min-width: 0; }
+    #rag-c04-gotcha-rerankers .gotcha { font-size: 14.6px; line-height: 1.36; padding: 10px 15px; grid-template-columns: 74px 1fr; gap: 3px 10px; }
+    #rag-c04-gotcha-rerankers .gotcha > b { font-size: 12px; }
+    #rag-c04-gotcha-rerankers .gotcha .qt { font-size: 13.4px; color: var(--muted); font-style: italic; }
+    #rag-c04-gotcha-rerankers .code-wrap .code-head { padding: 7px 14px; font-size: 13.5px; }
+    #rag-c04-gotcha-rerankers pre.code.gr-c { font-size: 12.3px; line-height: 1.37; padding: 8px 16px 10px; }
+    #rag-c04-gotcha-rerankers .gr-rail { position: relative; height: 26px; }
+    #rag-c04-gotcha-rerankers .gr-rail > p { position: absolute; left: 0; right: 0; top: 0; margin: 0; font-size: 16px; line-height: 1.4; }
+    #rag-c04-gotcha-rerankers .gr-rail code { font-size: .88em; }
+    #rag-c04-gotcha-rerankers .gr-svg { display: block; overflow: visible; }
+    #rag-c04-gotcha-rerankers .gr-svg text { font-family: var(--f-mono); }
+    #rag-c04-gotcha-rerankers .gr-svg .pn { fill: var(--surface); stroke: var(--line-2); stroke-width: 1; }
+    #rag-c04-gotcha-rerankers .gr-svg .hd { font-size: 12px; font-weight: 700; fill: var(--muted); letter-spacing: .05em; }
+    #rag-c04-gotcha-rerankers .gr-svg .sm { font-size: 11px; fill: var(--ink-2); }
+    #rag-c04-gotcha-rerankers .gr-svg .xs { font-size: 10px; fill: var(--muted); }
+    #rag-c04-gotcha-rerankers .gr-svg .tk rect { fill: var(--surface-2); stroke: var(--line-2); stroke-width: 1.2; }
+    #rag-c04-gotcha-rerankers .gr-svg .tk text { font-size: 12.5px; font-weight: 700; fill: var(--ink); }
+    #rag-c04-gotcha-rerankers .gr-svg .tk.bad rect { fill: var(--risk-soft); stroke: var(--risk); }
+    #rag-c04-gotcha-rerankers .gr-svg .tk.bad text { fill: var(--risk); }
+    #rag-c04-gotcha-rerankers .gr-svg .tk.good rect { fill: var(--state-soft); stroke: var(--state); stroke-width: 1.6; }
+    #rag-c04-gotcha-rerankers .gr-svg .tk.good text { fill: var(--state); }
+    #rag-c04-gotcha-rerankers .gr-svg .arr { stroke: var(--agent); stroke-width: 1.6; fill: none; }
+    #rag-c04-gotcha-rerankers .gr-svg .trk { fill: var(--line); }
+    #rag-c04-gotcha-rerankers .gr-svg .bar { fill: var(--faint); }
+    #rag-c04-gotcha-rerankers .gr-svg .bar.ok { fill: var(--state); }
+    #rag-c04-gotcha-rerankers .gr-svg .flo { stroke: var(--ink-2); stroke-width: 1.5; stroke-dasharray: 2 2; }
+    #rag-c04-gotcha-rerankers .gr-svg .val { font-size: 11px; font-weight: 700; fill: var(--muted); }
+    #rag-c04-gotcha-rerankers .gr-svg .val.ok { fill: var(--state); }
+    #rag-c04-gotcha-rerankers .gr-svg .ax { stroke: var(--ink-2); stroke-width: 1.4; }
+    #rag-c04-gotcha-rerankers .gr-svg .cut { stroke: var(--risk); stroke-width: 2; stroke-dasharray: 4 3; }
+    #rag-c04-gotcha-rerankers .gr-svg .half { stroke: var(--state); stroke-width: 2; }
+    #rag-c04-gotcha-rerankers .gr-svg .dot { fill: var(--faint); }
+    #rag-c04-gotcha-rerankers .gr-svg .dot.g { fill: var(--state); }
+    #rag-c04-gotcha-rerankers .gr-svg .sig { stroke: var(--agent); stroke-width: 2.4; fill: none; }
+    #rag-c04-gotcha-rerankers .gr-svg .con { stroke: var(--agent); stroke-width: 1; fill: none; stroke-dasharray: 3 3; opacity: .7; }
+    #rag-c04-gotcha-rerankers .gr-svg .rt { font-size: 10.5px; font-weight: 700; fill: var(--risk); }
+    #rag-c04-gotcha-rerankers .gr-svg .gt { font-size: 10.5px; font-weight: 700; fill: var(--state); }
+    #rag-c04-gotcha-rerankers .gr-svg .rail { stroke: var(--line-2); stroke-width: 6; stroke-linecap: round; }
+    #rag-c04-gotcha-rerankers .gr-svg .ghost { fill: none; stroke: var(--ink-2); stroke-width: 1.6; stroke-dasharray: 3 2; }
+    #rag-c04-gotcha-rerankers .gr-svg .kn { stroke: #fff; stroke-width: 2; }
+    #rag-c04-gotcha-rerankers .gr-svg .kn.r { fill: var(--risk); }
+    #rag-c04-gotcha-rerankers .gr-svg .kn.g { fill: var(--state); }
+    #rag-c04-gotcha-rerankers .gr-cites { display: flex; gap: 8px; flex-wrap: wrap; }
+    #rag-c04-gotcha-rerankers .gr-cites .cite { font-size: 13px; padding: 5px 10px 5px 8px; white-space: nowrap; }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> Rerankers</div>
+  <h2 class="title">Rerankers return positions and raw logits, not IDs or probabilities</h2>
+  <div class="gr-main fill">
+    <div class="stack gr-left">
+      <div class="code-wrap good">
+        <div class="code-head">northwind_rag/lab5_cross_encoder.py + lab6_api_rerank.py · the three fixes</div>
+        <pre class="code gr-c" data-lang="python" data-focus="1:12-16, 2:8-9, 3:18-20"><code>import cohere, torch
+from sentence_transformers import CrossEncoder
+from kb import TEXT
+from lab3_hybrid import hybrid_search
+
+query = "zipper broke on my pack after 3 years"
+cand_ids = hybrid_search(query)[:20]                     # business ids: 'c09', 'c08', ...
+reranker = CrossEncoder("cross-encoder/ms-marco-MiniLM-L6-v2", max_length=512,
+                        activation_fn=torch.nn.Sigmoid())   # 0-1 scores; default is Identity
+co = cohere.ClientV2()                                   # reads CO_API_KEY
+
+hits = reranker.rank(query, [TEXT[i] for i in cand_ids], top_k=10)
+ranked = [cand_ids[h["corpus_id"]] for h in hits]        # positions -&gt; business ids
+resp = co.rerank(model="rerank-v5.0-pro", query=query,
+                 documents=[TEXT[i] for i in cand_ids], top_n=10)
+ranked = [cand_ids[r.index] for r in resp.results]       # index into YOUR list
+
+store = ...                                              # your langchain_qdrant vector store
+retriever = store.as_retriever(search_type="mmr",        # you want 0.9 relevance:
+                               search_kwargs={"lambda_mult": 1 - 0.9})   # langchain-qdrant inverts it</code></pre>
+      </div>
+      <div class="steps-rail gr-rail">
+        <p data-step="1" data-until="2"><span><code>rank()</code> and <code>rerank()</code> return positions in the list you sent. Map them to IDs.</span></p>
+        <p data-step="2" data-until="3"><span>MiniLM-L6 returns logits. Add a Sigmoid, then tune any cut-off on labelled data.</span></p>
+        <p data-step="3"><span>langchain-qdrant sends <code>lambda_mult</code> as Qdrant's diversity. Pass <code>1 - 0.9</code>.</span></p>
+      </div>
+      <svg class="gr-svg" id="gr-svg" viewBox="0 0 832 200" width="832" height="200" aria-label="Three panels: integer positions map to chunk ids and the scores recover; a 0.5 cut-off on a logit axis is not 50 percent after a sigmoid; an MMR slider set to 0.9 relevance moves to 0.9 diversity">
+        <g id="gr-p1">
+          <rect class="pn" x="0" y="0" width="268" height="200" rx="12"/>
+          <text class="hd" x="14" y="22">1 · POSITIONS ≠ IDS</text>
+          <text class="xs" x="256" y="22" text-anchor="end">illustrative</text>
+          <g id="gr-c1"></g>
+        </g>
+        <g id="gr-p2">
+          <rect class="pn" x="282" y="0" width="268" height="200" rx="12"/>
+          <text class="hd" x="296" y="22">2 · LOGITS, NOT 0-1</text>
+          <g id="gr-c2"></g>
+        </g>
+        <g id="gr-p3">
+          <rect class="pn" x="564" y="0" width="268" height="200" rx="12"/>
+          <text class="hd" x="578" y="22">3 · MMR λ, INVERTED</text>
+          <g id="gr-c3"></g>
+        </g>
+      </svg>
+    </div>
+    <div class="stack gr-right">
+      <div class="gotcha" data-step="1">
+        <b>Symptom</b><span>After the reranker, every metric drops to near the floor (0.067-0.333).</span>
+        <b class="why">Cause</b><span>The code returned <code>h["corpus_id"]</code>, an int 0-17: a position in the list you sent.</span>
+        <b class="fix">Fix</b><span>Map back: <code>cand_ids[h["corpus_id"]]</code>. Cohere and Voyage <code>r.index</code> work the same way.</span>
+      </div>
+      <div class="gotcha" data-step="2">
+        <b>Symptom</b><span>A cut-off <code>score &gt; 0.5</code> drops most good results.</span>
+        <b class="why">Cause</b><span>The model config sets <code>Identity</code> activation. <code>rank()</code> returns logits, about −11 to +11 (model card: <code>[ 8.607138 -4.320078]</code>).</span>
+        <b class="fix">Fix</b><span>Rank only, or pass <code>activation_fn=torch.nn.Sigmoid()</code>. Tune any "no answer" cut-off on labelled data, per model version.</span>
+        <b class="why">Cohere</b><span class="qt">"It is not accurate to assume a score of 0.9 means the document is 2x more relevant than a document with a score of 0.45."</span>
+      </div>
+      <div class="gotcha" data-step="3">
+        <b>Symptom</b><span>LangChain + Qdrant MMR with <code>lambda_mult=0.9</code> ("mostly relevance") returns mostly diverse, less relevant chunks.</span>
+        <b class="why">Cause</b><span><code>langchain_qdrant</code> passes it as <code>models.Mmr(diversity=...)</code>. Qdrant computes λ = 1 − diversity.</span>
+        <b class="fix">Fix</b><span>Pass <code>1 - desired</code>, or call <code>query_points</code> with <code>models.Mmr</code> yourself.</span>
+      </div>
+      <div class="gr-cites">
+        <a class="cite doc" href="https://huggingface.co/cross-encoder/ms-marco-MiniLM-L6-v2" target="_blank" rel="noopener"><b>Model card</b>&nbsp;ms-marco-MiniLM-L6-v2</a>
+        <a class="cite repo" href="https://github.com/langchain-ai/langchain/issues/39052" target="_blank" rel="noopener"><b>Issue</b>&nbsp;langchain#39052 (open)</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    Three reranker bugs that pass every unit test and only show up in the scorecard. First: CrossEncoder.rank, Cohere and Voyage all return the position in the list you sent, so if you return h["corpus_id"] you hand the evaluator ints 0-17 (the 18 candidates) and every metric falls to near the floor run; map through cand_ids. Second: ms-marco-MiniLM-L6-v2 ships with an Identity activation, so the scores are logits from about -11 to +11, and a 0.5 cut-off on a logit is about 0.62 after a sigmoid, not a 50 percent threshold; pass activation_fn=torch.nn.Sigmoid() if you need 0-1, and tune any "no answer" cut-off on labelled data for each model version, because Cohere itself says a 0.9 is not twice as relevant as a 0.45. Third: langchain-qdrant passes lambda_mult straight into Qdrant's diversity, so 0.9 "mostly relevance" becomes mostly diversity; issue 39052 is still open, so pass 1 minus your value or call query_points with models.Mmr yourself. Analogy: the reranker gives you seat numbers and a raw thermometer reading, not passenger names and a percentage. Likely question: "Is a Cohere 0.9 a probability?" No; it is normalised to 0-1, but it is still a ranking signal. Hand-off: with the code bugs fixed, the next slide asks whether hybrid fusion and reranking help on every query.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "rag-c04-gotcha-rerankers";
+  // pane 1: illustrative positions for q "zipper broke on my pack after 3 years"
+  const POS = [2, 0, 4], IDV = ["c09", "c08", "c06"];
+  const ROWS = [["R@1", 0.067, 0.800], ["R@5", 0.333, 0.933], ["MRR", 0.197, 0.860]];   // floor run vs Lab 5 output (illustrative)
+  const BX = 54, BW = 150;
+  // pane 2: logits printed by Lab 5 (illustrative); the first one is the gold chunk c09
+  const LOG = [6.91, -2.48, -6.10, -9.73, -10.42];
+  const LX = (v) => 314 + ((v + 11) / 22) * 208, PX = (p) => 314 + p * 208;
+  const SIG = (v) => 1 / (1 + Math.exp(-v));
+  const AY = 60, CY0 = 140, CH = 50, BY = 168;
+  // pane 3: MMR slider; position = Qdrant diversity
+  const SX = (d) => 590 + d * 216;
+  let B = null, prev = -1, tweens = [];
+  const el = (tag, attrs, parent, txt) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (txt !== undefined) e.textContent = txt; if (parent) parent.appendChild(e); return e; };
+  const chip = (parent, label, x, y, cls, w) => {
+    const g = el("g", { class: "tk " + (cls || "") }, parent);
+    w = w || 16 + label.length * 8;
+    el("rect", { x, y, width: w, height: 22, rx: 6 }, g);
+    el("text", { x: x + w / 2, y: y + 15.5, "text-anchor": "middle" }, g, label);
+    return g;
+  };
+  function build(slide) {
+    const q = (s) => slide.querySelector(s);
+    const c1 = q("#gr-c1"), c2 = q("#gr-c2"), c3 = q("#gr-c3");
+    c1.innerHTML = c2.innerHTML = c3.innerHTML = "";
+    const b = { p: [q("#gr-p1"), q("#gr-p2"), q("#gr-p3")], c: [c1, c2, c3] };
+    // ---- pane 1
+    el("text", { x: 14, y: 46, class: "xs" }, c1, "rank() gives");
+    el("text", { x: 116, y: 46, class: "xs" }, c1, "cand_ids[i]");
+    b.ints = []; b.arrs = []; b.ids = [];
+    POS.forEach((p, i) => {
+      const y = 50 + i * 25;
+      b.ints.push(chip(c1, String(p), 14, y, "bad", 40));
+      b.arrs.push(el("path", { class: "arr", d: `M 58 ${y + 11} L 110 ${y + 11}` }, c1));
+      b.ids.push(chip(c1, `'${IDV[i]}'`, 116, y, "good", 62));
+    });
+    el("text", { x: 14, y: 138, class: "xs" }, c1, "evaluate(): ints ≈ floor · ids recover");
+    b.bars = []; b.vals = []; b.flo = [];
+    ROWS.forEach(([lab, lo, hi], i) => {
+      const y = 148 + i * 17;
+      el("text", { x: 14, y: y + 9, class: "sm" }, c1, lab);
+      el("rect", { x: BX, y, width: BW, height: 10, rx: 4, class: "trk" }, c1);
+      b.bars.push(el("rect", { x: BX, y, width: 0, height: 10, rx: 4, class: "bar" }, c1));
+      b.flo.push(el("line", { x1: BX + lo * BW, y1: y - 2, x2: BX + lo * BW, y2: y + 12, class: "flo" }, c1));
+      b.vals.push(el("text", { x: BX + BW + 8, y: y + 9, class: "val" }, c1, ""));
+    });
+    // ---- pane 2
+    el("line", { x1: LX(-11), y1: AY, x2: LX(11), y2: AY, class: "ax" }, c2);
+    el("text", { x: LX(-11) - 5, y: AY + 4, class: "xs", "text-anchor": "end" }, c2, "-11");
+    el("text", { x: LX(11) + 5, y: AY + 4, class: "xs" }, c2, "+11");
+    el("text", { x: LX(0), y: AY + 15, class: "xs", "text-anchor": "middle" }, c2, "0");
+    el("text", { x: 296, y: 42, class: "xs" }, c2, "rank() score = logit");
+    b.cut = el("line", { x1: LX(0.5), y1: AY - 14, x2: LX(0.5), y2: AY + 6, class: "cut" }, c2);
+    b.cutT = el("text", { x: LX(0.5) + 5, y: AY - 6, class: "rt" }, c2, "> 0.5 ?");
+    b.up = LOG.map((v, i) => el("circle", { cx: LX(v), cy: AY, r: 4.5, class: "dot" + (i === 0 ? " g" : "") }, c2));
+    let d = "";
+    for (let v = -11; v <= 11.001; v += 0.25) d += (d ? " L " : "M ") + LX(v).toFixed(1) + " " + (CY0 - CH * SIG(v)).toFixed(1);
+    b.sig = el("path", { d, class: "sig" }, c2);
+    b.sigT = el("text", { x: LX(0) + 14, y: CY0 - 6, class: "xs" }, c2, "Sigmoid()");
+    b.con = LOG.map((v) => {
+      const yc = CY0 - CH * SIG(v);
+      return el("path", { d: `M ${LX(v)} ${AY + 5} L ${LX(v)} ${yc} L ${PX(SIG(v))} ${BY - 5}`, class: "con" }, c2);
+    });
+    b.ax2 = el("line", { x1: PX(0), y1: BY, x2: PX(1), y2: BY, class: "ax" }, c2);
+    b.ax2T = [[0, "0"], [0.5, "0.5"], [1, "1"]].map(([p, t]) => el("text", { x: PX(p), y: BY + 14, class: "xs", "text-anchor": "middle" }, c2, t));
+    b.half = el("line", { x1: PX(0.5), y1: BY - 8, x2: PX(0.5), y2: BY + 4, class: "half" }, c2);
+    b.dn = LOG.map((v, i) => el("circle", { cx: PX(SIG(v)), cy: BY, r: 4.5, class: "dot" + (i === 0 ? " g" : "") }, c2));
+    b.note = el("text", { x: 296, y: 194, class: "gt" }, c2, "logit 0.5 → σ 0.62, not 50%");
+    // ---- pane 3
+    el("text", { x: 578, y: 46, class: "xs" }, c3, "← relevance");
+    el("text", { x: 818, y: 46, class: "xs", "text-anchor": "end" }, c3, "diversity →");
+    el("line", { x1: SX(0), y1: 62, x2: SX(1), y2: 62, class: "rail" }, c3);
+    b.ghost = el("circle", { cx: SX(0.1), cy: 62, r: 10, class: "ghost" }, c3);
+    b.k1 = el("circle", { cx: SX(0.1), cy: 62, r: 9, class: "kn r" }, c3);
+    b.r1 = el("text", { x: 578, y: 90, class: "rt" }, c3, "lambda_mult=0.9 → diversity=0.9");
+    b.r2 = el("text", { x: 578, y: 106, class: "rt" }, c3, "λ = 1 − 0.9 = 0.1: mostly diverse");
+    b.t2 = el("line", { x1: SX(0), y1: 136, x2: SX(1), y2: 136, class: "rail" }, c3);
+    b.k2 = el("circle", { cx: SX(0.1), cy: 136, r: 9, class: "kn g" }, c3);
+    b.g1 = el("text", { x: 578, y: 166, class: "gt" }, c3, "lambda_mult = 1 - 0.9 → diversity 0.1");
+    b.g2 = el("text", { x: 578, y: 182, class: "gt" }, c3, "λ = 0.9: mostly relevance ✓");
+    return b;
+  }
+  const kill = () => { tweens.forEach((t) => t.kill()); tweens = []; };
+  // final state of each pane (correct for any step)
+  function final1(on) {
+    gsap.set([...B.ints, ...B.ids], { opacity: on ? 1 : 0, x: 0 });
+    B.arrs.forEach((a) => gsap.set(a, { opacity: on ? 1 : 0, strokeDasharray: 60, strokeDashoffset: on ? 0 : 60 }));
+    ROWS.forEach(([, lo, hi], i) => {
+      gsap.set(B.bars[i], { attr: { width: on ? hi * BW : 0 } });
+      B.bars[i].setAttribute("class", "bar ok");
+      B.vals[i].textContent = on ? hi.toFixed(3) : ""; B.vals[i].setAttribute("class", "val ok");
+      gsap.set(B.flo[i], { opacity: on ? 1 : 0 });
+    });
+  }
+  function final2(on) {
+    gsap.set([...B.up, ...B.dn, B.cut, B.cutT, B.sigT, B.ax2, ...B.ax2T, B.half, B.note], { opacity: on ? 1 : 0, y: 0, scale: 1 });
+    [B.sig, ...B.con].forEach((p) => { const L = p.getTotalLength(); gsap.set(p, { opacity: on ? (p === B.sig ? 1 : 0.7) : 0, strokeDasharray: p === B.sig ? L : "3 3", strokeDashoffset: 0 }); });
+  }
+  function final3(on) {
+    gsap.set(B.k1, { attr: { cx: SX(0.9) } }); gsap.set(B.k2, { attr: { cx: SX(0.1) } });
+    gsap.set([B.ghost, B.k1, B.r1, B.r2, B.t2, B.k2, B.g1, B.g2], { opacity: on ? 1 : 0 });
+  }
+  function anim1() {
+    final1(true);
+    gsap.set([...B.ints, ...B.ids, ...B.arrs, ...B.flo], { opacity: 0 });
+    ROWS.forEach(([, lo], i) => { gsap.set(B.bars[i], { attr: { width: 0 } }); B.bars[i].setAttribute("class", "bar"); B.vals[i].setAttribute("class", "val"); B.vals[i].textContent = ""; });
+    const tl = gsap.timeline();
+    tl.to(B.ints, { opacity: 1, duration: 0.3, stagger: 0.12 });
+    ROWS.forEach(([, lo], i) => tl.to(B.bars[i], { attr: { width: lo * BW }, duration: 0.5, ease: "power2.out", onStart: () => { B.vals[i].textContent = lo.toFixed(3); } }, 0.5 + i * 0.1));
+    tl.to({}, { duration: 0.6 });
+    tl.to(B.arrs, { opacity: 1, strokeDashoffset: 0, duration: 0.45, stagger: 0.12, ease: "power2.out" });
+    tl.fromTo(B.ids, { opacity: 0, x: -8 }, { opacity: 1, x: 0, duration: 0.35, stagger: 0.12, ease: "back.out(2)" }, "-=0.3");
+    tl.to(B.flo, { opacity: 1, duration: 0.2 });
+    ROWS.forEach(([, , hi], i) => tl.to(B.bars[i], { attr: { width: hi * BW }, duration: 0.7, ease: "power3.out", onStart: () => { B.bars[i].setAttribute("class", "bar ok"); B.vals[i].setAttribute("class", "val ok"); B.vals[i].textContent = hi.toFixed(3); } }, i === 0 ? ">" : "<0.08"));
+    return tl;
+  }
+  function anim2() {
+    final2(true);
+    gsap.set([...B.up, ...B.dn, B.cut, B.cutT, B.sigT, B.ax2, ...B.ax2T, B.half, B.note, ...B.con, B.sig], { opacity: 0 });
+    const tl = gsap.timeline();
+    tl.fromTo(B.up, { opacity: 0, y: -10 }, { opacity: 1, y: 0, duration: 0.35, stagger: 0.08, ease: "back.out(2)" });
+    tl.fromTo([B.cut, B.cutT], { opacity: 0, y: -8 }, { opacity: 1, y: 0, duration: 0.35 });
+    tl.to(B.cut, { opacity: 0.3, duration: 0.15, repeat: 3, yoyo: true });
+    const L = B.sig.getTotalLength();
+    tl.fromTo(B.sig, { opacity: 1, strokeDasharray: L, strokeDashoffset: L }, { strokeDashoffset: 0, duration: 0.8, ease: "power1.inOut" });
+    tl.to(B.sigT, { opacity: 1, duration: 0.2 }, "<0.3");
+    tl.to([B.ax2, ...B.ax2T], { opacity: 1, duration: 0.25 });
+    B.con.forEach((p, i) => { const l = p.getTotalLength(); tl.fromTo(p, { opacity: 0.7, strokeDasharray: l, strokeDashoffset: l }, { strokeDashoffset: 0, duration: 0.5, ease: "power2.out", onComplete: () => gsap.set(p, { strokeDasharray: "3 3" }) }, i === 0 ? ">" : "<0.06"); });
+    tl.fromTo(B.dn, { opacity: 0, scale: 0, transformOrigin: "center" }, { opacity: 1, scale: 1, duration: 0.3, stagger: 0.06, ease: "back.out(2)" });
+    tl.to([B.half, B.note], { opacity: 1, duration: 0.35 });
+    return tl;
+  }
+  function anim3() {
+    final3(true);
+    gsap.set([B.r1, B.r2, B.t2, B.k2, B.g1, B.g2], { opacity: 0 });
+    gsap.set(B.k1, { attr: { cx: SX(0.1) } }); gsap.set(B.k2, { attr: { cx: SX(0.9) } });
+    const tl = gsap.timeline();
+    tl.to({}, { duration: 0.4 });
+    tl.to(B.k1, { attr: { cx: SX(0.9) }, duration: 1.0, ease: "power2.inOut" });
+    tl.to([B.r1, B.r2], { opacity: 1, duration: 0.3, stagger: 0.15 });
+    tl.to([B.t2, B.k2], { opacity: 1, duration: 0.3 }, "+=0.3");
+    tl.to(B.k2, { attr: { cx: SX(0.1) }, duration: 0.9, ease: "power2.inOut" });
+    tl.to([B.g1, B.g2], { opacity: 1, duration: 0.3, stagger: 0.15 });
+    return tl;
+  }
+  function render(slide, n, animate) {
+    if (!B) B = build(slide);
+    kill();
+    const fwd = animate && n === prev + 1;
+    B.p.forEach((p, i) => gsap.set(p, { opacity: n >= i + 1 ? 1 : 0.3 }));
+    if (fwd && n === 1) tweens.push(anim1()); else final1(n >= 1);
+    if (fwd && n === 2) tweens.push(anim2()); else final2(n >= 2);
+    if (fwd && n === 3) tweens.push(anim3()); else final3(n >= 3);
+    prev = n;
+  }
+  Deck.register(ID, {
+    enter(slide, step) { prev = -1; B = null; render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { kill(); prev = -1; }
+  });
+})();
+</script>

@@ -1,0 +1,248 @@
+<section class="slide" id="custom-c09-lab8-cleanlab" data-tone="human" data-title="Lab 8: cleanlab label issues">
+  <style>
+    #custom-c09-lab8-cleanlab { gap: 20px; }
+    #custom-c09-lab8-cleanlab .cl-grid { display: grid; grid-template-columns: 680px minmax(0, 1fr); gap: 26px; min-height: 0; }
+    #custom-c09-lab8-cleanlab .cl-left, #custom-c09-lab8-cleanlab .cl-right { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    #custom-c09-lab8-cleanlab .lab-head { font-size: 14px; gap: 10px; }
+    #custom-c09-lab8-cleanlab .lab-head .run { font-size: 14.5px; padding: 7px 11px; }
+    #custom-c09-lab8-cleanlab .code-head { padding: 7px 14px; font-size: 13px; }
+    #custom-c09-lab8-cleanlab .cl-code pre.code { font-size: 11px; line-height: 1.4; padding: 10px 14px 12px; }
+    #custom-c09-lab8-cleanlab .cl-out pre.code { font-size: 9.9px; line-height: 1.45; padding: 8px 12px 10px; }
+    #custom-c09-lab8-cleanlab .steps-rail { gap: 8px; }
+    #custom-c09-lab8-cleanlab .steps-rail > * { font-size: 15px; line-height: 1.34; grid-template-columns: 30px 1fr; gap: 10px; }
+    #custom-c09-lab8-cleanlab .steps-rail > *::before { width: 26px; height: 26px; font-size: 14px; }
+    #custom-c09-lab8-cleanlab .steps-rail code { font-size: .84em; }
+    #custom-c09-lab8-cleanlab .cites { display: flex; gap: 10px; flex-wrap: wrap; margin-top: auto; }
+    #custom-c09-lab8-cleanlab pre.code, #custom-c09-lab8-cleanlab pre.code *, #custom-c09-lab8-cleanlab code, #custom-c09-lab8-cleanlab svg text { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #c09cl-svg text { font-family: var(--f-mono); }
+  </style>
+  <div class="kicker"><span class="pill">Lab 8</span> Acme ticket triage · step 3 of 4</div>
+  <h2 class="title">cleanlab ranks the vendor's wrong labels: review 223, not 3,000</h2>
+  <div class="cl-grid fill">
+    <div class="cl-left">
+      <div class="lab-head"><span class="run">python rank_labels.py</span><span class="small">cleanlab==2.9.0 · scikit-learn==1.9.1 · ~7 s</span></div>
+      <div class="code-wrap cl-code">
+        <div class="code-head">triage/rank_labels.py · tickets.py: make_tickets(n, seed=0)</div>
+        <pre class="code" data-lang="python" data-focus="1:7-14, 2:16-20, 3:22-23, 4:24-24"><code>import numpy as np
+from cleanlab.filter import find_label_issues
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import StratifiedKFold, cross_val_predict
+from sklearn.pipeline import make_pipeline
+from tickets import make_tickets   # classes = sorted(TEMPLATES): 4 support classes
+
+texts, true_y, classes = make_tickets(3_000, seed=1)
+# Simulate a rushed BPO labeling vendor: 8% of labels flipped to a random other class.
+rng = np.random.default_rng(2)
+noisy_y = true_y.copy()
+flip = rng.random(len(true_y)) &lt; 0.08
+noisy_y[flip] = (true_y[flip] + rng.integers(1, len(classes), flip.sum())) % len(classes)
+
+model = make_pipeline(TfidfVectorizer(ngram_range=(1, 2), min_df=2),
+                      LogisticRegression(max_iter=2_000))
+# Out-of-sample probabilities: every row is scored by a model that never saw it.
+pred_probs = cross_val_predict(model, texts, noisy_y, method="predict_proba",
+                               cv=StratifiedKFold(n_splits=5, shuffle=True, random_state=0))
+
+ranked = find_label_issues(labels=noisy_y, pred_probs=pred_probs,
+                           return_indices_ranked_by="self_confidence",
+                           n_jobs=1)   # Windows/macOS + notebooks: avoid spawn hangs
+truly_wrong = set(np.flatnonzero(flip))
+hits = len(truly_wrong &amp; set(ranked))
+print(f"flipped labels: {len(truly_wrong)}   flagged by cleanlab: {len(ranked)}")
+print(f"precision: {hits / len(ranked):.2f}   recall: {hits / len(truly_wrong):.2f}")
+print("\nTop 5 for human review:")
+for i in ranked[:5]:
+    print(f"  #{i:&lt;5} given={classes[noisy_y[i]]:&lt;9} suggested={classes[pred_probs[i].argmax()]:&lt;9}"
+          f" p(given)={pred_probs[i, noisy_y[i]]:.2f}  '{texts[i][:48]}'")</code></pre>
+      </div>
+      <div class="cites">
+        <a class="cite doc" href="https://docs.cleanlab.ai/stable/tutorials/clean_learning/text.html" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Text Classification with Noisy Labels - cleanlab</a>
+      </div>
+    </div>
+    <div class="cl-right">
+      <svg id="c09cl-svg" viewBox="0 0 666 262" width="666" height="262" role="img" aria-label="3,000 tickets as dots in a 4 by 4 grid: rows are the given label, columns the suggested label (billing, login, outage, shipping). Step 1: correct labels fill the diagonal and 225 flipped labels appear off the diagonal in red. Step 2: five fold bands sweep across: each ticket is scored by a model that never saw it. Step 3: cleanlab flags 223 red dots and they move into a ranked review queue; 2 stay behind. Step 4: the top 5 tickets appear as cards with p(given) 0.01 and the reviewer choices fix, keep, ambiguous, drop."></svg>
+      <div class="code-wrap out cl-out" data-step="3">
+        <div class="code-head">output · captured run · synthetic tickets: expect lower on real data</div>
+        <pre class="code" data-lang="none"><code><span class="ok">flipped labels: 225   flagged by cleanlab: 223</span>
+<span class="ok">precision: 1.00   recall: 0.99</span>
+
+Top 5 for human review:
+  #2195  given=outage    suggested=login     p(given)=0.01  'account locked after 417 attempts '
+  #2859  given=outage    suggested=shipping  p(given)=0.01  'package 216 has not arrived yet '
+  #408   given=billing   suggested=login     p(given)=0.01  'account locked after 324 attempts asap'
+  #2060  given=shipping  suggested=login     p(given)=0.01  'account locked after 575 attempts please help'
+  #1962  given=shipping  suggested=login     p(given)=0.01  'account locked after 979 attempts please help'</code></pre>
+      </div>
+      <div class="steps-rail">
+        <div data-step="1"><span>Flip 8%: 225 known errors. Labels are ints in <code>sorted</code> order, so column j of <code>pred_probs</code> is class j.</span></div>
+        <div data-step="2"><span>Out-of-fold <code>pred_probs</code> only. In-sample probabilities memorize the noisy labels.</span></div>
+        <div data-step="3"><span>Ranked indices, worst first, not a mask. Small budget: <code>frac_noise=0.5</code>.</span></div>
+        <div data-step="4"><span><code>n_jobs=1</code>: the default spawns per core and hung on Windows. A review queue, not a delete list.</span></div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">This is step 3 of Lab 8: a vendor labeled 3,000 tickets and about 8 percent of the labels are wrong, so we rank the suspects instead of re-reviewing everything. Step 1 flips 8 percent of labels on purpose, which gives 225 known errors; the labels are integers in sorted class order so that column j of pred_probs means class j. Step 2 is the key line: cross_val_predict gives out-of-sample probabilities, because a model scoring its own training rows has memorized the noisy labels and cleanlab then finds almost nothing. Step 3: find_label_issues with return_indices_ranked_by gives 223 indices sorted worst first, with precision 1.00 and recall 0.99, but only because the synthetic templates separate cleanly, so expect much lower numbers on real tickets. Analogy: a spell checker underlines words; it does not delete them, and a person decides. Likely question: how do I make the list more reliable? Run two model families, for example TF-IDF plus LR and a sentence-embedding model, review the intersection first, and log every reviewer decision as fix, keep, ambiguous or drop, because many ambiguous items mean the taxonomy needs work. Next: with drift checked and labels reviewed, the last step decides which tickets the router may send without a human.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c09-lab8-cleanlab";
+  const CLS = ["billing", "login", "outage", "shipping"];
+  const GX = 74, GY = 34, CW = 82, CH = 50, GAP = 4;            // 4x4 grid cells
+  const cx0 = (c) => GX + c * (CW + GAP), cy0 = (r) => GY + r * (CH + GAP);
+  const N_TOTAL = 3000, N_FLIP = 225, N_FLAG = 223;
+  const MISSED = [41, 172];                                      // 225 - 223 = 2 not flagged
+  const QX = 470, QY = 46, QS = 11.4, QC = 16;                   // queue grid 16 x 14
+  const TOP5 = [
+    { id: "#2195", g: "outage", s: "login", t: "account locked after 417 attempts" },
+    { id: "#2859", g: "outage", s: "shipping", t: "package 216 has not arrived yet" },
+    { id: "#408", g: "billing", s: "login", t: "account locked after 324 attempts asap" },
+    { id: "#2060", g: "shipping", s: "login", t: "account locked after 575 attempts ..." },
+    { id: "#1962", g: "shipping", s: "login", t: "account locked after 979 attempts ..." },
+  ];
+  let S = null;
+
+  function mk(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  }
+
+  // off-diagonal cells in a fixed order; flipped dot k goes to cell OFF[k % 12]
+  const OFF = [];
+  for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) if (r !== c) OFF.push([r, c]);
+
+  function build(slide) {
+    const svg = slide.querySelector("#c09cl-svg");
+    if (svg._S) return svg._S;
+    svg.innerHTML = "";
+    const s = { prev: -1, diag: [], flips: [], bands: [] };
+    s.axis = mk("g", {}, svg);
+    mk("text", { x: GX, y: 14, "font-size": 11.5, "font-weight": 700, fill: "var(--ink)" }, s.axis, "suggested = argmax pred_probs");
+    mk("text", { x: 4, y: 14, "font-size": 11.5, "font-weight": 700, fill: "var(--ink)" }, s.axis, "given");
+    CLS.forEach((c, i) => {
+      mk("text", { x: cx0(i) + CW / 2, y: 28, "text-anchor": "middle", "font-size": 10.5, fill: "var(--muted)" }, s.axis, c);
+      mk("text", { x: GX - 6, y: cy0(i) + CH / 2 + 4, "text-anchor": "end", "font-size": 10.5, fill: "var(--muted)" }, s.axis, c);
+    });
+    for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++)
+      mk("rect", { x: cx0(c), y: cy0(r), width: CW, height: CH, rx: 5, fill: r === c ? "var(--state-soft)" : "var(--surface)", stroke: "var(--line)" }, svg);
+    // correct labels: 2,775 dots spread over the 4 diagonal cells (2.6 px pitch)
+    const nCorrect = N_TOTAL - N_FLIP;
+    for (let d = 0; d < 4; d++) {
+      const g = mk("g", { opacity: 0 }, svg);
+      const cnt = Math.floor(nCorrect / 4) + (d < nCorrect % 4 ? 1 : 0);
+      const cols = 30;
+      for (let k = 0; k < cnt; k++) {
+        const x = cx0(d) + 3 + (k % cols) * 2.62, y = cy0(d) + 3 + Math.floor(k / cols) * 2.0;
+        mk("rect", { x, y, width: 1.6, height: 1.4, fill: "var(--state)" }, g);
+      }
+      s.diag.push(g);
+    }
+    // bands for 5 folds (horizontal stripes over the whole grid)
+    const gh = 4 * CH + 3 * GAP;
+    for (let f = 0; f < 5; f++) {
+      const b = mk("g", { opacity: 0 }, svg);
+      mk("rect", { x: GX - 2, y: GY + f * gh / 5, width: 4 * CW + 3 * GAP + 4, height: gh / 5 - 2, fill: "var(--human)", opacity: 0.16, rx: 3 }, b);
+      mk("text", { x: GX + 4 * CW + 3 * GAP + 8, y: GY + f * gh / 5 + gh / 10 + 4, "font-size": 10.5, fill: "var(--human)" }, b, "fold " + (f + 1));
+      s.bands.push(b);
+    }
+    // flipped labels: 225 red dots, 223 flagged move to the queue in rank order
+    const perCell = {};
+    let q = 0;
+    for (let k = 0; k < N_FLIP; k++) {
+      const [r, c] = OFF[k % 12];
+      const key = r + "-" + c, j = perCell[key] = (perCell[key] || 0) + 1;
+      const gx = cx0(c) + 8 + ((j - 1) % 7) * 11, gy = cy0(r) + 10 + Math.floor((j - 1) / 7) * 14;
+      const flagged = !MISSED.includes(k);
+      let qx = gx, qy = gy, rank = -1;
+      if (flagged) {
+        rank = (k * 37) % N_FLIP; // deterministic rank order
+        q++;
+      }
+      const dot = mk("circle", { cx: gx, cy: gy, r: 3.6, fill: "var(--risk)", opacity: 0 }, svg);
+      s.flips.push({ dot, gx, gy, flagged, rank });
+    }
+    // compact ranks 0..222 for the flagged dots
+    const fl = s.flips.filter((f) => f.flagged).sort((a, b) => a.rank - b.rank);
+    fl.forEach((f, i) => { f.rank = i; f.qx = QX + (i % QC) * QS; f.qy = QY + Math.floor(i / QC) * QS; });
+    // queue frame
+    s.queue = mk("g", { opacity: 0 }, svg);
+    mk("rect", { x: QX - 9, y: QY - 10, width: QC * QS + 8, height: 14 * QS + 8, rx: 8, fill: "none", stroke: "var(--human)", "stroke-width": 1.5, "stroke-dasharray": "5 4" }, s.queue);
+    mk("text", { x: QX - 9, y: QY - 18, "font-size": 11.5, "font-weight": 700, fill: "var(--human)" }, s.queue, "review queue · 223 ranked");
+    mk("text", { x: QX - 9, y: QY + 14 * QS + 14, "font-size": 10.5, fill: "var(--muted)" }, s.queue, "rank 1 = lowest self-confidence");
+    // top-5 cards over the grid
+    s.cards = mk("g", { opacity: 0 }, svg);
+    mk("rect", { x: 0, y: 22, width: 458, height: 236, rx: 10, fill: "var(--bg)", stroke: "var(--line-2)" }, s.cards);
+    mk("text", { x: 12, y: 42, "font-size": 11.5, "font-weight": 700, fill: "var(--human)" }, s.cards, "top 5 for the team lead");
+    s.cardRows = TOP5.map((c, i) => {
+      const g = mk("g", { opacity: 0 }, s.cards), y = 52 + i * 34;
+      mk("rect", { x: 10, y, width: 438, height: 28, rx: 6, fill: "var(--human-soft)" }, g);
+      mk("text", { x: 18, y: y + 12, "font-size": 10.5, "font-weight": 700, fill: "var(--ink)" }, g, c.id);
+      mk("text", { x: 70, y: y + 12, "font-size": 10.5, fill: "var(--risk)" }, g, c.g);
+      mk("text", { x: 130, y: y + 12, "font-size": 10.5, fill: "var(--muted)" }, g, "->");
+      mk("text", { x: 150, y: y + 12, "font-size": 10.5, fill: "var(--state)" }, g, c.s);
+      mk("text", { x: 222, y: y + 12, "font-size": 10.5, "font-weight": 700, fill: "var(--model)" }, g, "p(given)=0.01");
+      mk("text", { x: 18, y: y + 24, "font-size": 10, fill: "var(--ink-2)" }, g, "'" + c.t + "'");
+      return g;
+    });
+    const chips = ["fix", "keep", "ambiguous", "drop"];
+    s.chips = mk("g", { opacity: 0 }, s.cards);
+    let x = 12;
+    mk("text", { x, y: 236, "font-size": 10.5, fill: "var(--muted)" }, s.chips, "log:");
+    x = 46;
+    chips.forEach((c) => {
+      const w = c.length * 7 + 14;
+      mk("rect", { x, y: 224, width: w, height: 18, rx: 9, fill: "none", stroke: "var(--human)" }, s.chips);
+      mk("text", { x: x + w / 2, y: 237, "text-anchor": "middle", "font-size": 10.5, fill: "var(--human)" }, s.chips, c);
+      x += w + 8;
+    });
+    // captions: one per step, same place
+    s.cap = [null,
+      mk("text", { x: GX, y: 258, "font-size": 11.5, "font-weight": 700, fill: "var(--risk)", opacity: 0 }, svg, "225 flipped labels sit off the diagonal"),
+      mk("text", { x: GX, y: 258, "font-size": 11.5, "font-weight": 700, fill: "var(--human)", opacity: 0 }, svg, "5 folds: no ticket scores itself"),
+      mk("text", { x: GX, y: 258, "font-size": 11.5, "font-weight": 700, fill: "var(--state)", opacity: 0 }, svg, "223 flagged · 2 missed (recall 0.99)"),
+    ];
+    svg._S = s;
+    return s;
+  }
+
+  function render(s, n, animate) {
+    const all = [s.axis, ...s.diag, ...s.bands, ...s.flips.map((f) => f.dot), s.queue, s.cards, ...s.cardRows, s.chips, ...s.cap.filter(Boolean)];
+    gsap.killTweensOf(all);
+    const to = (el, v, d, dur) => (animate ? gsap.to(el, { ...v, duration: dur || .45, delay: d || 0 }) : gsap.set(el, v));
+    s.diag.forEach((g, i) => to(g, { opacity: n >= 1 ? (n >= 4 ? 0.25 : 0.9) : 0 }, n >= 1 && s.prev < 1 ? i * 0.12 : 0));
+    s.bands.forEach((b, i) => to(b, { opacity: n === 2 ? 1 : 0 }, n === 2 ? 0.15 + i * 0.22 : 0, .35));
+    s.flips.forEach((f, k) => {
+      const inQ = f.flagged && n >= 3;
+      const op = n >= 1 ? (n >= 4 && !inQ ? 0.25 : 1) : 0;
+      const attr = { cx: inQ ? f.qx : f.gx, cy: inQ ? f.qy : f.gy };
+      const fill = inQ && n >= 4 && f.rank < 5 ? "var(--human)" : "var(--risk)";
+      const stroke = inQ ? "var(--ink)" : "none";
+      if (animate) {
+        const d = n === 1 && s.prev < 1 ? 0.5 + (k % 45) * 0.012 : (n === 3 && s.prev < 3 ? f.rank * 0.005 : 0);
+        gsap.to(f.dot, { attr, opacity: op, fill, stroke, strokeWidth: inQ ? 0.8 : 0, duration: .6, delay: d, ease: "power2.inOut" });
+      } else gsap.set(f.dot, { attr, opacity: op, fill, stroke, strokeWidth: inQ ? 0.8 : 0 });
+    });
+    to(s.axis, { opacity: n >= 4 ? 0 : 1 });
+    to(s.queue, { opacity: n >= 3 ? 1 : 0 });
+    to(s.cards, { opacity: n >= 4 ? 1 : 0 });
+    s.cardRows.forEach((g, i) => to(g, { opacity: n >= 4 ? 1 : 0 }, n >= 4 ? 0.2 + i * 0.12 : 0));
+    to(s.chips, { opacity: n >= 4 ? 1 : 0 }, n >= 4 ? 0.9 : 0);
+    const ci = Math.min(n, 3);
+    s.cap.forEach((c, i) => c && to(c, { opacity: i === ci && n < 4 ? 1 : 0 }, i === ci ? 0.3 : 0));
+    s.prev = n;
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { S = build(slide); S.prev = step; render(S, step, false); },
+    step(slide, n, animate) { S = build(slide); render(S, n, animate); },
+    leave(slide) {
+      const svg = slide.querySelector("#c09cl-svg");
+      if (svg) gsap.killTweensOf(svg.querySelectorAll("*"));
+    }
+  });
+})();
+</script>

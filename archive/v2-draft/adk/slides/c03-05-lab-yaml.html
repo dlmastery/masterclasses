@@ -1,0 +1,197 @@
+<section class="slide tight" id="adk-c03-lab-yaml" data-tone="agent" data-title="Lab 3.4: triage graph in YAML">
+  <style>
+    #adk-c03-lab-yaml .lab-head { gap: 12px; flex-wrap: nowrap; }
+    #adk-c03-lab-yaml .lab-head .run { font-size: 15px; white-space: nowrap; }
+    #adk-c03-lab-yaml .lab-head .pins { font: 500 14px/1.3 var(--f-mono); color: var(--muted); white-space: nowrap; }
+    #adk-c03-lab-yaml .lab-head .cite { margin-left: auto; font-size: 13.5px; }
+    #adk-c03-lab-yaml .yl-top { display: grid; grid-template-columns: 930px 1fr; gap: 28px; align-items: start; flex: none; }
+    #adk-c03-lab-yaml .yl-low { display: grid; grid-template-columns: 482px 400px 1fr; gap: 16px; align-items: start; }
+    #adk-c03-lab-yaml .yl-swap { display: grid; min-width: 0; }
+    #adk-c03-lab-yaml .yl-swap > * { grid-area: 1 / 1; }
+    #adk-c03-lab-yaml .code-wrap .code-head { padding: 7px 14px; font-size: 13.5px; }
+    #adk-c03-lab-yaml .code-head .tg { margin-left: auto; font: 600 12.5px/1 var(--f-mono); color: #9aa3cf; }
+    #adk-c03-lab-yaml .yl-yaml { font-size: 14px; line-height: 1.5; padding: 11px 16px 13px; }
+    #adk-c03-lab-yaml .yl-py { font-size: 13.5px; line-height: 1.45; padding: 10px 14px 12px; }
+    #adk-c03-lab-yaml .steps-rail { gap: 8px; }
+    #adk-c03-lab-yaml .steps-rail > * { font-size: 15px; line-height: 1.34; grid-template-columns: 28px 1fr; gap: 10px; }
+    #adk-c03-lab-yaml .steps-rail > *::before { width: 24px; height: 24px; font-size: 12.5px; border-radius: 7px; }
+    #adk-c03-lab-yaml .steps-rail code { font-size: .86em; }
+    #adk-c03-lab-yaml .out pre.code { font-size: 13.5px; line-height: 1.5; padding: 10px 14px 12px; white-space: pre-wrap; }
+    #adk-c03-lab-yaml .out pre.code code { white-space: pre-wrap; }
+    #adk-c03-lab-yaml .out .cmd { color: #7ee2b8; }
+    #adk-c03-lab-yaml .out .cm { color: #c3c9ee; }
+    /* graph: ghosted at step 0, each node lights up when its YAML line is read */
+    #adk-c03-lab-yaml .diagram .node { padding: 9px 14px; min-width: 0; transition: opacity .45s, box-shadow .45s, transform .45s; }
+    #adk-c03-lab-yaml .diagram .node:not(.on) { opacity: .3; border-style: dashed; }
+    #adk-c03-lab-yaml .diagram .node.on.dim { opacity: .32; }
+    #adk-c03-lab-yaml .diagram .node .nt { font-size: 17px; white-space: nowrap; }
+    #adk-c03-lab-yaml .diagram .node .ns { font-size: 12.5px; white-space: nowrap; }
+    #adk-c03-lab-yaml .node.c3y-flash { box-shadow: 0 0 0 5px color-mix(in oklab, var(--nc, var(--agent)) 35%, transparent), 0 20px 60px -18px var(--nc, var(--agent)); }
+    #adk-c03-lab-yaml .c3y-ov { position: absolute; left: 0; top: 0; width: 0; height: 0; overflow: visible; pointer-events: none; z-index: 20; }
+    #adk-c03-lab-yaml .c3y-chip { position: absolute; left: 0; top: 0; font: 700 13px/1 var(--f-mono); padding: 5px 7px; border-radius: 6px; white-space: nowrap;
+      color: var(--agent); background: color-mix(in oklab, var(--agent) 14%, var(--bg)); border: 1.5px solid var(--agent); }
+    #adk-c03-lab-yaml .c3y-tok { position: absolute; left: 0; top: 0; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%;
+      background: var(--agent); box-shadow: 0 0 0 5px color-mix(in oklab, var(--agent) 25%, transparent), 0 0 18px var(--agent); }
+  </style>
+  <div class="kicker"><span class="pill">Lab 3</span> Acme support desk · step 4 of 4</div>
+  <h2 class="title">The triage graph moves to YAML so PMs and legal can review it</h2>
+  <div class="lab-head">
+    <span class="run">adk run triage_yaml "We were charged twice for October"</span>
+    <span class="pins">google-adk 2.13.0 · triage_yaml/: 3 YAML files + agent.py</span>
+    <a class="cite repo" href="https://github.com/google/adk-python/tree/v2.13.0/contributing/samples/workflows/loop_config" target="_blank" rel="noopener"><b>Repo</b>&nbsp;adapted from workflows/loop_config (YAML loader sample)</a>
+  </div>
+
+  <div class="yl-top">
+    <div class="diagram" id="c3y-graph" style="width:930px;height:212px"
+         data-wires="c3y-start>c3y-intake@1; c3y-intake>c3y-classify@2; c3y-classify>c3y-rt@3; c3y-rt>c3y-billing@4:rl [billing]; c3y-rt>c3y-page@4:rl [outage]; c3y-rt>c3y-human@4:rl [other]">
+      <div class="node n-agent pill" id="c3y-start" style="left:0;top:86px;width:90px" data-on="1:on"><span class="nt">START</span></div>
+      <div class="node n-tool" id="c3y-intake" style="left:150px;top:78px;width:120px" data-on="1:on 5:dim"><span class="nt">intake</span><span class="ns">function</span></div>
+      <div class="node n-model" id="c3y-classify" style="left:330px;top:78px;width:130px" data-on="2:on 5:dim"><span class="nt">classify</span><span class="ns">LlmAgent</span></div>
+      <div class="node n-tool" id="c3y-rt" style="left:520px;top:78px;width:150px" data-on="3:on 5:dim"><span class="nt">route_ticket</span><span class="ns">function</span></div>
+      <div class="node n-agent" id="c3y-billing" style="left:780px;top:0;width:150px" data-on="4:on 5:hot"><span class="nt">billing</span><span class="ns">billing.yaml</span></div>
+      <div class="node n-tool" id="c3y-page" style="left:780px;top:80px;width:150px" data-on="4:on 5:dim"><span class="nt">page_oncall</span><span class="ns">function</span></div>
+      <div class="node n-human" id="c3y-human" style="left:780px;top:160px;width:150px" data-on="4:on 5:dim"><span class="nt">human_queue</span><span class="ns">function</span></div>
+    </div>
+    <div class="yl-swap">
+      <div class="steps-rail" data-until="5">
+        <div data-step="1"><span><code>.agent.intake</code> resolves to <code>triage_yaml.agent.intake</code>, a FunctionNode.</span></div>
+        <div data-step="2"><span><code>classify.yaml</code> is its own agent file. Legal reviews the prompt diff alone.</span></div>
+        <div data-step="3"><span>A bare <code>route_ticket</code> names a node from an earlier edge. If not: <code>ValueError: Unknown node</code>.</span></div>
+        <div data-step="4"><span>One key per <code>Triage.label</code> value, so no label is unmatched. <code>name:</code> imports Python: never build YAML from user input.</span></div>
+      </div>
+      <div class="code-wrap out" data-step="5">
+        <div class="code-head">output · illustrative</div>
+        <pre class="code" data-lang="none"><code><span class="cmd">$ adk run triage_yaml "We were charged twice for October"</span>
+<span class="ok">[billing]</span>: Sorry about the duplicate October charge — I'm pulling up your invoice now …
+<span class="cm"># the same command from inside triage_yaml/:</span>
+<span class="err">ModuleNotFoundError: No module named 'triage_yaml'</span></code></pre>
+      </div>
+    </div>
+  </div>
+
+  <div class="yl-low fill">
+    <div class="code-wrap">
+      <div class="code-head">root_agent.yaml <span class="tg">topology · PR review</span></div>
+      <pre class="code yl-yaml" data-lang="yaml" data-focus="1:4-5, 2:6, 3:7-8, 4:9-11"><code>agent_class: Workflow
+name: root_agent
+edges:
+  - - START
+    - .agent.intake
+    - classify.yaml
+    - .agent.route_ticket
+  - - route_ticket          # bare word: earlier node
+    - billing: billing.yaml
+      outage: .agent.page_oncall
+      other: .agent.human_queue</code></pre>
+    </div>
+    <div class="yl-swap">
+      <div class="code-wrap" data-until="4">
+        <div class="code-head">classify.yaml <span class="tg">prompt · legal review</span></div>
+        <pre class="code yl-yaml" data-lang="yaml" data-focus="2:1-3, 3:7-9"><code>agent_class: LlmAgent
+name: classify
+model: gemini-3.5-flash
+instruction: |
+  Classify this support ticket into
+  exactly one label. Ticket: {ticket}
+output_schema:
+  name: triage_yaml.agent.Triage
+output_key: triage</code></pre>
+      </div>
+      <div class="code-wrap" data-step="4">
+        <div class="code-head">billing.yaml <span class="tg">prompt · legal review</span></div>
+        <pre class="code yl-yaml" data-lang="yaml" data-focus="4:4-6"><code>agent_class: LlmAgent
+name: billing
+model: gemini-3.5-flash
+instruction: |
+  Draft a billing reply for: {ticket}.
+  Mention that we will look up the invoice.</code></pre>
+      </div>
+    </div>
+    <div class="code-wrap">
+      <div class="code-head">agent.py <span class="tg">logic + schema · unit tests</span></div>
+      <pre class="code yl-py" data-lang="python" data-focus="1:7-8, 2:5-6, 3:9-10, 4:11-14"><code># no root_agent: the loader uses root_agent.yaml
+from typing import Literal
+from google.adk import Event
+from pydantic import BaseModel
+class Triage(BaseModel):
+  label: Literal["billing", "outage", "other"]
+def intake(node_input: str):
+  yield Event(state={"ticket": node_input})
+def route_ticket(node_input: Triage):
+  yield Event(route=node_input.label)
+def page_oncall():
+  yield Event(message="PAGED on-call.")
+def human_queue():
+  yield Event(message="Routed to the human L1 queue.")</code></pre>
+    </div>
+  </div>
+  <div class="c3y-ov" aria-hidden="true"></div>
+
+  <aside class="notes">This is the last step of the Acme support desk lab: the triage router from the previous slide, now as reviewable YAML. To keep the YAML short, Triage has one label and three routes, with no how_to branch and no priority rule. The folder holds three YAML files and agent.py: root_agent.yaml for the topology, classify.yaml and billing.yaml for the two prompts. Press through and watch each YAML reference light up its node: START and .agent.intake, then classify.yaml, then .agent.route_ticket, then the three route keys. Every Triage.label value has its own key, including other, so no label can go unmatched. The Python constant DEFAULT_ROUTE is the string "__DEFAULT__", but no official YAML sample uses that key yet, so this lab maps each label explicitly. The function nodes yield their Event, the same as in Python step 3; return Event(...) also works. Think of the YAML as the wiring diagram on the wall and agent.py as the parts bin. Two errors to expect: run from inside the folder and you get ModuleNotFoundError; name route_ticket before an earlier edge defines it and you get "ValueError: Unknown node 'route_ticket'. A node has to be defined by an earlier edge before another edge can name it." A likely question is "can we let users upload YAML?" No: name: references import arbitrary Python objects, so load YAML only from trusted sources. Next: many teams still have 1.x pipelines, so we port one to a Workflow.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c03-lab-yaml";
+  // step -> YAML references that fly from their root_agent.yaml line to the node they create
+  const MAP = {
+    1: [[4, "START", "c3y-start"], [5, ".agent.intake", "c3y-intake"]],
+    2: [[6, "classify.yaml", "c3y-classify"]],
+    3: [[7, ".agent.route_ticket", "c3y-rt"]],
+    4: [[9, "billing", "c3y-billing"], [10, "outage", "c3y-page"], [11, "other", "c3y-human"]],
+  };
+  const PATH = ["c3y-start", "c3y-intake", "c3y-classify", "c3y-rt", "c3y-billing"];
+  let tw = [], extra = [];
+  function clear(slide) {
+    tw.forEach((t) => t.kill()); tw = [];
+    extra.forEach((e) => e.remove()); extra = [];
+    if (slide) slide.querySelectorAll(".c3y-flash").forEach((e) => e.classList.remove("c3y-flash"));
+  }
+  function pos(slide, el) {
+    const s = slide.getBoundingClientRect(), r = el.getBoundingClientRect();
+    const sc = s.width / slide.offsetWidth || 1;
+    return { x: (r.left - s.left) / sc, y: (r.top - s.top) / sc, w: r.width / sc, h: r.height / sc };
+  }
+  function render(slide, n, animate) {
+    clear(slide);
+    const ov = slide.querySelector(".c3y-ov");
+    const pre = slide.querySelector("pre.yl-yaml");
+    if (!ov || !pre) return;
+    (MAP[n] || []).forEach(([, , id]) => slide.querySelector("#" + id).classList.add("c3y-flash"));
+    if (animate && MAP[n]) {
+      const cs = getComputedStyle(pre), lh = parseFloat(cs.lineHeight), pt = parseFloat(cs.paddingTop);
+      const p = pos(slide, pre);
+      MAP[n].forEach(([line, text, id], i) => {
+        const node = slide.querySelector("#" + id);
+        const chip = document.createElement("div");
+        chip.className = "c3y-chip"; chip.textContent = text;
+        ov.appendChild(chip); extra.push(chip);
+        const lead = text === "billing" || text === "outage" || text === "other" ? 6 : 4;
+        const x0 = p.x + 16 + lead * 8.4, y0 = p.y + pt + (line - 1) * lh;
+        const q = pos(slide, node);
+        const x1 = q.x + q.w / 2 - chip.offsetWidth / 2, y1 = q.y + q.h / 2 - chip.offsetHeight / 2;
+        gsap.set(chip, { x: x0, y: y0, opacity: 0, scale: 1.1 });
+        tw.push(gsap.timeline({ delay: 0.15 + i * 0.3 })
+          .to(chip, { opacity: 1, scale: 1, duration: 0.15 })
+          .to(chip, { x: x1, y: y1, duration: 0.7, ease: "power2.inOut" })
+          .to(chip, { opacity: 0, scale: 0.6, duration: 0.2 }));
+      });
+    }
+    // step 5: the ticket runs the graph and takes the billing route
+    if (n >= 5) {
+      const tok = document.createElement("div");
+      tok.className = "c3y-tok"; ov.appendChild(tok); extra.push(tok);
+      const pts = PATH.map((id) => { const q = pos(slide, slide.querySelector("#" + id)); return { x: q.x + q.w / 2, y: q.y + q.h / 2 }; });
+      gsap.set(tok, { x: pts[0].x, y: pts[0].y, opacity: 1 });
+      const tl = gsap.timeline({ repeat: -1, repeatDelay: 0.8, delay: 0.3 });
+      pts.slice(1).forEach((pt) => tl.to(tok, { x: pt.x, y: pt.y, duration: 0.55, ease: "power1.inOut" }).to({}, { duration: 0.15 }));
+      tl.to(tok, { opacity: 0, duration: 0.3 }).set(tok, { x: pts[0].x, y: pts[0].y }).to(tok, { opacity: 1, duration: 0.2 });
+      tw.push(tl);
+    }
+  }
+  Deck.register(ID, {
+    enter(slide, n) { render(slide, n || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { clear(slide); },
+  });
+})();
+</script>

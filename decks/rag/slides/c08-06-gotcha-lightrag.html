@@ -1,0 +1,210 @@
+<section class="slide tight" id="rag-c08-gotcha-lightrag" data-tone="state" data-title="Gotcha: LightRAG Gemini demo">
+  <style>
+    #rag-c08-gotcha-lightrag .gl-main { display: grid; grid-template-columns: 820px 1fr; gap: 26px; align-items: start; }
+    #rag-c08-gotcha-lightrag .gl-left, #rag-c08-gotcha-lightrag .gl-right { gap: 12px; min-width: 0; }
+    #rag-c08-gotcha-lightrag .code-wrap .code-head { padding: 8px 14px; font-size: 13.5px; }
+    #rag-c08-gotcha-lightrag pre.code.gl-c { font-size: 12.1px; line-height: 1.44; padding: 10px 16px 12px; }
+    #rag-c08-gotcha-lightrag .gotcha { font-size: 14px; line-height: 1.36; padding: 10px 14px; grid-template-columns: 70px 1fr; gap: 3px 10px; }
+    #rag-c08-gotcha-lightrag .gotcha > b { font-size: 11.5px; }
+    #rag-c08-gotcha-lightrag .gotcha .gh { grid-column: 1 / -1; font: 700 12.5px/1.3 var(--f-mono); color: var(--ink); letter-spacing: .03em; margin-bottom: 2px; }
+    #rag-c08-gotcha-lightrag .gotcha code { font-size: .84em; }
+    #rag-c08-gotcha-lightrag .gotcha .er { font: 600 11.5px/1.35 var(--f-mono); color: var(--risk); }
+    #rag-c08-gotcha-lightrag .gl-cites { display: flex; flex-wrap: wrap; gap: 8px; }
+    #rag-c08-gotcha-lightrag .gl-cites .cite { font-size: 12.5px; padding: 4px 9px 4px 7px; }
+    #rag-c08-gotcha-lightrag .gl-svg { display: block; overflow: visible; }
+    #rag-c08-gotcha-lightrag .gl-svg text { font-family: var(--f-mono); }
+    #rag-c08-gotcha-lightrag .gl-svg .pn { fill: var(--surface); stroke: var(--line-2); stroke-width: 1; }
+    #rag-c08-gotcha-lightrag .gl-svg .hd { font-size: 11.5px; font-weight: 700; fill: var(--muted); letter-spacing: .04em; }
+    #rag-c08-gotcha-lightrag .gl-svg .sm { font-size: 11px; fill: var(--muted); }
+    #rag-c08-gotcha-lightrag .gl-svg .ch rect { stroke-width: 1.5; }
+    #rag-c08-gotcha-lightrag .gl-svg .ch text { font-size: 11.5px; font-weight: 600; fill: var(--ink); }
+    #rag-c08-gotcha-lightrag .gl-svg .ch.bad rect { fill: var(--risk-soft); stroke: var(--risk); }
+    #rag-c08-gotcha-lightrag .gl-svg .ch.good rect { fill: var(--state-soft); stroke: var(--state); }
+    #rag-c08-gotcha-lightrag .gl-svg .ch.pill rect { fill: var(--agent-soft); stroke: var(--agent); }
+    #rag-c08-gotcha-lightrag .gl-svg .ch.pill text { fill: var(--agent); font-weight: 700; }
+    #rag-c08-gotcha-lightrag .gl-svg .ch.empty rect { fill: none; stroke: var(--risk); stroke-dasharray: 4 3; }
+    #rag-c08-gotcha-lightrag .gl-svg .stamp rect { fill: #fff; stroke: var(--risk); stroke-width: 2.2; }
+    #rag-c08-gotcha-lightrag .gl-svg .stamp text { font-size: 12px; font-weight: 800; fill: var(--risk); letter-spacing: .08em; }
+    #rag-c08-gotcha-lightrag .gl-svg .strike { stroke: var(--risk); stroke-width: 2; }
+    #rag-c08-gotcha-lightrag .gl-svg .err { font-size: 11.5px; font-weight: 700; fill: var(--risk); }
+    #rag-c08-gotcha-lightrag .gl-svg .ok { font-size: 11.5px; font-weight: 700; fill: var(--state); }
+    #rag-c08-gotcha-lightrag .gl-svg .arr { stroke: var(--ink-2); stroke-width: 1.6; fill: none; }
+    #rag-c08-gotcha-lightrag .gl-svg .arr.g { stroke: var(--state); }
+    #rag-c08-gotcha-lightrag .gl-svg .fd path { stroke-width: 1.6; }
+    #rag-c08-gotcha-lightrag .gl-svg .fd.old path { fill: var(--surface-2); stroke: var(--muted); }
+    #rag-c08-gotcha-lightrag .gl-svg .fd.new path { fill: var(--state-soft); stroke: var(--state); }
+    #rag-c08-gotcha-lightrag .gl-svg .fd text { font-size: 10.5px; font-weight: 700; fill: var(--ink); }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> lightrag-hku 1.5.7</div>
+  <h2 class="title">The official LightRAG Gemini demo no longer runs: three fixes</h2>
+  <div class="gl-main fill">
+    <div class="stack gl-left">
+      <div class="code-wrap good">
+        <div class="code-head">harbor_kg/lab7_lightrag_claims.py · part 1, hardened</div>
+        <pre class="code gl-c" data-lang="python" data-focus="1:6-7, 2:9-13, 3:15-17"><code>import os
+import numpy as np
+from lightrag.llm.gemini import gemini_embed
+from lightrag.utils import wrap_embedding_func_with_attrs
+
+MODEL = os.getenv("MODEL", "gemini-3.8-flash")       # demo: gemini-2.0-flash (shut down)
+EMBED, DIM = "gemini-embedding-001", 1536            # demo: models/text-embedding-004
+
+@wrap_embedding_func_with_attrs(embedding_dim=DIM, send_dimensions=True,
+                                max_token_size=2048, model_name=EMBED)
+async def embedding_func(texts: list[str], embedding_dim: int | None = None,
+                         context: str = "document") -&gt; np.ndarray:  # demo: texts only -&gt; TypeError
+    return await gemini_embed.func(texts, model=EMBED, embedding_dim=embedding_dim, context=context)
+
+os.environ.setdefault("GEMINI_API_KEY", os.environ.get("GOOGLE_API_KEY", ""))  # LightRAG reads GEMINI_API_KEY
+WORKING_DIR = f"./claims_kg_{EMBED}_{DIM}"           # new dir per embedder + dim
+os.makedirs(WORKING_DIR, exist_ok=True)</code></pre>
+      </div>
+      <svg class="gl-svg" id="gl-svg" viewBox="0 0 820 214" width="820" height="214" aria-label="Three animations: the demo model gets a shut-down stamp; an embedding_dim argument bounces off a one-slot signature, then enters the fixed one; LightRAG looks for GEMINI_API_KEY, and one working_dir splits into one folder per embedder and dimension"></svg>
+      <div class="gl-cites">
+        <a class="cite repo" href="https://github.com/HKUDS/LightRAG/blob/v1.5.7/examples/lightrag_gemini_demo.py" target="_blank" rel="noopener"><b>Repo</b>&nbsp;HKUDS/LightRAG v1.5.7 · examples/lightrag_gemini_demo.py</a>
+        <a class="cite doc" href="https://ai.google.dev/gemini-api/docs/models" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Gemini API: Models</a>
+      </div>
+    </div>
+    <div class="stack gl-right">
+      <div class="gotcha" data-step="1">
+        <span class="gh">1 · shut-down model in the stock demo</span>
+        <b>Symptom</b><span><code>examples/lightrag_gemini_demo.py</code> @ v1.5.7 fails at the first LLM call.</span>
+        <b class="why">Cause</b><span>It uses <code>gemini-2.0-flash</code>, which the Gemini models page lists as shut down, and <code>models/text-embedding-004</code>.</span>
+        <b class="fix">Fix</b><span>Read model ids from config: <code>gemini-3.8-flash</code>, <code>gemini-embedding-001</code>.</span>
+      </div>
+      <div class="gotcha" data-step="2">
+        <span class="gh">2 · decorator injects a kwarg the function lacks</span>
+        <b>Symptom</b><span>The demo's embedding wrapper raises <code>TypeError</code> on the first <code>ainsert</code>.</span>
+        <b class="why">Cause</b><span><code>send_dimensions=True</code>, but the function takes only <code>texts</code>. <code>EmbeddingFunc.__call__</code> injects <code>embedding_dim=</code> (<code>utils.py</code> L712-728).</span>
+        <b class="fix">Fix</b><span>Accept <code>embedding_dim</code> and <code>context</code>. <code>context</code> also makes the embedder asymmetric.</span>
+      </div>
+      <div class="gotcha" data-step="3">
+        <span class="gh">3 · wrong key name, reused working_dir</span>
+        <b>Symptom</b><span><span class="er">ValueError: Gemini API key not provided. Set LLM_BINDING_API_KEY or GEMINI_API_KEY in the environment.</span><br><span class="er">ValueError: Embedding dimension mismatch detected: total elements (...) cannot be evenly divided by expected dimension (...).</span></span>
+        <b class="why">Cause</b><span>Only <code>GOOGLE_API_KEY</code> is set. Then the embedder or dim changed on an existing <code>working_dir</code>.</span>
+        <b class="fix">Fix</b><span>Export <code>GEMINI_API_KEY</code>. Use one directory per embedder + dim, or delete it and re-index.</span>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    Copy-paste from the official LightRAG Gemini example fails today, and this slide shows the three reasons in the order you hit them. First the model: gemini-2.0-flash is shut down, so read model ids from config. Second the decorator: send_dimensions=True makes EmbeddingFunc inject embedding_dim, and the demo function only takes texts; we inferred the TypeError from the source and did not run it. Third the environment and the index: LightRAG's Gemini binding reads GEMINI_API_KEY or LLM_BINDING_API_KEY, not GOOGLE_API_KEY, and a working_dir built with one embedder and dimension breaks when you change either. Analogy: the working_dir is a filing cabinet sized for 1536-wide folders; you cannot push 768-wide ones into it, so you buy a new cabinet. Likely question: "Can I switch to gemini-embedding-2 later?" Yes, but in a new directory with a full re-index, because its vectors are not compatible with gemini-embedding-001. Next: three recent papers on what a graph and an image index really cost.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  let built = null, prev = -1, tweens = [];
+  const mk = (p, tag, attrs, cls) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (cls) e.setAttribute("class", cls);
+    p.appendChild(e); return e;
+  };
+  const chip = (p, x, y, w, t, cls, h = 28) => {
+    const g = mk(p, "g", {}, "ch " + cls);
+    mk(g, "rect", { x, y, width: w, height: h, rx: 8 });
+    mk(g, "text", { x: x + 10, y: y + h / 2 + 4 }).textContent = t;
+    return g;
+  };
+  const folder = (p, x, y, w, t, cls) => {
+    const g = mk(p, "g", {}, "fd " + cls);
+    mk(g, "path", { d: `M${x},${y + 6} L${x},${y + 34} L${x + w},${y + 34} L${x + w},${y + 6} L${x + 34},${y + 6} L${x + 28},${y} L${x + 6},${y} Z` });
+    mk(g, "text", { x: x + 8, y: y + 25 }).textContent = t;
+    return g;
+  };
+  function build(slide) {
+    const svg = slide.querySelector("#gl-svg");
+    svg.innerHTML = "";
+    // panel 1: sample rot
+    const p1 = mk(svg, "g", {});
+    mk(p1, "rect", { x: 0, y: 0, width: 264, height: 214, rx: 12 }, "pn");
+    mk(p1, "text", { x: 12, y: 20 }, "hd").textContent = "1 · DEMO MODEL IDS";
+    const o1 = chip(p1, 14, 34, 236, "gemini-2.0-flash", "bad");
+    const o2 = chip(p1, 14, 70, 236, "models/text-embedding-004", "bad");
+    const st = mk(p1, "g", {}, "stamp");
+    mk(st, "rect", { x: 140, y: 40, width: 104, height: 24, rx: 4 });
+    mk(st, "text", { x: 192, y: 57, "text-anchor": "middle" }).textContent = "SHUT DOWN";
+    const sk = mk(p1, "line", { x1: 24, y1: 84, x2: 216, y2: 84 }, "strike");
+    const ar1 = mk(p1, "path", { d: "M132,104 L132,124" }, "arr g");
+    const t1 = mk(p1, "text", { x: 142, y: 120 }, "sm"); t1.textContent = "from config";
+    const n1 = chip(p1, 14, 132, 236, "gemini-3.8-flash", "good");
+    const n2 = chip(p1, 14, 168, 236, "gemini-embedding-001", "good");
+    // panel 2: decorator vs signature
+    const p2 = mk(svg, "g", {});
+    mk(p2, "rect", { x: 278, y: 0, width: 264, height: 214, rx: 12 }, "pn");
+    mk(p2, "text", { x: 290, y: 20 }, "hd").textContent = "2 · INJECTED KWARG";
+    const sigBad = chip(p2, 292, 32, 236, "def embedding_func(texts)", "bad");
+    const te = mk(p2, "text", { x: 528, y: 78, "text-anchor": "end" }, "err"); te.textContent = "TypeError";
+    const kw = chip(p2, 292, 88, 160, "embedding_dim=1536", "pill", 26);
+    const ar2 = mk(p2, "path", { d: "M372,118 L372,140" }, "arr g");
+    const sigOk = chip(p2, 292, 146, 236, "(texts, embedding_dim, context)", "good");
+    const ok2 = mk(p2, "text", { x: 292, y: 198 }, "ok"); ok2.textContent = "✓ asymmetric: context=";
+    // panel 3: env var + working_dir
+    const p3 = mk(svg, "g", {});
+    mk(p3, "rect", { x: 556, y: 0, width: 264, height: 214, rx: 12 }, "pn");
+    mk(p3, "text", { x: 568, y: 20 }, "hd").textContent = "3 · KEY NAME + WORKING_DIR";
+    chip(p3, 570, 32, 236, "GOOGLE_API_KEY   ✓ set", "good");
+    const gBad = chip(p3, 570, 66, 236, "GEMINI_API_KEY   ✕ empty", "empty");
+    const gOk = chip(p3, 570, 66, 236, "GEMINI_API_KEY   ✓ copied", "good");
+    const fOld = folder(p3, 616, 112, 144, "claims_kg/", "old");
+    const fa = folder(p3, 570, 166, 114, "…001_1536/", "new");
+    const fb = folder(p3, 692, 166, 114, "…001_768/", "new");
+    const sp1 = mk(p3, "path", { d: "M670,148 C660,156 640,158 628,166" }, "arr g");
+    const sp2 = mk(p3, "path", { d: "M706,148 C716,156 736,158 748,166" }, "arr g");
+    built = { p1, o1, o2, st, sk, ar1, t1, n1, n2, p2, sigBad, te, kw, ar2, sigOk, ok2, p3, gBad, gOk, fOld, fa, fb, sp1, sp2 };
+  }
+  function render(slide, n, animate) {
+    if (!built) build(slide);
+    tweens.forEach((t) => t.kill()); tweens = [];
+    const fwd = animate && n === prev + 1;
+    const B = built, T = (t) => tweens.push(t);
+    const vis = (els, on) => gsap.set(els, { opacity: on ? 1 : 0 });
+    gsap.set([B.o1, B.o2, B.st, B.sk, B.ar1, B.t1, B.n1, B.n2, B.sigBad, B.te, B.kw, B.ar2, B.sigOk, B.ok2, B.gOk, B.fa, B.fb, B.sp1, B.sp2], { opacity: 1, x: 0, y: 0 });
+    vis([B.p1], n >= 1); vis([B.p2], n >= 2); vis([B.p3], n >= 3);
+    gsap.set(B.st, { rotation: -8, scale: 1, svgOrigin: "192 52" });
+    gsap.set(B.kw, { x: 0, y: 0 });
+    gsap.set(B.fOld, { opacity: n >= 3 ? 0.5 : 0 });
+    gsap.set(B.gBad, { opacity: 0 });
+    if (fwd && n === 1) {
+      T(gsap.from([B.o1, B.o2], { opacity: 0, x: -16, duration: 0.4, stagger: 0.15 }));
+      T(gsap.fromTo(B.st, { opacity: 0, scale: 2.4 }, { opacity: 1, scale: 1, duration: 0.4, delay: 0.6, ease: "back.out(1.6)", svgOrigin: "192 52" }));
+      T(gsap.from(B.sk, { opacity: 0, duration: 0.3, delay: 0.9 }));
+      T(gsap.from([B.ar1, B.t1, B.n1, B.n2], { opacity: 0, y: -10, duration: 0.4, stagger: 0.15, delay: 1.3 }));
+    }
+    if (fwd && n === 2) {
+      T(gsap.from([B.sigBad], { opacity: 0, duration: 0.3 }));
+      T(gsap.from(B.kw, { opacity: 0, duration: 0.3, delay: 0.2 }));
+      const tl = gsap.timeline({ delay: 0.5 });
+      tl.to(B.kw, { y: -26, duration: 0.3, ease: "power2.in" })
+        .to(B.kw, { y: 0, duration: 0.45, ease: "bounce.out" })
+        .fromTo(B.sigBad, { x: -4 }, { x: 4, duration: 0.06, repeat: 5, yoyo: true }, "<")
+        .set(B.sigBad, { x: 0 })
+        .from(B.te, { opacity: 0, duration: 0.3 }, "<")
+        .from([B.ar2, B.sigOk], { opacity: 0, duration: 0.35, stagger: 0.15 }, "+=0.2")
+        .to(B.kw, { y: 58, duration: 0.4, ease: "power2.inOut" })
+        .to(B.kw, { y: 0, duration: 0.01 })
+        .from(B.ok2, { opacity: 0, duration: 0.3 });
+      T(tl);
+    }
+    if (fwd && n === 3) {
+      const tl = gsap.timeline();
+      tl.set(B.gOk, { opacity: 0 }).set(B.gBad, { opacity: 1 })
+        .to(B.gBad, { opacity: 0.3, duration: 0.18, repeat: 3, yoyo: true }, "+=0.4")
+        .set(B.gBad, { opacity: 0 })
+        .fromTo(B.gOk, { opacity: 0 }, { opacity: 1, duration: 0.3 })
+        .fromTo(B.fOld, { opacity: 0 }, { opacity: 1, duration: 0.3 }, "+=0.2")
+        .from([B.sp1, B.sp2], { opacity: 0, duration: 0.3 }, "+=0.2")
+        .from(B.fa, { opacity: 0, x: 46, y: -54, duration: 0.5, ease: "power3.out" }, "<")
+        .from(B.fb, { opacity: 0, x: -76, y: -54, duration: 0.5, ease: "power3.out" }, "<")
+        .to(B.fOld, { opacity: 0.5, duration: 0.3 });
+      T(tl);
+    }
+    prev = n;
+  }
+  Deck.register("rag-c08-gotcha-lightrag", {
+    enter(slide, step) { prev = -1; built = null; render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { tweens.forEach((t) => t.kill()); tweens = []; prev = -1; }
+  });
+})();
+</script>

@@ -1,0 +1,199 @@
+<section class="slide chapter" id="custom-c05-chapter" data-tone="model" data-title="Ch 5: GRPO with a verifier">
+  <style>
+    #custom-c05-chapter { padding-bottom: 72px; gap: 22px; }
+    #custom-c05-chapter .ch-num { font-size: 290px; top: auto; bottom: 30px; right: 70px; color: color-mix(in oklab, var(--aurora) 8%, transparent); }
+    #custom-c05-chapter .c05-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    #custom-c05-chapter .c05-row .tag { font-size: 16px; }
+    #custom-c05-chapter .lede { margin-top: -6px; font-size: 27px; max-width: 1080px; }
+    #custom-c05-chapter svg text { font-variant-ligatures: none; }
+  </style>
+  <div class="ch-num" data-fx="blur">05</div>
+  <svg id="c05-ch-svg" viewBox="0 0 1392 418" width="1392" height="418" aria-label="One claim prompt goes into the policy model. The policy samples 8 rollouts. A math_verify verifier scores each rollout 1 or 0. Each reward minus the group mean, divided by the group standard deviation, becomes the advantage, which flows back to update the policy. A chart of the group mean reward rises over 5 rounds, from 2 of 8 correct (0.25) to 7 of 8 correct (0.875)."></svg>
+  <h2 class="display">GRPO with a verifier</h2>
+  <p class="lede" data-fx="up">GRPO: sample 8 answers per prompt, then reinforce the ones above the group average.</p>
+  <div class="c05-row" data-fx="stagger">
+    <span class="tag t-human">Acme claims payout calculator</span>
+    <span class="tag t-model">Qwen2.5-0.5B + LoRA · one 24 GB GPU</span>
+    <span class="tag t-tool">verifier: math-verify</span>
+  </div>
+  <aside class="notes">This chapter is Lab 4: the Acme claims back-office wants a small model that computes a claim payout, deductible first, then the coinsurance share, then the policy limit. Three words first. The policy is the model we train. LoRA r=16 is a small trainable adapter on top of frozen weights. math_verify is a library that reads the \boxed{} answer and compares it to the gold answer. Watch the loop: one claim prompt goes in, the policy samples 8 answers, the verifier gives each a 1 or a 0, and each reward minus the group mean, divided by the group standard deviation, becomes the advantage. That division is the TRL default, scale_rewards="group", so with 2 of 8 correct the advantages are about +1.62 and -0.54, not +0.75 and -0.25. The chart on the right is the payoff: the group mean reward climbs from 0.25 to 0.875 over five rounds, and that is the curve we want in the logs. Analogy: a teacher grades 8 attempts at the same question and tells the student which attempts beat the class average. Likely question: "Can I run this on a 16 GB Colab T4?" The lab is tested for one 24 GB GPU such as an L4, A10G or RTX 4090; a smaller card needs a shorter max_completion_length and a smaller batch.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c05-chapter";
+  // gold for "Damage $15400. Deductible $250. 80% ... capped at $5000" is 5000 (lab-rl Lab 2, RAN)
+  const ANS = {
+    C: { t: "\\boxed{5000}", ok: true },
+    A: { t: "\\boxed{12120}", ok: false },   // forgot the limit
+    B: { t: "\\boxed{15150}", ok: false },   // forgot share and limit
+    D: { t: "\\boxed{12320}", ok: false },   // share before deductible
+    N: { t: "payout is 5000", ok: false },   // no \boxed: the verifier cannot read it
+  };
+  // correct per round: 2, 3, 5, 6, 7 of 8 -> mean 0.25, 0.375, 0.625, 0.75, 0.875
+  const ROUNDS = ["ACNABCDA", "CACNCADA", "CCACNCCA", "CCCACCNC", "CCCCCACC"];
+  const MEANS = ROUNDS.map((r) => [...r].filter((c) => ANS[c].ok).length / 8);
+  const RY = (i) => 26 + i * 45, RH = 37;
+  const POL = { x: 0, y: 140, w: 250, h: 132 };
+  const VER = { x: 650, y: 144, w: 210, h: 124 };
+  const SP = { x0: 1170, x1: 1372, top: 214, base: 334 };
+  const spX = (r) => SP.x0 + r * (SP.x1 - SP.x0) / 4;
+  const spY = (m) => SP.base - m * (SP.base - SP.top);
+  let tl = null, P = null, prox = null;
+
+  const el = (parent, tag, attrs, style, text) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (style) Object.assign(e.style, style);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  };
+  const mono = (w, s) => `${w} ${s}px var(--f-mono)`;
+
+  function build(svg) {
+    svg.innerHTML = "";
+    // prompt chip
+    el(svg, "rect", { x: 0, y: 0, width: 330, height: 64, rx: 12 }, { fill: "var(--surface-2)", stroke: "var(--human)", strokeWidth: 2 });
+    el(svg, "text", { x: 16, y: 25 }, { font: mono(700, 16), fill: "var(--human)" }, "claim prompt");
+    el(svg, "text", { x: 16, y: 49 }, { font: mono(500, 15), fill: "var(--ink-2)" }, "$15400 · -$250 · 80% · cap $5000");
+    el(svg, "line", { x1: 125, y1: 66, x2: 125, y2: 134 }, { stroke: "var(--line-2)", strokeWidth: 2 });
+    el(svg, "path", { d: "M118 126 L125 136 L132 126" }, { fill: "none", stroke: "var(--line-2)", strokeWidth: 2 });
+    // policy
+    el(svg, "rect", { x: POL.x, y: POL.y, width: POL.w, height: POL.h, rx: 18 }, { fill: "var(--model-soft)", stroke: "var(--model)", strokeWidth: 2.5 });
+    el(svg, "text", { x: 125, y: POL.y + 50, "text-anchor": "middle" }, { font: mono(700, 27), fill: "var(--ink)" }, "policy");
+    el(svg, "text", { x: 125, y: POL.y + 80, "text-anchor": "middle" }, { font: mono(500, 16), fill: "var(--muted)" }, "Qwen2.5-0.5B");
+    el(svg, "text", { x: 125, y: POL.y + 104, "text-anchor": "middle" }, { font: mono(500, 16), fill: "var(--muted)" }, "+ LoRA r=16");
+    const polGlow = el(svg, "rect", { x: POL.x, y: POL.y, width: POL.w, height: POL.h, rx: 18 }, { fill: "var(--model)", opacity: 0 });
+    const cy0 = POL.y + POL.h / 2;
+    const fan = [], conv = [], rolls = [], rew = [], adv = [];
+    for (let i = 0; i < 8; i++) {
+      const cy = RY(i) + RH / 2;
+      fan.push(el(svg, "path", { d: `M250 ${cy0} C290 ${cy0} 290 ${cy} 330 ${cy}` }, { fill: "none", stroke: "var(--model)", strokeWidth: 1.6, opacity: 0.55 }));
+      conv.push(el(svg, "path", { d: `M590 ${cy} C620 ${cy} 620 ${cy0} 650 ${cy0}` }, { fill: "none", stroke: "var(--tool)", strokeWidth: 1.6, opacity: 0.55 }));
+      const g = el(svg, "g", {});
+      const box = el(g, "rect", { x: 330, y: RY(i), width: 260, height: RH, rx: 9 }, { fill: "var(--surface-2)", stroke: "var(--line-2)", strokeWidth: 1.5 });
+      const tx = el(g, "text", { x: 346, y: RY(i) + 25 }, { font: mono(500, 17), fill: "var(--ink-2)" }, "");
+      rolls.push({ g, box, tx });
+      const rg = el(svg, "g", {});
+      const rb = el(rg, "rect", { x: 912, y: RY(i), width: 60, height: RH, rx: 18 }, { strokeWidth: 1.8 });
+      const rt = el(rg, "text", { x: 942, y: RY(i) + 25, "text-anchor": "middle" }, { font: mono(700, 17) }, "");
+      rew.push({ g: rg, rb, rt });
+      const ag = el(svg, "g", {});
+      const ab = el(ag, "rect", { x: 990, y: RY(i), width: 108, height: RH, rx: 9 }, { fill: "var(--surface-2)", strokeWidth: 1.5 });
+      const at = el(ag, "text", { x: 1044, y: RY(i) + 25, "text-anchor": "middle" }, { font: mono(700, 17) }, "");
+      adv.push({ g: ag, ab, at });
+    }
+    el(svg, "text", { x: 942, y: 16, "text-anchor": "middle" }, { font: mono(700, 14), fill: "var(--muted)" }, "reward");
+    el(svg, "text", { x: 1044, y: 16, "text-anchor": "middle" }, { font: mono(700, 14), fill: "var(--muted)" }, "advantage");
+    // verifier
+    el(svg, "rect", { x: VER.x, y: VER.y, width: VER.w, height: VER.h, rx: 18 }, { fill: "var(--tool-soft)", stroke: "var(--tool)", strokeWidth: 2.5 });
+    el(svg, "text", { x: VER.x + VER.w / 2, y: VER.y + 48, "text-anchor": "middle" }, { font: mono(700, 27), fill: "var(--ink)" }, "verifier");
+    el(svg, "text", { x: VER.x + VER.w / 2, y: VER.y + 78, "text-anchor": "middle" }, { font: mono(500, 16), fill: "var(--muted)" }, "math_verify");
+    el(svg, "text", { x: VER.x + VER.w / 2, y: VER.y + 102, "text-anchor": "middle" }, { font: mono(500, 16), fill: "var(--muted)" }, "gold: 5000");
+    const verGlow = el(svg, "rect", { x: VER.x, y: VER.y, width: VER.w, height: VER.h, rx: 18 }, { fill: "var(--tool)", opacity: 0 });
+    el(svg, "line", { x1: 860, y1: cy0, x2: 896, y2: cy0 }, { stroke: "var(--tool)", strokeWidth: 2 });
+    el(svg, "line", { x1: 896, y1: RY(0) + RH / 2, x2: 896, y2: RY(7) + RH / 2 }, { stroke: "var(--tool)", strokeWidth: 2 });
+    // advantage formula callout, beside the score columns
+    el(svg, "rect", { x: 1130, y: 0, width: 262, height: 132, rx: 14 }, { fill: "var(--model-soft)", stroke: "var(--model)", strokeWidth: 2 });
+    el(svg, "text", { x: 1148, y: 32 }, { font: mono(700, 15), fill: "var(--model)" }, "advantage, per group");
+    el(svg, "text", { x: 1148, y: 72 }, { font: mono(700, 17.5), fill: "var(--ink)" }, "A = (r - mean) / std");
+    el(svg, "text", { x: 1148, y: 112 }, { font: mono(500, 13.5), fill: "var(--muted)" }, "TRL scale_rewards=\"group\"");
+    // return path: advantages flow back to the policy
+    const ret = el(svg, "path", { d: `M1044 ${RY(7) + RH} C1044 408 1030 410 1000 410 L160 410 C132 410 125 398 125 ${POL.y + POL.h}` }, { fill: "none", stroke: "var(--model)", strokeWidth: 2, strokeDasharray: "6 6", opacity: 0.6 });
+    el(svg, "rect", { x: 470, y: 397, width: 300, height: 24, rx: 6 }, { fill: "var(--bg)" });
+    el(svg, "text", { x: 620, y: 415, "text-anchor": "middle" }, { font: mono(600, 15), fill: "var(--model)" }, "advantages update the policy");
+    const dot = el(svg, "circle", { cx: 1044, cy: RY(7) + RH, r: 7 }, { fill: "var(--model)", opacity: 0 });
+    // mean-reward chart: ghost of all 5 rounds, solid line up to the current round
+    el(svg, "text", { x: 1140, y: 180 }, { font: mono(700, 15), fill: "var(--ink-2)" }, "group mean reward");
+    el(svg, "line", { x1: SP.x0 - 10, y1: SP.base, x2: SP.x1 + 10, y2: SP.base }, { stroke: "var(--line-2)", strokeWidth: 1.5 });
+    el(svg, "line", { x1: SP.x0 - 10, y1: SP.top, x2: SP.x1 + 10, y2: SP.top }, { stroke: "var(--line)", strokeWidth: 1, strokeDasharray: "3 4" });
+    el(svg, "text", { x: SP.x0 - 16, y: SP.top + 5, "text-anchor": "end" }, { font: mono(500, 13), fill: "var(--muted)" }, "1.0");
+    el(svg, "text", { x: SP.x0 - 16, y: SP.base + 5, "text-anchor": "end" }, { font: mono(500, 13), fill: "var(--muted)" }, "0");
+    el(svg, "polyline", { points: MEANS.map((m, r) => `${spX(r)},${spY(m)}`).join(" ") }, { fill: "none", stroke: "var(--model)", strokeWidth: 2, strokeDasharray: "4 5", opacity: 0.35 });
+    MEANS.forEach((m, r) => el(svg, "circle", { cx: spX(r), cy: spY(m), r: 4 }, { fill: "var(--model)", opacity: 0.3 }));
+    el(svg, "text", { x: spX(0), y: spY(MEANS[0]) + 24, "text-anchor": "middle" }, { font: mono(700, 14), fill: "var(--model)" }, "0.25");
+    el(svg, "text", { x: spX(4), y: spY(MEANS[4]) - 12, "text-anchor": "middle" }, { font: mono(700, 14), fill: "var(--model)" }, "0.875");
+    const line = el(svg, "polyline", { points: "" }, { fill: "none", stroke: "var(--model)", strokeWidth: 3.5, strokeLinejoin: "round", strokeLinecap: "round" });
+    const pts = ROUNDS.map(() => el(svg, "circle", { cx: 0, cy: 0, r: 6 }, { fill: "var(--model)", opacity: 0 }));
+    const cap = el(svg, "text", { x: 1140, y: 370 }, { font: mono(600, 15), fill: "var(--ink-2)" }, "");
+    P = { polGlow, verGlow, fan, conv, rolls, rew, adv, ret, dot, line, pts, cap };
+  }
+
+  function setRound(r) {
+    const p = P, row = ROUNDS[r];
+    const rs = [...row].map((c) => (ANS[c].ok ? 1 : 0));
+    const mean = rs.reduce((a, b) => a + b, 0) / 8;
+    // torch .std() is the unbiased (n - 1) estimate; TRL adds 1e-4 to the denominator
+    const std = Math.sqrt(rs.reduce((a, x) => a + (x - mean) ** 2, 0) / 7);
+    [...row].forEach((c, i) => {
+      const a = ANS[c];
+      p.rolls[i].tx.textContent = a.t;
+      p.rew[i].rt.textContent = a.ok ? "1" : "0";
+      p.rew[i].rt.style.fill = a.ok ? "var(--state)" : "var(--risk)";
+      p.rew[i].rb.style.fill = a.ok ? "var(--state-soft)" : "var(--risk-soft)";
+      p.rew[i].rb.style.stroke = a.ok ? "var(--state)" : "var(--risk)";
+      const A = (rs[i] - mean) / (std + 1e-4);
+      p.adv[i].at.textContent = (A >= 0 ? "+" : "-") + Math.abs(A).toFixed(2);
+      p.adv[i].at.style.fill = A >= 0 ? "var(--state)" : "var(--risk)";
+      p.adv[i].ab.style.stroke = A >= 0 ? "var(--state)" : "var(--risk)";
+    });
+    p.cap.textContent = `round ${r + 1} of 5 · ${rs.filter(Boolean).length}/8 right`;
+  }
+
+  function drawSpark(upto) {
+    P.line.setAttribute("points", MEANS.slice(0, upto + 1).map((m, r) => `${spX(r)},${spY(m)}`).join(" "));
+    P.pts.forEach((c, r) => {
+      c.setAttribute("cx", spX(r)); c.setAttribute("cy", spY(MEANS[r]));
+      c.style.opacity = r <= upto ? 1 : 0;
+    });
+  }
+
+  function play() {
+    const p = P;
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const retLen = p.ret.getTotalLength();
+    prox = { t: 0 };
+    setRound(0); drawSpark(0);
+    tl = gsap.timeline({ repeat: reduce ? 0 : -1, repeatDelay: 1.2 });
+    ROUNDS.forEach((row, r) => {
+      const t = 0.3 + r * 3.6;
+      tl.set([...p.rolls.map((x) => x.g), ...p.rew.map((x) => x.g), ...p.adv.map((x) => x.g)], { opacity: 0 }, t)
+        .set([...p.fan, ...p.conv], { opacity: 0.12 }, t)
+        .call(() => setRound(r), null, t)
+        .to(p.fan, { opacity: 0.7, duration: 0.25, stagger: 0.04 }, t + 0.05)
+        .to(p.rolls.map((x) => x.g), { opacity: 1, duration: 0.25, stagger: 0.06 }, t + 0.2)
+        .to(p.conv, { opacity: 0.7, duration: 0.25, stagger: 0.04 }, t + 0.85)
+        .fromTo(p.verGlow, { opacity: 0.4 }, { opacity: 0, duration: 0.5 }, t + 1.15)
+        .fromTo(p.rew.map((x) => x.g), { opacity: 0, x: -8 }, { opacity: 1, x: 0, duration: 0.25, stagger: 0.05, ease: "back.out(2)" }, t + 1.3)
+        .fromTo(p.adv.map((x) => x.g), { opacity: 0, x: -8 }, { opacity: 1, x: 0, duration: 0.25, stagger: 0.05 }, t + 1.85)
+        .set(p.dot, { opacity: 1 }, t + 2.4)
+        .fromTo(prox, { t: 0 }, {
+          t: 1, duration: 0.8, ease: "power1.inOut",
+          onUpdate: () => { const q = p.ret.getPointAtLength(prox.t * retLen); p.dot.setAttribute("cx", q.x); p.dot.setAttribute("cy", q.y); },
+        }, t + 2.4)
+        .set(p.dot, { opacity: 0 }, t + 3.2)
+        .fromTo(p.polGlow, { opacity: 0.45 }, { opacity: 0, duration: 0.5 }, t + 3.2)
+        .call(() => drawSpark(r), null, t + 3.25);
+    });
+    tl.to({}, { duration: 1.6 });
+    if (reduce) tl.progress(1);
+  }
+
+  function stop() {
+    if (tl) { tl.kill(); tl = null; }
+    if (prox) gsap.killTweensOf(prox);
+    if (P) gsap.killTweensOf([P.polGlow, P.verGlow, P.dot, ...P.fan, ...P.conv, ...P.rolls.map((x) => x.g), ...P.rew.map((x) => x.g), ...P.adv.map((x) => x.g)]);
+  }
+
+  Deck.register(ID, {
+    enter(slide) {
+      stop();
+      build(slide.querySelector("#c05-ch-svg"));
+      play();
+    },
+    step() {},
+    leave() { stop(); },
+  });
+})();
+</script>

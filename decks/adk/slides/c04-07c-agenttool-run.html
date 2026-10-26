@@ -1,0 +1,55 @@
+<section class="slide tight" id="adk-c04-agenttool-run" data-tone="agent" data-title="Build: verify the tool output">
+  <style>
+    #adk-c04-agenttool-run .lab-head { flex-wrap: nowrap; }
+    #adk-c04-agenttool-run .lab-head .pins { font: 500 16px/1.3 var(--f-mono); color: var(--ink-2); white-space: nowrap; }
+    #adk-c04-agenttool-run .ar-grid { display: grid; grid-template-columns: 820px 1fr; gap: 28px; align-items: start; }
+    #adk-c04-agenttool-run .ar-left { display: flex; flex-direction: column; gap: 22px; }
+    #adk-c04-agenttool-run .out pre.code { font-size: 17px; line-height: 1.6; }
+    #adk-c04-agenttool-run .cap { position: relative; height: 64px; }
+    #adk-c04-agenttool-run .cap > p { position: absolute; left: 0; right: 0; top: 0; margin: 0; font-size: 21px; line-height: 1.4; color: var(--ink-2); }
+    #adk-c04-agenttool-run .cap code { font-size: .9em; }
+    #adk-c04-agenttool-run .paper { padding: 24px 26px; gap: 14px; }
+    #adk-c04-agenttool-run .paper .pid { font-size: 16px; }
+    #adk-c04-agenttool-run .paper h4 { font-size: 23px; line-height: 1.3; margin: 0; }
+    #adk-c04-agenttool-run .paper .find { font-size: 21px; line-height: 1.45; }
+    #adk-c04-agenttool-run .paper .find b { font-size: 1.1em; }
+    #adk-c04-agenttool-run .paper .so { font-size: 20px; line-height: 1.4; }
+    #adk-c04-agenttool-run .stat .n { font-size: 64px; color: var(--risk); }
+    #adk-c04-agenttool-run .stat .l { font-size: 18px; }
+  </style>
+  <div class="kicker"><span class="pill">Build</span> Acme back office · run it</div>
+  <h2 class="title">Recompute prices from raw numbers, and do not trust a summary</h2>
+  <div class="lab-head">
+    <span class="run">adk web .</span>
+    <span class="pins">pick pricing_analyst · the .env needs a Gemini key</span>
+  </div>
+  <div class="ar-grid fill">
+    <div class="ar-left">
+      <div class="code-wrap out">
+        <div class="code-head">output · illustrative · P1-P3 are placeholders, not real premiums</div>
+        <pre class="code" data-lang="none" data-focus="1:2-4, 2:5-7, 3:8-8"><code>&gt; 2024 Civic, comprehensive cover: what is the average?
+[pricing_analyst]: function_call price_search
+[pricing_analyst]: function_response
+    [{"retailer": "Insurer A", "price_usd": P1, ...}, ...]
+[pricing_analyst]: function_call price_math
+[price_math]: executable_code: print(sum(prices) / len(prices))
+[price_math]: code_execution_result: MEAN MIN MAX SPREAD
+<span class="ok">[pricing_analyst]: Average $X (range $MIN-$MAX). Sources: ...</span></code></pre>
+      </div>
+      <div class="cap">
+        <p data-until="1">The root calls one subagent at a time and reads its short result.</p>
+        <p data-step="1" data-until="2">The search result is a list of prices with a url for each.</p>
+        <p data-step="2" data-until="3">The math runs as code in the sandbox. The model does not guess it.</p>
+        <p data-step="3" data-until="4">The answer cites its sources. Since 2.13 the grounding is on the LLM spans.</p>
+        <p data-step="4">Plausible but wrong tool output is the risk. Recompute it in code.</p>
+      </div>
+    </div>
+    <div class="paper" data-step="4">
+      <div class="pid"><a href="https://arxiv.org/abs/2609.37153" target="_blank" rel="noopener">arXiv:2609.37153</a> <span>Sep 2026</span></div>
+      <h4>When Tools Silently Lie: blind compliance in tool-augmented data agents</h4>
+      <div class="stat"><div class="n" data-to="39" data-pre="−26 to −" data-suf=" pts">0</div><div class="l">task success when tool evidence is plausible but wrong</div></div>
+      <div class="so">Let price_math recompute from the raw numbers and flag outliers.</div>
+    </div>
+  </div>
+  <aside class="notes">Run it with adk web from the parent folder, pick pricing_analyst and ask for the average comprehensive premium on a 2024 Civic. The output is illustrative and the prices are placeholders, not real premiums. Walk the trace: the root calls price_search through its AgentTool and gets back a short list of prices with a url for each; then it calls price_math, which writes and runs Python in Gemini's sandbox, so the mean, min, max and spread are computed, not guessed; then the root writes the answer and cites the sources. Since 2.13 the google_search grounding is recorded on the LLM spans, so you can audit which urls backed an answer; Google's terms also require that you show the search suggestions in a production UI. The paper on the right is the reason to recompute: When Tools Silently Lie, arXiv 2609.37153, shows that plausible but wrong tool evidence lowers data-agent task success by 26 to 39 points, and agents sometimes adopt the wrong answer even after they check it. A likely question: "Is the sandbox enough?" It computes correctly on the numbers it gets, so also check that the prices came from the urls cited. Next: Palo Alto Networks runs one bounded agent call per question in production.</aside>
+</section>

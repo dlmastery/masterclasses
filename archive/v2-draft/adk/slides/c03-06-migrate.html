@@ -1,0 +1,157 @@
+<section class="slide tight" id="adk-c03-migrate" data-tone="agent" data-title="Build: SequentialAgent to Workflow">
+  <style>
+    #adk-c03-migrate .mg-grid { display: grid; grid-template-columns: 760px 1fr; gap: 26px; align-items: start; margin-top: 14px; }
+    #adk-c03-migrate .mg-col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    #adk-c03-migrate .code-wrap .code-head { padding: 7px 14px; font-size: 14px; }
+    #adk-c03-migrate .code-head .tg { font: 600 12.5px/1 var(--f-mono); color: #9aa3cf; }
+    #adk-c03-migrate .mg-code { font-size: 14.5px; line-height: 1.4; padding: 10px 16px 12px; }
+    #adk-c03-migrate .mg-legend { font-size: 15.5px; line-height: 1.4; color: var(--ink-2); }
+    #adk-c03-migrate .mg-legend code { font-size: .88em; }
+    #adk-c03-migrate .mg-delta { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    #adk-c03-migrate .mg-delta .cite { font-size: 13.5px; }
+    /* mini graph: three nodes of equal height on one centre line */
+    #adk-c03-migrate .diagram .node { padding: 0 14px; height: 46px; min-width: 0; justify-content: center; box-sizing: border-box; }
+    #adk-c03-migrate .diagram .node .nt { font-size: 17px; white-space: nowrap; }
+    /* LLM call panel */
+    #adk-c03-migrate .rq { border: 1.5px solid var(--line-2); border-radius: 14px; background: var(--surface); padding: 12px 16px 14px; display: flex; flex-direction: column; gap: 8px; }
+    #adk-c03-migrate .rq-h { display: flex; align-items: center; gap: 10px; font: 700 13.5px/1 var(--f-mono); text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+    #adk-c03-migrate .rq-h .ic { margin-left: auto; text-transform: none; letter-spacing: 0; font: 700 13.5px/1 var(--f-mono); padding: 5px 8px; border-radius: 7px; }
+    #adk-c03-migrate .rq-h .ic.none { color: var(--risk); background: var(--risk-soft); }
+    #adk-c03-migrate .rq-h .ic.def { color: var(--state); background: var(--state-soft); }
+    #adk-c03-migrate .rq-list { position: relative; height: 150px; }
+    #adk-c03-migrate .rq-row { position: absolute; left: 0; right: 0; display: grid; grid-template-columns: 150px 1fr; gap: 10px; align-items: center; height: 42px; padding: 0 12px; box-sizing: border-box;
+      border-radius: 9px; font: 500 14.5px/1.25 var(--f-mono); color: var(--ink-2); border: 1.5px solid var(--line-2); background: var(--bg); }
+    #adk-c03-migrate .rq-row b { font: 700 12.5px/1 var(--f-mono); text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+    #adk-c03-migrate .rq-row span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #adk-c03-migrate .rq-row.sys { border-color: color-mix(in oklab, var(--agent) 45%, transparent); background: var(--agent-soft); }
+    #adk-c03-migrate .rq-row.sys b { color: var(--agent); }
+    #adk-c03-migrate .rq-row.ph { border-style: dashed; color: var(--muted); font-style: italic; }
+    #adk-c03-migrate .rq-row.bad { border-color: var(--risk); background: var(--risk-soft); color: var(--risk); }
+    #adk-c03-migrate .rq-row.bad b { color: var(--risk); }
+    #adk-c03-migrate .rq-row.usr { border-color: var(--human); background: var(--human-soft); }
+    #adk-c03-migrate .rq-row.usr b { color: var(--human); }
+    #adk-c03-migrate .rq-row.fnd { border-color: var(--state); background: var(--state-soft); }
+    #adk-c03-migrate .rq-row.fnd b { color: var(--state); }
+    #adk-c03-migrate .mg-cap { display: grid; } #adk-c03-migrate .mg-cap > * { grid-area: 1 / 1; }
+    #adk-c03-migrate .mg-cap .bad { font-size: 17px; color: var(--risk); font-weight: 600; }
+    #adk-c03-migrate .mg-cap .good { font-size: 20px; color: var(--state); font-weight: 700; }
+    #adk-c03-migrate .term pre.code { font-size: 13.5px; line-height: 1.5; padding: 9px 14px 11px; white-space: pre-wrap; }
+    #adk-c03-migrate ul.checks { gap: 7px; }
+    #adk-c03-migrate ul.checks li { font-size: 16px; line-height: 1.35; }
+    #adk-c03-migrate ul.checks li code { font-size: .86em; }
+  </style>
+  <div class="kicker">Build</div>
+  <h2 class="title">Port SequentialAgent to Workflow and keep the conversation</h2>
+
+  <div class="mg-grid fill">
+    <div class="mg-col">
+      <div class="code-wrap bad">
+        <div class="code-head">support_desk/agent.py · 1.x <span class="tg">deprecated in 2.x</span></div>
+        <pre class="code mg-code" data-lang="python"><code>from google.adk.agents import LlmAgent, SequentialAgent
+from support_desk.tools import lookup_order   # same tool used after the port
+intake = LlmAgent(name="intake_agent", model="gemini-3.5-flash",
+                  tools=[lookup_order],
+                  instruction="Look up the order, then summarize the finding.")
+synth = LlmAgent(name="synthesizer_agent", model="gemini-3.5-flash",
+                 instruction="Write the customer reply from the intake finding.")
+root_agent = SequentialAgent(name="support_pipeline", sub_agents=[intake, synth])</code></pre>
+      </div>
+      <div class="code-wrap good" data-step="1">
+        <div class="code-head">support_desk/agent.py · google-adk 2.13.0</div>
+        <pre class="code mg-code" data-lang="python" data-focus="1:10-11, 2:9"><code>from google.adk import Agent, Workflow
+from support_desk.tools import lookup_order   # the same tool as in 1.x
+intake = Agent(name="intake_agent", mode="single_turn",
+               model="gemini-3.5-flash", tools=[lookup_order],
+               instruction="Look up the order, then summarize the finding.")
+synth = Agent(name="synthesizer_agent", mode="single_turn",
+              model="gemini-3.5-flash",
+              instruction="Write the customer reply from the intake finding.",
+              include_contents="default")      # sees upstream conversation
+root_agent = Workflow(name="support_workflow",
+                      edges=[("START", intake, synth)])</code></pre>
+      </div>
+      <p class="mg-legend" data-step="1"><code>single_turn</code>: a one-shot worker. <code>task</code>: asks the user for missing slots, then exits typed. <code>chat</code>: free conversation, only right after START.</p>
+    </div>
+
+    <div class="mg-col">
+      <div class="diagram" style="width:606px;height:50px" data-wires="mg-start>mg-intake@1; mg-intake>mg-synth@1">
+        <div class="node n-agent pill" id="mg-start" style="left:0;top:2px;width:90px" data-step="1"><span class="nt">START</span></div>
+        <div class="node n-agent" id="mg-intake" style="left:160px;top:2px;width:170px" data-step="1"><span class="nt">intake_agent</span></div>
+        <div class="node n-agent" id="mg-synth" style="left:396px;top:2px;width:210px" data-step="1" data-on="1:hot"><span class="nt">synthesizer_agent</span></div>
+      </div>
+
+      <div class="rq" data-step="1" id="mg-rq">
+        <div class="rq-h">LLM call · synthesizer_agent <span class="ic none" id="mg-ic">include_contents='none'</span></div>
+        <div class="rq-list">
+          <div class="rq-row sys"><b>request · system</b><span>Write the customer reply from the intake finding.</span></div>
+          <div class="rq-row ph" data-r="before"><b>request · user</b><span>Handle the requests as specified in the System Instruction.</span></div>
+          <div class="rq-row bad" data-r="before"><b>response</b><span>Understood. Provide request</span></div>
+          <div class="rq-row usr" data-r="after"><b>request · user</b><span>refund A-1001 arrived broken</span></div>
+          <div class="rq-row fnd" data-r="after"><b>intake_agent</b><span>A-1001: $89.00, delivered 12 days ago.</span></div>
+        </div>
+        <div class="mg-cap">
+          <div class="bad" data-step="1" data-until="2">Before: node 2 gets a placeholder, not the ticket.</div>
+          <div class="good" data-step="2">After: node 2 sees the user text again.</div>
+        </div>
+      </div>
+
+      <div class="code-wrap term" data-step="3">
+        <div class="code-head">CI gate · illustrative</div>
+        <pre class="code" data-lang="bash"><code>$ python -W error::DeprecationWarning -m pytest tests/
+DeprecationWarning: SequentialAgent is deprecated in favor of Workflow and will be removed in a future version.</code></pre>
+      </div>
+
+      <ul class="checks" data-step="4" data-fx="stagger">
+        <li><span>Use <code>mode="task"</code> when a node must ask the user for slots (exit: <code>finish_task</code>).</span></li>
+        <li class="no"><span>No <code>mode="chat"</code> after a non-START node: <code>GraphValidationError</code>.</span></li>
+      </ul>
+      <div class="mg-delta" data-step="4">
+        <a class="cite repo" href="https://github.com/google/adk-python/issues/5780" target="_blank" rel="noopener"><b>Repo</b>&nbsp;issue #5780</a>
+        <a class="cite doc" href="https://adk.dev/2.0/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;ADK 2.0 migration</a>
+      </div>
+    </div>
+  </div>
+
+  <aside class="notes">This build step migrates the 1.x Acme support pipeline. SequentialAgent still runs but is deprecated in 2.x, so port it to a Workflow with one chain tuple. Step 1 shows the trap: inside a Workflow, single_turn agent nodes default to include_contents='none', so the second agent gets only its system instruction plus a placeholder user turn, and it answers "Understood. Provide request" (issue 5780). The legend under the code names the three modes: single_turn is a one-shot worker, task asks the user for missing slots and then exits with a typed result, chat is free conversation. Step 2: set include_contents="default" on the node that needs the history, and the ticket text and the intake finding come back. Analogy: the second clerk got a sticky note that says "do your job" instead of the customer's letter. Step 3: make -W error::DeprecationWarning a CI gate so you find every SequentialAgent, ParallelAgent and LoopAgent. Also run the graph through the Runner; never call workflow.run(ctx=...) yourself, because that skips the Runner event-queue consumer that saves tool-call events. A likely question: "Can I keep a chat agent in the graph?" Only right after START; anywhere else you get "GraphValidationError: The agent 'synthesizer_agent' has been added to the workflow with mode='chat' following node 'intake_agent'. This is not supported..." Use task mode when the node must ask the user for missing slots. Next: two gotchas in graph routing and validation.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c03-migrate";
+  const Y = 52; // row pitch in the request panel
+  let tw = [];
+  function stop() { tw.forEach((t) => t.kill()); tw = []; }
+  function render(slide, n, animate) {
+    stop();
+    const list = slide.querySelector("#mg-rq .rq-list");
+    const ic = slide.querySelector("#mg-ic");
+    if (!list) return;
+    const sys = list.querySelector(".sys");
+    const before = [...list.querySelectorAll('[data-r="before"]')];
+    const after = [...list.querySelectorAll('[data-r="after"]')];
+    const fixed = n >= 2;
+    ic.textContent = fixed ? "include_contents='default'" : "include_contents='none'";
+    ic.classList.toggle("none", !fixed); ic.classList.toggle("def", fixed);
+    gsap.set(sys, { y: 0, autoAlpha: 1 });
+    if (!fixed) {
+      gsap.set(after, { y: Y, autoAlpha: 0, x: 0 });
+      before.forEach((r, i) => {
+        if (animate && n === 1) tw.push(gsap.fromTo(r, { y: Y * (i + 1), x: -16, autoAlpha: 0 }, { x: 0, autoAlpha: 1, duration: 0.4, delay: 0.5 + i * 0.6 }));
+        else gsap.set(r, { y: Y * (i + 1), x: 0, autoAlpha: 1 });
+      });
+      if (animate && n === 1) tw.push(gsap.fromTo(before[1], { scale: 1 }, { scale: 1.03, duration: 0.18, yoyo: true, repeat: 3, delay: 1.3, transformOrigin: "50% 50%" }));
+    } else if (animate && n === 2) {
+      before.forEach((r, i) => { gsap.set(r, { y: Y * (i + 1), x: 0, autoAlpha: 1 }); tw.push(gsap.to(r, { x: 40, autoAlpha: 0, duration: 0.35, delay: i * 0.12 })); });
+      after.forEach((r, i) => tw.push(gsap.fromTo(r, { y: Y * (i + 1), x: -40, autoAlpha: 0 }, { x: 0, autoAlpha: 1, duration: 0.45, delay: 0.5 + i * 0.35, ease: "power2.out" })));
+      tw.push(gsap.fromTo(ic, { scale: 1.15 }, { scale: 1, duration: 0.4, delay: 0.3 }));
+    } else {
+      gsap.set(before, { autoAlpha: 0, x: 0 });
+      after.forEach((r, i) => gsap.set(r, { y: Y * (i + 1), x: 0, autoAlpha: 1 }));
+    }
+  }
+  Deck.register(ID, {
+    enter(slide, n) { render(slide, n || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { stop(); },
+  });
+})();
+</script>

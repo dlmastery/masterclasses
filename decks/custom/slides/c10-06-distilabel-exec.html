@@ -1,0 +1,226 @@
+<section class="slide" id="custom-c10-distilabel-exec" data-tone="state" data-title="Build: execute-to-verify synthetic code">
+  <style>
+    #custom-c10-distilabel-exec { gap: 18px; }
+    #custom-c10-distilabel-exec .x-grid { display: grid; grid-template-columns: 748px 1fr; gap: 26px; min-height: 0; }
+    #custom-c10-distilabel-exec .x-left, #custom-c10-distilabel-exec .x-right { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+    #custom-c10-distilabel-exec .lab-head { font-size: 13px; gap: 10px; flex-wrap: nowrap; }
+    #custom-c10-distilabel-exec .lab-head .small { font: 500 12.5px/1.2 var(--f-mono); color: var(--muted); }
+    #custom-c10-distilabel-exec .lab-head .run { font-size: 14px; padding: 7px 10px; }
+    #custom-c10-distilabel-exec .code-head { padding: 7px 14px; font-size: 13px; }
+    #custom-c10-distilabel-exec .x-code pre.code { font-size: 10.6px; line-height: 13.6px; padding: 8px 14px 9px; }
+    #custom-c10-distilabel-exec .bad pre.code { font-size: 10.6px; line-height: 15px; padding: 8px 12px 9px; }
+    #custom-c10-distilabel-exec .x-swap { position: relative; height: 172px; flex: none; }
+    #custom-c10-distilabel-exec .x-swap > .bad { position: absolute; left: 0; right: 0; top: 0; }
+    #custom-c10-distilabel-exec .steps-rail { gap: 6px; }
+    #custom-c10-distilabel-exec .steps-rail > * { font-size: 14px; line-height: 1.3; grid-template-columns: 28px 1fr; gap: 10px; }
+    #custom-c10-distilabel-exec .steps-rail > *::before { width: 24px; height: 24px; font-size: 13px; }
+    #custom-c10-distilabel-exec .steps-rail code, #custom-c10-distilabel-exec .callout code { font-size: .86em; }
+    #custom-c10-distilabel-exec .callout { padding: 7px 13px; font-size: 14px; line-height: 1.34; gap: 10px; }
+    #custom-c10-distilabel-exec .callout::before { width: 22px; height: 22px; font-size: 13px; }
+    #custom-c10-distilabel-exec .x-delta { gap: 8px; align-items: center; flex-wrap: wrap; }
+    #custom-c10-distilabel-exec .delta { font-size: 14px; }
+    #custom-c10-distilabel-exec .cites { display: flex; gap: 8px; flex-wrap: wrap; }
+    #custom-c10-distilabel-exec .cite { font-size: 13px; padding: 5px 10px 5px 8px; }
+    #custom-c10-distilabel-exec .lab-head .small, #custom-c10-distilabel-exec pre.code, #custom-c10-distilabel-exec pre.code *, #custom-c10-distilabel-exec code, #custom-c10-distilabel-exec .code-head, #custom-c10-distilabel-exec svg text { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #c10x-svg text { font-family: var(--f-mono); }
+    #custom-c10-distilabel-exec .cite.paper { flex-direction: row; gap: 10px; border-radius: 10px; border: 1px solid var(--line); }
+    #custom-c10-distilabel-exec .lab-head .run { flex: none; }
+    #custom-c10-distilabel-exec .lab-head .small { font-size: 12px; }
+    #custom-c10-distilabel-exec .x-note { font-size: 13px; line-height: 1.35; color: var(--muted); margin-top: -4px; }
+  </style>
+  <div class="kicker">Build</div>
+  <h2 class="title">Generate four candidates, run hidden tests, keep what passes</h2>
+  <div class="x-grid fill">
+    <div class="x-left">
+      <div class="lab-head"><span class="run">python build_tools_verify.py</span><span class="small">pip install "distilabel[openai]==1.5.3" "openai==3.37.0"</span></div>
+      <div class="code-wrap good x-code">
+        <div class="code-head">hr_eval/build_tools_verify.py · lines 28-65</div>
+        <pre class="code" data-lang="python" data-focus="1:2-12, 2:14-20, 3:22-29, 4:31-37"><code># lines 1-27: imports (os, re, subprocess, sys, tempfile, distilabel), SEEDS (2 specs x 4 asserts), TEMPLATE
+def run_tests(code: str, tests: str, timeout: int = 5) -&gt; tuple[bool, str]:
+    with tempfile.TemporaryDirectory() as tmp:          # fresh dir per candidate
+        path = os.path.join(tmp, "candidate.py")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(code + "\n\n" + tests + "\n")
+        try:
+            r = subprocess.run([sys.executable, "-I", path], cwd=tmp, capture_output=True,
+                               text=True, timeout=timeout)
+        except subprocess.TimeoutExpired:
+            return False, "timeout"
+    return r.returncode == 0, r.stderr.strip().splitlines()[-1] if r.stderr.strip() else ""
+
+@step(inputs=["generation", "tests"], outputs=["code", "passed", "error"])
+def ExecuteUnitTests(inputs: StepInput) -&gt; StepOutput:
+    for row in inputs:
+        m = re.search(r"```(?:python)?\n(.*?)```", row["generation"] or "", re.S)
+        row["code"] = m.group(1) if m else (row["generation"] or "")
+        row["passed"], row["error"] = run_tests(row["code"], row["tests"])
+    yield inputs
+
+with Pipeline(name="hr-tools-exec-verify") as pipeline:
+    seeds = LoadDataFromDicts(data=SEEDS)
+    gen = TextGeneration(
+        llm=OpenAILLM(model=os.getenv("GEN_MODEL", "gpt-4.1-mini"),
+                      generation_kwargs={"temperature": 0.9, "max_new_tokens": 512}),
+        template=TEMPLATE, columns=["spec"], num_generations=4)
+    verify = ExecuteUnitTests()
+    seeds &gt;&gt; gen &gt;&gt; verify
+
+if __name__ == "__main__":
+    ds = pipeline.run(use_cache=False)["default"]["train"]
+    sft = ds.filter(lambda r: r["passed"])
+    print(f"candidates={len(ds)}  passed={len(sft)}  pass-rate={len(sft) / len(ds):.0%}")
+    for r in ds.filter(lambda r: not r["passed"]).select_columns(["spec", "error"]).to_list()[:3]:
+        print("REJECTED:", r["spec"].splitlines()[0], "-&gt;", r["error"])
+    sft.select_columns(["spec", "code"]).to_json("hr_tools_sft.jsonl")</code></pre>
+      </div>
+    </div>
+    <div class="x-right">
+      <svg id="c10x-svg" viewBox="0 0 594 222" width="594" height="222" role="img" aria-label="Two spec cards, pto_days and expense_on_time, each fan out into four candidate code cards inside a sandbox box with a timer. Six candidates turn green and two turn red with AssertionError. A rejection histogram shows passed 6, AssertionError 2, timeout 0. The six passing candidates form an SFT file and one passing plus one failing candidate form a DPO pair. Counts are illustrative."></svg>
+      <div class="x-swap">
+        <div class="code-wrap bad" data-until="1">
+          <div class="code-head">build_no_verify.py · the LLM writes code, straight into SFT data</div>
+          <pre class="code" data-lang="python"><code>llm = OpenAILLM(model=os.getenv("GEN_MODEL", "gpt-4.1-mini"))
+with Pipeline(name="hr-tools-no-verify") as pipeline:
+    gen = TextGeneration(llm=llm, template=TEMPLATE, columns=["spec"], num_generations=4)
+    LoadDataFromDicts(data=SEEDS) &gt;&gt; gen
+ds = pipeline.run(use_cache=False)["default"]["train"]
+ds.to_json("hr_tools_sft.jsonl")      # 8 rows into SFT, not one of them was run</code></pre>
+        </div>
+        <div class="steps-rail">
+          <div data-step="1"><span>Cheapest check first: parse, then execute, then judge. A fresh temp dir, <code>-I</code> and <code>timeout=5</code> isolate each candidate.</span></div>
+          <div data-step="2"><span>The <code>error</code> column says why a row failed. The rejection histogram is your data-quality dashboard.</span></div>
+          <div data-step="3"><span><code>num_generations=4</code>: 2 specs x 4 = 8 rows. A pass rate near 100% means weak tests: mutation-test them.</span></div>
+          <div data-step="4"><span>Keep <code>passed</code> rows for SFT. A passing and a failing candidate for one spec make a DPO pair.</span></div>
+        </div>
+      </div>
+      <div class="row x-delta" data-step="3"><span class="delta up">candidates=8  passed=6  pass-rate=75%</span><span class="delta down">2 REJECTED -&gt; AssertionError</span></div>
+      <div class="x-note" data-step="3">Counts are illustrative. distilabel 1.5.3 (2025-01-28) is the last release, and its README says the original authors moved on: keep the verifier a plain function.</div>
+      <div class="callout pitfall" data-step="4"><span><code>OpenAILLM</code> always sends <code>max_tokens</code>: reasoning models can reject it. A quoted <code>"StepInput"</code> hint breaks DAG validation.</span></div>
+      <div class="cites push">
+        <a class="cite doc" href="https://distilabel.argilla.io/latest/sections/getting_started/quickstart/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;distilabel Quickstart</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2407.21783" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2407.21783 Llama 3 (execution feedback)</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Lab 9 verified a synthetic eval set; now we add a second kind of synthetic data: SFT rows for the Python tools that the HR assistant calls, pto_days (1.5 days per month of service) and expense_on_time (30-day filing deadline), each with 4 hidden asserts. The before version writes whatever the LLM produced straight into the training file, so not one row was ever run. The after version gives each spec 4 candidates and runs each one in a fresh temp directory with python -I and a 5 second timeout; the verifier itself was re-run and returned pass, AssertionError and timeout as expected. The error column becomes a rejection histogram, and the passing and failing candidates for one spec give you DPO pairs for free. Say this clearly: distilabel's last release is 1.5.3 from January 2025 and the README says the original authors moved on, so teach the pattern and keep the verifier a plain function you can move to any framework. Analogy: a code review that only accepts pull requests with green CI. Likely question: "Why not let an LLM judge the code?" Judges cost more and are less reliable than tests, so put them last, only on rows that already pass execution.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c10-distilabel-exec";
+  // illustrative run: 2 specs x 4 candidates = 8; one candidate per spec fails with AssertionError
+  const SPECS = [{ name: "pto_days", y: 34 }, { name: "expense_on_time", y: 128 }];
+  const FAIL = { "0-2": 1, "1-1": 1 };
+  const CX0 = 168, CDX = 50, CW = 40, CH = 34, ROWY = [44, 138];
+  const HX = 412, HW = 22;                          // histogram x and px per count
+  const HIST = [["passed", 6, "state"], ["AssertionError", 2, "risk"], ["timeout", 0, "tool"]];
+  let S = null;
+
+  function mk(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  }
+
+  function build(slide) {
+    const svg = slide.querySelector("#c10x-svg");
+    if (svg._S) return svg._S;
+    svg.innerHTML = "";
+    const s = { prev: 0, tweens: [], cands: [], bars: [] };
+    mk("text", { x: 594, y: 220, "text-anchor": "end", "font-size": 10, fill: "var(--muted)" }, svg, "illustrative counts");
+    // spec cards
+    SPECS.forEach((sp, i) => {
+      mk("rect", { x: 0, y: sp.y, width: 126, height: 54, rx: 8, fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 1.6 }, svg);
+      mk("text", { x: 63, y: sp.y + 22, "text-anchor": "middle", "font-size": 10.5, "font-weight": 700, fill: "var(--ink)" }, svg, sp.name);
+      mk("text", { x: 63, y: sp.y + 40, "text-anchor": "middle", "font-size": 10, fill: "var(--ink-2)" }, svg, "spec + 4 asserts");
+    });
+    // sandbox
+    s.box = mk("g", { opacity: 0 }, svg);
+    mk("rect", { x: 156, y: 22, width: 214, height: 190, rx: 10, fill: "none", stroke: "var(--tool)", "stroke-width": 1.8, "stroke-dasharray": "6 5" }, s.box);
+    mk("text", { x: 166, y: 15, "font-size": 10.5, "font-weight": 700, fill: "var(--tool)" }, s.box, "sandbox · python -I · 5 s");
+    mk("circle", { cx: 360, cy: 11, r: 7, fill: "none", stroke: "var(--line-2)", "stroke-width": 2 }, s.box);
+    s.timer = mk("circle", { cx: 360, cy: 11, r: 7, fill: "none", stroke: "var(--tool)", "stroke-width": 2, "stroke-dasharray": 44, "stroke-dashoffset": 44, transform: "rotate(-90 360 11)" }, s.box);
+    // candidates
+    SPECS.forEach((sp, i) => {
+      for (let k = 0; k < 4; k++) {
+        const g = mk("g", { opacity: 0 }, svg);
+        const r = mk("rect", { x: 0, y: 0, width: CW, height: CH, rx: 6, fill: "var(--surface)", stroke: "var(--line-2)", "stroke-width": 1.6 }, g);
+        const t = mk("text", { x: CW / 2, y: 15, "text-anchor": "middle", "font-size": 10.5, "font-weight": 700, fill: "var(--ink)" }, g, `${"AB"[i]}${k + 1}`);
+        const v = mk("text", { x: CW / 2, y: 28, "text-anchor": "middle", "font-size": 11, "font-weight": 700, fill: "var(--muted)" }, g, "...");
+        const fail = !!FAIL[`${i}-${k}`];
+        const e = fail ? mk("text", { x: CW / 2, y: CH + 13, "text-anchor": "middle", "font-size": 9.5, "font-weight": 700, fill: "var(--risk)", opacity: 0 }, g, "AssertionError") : null;
+        s.cands.push({ g, r, v, e, fail, sx: 126, sy: sp.y + 10, x: CX0 + k * CDX, y: ROWY[i] });
+      }
+    });
+    // histogram
+    s.hist = mk("g", { opacity: 0 }, svg);
+    mk("text", { x: HX, y: 15, "font-size": 11, "font-weight": 700, fill: "var(--ink)" }, s.hist, "rejection histogram");
+    HIST.forEach(([lab, v, tone], i) => {
+      const y = 30 + i * 40;
+      mk("text", { x: HX, y: y + 10, "font-size": 10.5, fill: "var(--ink-2)" }, s.hist, lab);
+      mk("rect", { x: HX, y: y + 16, width: 6 * HW, height: 12, rx: 4, fill: "var(--line)" }, s.hist);
+      const b = mk("rect", { x: HX, y: y + 16, width: 0, height: 12, rx: 4, fill: `var(--${tone})` }, svg);
+      const t = mk("text", { x: HX + 6 * HW + 8, y: y + 26, "font-size": 11.5, "font-weight": 700, fill: `var(--${tone})`, opacity: 0 }, svg, String(v));
+      s.bars.push({ b, t, w: v * HW });
+    });
+    // SFT file + DPO pair
+    s.out = mk("g", { opacity: 0 }, svg);
+    mk("path", { d: "M380 100 C 392 100, 396 168, 410 168", fill: "none", stroke: "var(--state)", "stroke-width": 2, "stroke-dasharray": "4 4" }, s.out);
+    mk("path", { d: `M${HX} 152 h62 l10 10 v40 h-72 z`, fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 1.8 }, s.out);
+    mk("text", { x: HX + 36, y: 172, "text-anchor": "middle", "font-size": 12, "font-weight": 700, fill: "var(--state)" }, s.out, "SFT");
+    mk("text", { x: HX + 36, y: 189, "text-anchor": "middle", "font-size": 10, fill: "var(--ink-2)" }, s.out, "6 rows");
+    mk("rect", { x: HX + 86, y: 152, width: 96, height: 50, rx: 8, fill: "var(--agent-soft)", stroke: "var(--agent)", "stroke-width": 1.8 }, s.out);
+    mk("text", { x: HX + 134, y: 170, "text-anchor": "middle", "font-size": 11, "font-weight": 700, fill: "var(--agent)" }, s.out, "DPO pair");
+    mk("text", { x: HX + 134, y: 189, "text-anchor": "middle", "font-size": 10, fill: "var(--ink-2)" }, s.out, "A1 ✓ vs A3 ✕");
+    svg._S = s;
+    return s;
+  }
+
+  function render(s, n, animate) {
+    s.tweens.forEach((t) => t.kill()); s.tweens = [];
+    const A = (k) => animate && n === k && s.prev === k - 1;
+    const tw = (el, v, d) => s.tweens.push(gsap.to(el, Object.assign({ duration: .55, ease: "power2.out" }, v, { delay: d || 0 })));
+    const put = (el, v, k, d) => (A(k) ? tw(el, v, d) : gsap.set(el, v));
+    // step 1: specs fan out into 8 candidates inside the sandbox; the timer sweeps
+    put(s.box, { opacity: n >= 1 ? 1 : 0 }, 1);
+    if (A(1)) { gsap.set(s.timer, { attr: { "stroke-dashoffset": 44 } }); tw(s.timer, { attr: { "stroke-dashoffset": 0 }, duration: 1.6, ease: "none" }, .4); }
+    else gsap.set(s.timer, { attr: { "stroke-dashoffset": n >= 1 ? 0 : 44 } });
+    s.cands.forEach((c, i) => {
+      const on = n >= 1;
+      if (A(1)) { gsap.set(c.g, { attr: { transform: `translate(${c.sx} ${c.sy})` }, opacity: 0 }); tw(c.g, { attr: { transform: `translate(${c.x} ${c.y})` }, opacity: 1, duration: .6 }, i * .1); }
+      else gsap.set(c.g, { attr: { transform: `translate(${on ? c.x : c.sx} ${on ? c.y : c.sy})` }, opacity: on ? 1 : 0 });
+      // step 2: verdicts
+      const done = n >= 2;
+      const col = done ? (c.fail ? "var(--risk)" : "var(--state)") : "var(--line-2)";
+      const fill = done ? (c.fail ? "var(--risk-soft)" : "var(--state-soft)") : "var(--surface)";
+      const d = A(2) ? i * .12 : 0;
+      if (A(2)) s.tweens.push(gsap.delayedCall(d, () => { c.r.setAttribute("stroke", col); c.r.setAttribute("fill", fill); c.v.textContent = c.fail ? "✕" : "✓"; c.v.setAttribute("fill", col); }));
+      else { c.r.setAttribute("stroke", col); c.r.setAttribute("fill", fill); c.v.textContent = done ? (c.fail ? "✕" : "✓") : "..."; c.v.setAttribute("fill", done ? col : "var(--muted)"); }
+      if (c.e) put(c.e, { opacity: done ? 1 : 0 }, 2, d + .1);
+      // step 4: passing candidates get a thicker outline as they go to SFT
+      c.r.setAttribute("stroke-width", n >= 4 && !c.fail ? 2.6 : 1.6);
+    });
+    // step 3: rejection histogram builds
+    put(s.hist, { opacity: n >= 3 ? 1 : 0 }, 3);
+    s.bars.forEach((b, i) => {
+      put(b.b, { attr: { width: n >= 3 ? b.w : 0 } }, 3, .2 + i * .25);
+      put(b.t, { opacity: n >= 3 ? 1 : 0 }, 3, .5 + i * .25);
+    });
+    // step 4: SFT file and a DPO pair
+    put(s.out, { opacity: n >= 4 ? 1 : 0 }, 4);
+    s.prev = n;
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { S = build(slide); S.prev = step || 0; render(S, step || 0, false); },
+    step(slide, n, animate) { S = build(slide); render(S, n, animate); },
+    leave(slide) {
+      const svg = slide.querySelector("#c10x-svg");
+      if (svg && svg._S) { svg._S.tweens.forEach((t) => t.kill()); svg._S.tweens = []; }
+      if (svg) gsap.killTweensOf(svg.querySelectorAll("*"));
+    }
+  });
+})();
+</script>

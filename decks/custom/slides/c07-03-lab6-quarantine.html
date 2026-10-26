@@ -1,0 +1,215 @@
+<section class="slide" id="custom-c07-lab6-quarantine" data-tone="state" data-title="Lab 6: lazy report + quarantine">
+  <style>
+    #custom-c07-lab6-quarantine { gap: 20px; }
+    #custom-c07-lab6-quarantine .q-grid { display: grid; grid-template-columns: 680px 1fr; gap: 24px; min-height: 0; }
+    #custom-c07-lab6-quarantine .q-left, #custom-c07-lab6-quarantine .q-right { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    #custom-c07-lab6-quarantine .lab-head { font-size: 15px; gap: 12px; flex-wrap: nowrap; }
+    #custom-c07-lab6-quarantine .lab-head .run { font-size: 15px; padding: 7px 11px; }
+    #custom-c07-lab6-quarantine .lab-head > span:not(.run) { font: 500 14px/1 var(--f-mono); color: var(--muted); white-space: nowrap; }
+    #custom-c07-lab6-quarantine .code-head { padding: 7px 14px; font-size: 13.5px; }
+    #custom-c07-lab6-quarantine .q-code pre.code { font-size: 16px; line-height: 1.42; padding: 10px 18px 12px; }
+    #custom-c07-lab6-quarantine .q-out pre.code { font-size: 13.5px; line-height: 1.45; padding: 8px 16px 10px; color: #c8d0e8; }
+    #custom-c07-lab6-quarantine .steps-rail { gap: 8px; }
+    #custom-c07-lab6-quarantine .steps-rail > * { font-size: 16px; line-height: 1.36; grid-template-columns: 30px minmax(0, 1fr); gap: 10px; }
+    #custom-c07-lab6-quarantine .steps-rail > *::before { width: 26px; height: 26px; font-size: 14px; }
+    #custom-c07-lab6-quarantine .steps-rail code { font-size: .84em; white-space: normal; overflow-wrap: anywhere; }
+    #custom-c07-lab6-quarantine .q-foot { display: flex; gap: 10px; align-items: center; margin-top: auto; }
+    #custom-c07-lab6-quarantine .q-foot .cite { font-size: 13px; white-space: nowrap; }
+    #custom-c07-lab6-quarantine pre.code, #custom-c07-lab6-quarantine pre.code *, #custom-c07-lab6-quarantine code, #custom-c07-lab6-quarantine .lab-head *, #custom-c07-lab6-quarantine svg text { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #c07q-svg text { font-family: var(--f-mono); }
+  </style>
+  <div class="kicker"><span class="pill">Lab 6</span> Acme claims intake · step 2 of 5</div>
+  <h2 class="title">lazy=True returns all 12 failures in one report, then quarantine rows</h2>
+  <div class="q-grid fill">
+    <div class="q-left">
+      <div class="lab-head"><span class="run">python lab6_quarantine.py</span><span>pandera[pandas]==0.34.1 · pandas==3.0.*</span></div>
+      <div class="code-wrap q-code">
+        <div class="code-head">claims_data/lab6_quarantine.py · imports the step 1 module</div>
+        <pre class="code" data-lang="python" data-focus="1:6-7, 2:10-12, 3:13-19"><code>import pathlib
+from pandera.errors import SchemaErrors
+from claims_contract import ClaimsContract   # step 1
+from nightly_batch import batch     # the 4 rows, as strings
+
+try:
+    ClaimsContract.validate(batch, lazy=True)   # collect ALL
+except SchemaErrors as exc:
+    fc = exc.failure_cases
+    print(f"{len(fc)} failure cases")
+    print(fc[["column", "check", "index", "failure_case"]]
+          .to_string(index=False))
+    bad_rows = set(fc["index"].dropna().astype(int))
+    clean = batch.drop(index=list(bad_rows))
+    print("quarantined rows:", sorted(bad_rows),
+          "| clean rows kept:", len(clean))
+    q = pathlib.Path("quarantine"); q.mkdir(exist_ok=True)
+    fc.to_csv(q / "failure_cases.csv", index=False)
+    batch.loc[sorted(bad_rows)].to_csv(q / "rows.csv", index=False)</code></pre>
+      </div>
+      <div class="q-foot">
+        <a class="cite doc" href="https://pandera.readthedocs.io/en/stable/lazy_validation.html" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Lazy Validation - pandera documentation</a>
+      </div>
+    </div>
+    <div class="q-right">
+      <svg id="c07q-svg" viewBox="0 0 720 330" width="688" height="315" role="img" aria-label="The 4-row claims batch. Step 1: a counter runs to 12 failure cases and each case lights its cell: every cell of row 3, and claim_id in rows 1 and 2. Step 2: row 3 is boxed; the one row-wise check gives 6 of the 12 cases. Step 3: row 0 moves into a green training-table bin; rows 1, 2 and 3 move into a red quarantine bin with the report, and a red note says that both copies of the duplicate are quarantined. Step 4: a new column, extra_col, arrives the next night and turns red: COLUMN_NOT_IN_SCHEMA."></svg>
+      <div class="code-wrap out q-out" data-step="1">
+        <div class="code-head">output · captured run · 12 report lines grouped by check</div>
+        <pre class="code" data-lang="none"><code><span class="err">12 failure cases</span>
+<span data-step="2"> 6 × reported_date must be on/after incident_date   row 3
+ 2 × field_uniqueness                               rows 1, 2
+ 4 × str_matches · str_length · isin · greater_than row 3</span>
+<span data-step="3"><span class="err">quarantined rows: [1, 2, 3]</span> | <span class="ok">clean rows kept: 1</span></span></code></pre>
+      </div>
+      <div class="steps-rail">
+        <div data-step="1"><span><code>lazy=True</code> collects all 12. Without it the run stops at <code>SchemaError: series 'claim_id' contains duplicate values:</code></span></div>
+        <div data-step="2"><span>Row 3 gives 6 of the 12: the row check lists each column.</span></div>
+        <div data-step="3"><span>Write the report and the bad rows to <code>quarantine/</code>. Delete nothing.</span></div>
+        <div data-step="4"><span>New column → <code>COLUMN_NOT_IN_SCHEMA</code>. Bump to v2.</span></div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">This is step 2 of Lab 6: lab6_quarantine.py imports the contract from step 1, the same way the training job does, and runs it on the nightly batch. With lazy=True pandera collects all 12 failure cases into one DataFrame; without it the run stops at the first problem, the duplicate claim_id. Six of the twelve lines come from one row-wise rule, because a dataframe_check reports every column of the failing row; adjuster_note is null in row 3, and the captured report lists only the other 6 columns. So count bad rows, not lines. unique=True flags both copies of CLM-000102, so this code quarantines rows 1, 2 and 3 and keeps only row 0; if you want one copy, dedupe upstream with drop_duplicates("claim_id", keep="first") before validate. The report and the bad rows go to quarantine/ as CSV, so nothing disappears silently. Analogy: a customs desk that writes up every problem in the suitcase, not only the first one. Likely question: why not drop_invalid_rows? You can set Config.drop_invalid_rows = True with lazy=True, and pandera returns only the valid rows; still write the dropped rows and failure_cases to quarantine. When upstream adds a column, strict=True fails with COLUMN_NOT_IN_SCHEMA: add the column in ClaimsContract v2, or set strict="filter" on purpose, and alert on new failure types, not on failure counts.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c07-lab6-quarantine";
+  const COLS = [["idx", 36], ["claim_id", 108], ["policy_id", 96], ["claim_type", 86], ["amount_usd", 90], ["incident_date", 100], ["reported_date", 100]];
+  const ROWS = [
+    ["0", "CLM-000101", "POL12345", "auto", "1200.50", "2026-10-01", "2026-10-02"],
+    ["1", "CLM-000102", "POL12346", "home", "98000", "2026-10-03", "2026-10-04"],
+    ["2", "CLM-000102", "POL12346", "home", "98000", "2026-10-03", "2026-10-04"],
+    ["3", "CLM-77", "POL1", "boat", "-5", "2026-10-09", "2026-10-08"],
+  ];
+  // the 12 failure cases in the order of the captured output: [row, column index]
+  const FAILS = [[3, 1], [3, 2], [3, 3], [3, 4], [3, 5], [3, 6], [1, 1], [2, 1], [3, 1], [3, 2], [3, 3], [3, 4]];
+  const X0 = 10, HY = 30, HH = 26, RH = 28, TW = COLS.reduce((a, c) => a + c[1], 0);
+  const colX = []; COLS.reduce((x, c, i) => { colX[i] = x; return x + c[1]; }, X0);
+  const rowY = (r) => HY + HH + r * RH;
+  // step 3 targets: row 0 into the training bin, rows 1-3 into the quarantine bin
+  const TARGET_Y = [86, 158, 186, 214];
+  let S = null;
+
+  function mk(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  }
+
+  function build(slide) {
+    const svg = slide.querySelector("#c07q-svg");
+    if (svg._S) return svg._S;
+    svg.innerHTML = "";
+    const s = { prev: 0, cells: {}, rows: [], tl: null, slide };
+    mk("text", { x: X0, y: 18, "font-size": 13.5, "font-weight": 700, fill: "var(--ink)" }, svg, "nightly batch · 4 claims");
+    s.count = mk("text", { x: 714, y: 18, "text-anchor": "end", "font-size": 13.5, "font-weight": 700, fill: "var(--risk)", opacity: 0 }, svg, "failure_cases: 0 / 12");
+    // bins (step 3), drawn behind the rows
+    s.bins = mk("g", { opacity: 0 }, svg);
+    mk("rect", { x: 2, y: 60, width: 714, height: 62, rx: 12, fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 1.8 }, s.bins);
+    mk("text", { x: X0 + 2, y: 78, "font-size": 13, "font-weight": 700, fill: "var(--state)" }, s.bins, "training table · 1 row kept");
+    mk("rect", { x: 2, y: 134, width: 714, height: 152, rx: 12, fill: "var(--risk-soft)", stroke: "var(--risk)", "stroke-width": 1.8, "stroke-dasharray": "7 4" }, s.bins);
+    mk("text", { x: X0 + 2, y: 151, "font-size": 13, "font-weight": 700, fill: "var(--risk)" }, s.bins, "quarantine/ · rows.csv (rows 1, 2, 3) + failure_cases.csv");
+    // header
+    COLS.forEach((c, i) => {
+      mk("rect", { x: colX[i], y: HY, width: c[1], height: HH, fill: "var(--surface)", stroke: "var(--line-2)", "stroke-width": 1 }, svg);
+      mk("text", { x: colX[i] + 6, y: HY + 17, "font-size": 11.5, "font-weight": 700, fill: "var(--muted)" }, svg, c[0]);
+    });
+    // rows
+    ROWS.forEach((row, r) => {
+      const g = mk("g", {}, svg);
+      row.forEach((v, i) => {
+        const bg = mk("rect", { x: colX[i], y: rowY(r), width: COLS[i][1], height: RH, fill: "var(--surface)", stroke: "var(--line-2)", "stroke-width": 1 }, g);
+        mk("text", { x: colX[i] + 6, y: rowY(r) + 18, "font-size": 12.5, fill: i === 0 ? "var(--muted)" : "var(--ink)" }, g, v);
+        s.cells[r + ":" + i] = { bg };
+      });
+      s.rows.push(g);
+    });
+    // pulse ring on the cell of the current failure case (step 1 build)
+    s.ping = mk("rect", { x: 0, y: 0, width: 10, height: RH, rx: 4, fill: "none", stroke: "var(--risk)", "stroke-width": 3, opacity: 0 }, svg);
+    // step 2: row-wise box + caption
+    s.box = mk("rect", { x: X0 - 4, y: rowY(3) - 4, width: TW + 8, height: RH + 8, rx: 6, fill: "none", stroke: "var(--risk)", "stroke-width": 2.8, opacity: 0 }, svg);
+    s.cap2 = mk("g", { opacity: 0 }, svg);
+    mk("text", { x: X0, y: 200, "font-size": 14, "font-weight": 700, fill: "var(--risk)" }, s.cap2, "one row check fails on row 3 -> 6 of the 12 cases");
+    mk("text", { x: X0, y: 222, "font-size": 14, "font-weight": 700, fill: "var(--ink-2)" }, s.cap2, "12 cases = 3 bad rows, not 12 bad rows");
+    // step 3: both copies of the duplicate are quarantined
+    s.keep = mk("g", { opacity: 0 }, svg);
+    mk("text", { x: X0, y: 306, "font-size": 13, "font-weight": 700, fill: "var(--risk)" }, s.keep, "both copies of CLM-000102 are quarantined");
+    mk("text", { x: X0, y: 325, "font-size": 13, "font-weight": 600, fill: "var(--ink-2)" }, s.keep, "to keep one: dedupe upstream, drop_duplicates(\"claim_id\", keep=\"first\")");
+    // step 4: a new upstream column arrives the next night
+    s.extra = mk("g", { opacity: 0 }, svg);
+    mk("rect", { x: X0 + TW + 6, y: HY, width: 84, height: HH, rx: 4, fill: "var(--risk-soft)", stroke: "var(--risk)", "stroke-width": 1.8 }, s.extra);
+    mk("text", { x: X0 + TW + 12, y: HY + 17, "font-size": 11.5, "font-weight": 700, fill: "var(--risk)" }, s.extra, "extra_col");
+    mk("text", { x: 714, y: 18, "text-anchor": "end", "font-size": 13.5, "font-weight": 700, fill: "var(--risk)" }, s.extra, "next night: COLUMN_NOT_IN_SCHEMA");
+    svg._S = s;
+    return s;
+  }
+
+  // apply the first k failure cases (k = 0..12): colour cells
+  function failState(s, k) {
+    const hit = new Set(FAILS.slice(0, k).map(([r, c]) => r + ":" + c));
+    Object.keys(s.cells).forEach((key) => {
+      const on = hit.has(key), cell = s.cells[key];
+      cell.bg.setAttribute("fill", on ? "color-mix(in oklab, var(--risk) 18%, var(--surface))" : "var(--surface)");
+      cell.bg.setAttribute("stroke", on ? "var(--risk)" : "var(--line-2)");
+    });
+    s.count.textContent = "failure_cases: " + k + " / 12";
+    if (k > 0 && k < 12 && s.tl) {
+      const [r, c] = FAILS[k - 1];
+      s.ping.setAttribute("x", colX[c] - 1); s.ping.setAttribute("y", rowY(r) - 1);
+      s.ping.setAttribute("width", COLS[c][1] + 2); s.ping.setAttribute("height", RH + 2);
+      s.ping.setAttribute("opacity", 1);
+    } else s.ping.setAttribute("opacity", 0);
+  }
+
+  function stop(s) {
+    if (!s) return;
+    if (s.tl) { s.tl.kill(); s.tl = null; }
+    gsap.killTweensOf([s.count, s.box, s.cap2, s.bins, s.keep, s.extra, ...s.rows]);
+  }
+
+  function render(s, n, animate) {
+    stop(s);
+    const op = (el, v, d) => (animate ? gsap.to(el, { opacity: v, duration: .4, delay: d || 0 }) : gsap.set(el, { opacity: v }));
+    // step 1: the counter runs to 12; each failure case lights its cell
+    op(s.count, n >= 1 && n < 4 ? 1 : 0);
+    if (n === 1 && animate && s.prev < 1) {
+      const o = { k: 0 };
+      s.tl = gsap.to(o, { k: 12, duration: 3, ease: "none", delay: .35, onUpdate: () => failState(s, Math.floor(o.k)), onComplete: () => { s.tl = null; failState(s, 12); } });
+      failState(s, 0);
+    } else failState(s, n >= 1 ? 12 : 0);
+    // step 2: one row-wise check = 6 cases on row 3
+    op(s.box, n === 2 ? 1 : 0);
+    op(s.cap2, n === 2 ? 1 : 0);
+    // step 3: row 0 to the training table, rows 1-3 to quarantine
+    op(s.bins, n >= 3 ? 1 : 0);
+    s.rows.forEach((g, r) => {
+      const dy = n >= 3 ? TARGET_Y[r] - rowY(r) : 0;
+      if (animate && (n >= 3) !== (s.prev >= 3)) gsap.to(g, { y: dy, duration: .9, delay: n >= 3 ? .2 + r * .14 : 0, ease: "power3.inOut" });
+      else gsap.set(g, { y: dy });
+    });
+    op(s.keep, n >= 3 ? 1 : 0, n >= 3 && animate ? 1.1 : 0);
+    // step 4: new upstream column fails strict mode
+    if (n >= 4 && animate && s.prev < 4) gsap.fromTo(s.extra, { opacity: 0, x: 40 }, { opacity: 1, x: 0, duration: .6, ease: "back.out(2)" });
+    else gsap.set(s.extra, { opacity: n >= 4 ? 1 : 0, x: 0 });
+    // step 4 has no code line: hide the focus band
+    const pre = s.slide.querySelector(".q-code pre.code");
+    if (pre && pre._band && n >= 4) {
+      gsap.killTweensOf(pre._band);
+      gsap.set(pre._band, { autoAlpha: 0 });
+      pre.closest(".code-wrap").classList.remove("focusing");
+    }
+    s.prev = n;
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { S = build(slide); stop(S); S.prev = step || 0; render(S, step || 0, false); },
+    step(slide, n, animate) { S = build(slide); render(S, n, animate); },
+    leave(slide) {
+      const svg = slide.querySelector("#c07q-svg");
+      if (svg && svg._S) stop(svg._S);
+      if (svg) gsap.killTweensOf(svg.querySelectorAll("*"));
+    }
+  });
+})();
+</script>

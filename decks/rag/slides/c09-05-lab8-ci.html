@@ -1,0 +1,220 @@
+<section class="slide tight" id="rag-c09-lab8-ci" data-tone="human" data-title="Lab 8: the gate in CI">
+  <style>
+    #rag-c09-lab8-ci .ci-grid { display: grid; grid-template-columns: 700px 1fr; gap: 26px; align-items: start; }
+    #rag-c09-lab8-ci .ci-left, #rag-c09-lab8-ci .ci-right { gap: 12px; min-width: 0; }
+    #rag-c09-lab8-ci .lab-head { gap: 12px; flex-wrap: nowrap; }
+    #rag-c09-lab8-ci .lab-head .run { font-size: 15px; flex: none; }
+    #rag-c09-lab8-ci .lab-head .arrow { font: 600 15px/1 var(--f-mono); color: var(--human); white-space: nowrap; }
+    #rag-c09-lab8-ci .lab-head .pins { font: 500 13px/1.3 var(--f-mono); color: var(--muted); white-space: nowrap; }
+    #rag-c09-lab8-ci .lab-head .cite { white-space: nowrap; font-size: 13px; padding: 5px 10px 5px 8px; margin-left: auto; }
+    #rag-c09-lab8-ci .lab-head .cite + .cite { margin-left: 0; }
+    #rag-c09-lab8-ci .code-wrap .code-head { padding: 7px 14px; font-size: 13.5px; }
+    #rag-c09-lab8-ci pre.code.ci-c { font-size: 12.4px; line-height: 1.5; padding: 12px 16px 12px; }
+    #rag-c09-lab8-ci pre.code.ci-o { font-size: 11.6px; line-height: 1.5; padding: 9px 14px 11px; }
+    #rag-c09-lab8-ci .ci-svg { display: block; overflow: visible; }
+    #rag-c09-lab8-ci .ci-svg text { font-family: var(--f-mono); }
+    #rag-c09-lab8-ci .ci-svg .bx rect { fill: var(--surface); stroke: var(--line-2); stroke-width: 1.8; }
+    #rag-c09-lab8-ci .ci-svg .bx .nm { font-size: 13.5px; font-weight: 700; fill: var(--ink-2); }
+    #rag-c09-lab8-ci .ci-svg .bx .sb { font-size: 11px; font-weight: 600; fill: var(--muted); }
+    #rag-c09-lab8-ci .ci-svg .bx .mk { font-size: 15px; font-weight: 700; }
+    #rag-c09-lab8-ci .ci-svg .bx.pass rect { fill: var(--state-soft); stroke: var(--state); }
+    #rag-c09-lab8-ci .ci-svg .bx.pass .nm, #rag-c09-lab8-ci .ci-svg .bx.pass .mk { fill: var(--state); }
+    #rag-c09-lab8-ci .ci-svg .bx.fail rect { fill: var(--risk-soft); stroke: var(--risk); stroke-width: 2.6; }
+    #rag-c09-lab8-ci .ci-svg .bx.fail .nm, #rag-c09-lab8-ci .ci-svg .bx.fail .mk { fill: var(--risk); }
+    #rag-c09-lab8-ci .ci-svg .w { stroke: var(--line-2); stroke-width: 2.2; fill: none; }
+    #rag-c09-lab8-ci .ci-svg .w.on { stroke: var(--muted); }
+    #rag-c09-lab8-ci .ci-svg .w.always { stroke: var(--state); stroke-width: 2.6; stroke-dasharray: 6 4; }
+    #rag-c09-lab8-ci .ci-svg .ah { fill: var(--line-2); }
+    #rag-c09-lab8-ci .ci-svg .ah.on { fill: var(--muted); }
+    #rag-c09-lab8-ci .ci-svg .ah.always { fill: var(--state); }
+    #rag-c09-lab8-ci .ci-svg .wl { font-size: 11.5px; font-weight: 700; fill: var(--state); }
+    #rag-c09-lab8-ci .ci-svg .ch rect { fill: var(--surface); stroke: var(--line-2); stroke-width: 1.4; }
+    #rag-c09-lab8-ci .ci-svg .ch text { font-size: 12px; font-weight: 600; fill: var(--muted); }
+    #rag-c09-lab8-ci .ci-svg .ch.on rect { fill: var(--state-soft); stroke: var(--state); }
+    #rag-c09-lab8-ci .ci-svg .ch.on text { fill: var(--state); }
+    #rag-c09-lab8-ci .ci-svg .trg { font-size: 12px; font-weight: 700; fill: var(--muted); }
+    #rag-c09-lab8-ci .ci-svg .trg.on { fill: var(--human); }
+    #rag-c09-lab8-ci .ci-svg .pr rect { fill: var(--human-soft); stroke: var(--human); stroke-width: 1.8; }
+    #rag-c09-lab8-ci .ci-svg .pr text { font-size: 12px; font-weight: 700; fill: var(--human); }
+    #rag-c09-lab8-ci .ci-svg .pr.fail rect { fill: var(--risk-soft); stroke: var(--risk); }
+    #rag-c09-lab8-ci .ci-svg .pr.fail text { fill: var(--risk); }
+    #rag-c09-lab8-ci .ci-svg .res { font-size: 12.5px; font-weight: 700; fill: var(--risk); }
+    #rag-c09-lab8-ci .ci-svg .flk { font-size: 12.5px; font-weight: 700; fill: var(--tool); }
+    #rag-c09-lab8-ci .ci-svg .ill { font-size: 10px; fill: var(--faint); }
+    #rag-c09-lab8-ci .ci-rail-box { position: relative; height: 112px; }
+    #rag-c09-lab8-ci .ci-rail-box > * { position: absolute; left: 0; right: 0; top: 0; }
+    #rag-c09-lab8-ci .steps-rail { gap: 8px; }
+    #rag-c09-lab8-ci .steps-rail > * { font-size: 15.5px; line-height: 1.3; grid-template-columns: 30px 1fr; gap: 10px; }
+    #rag-c09-lab8-ci .steps-rail > *::before { width: 24px; height: 24px; font-size: 13px; border-radius: 7px; }
+    #rag-c09-lab8-ci .steps-rail code, #rag-c09-lab8-ci .gotcha code { font-size: .86em; }
+    #rag-c09-lab8-ci .gotcha { font-size: 15.5px; padding: 11px 16px; gap: 4px 12px; grid-template-columns: 90px 1fr; }
+    #rag-c09-lab8-ci .gotcha > b { font-size: 12.5px; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 8</span> ShopCo release gate · step 4 of 4</div>
+  <h2 class="title">Run the gate on every PR that touches retrieval, prompts or labels</h2>
+  <div class="lab-head">
+    <span class="run">git push</span>
+    <span class="arrow">→ PR check "rag-eval / gate"</span>
+    <span class="pins">checkout v7.0.1 · setup-python v7.1.0 · upload-artifact v7.0.2 · ragas 0.4.3</span>
+    <a class="cite repo" href="https://github.com/vibrantlabsai/ragas/tree/v0.4.3" target="_blank" rel="noopener"><b>Repo</b>&nbsp;ragas @ v0.4.3</a>
+    <a class="cite repo" href="https://github.com/actions/upload-artifact" target="_blank" rel="noopener"><b>Repo</b>&nbsp;actions/upload-artifact</a>
+  </div>
+  <div class="ci-grid fill">
+    <div class="stack ci-left">
+      <div class="code-wrap">
+        <div class="code-head">.github/workflows/rag-eval.yml</div>
+        <pre class="code ci-c" data-lang="yaml" data-focus="1:1-2, 2:10-11, 3:12-16, 4:17-19"><code>name: rag-eval
+on: { pull_request: { paths: ["rag/**", "prompts/**", "golden.jsonl"] } }
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with: { python-version: "3.12" }
+      - uses: actions/cache@v6           # re-use judge verdicts across runs
+        with: { path: .ragas_cache, key: ragas-${{ hashFiles('golden.jsonl') }} }
+      - run: pip install ragas==0.4.3 openai==3.37.0 diskcache==5.6.3 -r requirements.txt
+      - run: python run_pipeline.py --golden golden.jsonl --out runs/candidate.jsonl
+        env: { GEMINI_API_KEY: "${{ secrets.GEMINI_API_KEY }}" }
+      - run: python eval_gate.py
+        env: { GEMINI_API_KEY: "${{ secrets.GEMINI_API_KEY }}" }
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with: { name: eval-report, path: eval_report.json }</code></pre>
+      </div>
+      <div class="code-wrap out" data-step="3">
+        <div class="code-head">output · illustrative · PR check log</div>
+        <pre class="code ci-o" data-lang="output"><code><span class="err">rag-eval / gate (pull_request)  Failing</span>
+recall_at_5      base=0.860 cur=0.812 <span class="err">FAIL</span>
+<span class="err">Error: Process completed with exit code 1.</span>
+<span data-step="4"><span class="ok">Artifact eval-report uploaded</span></span></code></pre>
+      </div>
+    </div>
+    <div class="stack ci-right">
+      <svg class="ci-svg" id="ci-svg" viewBox="0 0 666 346" width="666" height="346" aria-label="The CI job as six steps in two rows: checkout, setup-python and cache restore, then run_pipeline, eval_gate and upload-artifact. A PR card enters when files under rag, prompts or golden.jsonl change. The cache step counts reused verdicts, the gate step turns red with recall at 5 below its tolerance, and the artifact step still turns green because of if always."></svg>
+      <div class="ci-rail-box">
+        <div class="steps-rail">
+          <p data-step="1" data-until="5"><span><code>paths:</code> a chunking, prompt, model or label change starts the job.</span></p>
+          <p data-step="2" data-until="5"><span>The cache key is <code>golden.jsonl</code>: unchanged rows reuse judge verdicts.</span></p>
+          <p data-step="3" data-until="5"><span>Both scripts read the <code>GEMINI_API_KEY</code> secret. Exit 1 fails the check.</span></p>
+          <p data-step="4" data-until="5"><span><code>if: always()</code> keeps <code>eval_report.json</code> when the gate fails.</span></p>
+        </div>
+        <div class="gotcha" data-step="5">
+          <b>Symptom</b><span>FAIL, then ok, on the same commit.</span>
+          <b class="why">Cause</b><span>The judge is non-deterministic at small n.</span>
+          <b class="fix">Fix</b><span>Keep ragas' <code>temperature</code> default (0.01), raise n, use the cache. On 429, cap calls with <code>asyncio.Semaphore</code>.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    This is the last step of Lab 8: the same eval_gate.py from the previous slide now runs on every pull request. The paths filter is the scope decision: a change to the retrieval code, a prompt, the model or the golden labels can move quality, so each one starts the job. The cache step restores .ragas_cache keyed on golden.jsonl, so unchanged rows reuse earlier judge verdicts and a re-run costs little. When recall@5 falls to 0.812 against a baseline of 0.860 with a 0.03 tolerance, the script exits 1 and GitHub marks the check as failing, but if: always() still uploads eval_report.json so the reviewer can see why. Analogy: a smoke detector that also keeps the log of what it smelled. Likely question: "The check flips between FAIL and ok on the same commit, why?" The judge is non-deterministic at small n: keep the ragas temperature default, grow the golden set, use the cache, and cap concurrency with asyncio.Semaphore when you see 429 errors. Next: the gate trusts the faithfulness judge, so the build-up measures that judge against human labels before it blocks any merge.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const BOXES = [
+    { k: "co", x: 0,   y: 96,  n: "checkout",        s: "@v7.0.1" },
+    { k: "sp", x: 248, y: 96,  n: "setup-python",    s: "@v7.1.0 · 3.12" },
+    { k: "ca", x: 496, y: 96,  n: "cache restore",   s: ".ragas_cache" },
+    { k: "pl", x: 496, y: 236, n: "run_pipeline.py", s: "candidate.jsonl" },
+    { k: "gt", x: 248, y: 236, n: "eval_gate.py",    s: "recall·canary·faith" },
+    { k: "ar", x: 0,   y: 236, n: "upload-artifact", s: "@v7.0.2" },
+  ];
+  const BW = 170, BH = 56;
+  const WIRES = [["co", 170, 124, 248, 124], ["sp", 418, 124, 496, 124], ["ca", 581, 152, 581, 236],
+                 ["pl", 496, 264, 418, 264], ["gt", 248, 264, 170, 264]];
+  const CHIPS = [["rag/**", 200], ["prompts/**", 330], ["golden.jsonl", 460]];
+  const HITS = 47, ROWS = 50;                       // illustrative cache counter
+  let E = null, cnt = { v: 0 };
+  const mk = (p, tag, attrs, cls, txt) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (cls) e.setAttribute("class", cls);
+    if (txt !== undefined) e.textContent = txt;
+    p.appendChild(e); return e;
+  };
+  function build(svg) {
+    svg.innerHTML = "";
+    E = { box: {}, wire: [], chip: [] };
+    E.trg = mk(svg, "text", { x: 0, y: 23 }, "trg", "on.pull_request.paths");
+    CHIPS.forEach(([t, x]) => {
+      const g = mk(svg, "g", {}, "ch");
+      mk(g, "rect", { x, y: 4, width: 116, height: 28, rx: 8 });
+      mk(g, "text", { x: x + 58, y: 23, "text-anchor": "middle" }, "", t);
+      E.chip.push(g);
+    });
+    WIRES.forEach(([k, x1, y1, x2, y2]) => {
+      const p = mk(svg, "path", { d: `M${x1} ${y1} L${x2} ${y2}` }, "w");
+      const a = x2 > x1 ? `M${x2} ${y2} l-9 -5 v10 z` : x2 < x1 ? `M${x2} ${y2} l9 -5 v10 z` : `M${x2} ${y2} l-5 -9 h10 z`;
+      const h = mk(svg, "path", { d: a }, "ah");
+      E.wire.push({ k, p, h });
+    });
+    E.wl = mk(svg, "text", { x: 209, y: 254, "text-anchor": "middle" }, "wl", "always()");
+    BOXES.forEach((b) => {
+      const g = mk(svg, "g", {}, "bx");
+      mk(g, "rect", { x: b.x, y: b.y, width: BW, height: BH, rx: 12 });
+      mk(g, "text", { x: b.x + 14, y: b.y + 24 }, "nm", b.n);
+      const sb = mk(g, "text", { x: b.x + 14, y: b.y + 43 }, "sb", b.s);
+      const m = mk(g, "text", { x: b.x + BW - 12, y: b.y + 24, "text-anchor": "end" }, "mk", "");
+      E.box[b.k] = { g, sb, m, b };
+    });
+    E.pr = mk(svg, "g", {}, "pr");
+    mk(E.pr, "rect", { x: 0, y: 0, width: 92, height: 26, rx: 13 });
+    E.prt = mk(E.pr, "text", { x: 46, y: 17.5, "text-anchor": "middle" }, "", "PR opened");
+    E.res = mk(svg, "text", { x: 333, y: 312, "text-anchor": "middle" }, "res", "recall@5 0.812 < 0.830  ·  exit 1");
+    E.flk = mk(svg, "text", { x: 333, y: 336, "text-anchor": "middle" }, "flk", "same commit: FAIL · ok · FAIL");
+    E.ill = mk(svg, "text", { x: 666, y: 346, "text-anchor": "end" }, "ill", "counts illustrative");
+  }
+  function setBox(k, st) {
+    const B = E.box[k];
+    B.g.classList.toggle("pass", st === "pass");
+    B.g.classList.toggle("fail", st === "fail");
+    B.m.textContent = st === "pass" ? "✓" : st === "fail" ? "✕" : "";
+  }
+  function render(n, animate) {
+    if (!E) return;
+    const d = animate ? 0.55 : 0;
+    E.trg.classList.toggle("on", n >= 1);
+    E.chip.forEach((c) => c.classList.toggle("on", n >= 1));
+    // job steps: 2 -> checkout, setup, cache pass; 3 -> pipeline pass, gate fail; 4 -> artifact pass
+    ["co", "sp", "ca"].forEach((k) => setBox(k, n >= 2 ? "pass" : "idle"));
+    setBox("pl", n >= 3 ? "pass" : "idle");
+    setBox("gt", n >= 3 ? "fail" : "idle");
+    setBox("ar", n >= 4 ? "pass" : "idle");
+    E.wire.forEach((w) => {
+      const on = (w.k === "co" || w.k === "sp" || w.k === "ca") ? n >= 2 : w.k === "pl" ? n >= 3 : false;
+      const al = w.k === "gt" && n >= 4;
+      w.p.setAttribute("class", "w" + (on ? " on" : "") + (al ? " always" : ""));
+      w.h.setAttribute("class", "ah" + (on ? " on" : "") + (al ? " always" : ""));
+    });
+    gsap.to(E.wl, { autoAlpha: n >= 4 ? 1 : 0, duration: d });
+    // cache hit counter
+    const ca = E.box.ca.sb;
+    gsap.killTweensOf(cnt);
+    if (n >= 2) {
+      const show = () => { ca.textContent = `hits ${Math.round(cnt.v)} / ${ROWS}`; };
+      if (animate && cnt.v < HITS) gsap.to(cnt, { v: HITS, duration: 1.1, ease: "power2.out", onUpdate: show, onComplete: show });
+      else { cnt.v = HITS; show(); }
+    } else { cnt.v = 0; ca.textContent = ".ragas_cache"; }
+    // PR card travels with the run
+    const pos = n <= 1 ? [0, 56] : n === 2 ? [496, 56] : [287, 186];
+    gsap.to(E.pr, { x: pos[0], y: pos[1], duration: d, ease: "power3.inOut" });
+    E.pr.classList.toggle("fail", n >= 3);
+    E.prt.textContent = n <= 1 ? "PR opened" : n === 2 ? "running" : "Failing";
+    gsap.to(E.res, { autoAlpha: n >= 3 ? 1 : 0, duration: d });
+    gsap.to(E.flk, { autoAlpha: n >= 5 ? 1 : 0, duration: d });
+    gsap.to(E.ill, { autoAlpha: n >= 2 ? 1 : 0, duration: d });
+  }
+  Deck.register("rag-c09-lab8-ci", {
+    enter(slide, step) { build(slide.querySelector("#ci-svg")); cnt.v = 0; render(step || 0, false); },
+    step(slide, n, animate) { render(n, animate); },
+    leave(slide) {
+      gsap.killTweensOf(cnt);
+      if (E) gsap.killTweensOf([E.pr, E.wl, E.res, E.flk, E.ill]);
+    },
+  });
+})();
+</script>

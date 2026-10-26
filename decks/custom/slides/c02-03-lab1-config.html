@@ -1,0 +1,168 @@
+<section class="slide" id="custom-c02-lab1-config" data-tone="model" data-title="Lab 1 · one SFTConfig">
+  <div class="kicker"><span class="pill">Lab 1</span> Acme refunds assistant · step 2 of 5</div>
+  <h2 class="title">One SFTConfig: assistant-only loss, BFD packing, bf16, all-linear LoRA</h2>
+  <div class="grid fill lc2-grid" style="grid-template-columns:700px 1fr;gap:28px">
+    <div class="stack" style="gap:14px">
+      <div class="code-wrap">
+        <div class="code-head">step2_train.py · trl 1.16.0 · peft 0.21.2 · train(): step 3</div>
+        <pre class="code lc2-code" data-lang="python" data-focus="1:8-9, 2:10-11, 3:13-14, 4:18-19"><code>import torch
+from peft import LoraConfig
+from trl import SFTConfig, SFTTrainer
+from common import refund_splits  # Bitext rows, category == "REFUND"
+# 2,992 rows: get_refund · track_refund · check_refund_policy
+ds = refund_splits()                # messages, random 95/5 split
+args = SFTConfig(output_dir="qwen3-0.6b-refund-lora",
+    model_init_kwargs={"dtype": torch.bfloat16,     # else float32
+        "attn_implementation": "kernels-community/flash-attn2"},
+    assistant_only_loss=True, max_length=1024,
+    packing=True, packing_strategy="bfd",           # padding-free
+    per_device_train_batch_size=8, gradient_accumulation_steps=2,
+    learning_rate=2e-4, num_train_epochs=2,
+    warmup_steps=0.03,                              # float = ratio
+    eval_strategy="epoch", save_strategy="epoch",   # keep every ckpt:
+    load_best_model_at_end=False,                   # pick by task metric
+    logging_steps=10, report_to="none", seed=42)
+peft_config = LoraConfig(r=16, lora_alpha=32, lora_dropout=0.05,
+    target_modules="all-linear", task_type="CAUSAL_LM")
+trainer = SFTTrainer(model="Qwen/Qwen3-0.6B", args=args,
+    train_dataset=ds["train"], eval_dataset=ds["test"],
+    peft_config=peft_config)
+trainer.model.print_trainable_parameters()</code></pre>
+      </div>
+      <div class="callout tip lc2-tip" data-step="5"><span><code>refund_splits()</code> is a random 95/5 split, so paraphrases leak into eval. Also score a held-out set of new phrasings.</span></div>
+    </div>
+
+    <div class="stack" style="gap:12px">
+      <div class="lab-head"><span class="run">python step2_train.py</span><span class="tag t-tool">1 Ampere+ GPU &gt;= 12 GB</span><a class="cite doc" href="https://thinkingmachines.ai/blog/lora/" target="_blank" rel="noopener"><b>Blog</b>&nbsp;LoRA Without Regret</a></div>
+      <div class="steps-rail lc2-rail">
+        <div data-step="1"><div><span>A string model id loads in float32 unless you set <code>dtype</code>.</span><svg class="lc2-v" id="lc2-mem" viewBox="0 0 600 50" width="600" height="50"></svg></div></div>
+        <div data-step="2"><div><span><code>bfd</code> packing removes padding. It needs FlashAttention (Ampere+).</span><svg class="lc2-v" id="lc2-pack" viewBox="0 0 600 64" width="600" height="64"></svg></div></div>
+        <div data-step="3"><div><span>LoRA LR is about 10× the full fine-tuning LR.</span><svg class="lc2-v" id="lc2-lr" viewBox="0 0 600 40" width="600" height="40"></svg></div></div>
+        <div data-step="4"><div><span><code>all-linear</code>: 7 modules × 28 layers. Default: <code>q_proj</code>, <code>v_proj</code>.</span><svg class="lc2-v" id="lc2-layers" viewBox="0 0 600 150" width="600" height="150" aria-label="LoRA modules on 28 layers"></svg></div></div>
+      </div>
+      <div class="code-wrap out" data-step="4">
+        <div class="code-head">output · illustrative</div>
+        <pre class="code lc2-out" data-lang="none"><code>trainable params: <span class="ok">10,092,544</span> || all params: 606,142,464 || trainable%: <span class="ok">1.6650</span></code></pre>
+      </div>
+    </div>
+  </div>
+  <style>
+    #custom-c02-lab1-config pre.code.lc2-code { font-size: 14.5px; line-height: 1.45; padding: 12px 18px 14px; }
+    #custom-c02-lab1-config pre.code.lc2-out { font-size: 13px; line-height: 1.4; padding: 10px 14px 12px; white-space: pre-wrap; }
+    #custom-c02-lab1-config pre.code.lc2-out code { white-space: pre-wrap; }
+    #custom-c02-lab1-config .code-head { font-size: 14px; }
+    #custom-c02-lab1-config .lc2-rail { gap: 12px; }
+    #custom-c02-lab1-config .lc2-rail > * { font-size: 17px; line-height: 1.35; }
+    #custom-c02-lab1-config .lc2-rail > * > div { display: flex; flex-direction: column; gap: 6px; }
+    #custom-c02-lab1-config .lc2-rail code, #custom-c02-lab1-config .callout code { font-size: .84em; }
+    #custom-c02-lab1-config .lc2-v { display: block; }
+    #custom-c02-lab1-config .lc2-tip { padding: 10px 16px; font-size: 16px; }
+    #custom-c02-lab1-config svg text { font-variant-ligatures: none; }
+  </style>
+  <aside class="notes">This is the whole training call for the Acme refunds assistant: the 2,992 Bitext REFUND rows over three intents, Qwen3-0.6B and one LoRA config. The data helper in common.py filters category REFUND, maps each row to system, user and assistant messages, and makes a random 95/5 split. Walk the four bands. One: set dtype to bf16, because TRL loads a string model id in float32, which doubles the weight memory. Two: assistant-only loss plus BFD packing switches on padding-free batches, which need FlashAttention, so we load the kernels-community flash-attn2 kernel; that needs an Ampere or newer GPU such as an L4 or A10G. Three: a learning rate of 2e-4, about ten times the full fine-tuning default of 2e-5, and a float warmup_steps below 1 is a ratio. Four: target_modules all-linear; without it PEFT trains only q_proj and v_proj, 2,293,760 parameters instead of 10,092,544. We save one checkpoint per epoch and do not load the best one by eval_loss, because the last slide of this chapter picks the checkpoint by generated output. Think of LoRA targets like the gears you allow a mechanic to adjust: give access to two and the car still drives, but not well. A likely question: "Is a random split enough?" No: Bitext has many paraphrases of each request, so a random split puts near-copies on both sides; keep a separate set of new phrasings for the final check. Next: step 3 runs this script and reads the log.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const MODS = ["q", "k", "v", "o", "gate", "up", "down"];
+  const ALL = 10092544, QV = 2293760;
+  let S = null, tweens = [];
+  const fmt = (v) => Math.round(v).toLocaleString("en-US");
+  const mono = "font-family:var(--f-mono)";
+  const mk = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); parent.appendChild(e); return e; };
+  const txt = (s, attrs, parent) => { const e = mk("text", attrs, parent); e.textContent = s; return e; };
+
+  function build(slide) {
+    // 1. memory bar: float32 vs bfloat16 weights
+    const mem = slide.querySelector("#lc2-mem"); mem.innerHTML = "";
+    mk("rect", { x: 0, y: 4, width: 440, height: 18, rx: 5, fill: "none", stroke: "var(--risk)", "stroke-width": 2, "stroke-dasharray": "6 4" }, mem);
+    txt("float32 · 2.4 GB", { x: 452, y: 18, "font-size": 15, fill: "var(--risk)", style: mono }, mem);
+    const bf = mk("rect", { x: 0, y: 28, width: 220, height: 18, rx: 5, fill: "var(--state)" }, mem);
+    txt("bfloat16 · 1.2 GB", { x: 232, y: 42, "font-size": 15, "font-weight": 700, fill: "var(--state)", style: mono }, mem);
+    // 2. padded vs packed rows
+    const pk = slide.querySelector("#lc2-pack"); pk.innerHTML = "";
+    const SEQ = [150, 90, 200, 120];
+    txt("padded", { x: 0, y: 19, "font-size": 14, fill: "var(--muted)", style: mono }, pk);
+    txt("bfd", { x: 0, y: 51, "font-size": 14, fill: "var(--ink-2)", "font-weight": 700, style: mono }, pk);
+    let x = 70;
+    const padded = SEQ.map((w) => {
+      const g = mk("g", {}, pk);
+      mk("rect", { x, y: 4, width: w * 0.42, height: 22, rx: 4, fill: "var(--model)", opacity: 0.8 }, g);
+      mk("rect", { x: x + w * 0.42 + 1, y: 4, width: 124 - w * 0.42 - 3, height: 22, rx: 4, fill: "var(--faint)", opacity: 0.45 }, g);
+      x += 128; return g;
+    });
+    txt("pad", { x: 70 + 128 + 60, y: 20, "font-size": 12, fill: "var(--muted)", style: mono }, pk);
+    x = 70;
+    const packed = SEQ.map((w) => { const r = mk("rect", { x, y: 36, width: w * 0.42 - 2, height: 22, rx: 4, fill: "var(--model)", opacity: 0.8 }, pk); x += w * 0.42; return r; });
+    txt("no pad · fewer steps", { x: x + 12, y: 52, "font-size": 14, "font-weight": 700, fill: "var(--state)", style: mono }, pk);
+    // 3. LR on a log axis
+    const lr = slide.querySelector("#lc2-lr"); lr.innerHTML = "";
+    const LX = (e) => 40 + (e + 6) * 170;  // 1e-6 .. 1e-3
+    mk("line", { x1: LX(-6), x2: LX(-3), y1: 12, y2: 12, stroke: "var(--line-2)", "stroke-width": 2 }, lr);
+    [-6, -5, -4, -3].forEach((e) => txt("1e" + e, { x: LX(e), y: 36, "font-size": 13, "text-anchor": "middle", fill: "var(--muted)", style: mono }, lr));
+    const p5 = Math.log10(2e-5), p4 = Math.log10(2e-4);
+    mk("circle", { cx: LX(p5), cy: 12, r: 7, fill: "var(--muted)" }, lr);
+    txt("full FT 2e-5", { x: LX(p5) - 12, y: 17, "font-size": 14, "text-anchor": "end", fill: "var(--muted)", style: mono }, lr);
+    const lrDot = mk("circle", { cx: LX(p4), cy: 12, r: 8, fill: "var(--model)" }, lr);
+    txt("LoRA 2e-4", { x: LX(p4) + 14, y: 17, "font-size": 15, "font-weight": 700, fill: "var(--model)", style: mono }, lr);
+    // 4. module grid
+    const svg = slide.querySelector("#lc2-layers"); svg.innerHTML = "";
+    const cells = [];
+    MODS.forEach((m, r) => {
+      const y = 4 + r * 16;
+      txt(m, { x: 44, y: y + 7, "font-size": 14, "text-anchor": "end", "dominant-baseline": "central", fill: "var(--ink-2)", style: mono }, svg);
+      for (let l = 0; l < 28; l++) cells.push({ el: mk("rect", { x: 52 + l * 11, y, width: 9, height: 13, rx: 2, fill: "var(--faint)", opacity: 0.3 }, svg), r, l });
+    });
+    txt("layer 0", { x: 52, y: 134, "font-size": 13, fill: "var(--muted)", style: mono }, svg);
+    txt("27", { x: 52 + 27 * 11 + 9, y: 134, "text-anchor": "end", "font-size": 13, fill: "var(--muted)", style: mono }, svg);
+    const old = txt("2.3M (q,v)", { x: 600, y: 40, "text-anchor": "end", "font-size": 26, "font-weight": 600, fill: "var(--muted)", style: mono }, svg);
+    const arrow = txt("↓", { x: 545, y: 74, "text-anchor": "middle", "font-size": 24, fill: "var(--muted)", style: mono }, svg);
+    const big = txt("10.1M", { x: 600, y: 110, "text-anchor": "end", "font-size": 30, "font-weight": 700, fill: "var(--model)", style: mono }, svg);
+    const lab = txt("all-linear · 1.67%", { x: 600, y: 136, "text-anchor": "end", "font-size": 15, fill: "var(--model)", style: mono }, svg);
+    S = { bf, padded, packed, lrDot, cells, old, arrow, big, lab, slide };
+  }
+
+  const kill = () => { tweens.forEach((t) => t.kill()); tweens = []; };
+
+  function render(slide, n, animate) {
+    if (!S || S.slide !== slide) build(slide);
+    kill();
+    // 1. bf16 bar grows to half of the fp32 outline
+    if (animate && n === 1) tweens.push(gsap.fromTo(S.bf, { attr: { width: 440 } }, { attr: { width: 220 }, duration: 1.0, delay: 0.3, ease: "power3.inOut" }));
+    else S.bf.setAttribute("width", 220);
+    // 2. packed sequences slide together
+    if (animate && n === 2) tweens.push(gsap.fromTo(S.packed, { x: (i) => i * 70 }, { x: 0, duration: 0.8, delay: 0.3, stagger: 0.08, ease: "power2.out" }));
+    else gsap.set(S.packed, { x: 0 });
+    // 3. LR dot moves one decade right
+    if (animate && n === 3) tweens.push(gsap.fromTo(S.lrDot, { attr: { cx: 40 + (Math.log10(2e-5) + 6) * 170 } }, { attr: { cx: 40 + (Math.log10(2e-4) + 6) * 170 }, duration: 0.9, delay: 0.2, ease: "power2.inOut" }));
+    else S.lrDot.setAttribute("cx", 40 + (Math.log10(2e-4) + 6) * 170);
+    // 4. q/v first, then all 7 modules light up
+    const on = n >= 4;
+    S.cells.forEach((c) => {
+      const qv = c.r === 0 || c.r === 2;
+      if (on) {
+        c.el.setAttribute("fill", "var(--model)");
+        if (animate && n === 4 && !qv) tweens.push(gsap.fromTo(c.el, { attr: { opacity: 0.3 } }, { attr: { opacity: 1 }, duration: 0.3, delay: 0.3 + c.l * 0.03 + c.r * 0.02 }));
+        else c.el.setAttribute("opacity", 1);
+      } else {
+        c.el.setAttribute("fill", qv ? "var(--model)" : "var(--faint)");
+        c.el.setAttribute("opacity", qv ? 0.7 : 0.3);
+      }
+    });
+    if (animate && n === 4) {
+      const o = { v: QV };
+      tweens.push(gsap.fromTo([S.arrow, S.big, S.lab], { opacity: 0 }, { opacity: 1, duration: 0.4, delay: 0.6 }));
+      tweens.push(gsap.to(o, { v: ALL, duration: 1.2, delay: 0.6, ease: "power2.out", onUpdate: () => { S.big.textContent = (o.v / 1e6).toFixed(1) + "M"; } }));
+    } else {
+      gsap.set([S.arrow, S.big, S.lab], { opacity: 1 });
+      S.big.textContent = "10.1M";
+    }
+  }
+
+  Deck.register("custom-c02-lab1-config", {
+    enter(slide, step) { build(slide); render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { kill(); }
+  });
+})();
+</script>

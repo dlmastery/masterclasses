@@ -1,0 +1,169 @@
+<section class="slide tight" id="adk-c01-lab-tools" data-tone="tool" data-title="Lab 1: typed tools">
+  <style>
+    #adk-c01-lab-tools .lt-grid { display: grid; grid-template-columns: 862px 1fr; gap: 26px; align-items: start; }
+    #adk-c01-lab-tools .lab-head .run { font-size: 14.5px; }
+    #adk-c01-lab-tools .lab-head .tiny { font-size: 15px; }
+    #adk-c01-lab-tools pre.code.lt-c { font-size: 13px; line-height: 1.36; padding: 10px 16px 12px; }
+    #adk-c01-lab-tools .code-wrap .code-head { padding: 8px 14px; font-size: 14px; }
+    #adk-c01-lab-tools .lt-left, #adk-c01-lab-tools .lt-right { gap: 14px; }
+    #adk-c01-lab-tools .lt-svg text { font-family: var(--f-mono); }
+    #adk-c01-lab-tools .lt-svg .hd { font-size: 13px; font-weight: 600; fill: var(--muted); letter-spacing: .04em; }
+    #adk-c01-lab-tools .lt-svg .k { font-size: 13.5px; font-weight: 600; fill: var(--tool); }
+    #adk-c01-lab-tools .lt-svg .v { font-size: 13.5px; fill: var(--ink); }
+    #adk-c01-lab-tools .lt-svg .chip rect { fill: var(--tool-soft); stroke: var(--tool); stroke-width: 1.2; }
+    #adk-c01-lab-tools .lt-svg .chip text { font-size: 12.5px; font-weight: 600; fill: var(--ink); }
+    #adk-c01-lab-tools .lt-svg .card { fill: var(--surface); stroke: var(--tool); stroke-width: 1.6; }
+    #adk-c01-lab-tools .lt-svg .agent { fill: var(--agent-soft); stroke: var(--agent); stroke-width: 1.6; transition: stroke-width .4s; }
+    #adk-c01-lab-tools .lt-svg .agent.lit { stroke-width: 3.2; }
+    #adk-c01-lab-tools .lt-svg .an { font: 700 16px/1 var(--f-body); fill: var(--ink); }
+    #adk-c01-lab-tools .lt-svg .slot { font-size: 13.5px; fill: var(--muted); }
+    #adk-c01-lab-tools .lt-svg .tchip rect { fill: var(--surface-2); stroke: var(--tool); stroke-width: 1.4; }
+    #adk-c01-lab-tools .lt-svg .tchip text { font-size: 12.5px; font-weight: 600; fill: var(--ink); }
+    #adk-c01-lab-tools .lt-svg .fly { fill: var(--tool); }
+    #adk-c01-lab-tools .lt-rail { position: relative; height: 58px; }
+    #adk-c01-lab-tools .lt-rail > p { position: absolute; left: 0; right: 0; top: 0; font-size: 17px; line-height: 1.38; }
+    #adk-c01-lab-tools pre.code.lt-o { font-size: 13.2px; line-height: 1.42; padding: 10px 18px 12px; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 1</span> Acme refund desk · step 1 of 3</div>
+  <h2 class="title">Two typed Python functions become the refund desk's tools</h2>
+  <div class="lab-head">
+    <span class="run">pip install "google-adk==2.13.0"</span>
+    <span class="run">adk create refund_agent --model gemini-3.5-flash --api_key $GOOGLE_API_KEY</span>
+    <span class="tiny">Python 3.11+</span>
+  </div>
+  <div class="lt-grid fill">
+    <div class="stack lt-left">
+      <div class="code-wrap">
+        <div class="code-head">refund_agent/agent.py</div>
+        <pre class="code lt-c" data-lang="python" data-focus="1:8-8, 2:16-16, 3:14-15, 4:25-29"><code>from typing import Annotated, Literal
+from pydantic import Field
+from google.adk import Agent
+ORDERS = {  # A-1001 and A-1003 omitted: same shape
+    "A-1002": {"email": "li@example.com", "total_usd": 1299.0,
+               "days_since_delivery": 41, "category": "electronics"}}
+RETURN_WINDOW_DAYS = {"apparel": 30, "electronics": 30, "grocery": 0}
+def lookup_order(order_id: Annotated[str, Field(description="Order ID, e.g. A-1001")]) -> dict:
+    """Look up an order. Always call this before answering a refund question."""
+    order = ORDERS.get(order_id.strip().upper())
+    if order is None:
+        return {"status": "error", "error_message": f"No order with ID {order_id}."}
+    return {"status": "success", "order": order}
+def check_refund_eligibility(order_id: str,
+        reason: Literal["changed_mind", "damaged", "wrong_item"] = "changed_mind") -> dict:
+    """Refund policy: 30-day window; grocery is final sale; damaged or wrong items qualify."""
+    order = ORDERS.get(order_id.strip().upper())
+    if order is None:
+        return {"status": "error", "error_message": f"No order with ID {order_id}."}
+    if reason != "changed_mind":
+        return {"status": "success", "eligible": True, "rule": "defect_override"}
+    window = RETURN_WINDOW_DAYS[order["category"]]
+    eligible = order["days_since_delivery"] &lt;= window
+    return {"status": "success", "eligible": eligible, "window_days": window}
+root_agent = Agent(
+    name="refund_agent", model="gemini-3.5-flash",
+    instruction=("You are a refund desk assistant. Use lookup_order, then check_refund_eligibility. "
+                 "Quote the rule you applied. Never promise a refund the tool did not approve."),
+    tools=[lookup_order, check_refund_eligibility])</code></pre>
+      </div>
+    </div>
+    <div class="stack lt-right">
+      <svg class="lt-svg" id="lt-svg" viewBox="0 0 504 232" width="504" height="232" aria-label="The function signature becomes the tool schema the model reads">
+        <g id="lt-card">
+          <rect class="card" x="1" y="1" width="502" height="158" rx="14"/>
+          <text class="hd" x="16" y="25">TOOL SCHEMA · WHAT THE MODEL READS</text>
+          <g id="lt-r1"><text class="k" x="16" y="56">order_id.description</text><text class="v" x="200" y="56">"Order ID, e.g. A-1001"</text></g>
+          <g id="lt-r2"><text class="k" x="16" y="85">description</text><text class="v" id="lt-doc" x="200" y="85">"Refund policy: 30-day window;…"</text></g>
+          <g id="lt-r3"><text class="k" x="16" y="114">reason.enum</text>
+            <g class="chip" id="lt-e1"><rect x="200" y="99" width="104" height="22" rx="11"/><text x="252" y="114" text-anchor="middle">changed_mind</text></g>
+            <g class="chip" id="lt-e2"><rect x="310" y="99" width="70" height="22" rx="11"/><text x="345" y="114" text-anchor="middle">damaged</text></g>
+            <g class="chip" id="lt-e3"><rect x="386" y="99" width="90" height="22" rx="11"/><text x="431" y="114" text-anchor="middle">wrong_item</text></g>
+          </g>
+          <g id="lt-r4"><text class="k" x="16" y="143">reason</text><text class="v" x="200" y="143">optional: it has a default</text></g>
+        </g>
+        <rect class="fly" id="lt-fly" x="180" y="40" width="300" height="110" rx="12" opacity="0"/>
+        <rect class="agent" id="lt-agent" x="1" y="178" width="502" height="52" rx="12"/>
+        <text class="an" x="16" y="209">refund_agent</text>
+        <text class="slot" x="128" y="209">tools=[</text>
+        <g class="tchip" id="lt-t1"><rect x="186" y="192" width="102" height="24" rx="7"/><text x="237" y="208" text-anchor="middle">lookup_order</text></g>
+        <g class="tchip" id="lt-t2"><rect x="294" y="192" width="190" height="24" rx="7"/><text x="389" y="208" text-anchor="middle">check_refund_eligibility</text></g>
+        <text class="slot" x="490" y="209">]</text>
+      </svg>
+      <div class="steps-rail lt-rail">
+        <p data-step="1" data-until="2"><span><code>Field(description=...)</code> becomes the description of the <code>order_id</code> parameter.</span></p>
+        <p data-step="2" data-until="3"><span>The whole docstring becomes the tool description, verbatim. ADK does not parse an <code>Args:</code> section.</span></p>
+        <p data-step="3" data-until="4"><span><code>Literal[...]</code> becomes an enum, so the model cannot invent a reason. A default makes <code>reason</code> optional.</span></p>
+        <p data-step="4"><span>Pass plain functions in <code>tools=[...]</code>. The agent name must be a Python identifier.</span></p>
+      </div>
+      <div class="code-wrap out">
+        <div class="code-head">output · illustrative · tree after adk create</div>
+        <pre class="code lt-o" data-lang="output"><code>refund_agent/
+├── __init__.py  from . import agent
+├── agent.py     replace with the code on the left
+└── .env         GOOGLE_GENAI_USE_ENTERPRISE=0
+                 GOOGLE_API_KEY=your-ai-studio-key</code></pre>
+      </div>
+      <div class="cites">
+        <a class="cite doc" href="https://adk.dev/get-started/python/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Python Quickstart for ADK</a>
+        <a class="cite codelab" href="https://codelabs.developers.google.com/devsite/codelabs/build-agents-with-adk-foundation" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;Building AI Agents with ADK: The Foundation</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    This is the run-it-Monday slide: install google-adk 2.13.0 on Python 3.11 or newer, run adk create, and replace agent.py with this code. Step through the four focus bands: the Annotated Field text becomes the order_id parameter description, the whole docstring becomes the tool description verbatim (ADK does not parse an Args: section), the Literal becomes an enum and the default makes reason optional, and the functions go straight into tools. Analogy: the signature and docstring are the label on a drawer; the model never opens the drawer, it only reads the label. In .env, use GOOGLE_GENAI_USE_ENTERPRISE; the old GOOGLE_GENAI_USE_VERTEXAI still works but raises "DeprecationWarning: GOOGLE_GENAI_USE_VERTEXAI is deprecated, please use GOOGLE_GENAI_USE_ENTERPRISE instead". Likely question: "Where do per-parameter descriptions go if Args: is ignored?" Put them in Field(description=...), and keep the docstring for when to call the tool and what it will not do. Next: run this agent from the terminal and read its tool calls.
+  </aside>
+</section>
+<script>
+(() => {
+  let prev = -1, typer = null;
+  const DOC = "\"Refund policy: 30-day window;…\"";
+  const sel = ["#lt-r1", "#lt-r2", "#lt-r3", "#lt-r4", "#lt-e1", "#lt-e2", "#lt-e3", "#lt-card", "#lt-fly", "#lt-t1", "#lt-t2", "#lt-doc"];
+  const killAll = (slide) => {
+    if (typer) { typer.kill(); typer = null; }
+    sel.forEach((s) => { const el = slide.querySelector(s); if (el) gsap.killTweensOf(el); });
+  };
+  function render(slide, n, animate) {
+    killAll(slide);
+    const q = (s) => slide.querySelector(s);
+    const fwd = animate && n === prev + 1;
+    const show = (el, on, isNew) => {
+      if (on && isNew && fwd) gsap.fromTo(el, { opacity: 0, x: -28 }, { opacity: 1, x: 0, duration: 0.55, ease: "power3.out" });
+      else gsap.set(el, { opacity: on ? 1 : 0, x: 0 });
+    };
+    // rows: r1 at step 1, r2 at step 2, r3 + r4 at step 3
+    show(q("#lt-r1"), n >= 1, n === 1);
+    show(q("#lt-r2"), n >= 2, n === 2);
+    show(q("#lt-r4"), n >= 3, n === 3);
+    gsap.set(q("#lt-r3"), { opacity: n >= 3 ? 1 : 0, x: 0 });
+    const chips = [q("#lt-e1"), q("#lt-e2"), q("#lt-e3")];
+    if (n === 3 && fwd) gsap.fromTo(chips, { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.45, stagger: 0.15, ease: "back.out(2.2)" });
+    else gsap.set(chips, { opacity: n >= 3 ? 1 : 0, y: 0 });
+    // docstring types in at step 2
+    const doc = q("#lt-doc");
+    if (n === 2 && fwd) {
+      const p = { k: 0 };
+      doc.textContent = "";
+      typer = gsap.to(p, { k: DOC.length, duration: 1.1, ease: "none", onUpdate: () => (doc.textContent = DOC.slice(0, Math.round(p.k))) });
+    } else doc.textContent = DOC;
+    // step 4: the schema card snaps into the agent's tools slot
+    const card = q("#lt-card"), fly = q("#lt-fly"), t1 = q("#lt-t1"), t2 = q("#lt-t2"), agent = q("#lt-agent");
+    agent.classList.toggle("lit", n >= 4);
+    if (n === 4 && fwd) {
+      gsap.set(fly, { attr: { x: 180, y: 40, width: 300, height: 110 }, opacity: 0.35 });
+      gsap.to(fly, { attr: { x: 186, y: 192, width: 298, height: 24 }, duration: 0.6, ease: "power3.in" });
+      gsap.to(fly, { opacity: 0, duration: 0.25, delay: 0.6 });
+      gsap.to(card, { opacity: 0.5, duration: 0.5 });
+      gsap.fromTo([t1, t2], { opacity: 0, y: -8 }, { opacity: 1, y: 0, duration: 0.4, stagger: 0.12, delay: 0.55, ease: "back.out(2)" });
+    } else {
+      gsap.set(fly, { opacity: 0 });
+      gsap.set(card, { opacity: n >= 4 ? 0.5 : 1 });
+      gsap.set([t1, t2], { opacity: n >= 4 ? 1 : 0, y: 0 });
+    }
+    prev = n;
+  }
+  Deck.register("adk-c01-lab-tools", {
+    enter(slide, step) { prev = -1; render(slide, step, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { killAll(slide); prev = -1; }
+  });
+})();
+</script>

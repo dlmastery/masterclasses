@@ -1,0 +1,85 @@
+<section class="slide tight" id="adk-c00-code-state" data-tone="state" data-title="Opening graph: state carries the result">
+  <style>
+    #adk-c00-code-state .cg { display: grid; grid-template-columns: 900px minmax(0, 1fr); gap: 44px; align-items: start; margin-top: 8px; }
+    #adk-c00-code-state pre.code.main { font-size: 21px; line-height: 1.6; padding: 18px 22px 20px; }
+    #adk-c00-code-state .rcol { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+    #adk-c00-code-state .st { border: 2px solid var(--state); border-radius: 16px; background: color-mix(in oklab, var(--state) 6%, var(--surface-2)); padding: 16px 20px 18px; }
+    #adk-c00-code-state .st .sh { font: 700 22px/1 var(--f-mono); color: var(--state); margin-bottom: 14px; }
+    #adk-c00-code-state .kv { display: grid; grid-template-columns: 1fr; gap: 4px; padding: 10px 12px; border-radius: 10px; font: 500 20px/1.35 var(--f-mono); color: var(--ink-2); transition: background .35s, box-shadow .35s; }
+    #adk-c00-code-state .kv b { color: var(--ink); font-weight: 700; }
+    #adk-c00-code-state .kv.hot { background: color-mix(in oklab, var(--state) 16%, transparent); box-shadow: inset 4px 0 0 var(--state); }
+    #adk-c00-code-state .kv .alt { font: 500 18px/1.35 var(--f-body); color: var(--ink-2); }
+    #adk-c00-code-state .to { display: flex; align-items: center; gap: 12px; margin: 10px 0 0 26px; font: 600 20px/1 var(--f-mono); color: var(--ink); }
+    #adk-c00-code-state .to::before { content: ""; width: 3px; height: 34px; background: var(--state); border-radius: 2px; box-shadow: 0 0 0 0 transparent; }
+    #adk-c00-code-state .to i { font-style: normal; padding: 7px 11px; border: 1.5px solid var(--tool); border-radius: 8px; background: var(--bg); }
+    #adk-c00-code-state .capbox { position: relative; height: 96px; }
+    #adk-c00-code-state .capbox p { position: absolute; inset: 0; margin: 0; font-size: 23px; line-height: 1.38; color: var(--ink-2); }
+    #adk-c00-code-state .capbox b, #adk-c00-code-state .capbox code { color: var(--ink); }
+    #adk-c00-code-state pre.code.o { font-size: 18px; line-height: 1.45; }
+    #adk-c00-code-state pre.code.o code { white-space: pre-wrap; }
+  </style>
+  <div class="kicker"><span class="pill">Preview</span> Lab 3 · Acme support desk · step 3 of 3</div>
+  <h2 class="title">Both branches write one state key, and audit reads it by name</h2>
+  <div class="cg fill">
+    <div class="code-wrap">
+      <div class="code-head">labs/adk/c00-acme-desk/acme_desk/agent.py · excerpt 3 of 3</div>
+      <pre class="code main" data-lang="python" data-focus="1:3-6, 2:8-10, 3:12-13, 4:12"><code>from google.adk import Agent, Context, Event
+
+def refund(ctx: Context, node_input: dict):
+  oid = node_input["order_id"]          # from pick's output=
+  ctx.state["outcome"] = f"refund queued for {oid}"
+  # returns None; the edge to audit still runs
+
+answer = Agent(
+    name="answer", output_key="outcome",
+    instruction="Answer in 2 sentences: {ticket}")
+
+def audit(outcome: str):   # not node_input or ctx: read from state
+  yield Event(message=f"[audit] {outcome}")</code></pre>
+    </div>
+    <div class="rcol">
+      <div class="st">
+        <div class="sh">session.state</div>
+        <div class="kv" id="c00s-ticket"><b>ticket</b><span>"Refund A-1001, broken"</span></div>
+        <div class="kv" id="c00s-outcome" data-step="1" data-fx="left"><b>outcome</b><span>"refund queued for A-1001"</span><span class="alt" data-step="2" data-fx="fade">or answer's reply, on the question path</span></div>
+        <div class="to" data-step="3" data-fx="up"><i>audit(outcome: str)</i></div>
+      </div>
+      <div class="capbox">
+        <p data-step="1" data-until="2" data-fx="fade"><b>refund</b> writes <code>outcome</code> into state. It yields nothing; the edge to audit still runs.</p>
+        <p data-step="2" data-until="3" data-fx="fade">On the question path, <b>answer</b> writes the same key with <code>output_key</code>.</p>
+        <p data-step="3" data-until="4" data-fx="fade"><b>Rule:</b> a parameter that is not <code>node_input</code> or <code>ctx</code> is read from state by its name.</p>
+        <p data-step="4" data-fx="fade">A typo or a missing key stops the run:</p>
+      </div>
+      <div class="code-wrap out" data-step="4" data-fx="up">
+        <div class="code-head">error text · google-adk 2.13.0</div>
+        <pre class="code o" data-lang="bash"><code><span class="err">WorkflowDataError: Missing value for parameter "outcome" of function "audit".</span> <span class="dim">It was not found in ... and has no default value.</span></code></pre>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    Excerpt three: how the result reaches audit. The state panel on the right is session.state for one refund run; ticket is already there because intake wrote it. Press once: refund gets the dict that pick sent with output=, and writes outcome into session.state through ctx.state. It yields nothing and returns None; that is allowed, and the edge to audit still runs when refund finishes. Press again: on the question path, answer writes the same key with output_key="outcome", so audit does not care which branch ran. Press again: the rule. audit has one parameter, outcome; it is not node_input and not ctx, so ADK looks it up in session.state by name. That is the default parameter_binding="state". Last press: a typo such as outcom, or a branch that never wrote the key, stops the run with WorkflowDataError; the fix is to match the key or give the parameter a default. Analogy: state is a shared whiteboard; refund writes on it and audit reads it. Likely question: "If both node_input and a state key exist, which one does audit get?" Only the parameter named node_input gets the edge payload; every other name comes from state.
+  </aside>
+</section>
+<script>
+(() => {
+  // The state row that the focused code touches glows.
+  const HOT = { 1: "c00s-outcome", 2: "c00s-outcome", 3: "c00s-outcome", 4: "c00s-outcome" };
+  const paint = (slide, n) => {
+    slide.querySelectorAll(".kv").forEach((r) => r.classList.toggle("hot", r.id === HOT[n]));
+    const t = slide.querySelector("#c00s-ticket");
+    if (t) t.classList.toggle("hot", n === 0);
+  };
+  Deck.register("adk-c00-code-state", {
+    enter(slide, step) { paint(slide, step); },
+    step(slide, n, animate) {
+      paint(slide, n);
+      const chip = slide.querySelector(".to i");
+      if (!chip) return;
+      gsap.killTweensOf(chip); gsap.set(chip, { y: 0, boxShadow: "none" });
+      // the value drops from the outcome row into audit's parameter
+      if (animate && n === 3) gsap.fromTo(chip, { y: -46 }, { y: 0, duration: 0.7, ease: "back.out(2)", delay: 0.25 });
+    },
+    leave(slide) { paint(slide, -1); }
+  });
+})();
+</script>

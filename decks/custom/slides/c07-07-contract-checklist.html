@@ -1,0 +1,172 @@
+<section class="slide" id="custom-c07-contract-checklist" data-tone="state" data-title="Dataset design rules">
+  <div class="kicker">Best practices</div>
+  <h2 class="title">Dataset design rules: contract, hash, version, and check every rank</h2>
+  <div class="grid fill" style="grid-template-columns:1fr 660px;gap:30px">
+    <div class="stack" style="gap:14px">
+      <div class="dc-group" data-step="1">
+        <h4 class="dc-h">1 · Gate the rows</h4>
+        <ul class="checks dc-list" data-fx="stagger">
+          <li><span><b>Contract class in the producer repo.</b> <span class="dc-why">The training job imports it: two gates.</span></span></li>
+          <li><span><b><code>lazy=True</code>; alert on new failure types.</b> <span class="dc-why">One full report.</span></span></li>
+          <li><span><b>Check label ranges yourself.</b> <span class="dc-why">ClassLabel accepts 5 for 3 classes.</span></span></li>
+        </ul>
+      </div>
+      <div class="dc-group" data-step="2">
+        <h4 class="dc-h">2 · Pin the bytes</h4>
+        <ul class="checks dc-list" data-fx="stagger">
+          <li><span><b>Own sha256 per shard; pin <code>revision=</code>.</b> <span class="dc-why">4.8.5 stopped checksums.</span></span></li>
+          <li><span><b>Assert per-rank sample ids are disjoint.</b> <span class="dc-why">Concat dropped the split.</span></span></li>
+          <li><span><b>Empty-doc filter first.</b> <span class="dc-why">Curator filters hit ZeroDivisionError.</span></span></li>
+        </ul>
+      </div>
+      <div class="dc-group" data-step="3">
+        <h4 class="dc-h">3 · Write the rules down</h4>
+        <ul class="checks dc-list" data-fx="stagger">
+          <li><span><b>Taxonomy and split rule in the contract.</b> <span class="dc-why">Coverage becomes a test.</span></span></li>
+          <li><span><b>Audit labels from the export or API.</b> <span class="dc-why">The UI grid can show blanks.</span></span></li>
+          <li class="no"><span><b>No silent dedupe or quarantine.</b> <span class="dc-why">Log (row, rule, value).</span></span></li>
+          <li class="no"><span><b>No mixed MinHash schemes.</b> <span class="dc-why">datasketch 2.0: affine32, not legacy.</span></span></li>
+        </ul>
+      </div>
+      <div class="steps-rail dc-rail">
+        <div data-step="1"><span>Lines 9-12: fail the job on a bad label, not later in <code>int2str</code>.</span></div>
+        <div data-step="2"><span>Lines 3-8: hash the shards, pin the commit, write both in the card.</span></div>
+        <div data-step="3"><span>Lines 13-16: the passport holds the taxonomy and the split rule.</span></div>
+      </div>
+    <div class="row push dc-cites" style="gap:6px;flex-wrap:wrap">
+      <a class="cite repo" href="https://github.com/huggingface/datasets/issues/8596" target="_blank" rel="noopener"><b>datasets</b>&nbsp;#8596</a>
+      <a class="cite repo" href="https://github.com/huggingface/datasets/issues/8590" target="_blank" rel="noopener"><b>datasets</b>&nbsp;#8590</a>
+      <a class="cite repo" href="https://github.com/huggingface/datasets/issues/8799" target="_blank" rel="noopener"><b>datasets</b>&nbsp;#8799</a>
+      <a class="cite repo" href="https://github.com/NVIDIA-NeMo/Curator/issues/2458" target="_blank" rel="noopener"><b>Curator</b>&nbsp;#2458</a>
+      <a class="cite repo" href="https://github.com/HumanSignal/label-studio/issues/9897" target="_blank" rel="noopener"><b>Label Studio</b>&nbsp;#9897</a>
+      <a class="cite doc" href="https://pandera.readthedocs.io/en/stable/lazy_validation.html" target="_blank" rel="noopener"><b>pandera</b>&nbsp;Lazy Validation</a>
+      <a class="cite doc" href="https://ekzhu.com/datasketch/lsh.html" target="_blank" rel="noopener"><b>datasketch</b>&nbsp;MinHash LSH</a>
+    </div>
+    </div>
+
+    <div class="stack" style="gap:14px">
+      <div class="panel k-state tight dc-pass">
+        <svg id="dc-passport" viewBox="0 0 628 160" width="628" height="160" aria-label="Dataset passport card: six fields fill in as the rules appear."></svg>
+      </div>
+      <div class="code-wrap" style="width:100%">
+        <div class="code-head">build_passport.py</div>
+        <pre class="code xs" data-lang="python" data-focus="1:9-12, 2:3-8, 3:13-16"><code>import hashlib, pathlib
+from datasets import load_dataset
+# datasets 4.8.5 no longer records checksums (#8590)
+shards = pathlib.Path("claims_data/training_table").glob("*.parquet")
+sha = {p.name: hashlib.sha256(p.read_bytes()).hexdigest()
+       for p in shards}
+REV = "&lt;commit sha&gt;"                     # never "main"
+ds = load_dataset("acme/claims-fraud", revision=REV, split="train")
+# ClassLabel skips the range check if the dtype matches (#8596)
+n = ds.features["label"].num_classes
+bad = ds.filter(lambda r: not 0 &lt;= r["label"] &lt; n)
+assert len(bad) == 0, f"{len(bad)} labels outside 0..{n - 1}"
+passport = {"contract": "ClaimsContract v2", "revision": REV,
+            "sha256": sha, "label_range": [0, n - 1],
+            "taxonomy": ["auto", "home", "travel", "health"],
+            "split_rule": "group by policy_id"}</code></pre>
+      </div>
+    </div>
+  </div>
+  <style>
+    #custom-c07-contract-checklist .dc-group { display: grid; gap: 6px; }
+    #custom-c07-contract-checklist .dc-h { margin: 0; font-size: 15px; font-family: var(--f-mono); text-transform: uppercase; letter-spacing: .05em; color: var(--state); }
+    #custom-c07-contract-checklist .dc-list { gap: 6px; }
+    #custom-c07-contract-checklist .dc-list li { font-size: 17px; line-height: 1.32; }
+    #custom-c07-contract-checklist .dc-list b { color: var(--ink); font-weight: 600; }
+    #custom-c07-contract-checklist .dc-list code { font-size: .86em; }
+    #custom-c07-contract-checklist .dc-why { color: var(--muted); font-size: 15.5px; }
+    #custom-c07-contract-checklist .dc-rail { gap: 6px; margin-top: 4px; }
+    #custom-c07-contract-checklist .dc-rail > * { font-size: 15.5px; line-height: 1.35; }
+    #custom-c07-contract-checklist .dc-rail code { font-size: .86em; }
+    #custom-c07-contract-checklist .dc-pass { padding: 10px 14px; }
+    #custom-c07-contract-checklist .dc-cites { margin-top: 12px; }
+    #custom-c07-contract-checklist .dc-cites .cite { font-size: 14px; padding: 5px 9px 5px 7px; gap: 7px; }
+  </style>
+  <aside class="notes">This slide closes the chapter: it turns Lab 6 into rules. Read these ten rules as a pre-flight list for any training table, such as the Acme fraud-model training table, not as theory: each one comes from a bug we saw in Lab 6 or in an open issue. The first group gates the rows: one contract class that the producer and the training job both import, lazy validation so the data owner gets one full report, and an explicit label-range check because datasets ClassLabel accepts label 5 for three classes when the Arrow dtype already matches. The second group pins the bytes: datasets 4.8.5 stopped recording checksums with no release note, so hash the Parquet shards yourself and pin the commit with revision. The passport card on the right fills one pair of fields per group, and its values are illustrative; it is the same dict that the last lines of the code write. Think of it like a passport for a traveller: no stamp, no boarding the training job. A likely question: "Why assert disjoint sample ids per rank?" Because concatenate_datasets on iterable datasets dropped the split_dataset_by_node split, so every rank trained on all the data and nothing failed.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  // one pair of passport fields per build step (values mirror the passport dict in the code; illustrative)
+  const FIELDS = [
+    { k: "contract", v: "ClaimsContract v2", s: 1 },
+    { k: "label_range", v: "[0, n-1], 0 bad", s: 1 },
+    { k: "sha256", v: "1 per shard", s: 2 },
+    { k: "revision", v: "<commit sha>", s: 2 },
+    { k: "taxonomy", v: "claim_type: 4", s: 3 },
+    { k: "split_rule", v: "by policy_id", s: 3 }
+  ];
+  const COLW = 314, ROW0 = 62, ROWH = 40, BX = 300, BW = 150;
+  let svg, rows = [], bar, count, stamp, built = false;
+  const mk = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); parent.appendChild(e); return e; };
+  const txt = (s, attrs, parent) => { const e = mk("text", attrs, parent); e.textContent = s; return e; };
+
+  function build(slide) {
+    svg = slide.querySelector("#dc-passport");
+    svg.innerHTML = ""; rows = [];
+    const mono = "font-family:var(--f-mono)";
+    txt("DATASET PASSPORT", { x: 0, y: 18, "font-size": 15, "font-weight": 700, fill: "var(--state)", style: mono + ";letter-spacing:.08em" }, svg);
+    txt("illustrative", { x: 184, y: 18, "font-size": 14, fill: "var(--muted)", style: mono }, svg);
+    mk("line", { x1: 0, y1: 32, x2: 628, y2: 32, stroke: "var(--line-2)", "stroke-width": 1 }, svg);
+    FIELDS.forEach((f, i) => {
+      const x = (i % 2) * COLW, y = ROW0 + Math.floor(i / 2) * ROWH;
+      const g = mk("g", {}, svg);
+      const box = mk("rect", { x: x, y: y - 22, width: COLW - 12, height: 32, rx: 7, fill: "var(--surface)", stroke: "var(--line)", "stroke-width": 1 }, g);
+      const tick = mk("circle", { cx: x + 16, cy: y - 6, r: 8, fill: "var(--faint)" }, g);
+      txt(f.k, { x: x + 32, y: y - 1, "font-size": 13.5, fill: "var(--muted)", style: mono }, g);
+      const val = txt("", { x: x + 128, y: y - 1, "font-size": 14.5, "font-weight": 600, fill: "var(--ink)", style: mono }, g);
+      rows.push({ f, box, tick, val, c: { t: 0 } });
+    });
+    mk("rect", { x: BX, y: 8, width: BW, height: 10, rx: 5, fill: "var(--faint)", opacity: 0.35 }, svg);
+    bar = mk("rect", { x: BX, y: 8, width: 0, height: 10, rx: 5, fill: "var(--state)" }, svg);
+    count = txt("0/6", { x: BX + BW + 10, y: 18, "font-size": 14, fill: "var(--muted)", style: mono }, svg);
+    stamp = mk("g", { opacity: 0, transform: "translate(566 12) rotate(-6)" }, svg);
+    mk("rect", { x: -48, y: -14, width: 112, height: 26, rx: 6, fill: "none", stroke: "var(--state)", "stroke-width": 2 }, stamp);
+    txt("TRAIN-READY", { x: 8, y: 4, "font-size": 13, "font-weight": 700, fill: "var(--state)", "text-anchor": "middle", style: mono }, stamp);
+    built = true;
+  }
+
+  function setRow(row, on, frac) {
+    const s = row.f.v;
+    row.val.textContent = on ? s.slice(0, Math.round(s.length * frac)) : "";
+    row.tick.setAttribute("fill", on && frac >= 1 ? "var(--state)" : "var(--faint)");
+    row.box.setAttribute("stroke", on ? "var(--state)" : "var(--line)");
+  }
+
+  function render(slide, n, animate) {
+    if (!built) build(slide);
+    kill();
+    let filled = 0;
+    rows.forEach((row, i) => {
+      const on = n >= row.f.s;
+      if (on) filled++;
+      const fresh = animate && on && row.f.s === n;
+      if (fresh) {
+        const k = i % 2;
+        row.c.t = 0; setRow(row, true, 0);
+        gsap.to(row.c, { t: 1, duration: 0.7, delay: 0.25 + k * 0.6, ease: "none", onUpdate: () => setRow(row, true, row.c.t), onComplete: () => setRow(row, true, 1) });
+      } else setRow(row, on, 1);
+    });
+    const w = BW * filled / 6;
+    if (animate) gsap.to(bar, { attr: { width: w }, duration: 0.6, delay: 0.4, ease: "power2.out" });
+    else bar.setAttribute("width", w);
+    count.textContent = filled + "/6";
+    const done = n >= 3;
+    if (done && animate) gsap.fromTo(stamp, { attr: { opacity: 0 } }, { attr: { opacity: 1 }, duration: 0.35, delay: 1.7 });
+    else stamp.setAttribute("opacity", done ? 1 : 0);
+  }
+
+  function kill() {
+    if (!built) return;
+    gsap.killTweensOf(rows.map((r) => r.c).concat([bar, stamp]));
+  }
+
+  Deck.register("custom-c07-contract-checklist", {
+    enter(slide, step) { build(slide); render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { kill(); }
+  });
+})();
+</script>

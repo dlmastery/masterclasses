@@ -1,0 +1,170 @@
+<section class="slide" id="custom-interview-c02-sft-mechanics" data-tone="model" data-title="SFT: template and mask">
+  <style>
+    #custom-interview-c02-sft-mechanics .sm-grid { display: grid; grid-template-columns: 590px 1fr; gap: 30px; }
+    #custom-interview-c02-sft-mechanics .qa { gap: 10px; }
+    #custom-interview-c02-sft-mechanics .qa .q { font-size: 23px; }
+    #custom-interview-c02-sft-mechanics .qa .a { font-size: 19px; line-height: 1.42; padding: 12px 16px; }
+    #custom-interview-c02-sft-mechanics .qa .a .tags { margin-top: 10px; gap: 8px; }
+    #custom-interview-c02-sft-mechanics .qa .a .tag { font-size: 15px; padding: 5px 9px 5px 8px; transition: background .3s, box-shadow .3s; }
+    #custom-interview-c02-sft-mechanics .tag.lit { background: var(--model-soft); box-shadow: 0 0 0 2px var(--model); color: var(--ink); }
+    #custom-interview-c02-sft-mechanics .ci-swap { display: grid; }
+    #custom-interview-c02-sft-mechanics .ci-swap > * { grid-area: 1 / 1; align-self: start; }
+    #custom-interview-c02-sft-mechanics .ci-strip { padding: 12px 14px; }
+    #custom-interview-c02-sft-mechanics pre.code { font-size: 17px; line-height: 1.45; padding: 12px 18px 14px; }
+    #custom-interview-c02-sft-mechanics .code-wrap.out pre.code { font-size: 16px; padding: 8px 16px 10px; }
+    #custom-interview-c02-sft-mechanics .code-wrap .code-head { padding: 7px 14px; font-size: 14px; }
+    #custom-interview-c02-sft-mechanics .right { gap: 12px; min-width: 0; }
+    #custom-interview-c02-sft-mechanics code, #custom-interview-c02-sft-mechanics pre.code *, #custom-interview-c02-sft-mechanics .tag, #custom-interview-c02-sft-mechanics svg text { font-variant-ligatures: none; }
+  </style>
+  <div class="kicker">Interview · SFT mechanics</div>
+  <h2 class="title">Most silent SFT bugs live in the chat template and the loss mask</h2>
+  <div class="sm-grid fill">
+    <div class="stack" style="gap:22px">
+      <div class="qa">
+        <div class="q">After SFT the model never stops generating. Why?</div>
+        <div class="a" data-step="1">
+          The tokenizer's EOS is not the template's end-of-turn token, so the stop token gets no loss. Example: Qwen3-0.6B-Base has EOS <code>&lt;|endoftext|&gt;</code>, but turns end with <code>&lt;|im_end|&gt;</code>.
+          <div class="tags"><span class="tag t-model">eos_token="&lt;|im_end|&gt;"</span><span class="tag t-state" id="sm-chip-eos">assert end in ids[-2:]</span></div>
+        </div>
+      </div>
+      <div class="qa" data-step="2">
+        <div class="q">What does <code>assistant_only_loss=True</code> need?</div>
+        <div class="a" data-step="3">
+          Generation markers in the chat template: <code>{% generation %}</code> … <code>{% endgeneration %}</code> around each assistant reply. TRL builds the loss mask from them.
+          <div class="tags"><span class="tag t-tool">get_training_chat_template(tok)</span><span class="tag t-state" id="sm-chip-mask">no user text in kept labels</span></div>
+        </div>
+      </div>
+      <div class="row push" style="gap:10px; flex-wrap:wrap">
+        <a class="cite doc" href="https://huggingface.co/docs/trl/sft_trainer" target="_blank" rel="noopener"><b>Docs</b>&nbsp;TRL SFT Trainer</a>
+      </div>
+    </div>
+    <div class="stack right">
+      <div class="panel flat ci-strip">
+        <svg id="ci-c02-sft-svg" viewBox="0 0 740 176" width="740" height="176" aria-label="Chat tokens and the loss label on each token"></svg>
+      </div>
+      <div class="ci-swap">
+        <div data-step="1" data-until="3">
+          <div class="code-wrap">
+            <div class="code-head">check_eos.py</div>
+            <pre class="code" data-lang="python" data-focus="1:11-14"><code># pip install trl==1.16.0 transformers==5.20.2 datasets
+from datasets import Dataset
+from trl import SFTConfig, SFTTrainer
+M = "Qwen/Qwen3-0.6B-Base"     # eos_token: &lt;|endoftext|&gt;
+msgs = [{"role": "user", "content": "Refund my order."},
+        {"role": "assistant", "content": "I can help."}]
+args = SFTConfig(output_dir="refund-lora",
+                 eos_token="&lt;|im_end|&gt;")   # the fix
+tr = SFTTrainer(model=M, args=args,
+    train_dataset=Dataset.from_list([{"messages": msgs}]))
+ids, tok = tr.train_dataset[0]["input_ids"], tr.processing_class
+end = tok.convert_tokens_to_ids("&lt;|im_end|&gt;")
+assert end in ids[-2:]   # a turn ends "&lt;|im_end|&gt;\n"
+print("ok")               # without the fix: AssertionError</code></pre>
+          </div>
+        </div>
+        <div data-step="3">
+          <div class="code-wrap">
+            <div class="code-head">check_mask.py · runs on CPU</div>
+            <pre class="code" data-lang="python" data-focus="3:9-13"><code># pip install trl==1.16.0 transformers==5.20.2
+from transformers import AutoTokenizer
+from trl import get_training_chat_template
+tok = AutoTokenizer.from_pretrained("Qwen/Qwen3-0.6B")
+U = {"role": "user", "content": "Refund my order."}
+A = {"role": "assistant", "content": "I can help."}
+out = tok.apply_chat_template([U, A], tokenize=True,
+    chat_template=get_training_chat_template(tok),  # markers
+    return_dict=True, return_assistant_tokens_mask=True)
+pairs = zip(out["input_ids"], out["assistant_masks"])
+kept = [t for t, m in pairs if m]
+assert kept, "mask is empty: every label would be -100"
+assert U["content"] not in tok.decode(kept)
+print(repr(tok.decode(kept)))  # ends 'I can help.&lt;|im_end|&gt;\n'</code></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Ask each question, pause, then reveal the answer. Both bugs train to the end with no error, so the only defence is a cheap check before the GPU run; the right side shows that check for each question, on the same two chat turns. Question 1: if the tokenizer's EOS is not the template's end-of-turn token, the stop token never gets loss and the model never learns to stop. Qwen3-0.6B-Base ships eos_token &lt;|endoftext|&gt;, while its template ends turns with &lt;|im_end|&gt;, so set SFTConfig(eos_token="&lt;|im_end|&gt;"). The instruct checkpoint Qwen3-0.6B already ships eos &lt;|im_end|&gt;, so it does not show this bug. The check looks at the last two ids because the Qwen template writes a newline after &lt;|im_end|&gt;. Question 2: the assistant mask comes from {% generation %} markers in the Jinja template. get_training_chat_template is a public TRL 1.16.0 function; it returns a patched template for known families such as qwen3, or None when the template is already training-ready. TRL 1.16.0 does not patch Gemma 4; there you get "ValueError: The chat template is not training-compatible (missing prefix-preservation or {% generation %} markers) and patching is not supported for this template." For Gemma 4, use prompt-completion data instead. -100 is PyTorch's ignore_index: a token with that label gets no loss. Analogy: a smoke detector with no battery stays quiet, so you test it on purpose. Likely follow-up: "How do you catch this in CI?" Run both asserts on every dataset and template change. Next: the numbers behind the refund adapter.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-interview-c02-sft-mechanics";
+  let P = null;
+
+  const el = (parent, tag, attrs, style, text) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (style) Object.assign(e.style, style);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  };
+  const MONO = (w, s) => ({ font: `${w} ${s}px var(--f-mono)`, fontVariantLigatures: "none" });
+
+  // two chat turns; keep = 1 means the token keeps its label (gets loss)
+  const ROWS = [
+    { y: 0, toks: [["<|im_start|>user", 0], ["I want a refund for my order.", 0], ["<|im_end|>", 0]] },
+    { y: 80, toks: [["<|im_start|>assistant", 0], ["I can help with your refund.", 1], ["<|im_end|>", 1]] },
+  ];
+  const CAPS = [
+    "which tokens get loss?",
+    "the stop token <|im_end|> must get loss",
+    "the stop token <|im_end|> must get loss",
+    "-100 = ignored by the loss · green = loss",
+  ];
+
+  function build(slide) {
+    const svg = slide.querySelector("#ci-c02-sft-svg");
+    svg.innerHTML = "";
+    const mask = el(svg, "g", {}, { opacity: 0 });
+    const pills = [];
+    ROWS.forEach((row) => {
+      let x = 0;
+      row.toks.forEach(([t, keep]) => {
+        const w = Math.round(t.length * 9.65 + 20);
+        const r = el(svg, "rect", { x, y: row.y, width: w, height: 40, rx: 9 }, { fill: "var(--surface-2)", stroke: "var(--line-2)", strokeWidth: 1.5 });
+        const tx = el(svg, "text", { x: x + w / 2, y: row.y + 26, "text-anchor": "middle" }, { ...MONO(500, 16), fill: "var(--ink)" }, t);
+        el(mask, "rect", { x, y: row.y + 46, width: w, height: 26, rx: 6 }, { fill: keep ? "var(--state-soft)" : "#F1F5F9", stroke: keep ? "var(--state)" : "#CBD5E1", strokeWidth: 1.5 });
+        el(mask, "text", { x: x + w / 2, y: row.y + 64, "text-anchor": "middle" }, { ...MONO(700, 15), fill: keep ? "var(--state)" : "#64748B" }, keep ? "loss" : "-100");
+        pills.push({ r, tx, keep, eos: t === "<|im_end|>" && keep });
+        x += w + 10;
+      });
+    });
+    const cap = el(svg, "text", { x: 0, y: 172 }, { ...MONO(600, 17), fill: "var(--model)" }, CAPS[0]);
+    P = { mask, pills, cap };
+  }
+
+  function render(slide, n, animate) {
+    const d = animate ? 0.45 : 0;
+    const p = P;
+    p.cap.textContent = CAPS[Math.min(n, 3)];
+    gsap.to(p.mask, { opacity: n >= 3 ? 1 : 0, duration: d, overwrite: "auto" });
+    p.pills.forEach((q) => {
+      const hot = q.eos && n >= 1;
+      const dim = n >= 3 && !q.keep;
+      gsap.to(q.r, { fill: hot ? "var(--model-soft)" : dim ? "#F1F5F9" : "var(--surface-2)", stroke: hot ? "var(--model)" : "var(--line-2)", strokeWidth: hot ? 3 : 1.5, duration: d, overwrite: "auto" });
+      gsap.to(q.tx, { fill: dim ? "#64748B" : "var(--ink)", duration: d, overwrite: "auto" });
+    });
+    // the answer chip lights up together with the focused code lines
+    slide.querySelector("#sm-chip-eos").classList.toggle("lit", n >= 1 && n < 3);
+    slide.querySelector("#sm-chip-mask").classList.toggle("lit", n >= 3);
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) {
+      build(slide);
+      render(slide, step || 0, false);
+      if ((step || 0) === 0) gsap.from(P.pills.map((q) => q.r), { opacity: 0, y: 10, duration: 0.4, stagger: 0.06, delay: 0.3 });
+    },
+    step(slide, n, animate) {
+      if (!P || !slide.querySelector("#ci-c02-sft-svg").firstChild) build(slide);
+      render(slide, n, animate);
+    },
+    leave() {
+      if (!P) return;
+      gsap.killTweensOf([P.mask, ...P.pills.map((q) => q.r), ...P.pills.map((q) => q.tx)]);
+    },
+  });
+})();
+</script>

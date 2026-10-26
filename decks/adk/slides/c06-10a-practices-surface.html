@@ -1,0 +1,38 @@
+<section class="slide" id="adk-c06-practices-surface" data-tone="tool" data-title="Practices: tool surface and identity">
+  <style>
+    #adk-c06-practices-surface .pr-grid { display: grid; grid-template-columns: 560px 1fr; gap: 36px; align-items: start; }
+    #adk-c06-practices-surface ul.checks { gap: 22px; }
+    #adk-c06-practices-surface ul.checks li { font-size: 21px; line-height: 1.4; grid-template-columns: 30px 1fr; gap: 14px; }
+    #adk-c06-practices-surface ul.checks li::before { width: 28px; height: 28px; font-size: 16px; }
+    #adk-c06-practices-surface ul.checks li code { font-size: 18px; }
+    #adk-c06-practices-surface ul.checks li .r { color: var(--muted); }
+  </style>
+  <div class="kicker">Best practices · tool surface and identity</div>
+  <h2 class="title">Least privilege for MCP tools: five checks for every toolset</h2>
+  <div class="pr-grid fill">
+    <ul class="checks">
+      <li data-step="1"><span><code>tool_filter</code> on every toolset. <span class="r">New server tools need a review.</span></span></li>
+      <li data-step="2"><span><code>tool_name_prefix</code> per server. <span class="r">Merged namespaces raise tool hallucination.</span></span></li>
+      <li data-step="3"><span><code>require_confirmation</code> on money, delete and send. <span class="r">The server checks too.</span></span></li>
+      <li data-step="4"><span>Identity in headers via <code>header_provider</code>. <span class="r">Never in the prompt.</span></span></li>
+      <li class="no" data-step="5"><span>A default tenant when <code>user:tenant</code> is missing. <span class="r">Fail closed.</span></span></li>
+    </ul>
+    <div class="code-wrap good">
+      <div class="code-head">labs/adk/lab6-acme-claims-desk/claims_agent/agent.py · excerpt</div>
+      <pre class="code" data-lang="python" data-focus="1:3, 2:4, 3:5, 4:11, 5:11"><code>claims_tools = McpToolset(
+    connection_params=StdioConnectionParams(...),  # step 2
+    tool_filter=["get_claim", "approve_claim", "login"],
+    tool_name_prefix="claims",
+    require_confirmation=payout_needs_human,
+)
+handbook_tools = McpToolset(
+    connection_params=StreamableHTTPConnectionParams(...),  # step 3
+    tool_filter=["search_policy", "list_topics"],
+    tool_name_prefix="handbook",
+    header_provider=tenant_headers,  # raises without a tenant
+    tool_list_cache_ttl_seconds=300,
+)</code></pre>
+    </div>
+  </div>
+  <aside class="notes">This slide and the next are the review list for every toolset the Acme claims desk mounts. Each check maps to one line of the final agent.py on the right. Check 1: tool_filter on every toolset, so a tool the server team adds needs a code review before the model can call it. Check 2: one prefix per server, because merged namespaces are where tool hallucination is worst (arXiv 2609.19425 collected 322 real cases across 10 models). Check 3: require_confirmation on money, delete and send tools, while the server keeps its own authorisation, because other MCP clients can call it. Check 4: identity travels in headers from header_provider, never in the prompt. Check 5, a don't: never fall back to a default tenant when user:tenant is missing; raise instead, so one broker never sees another broker's data. Think of a building pass: the badge lists the doors you may open, and each door still has its own lock. A likely question: "Is the prefix only cosmetic?" No, it also stops two servers that both expose search from colliding on one name.</aside>
+</section>

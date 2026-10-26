@@ -1,0 +1,144 @@
+<section class="slide chapter" id="custom-c06-chapter" data-tone="human" data-title="Ch 6: Preference tuning">
+  <style>
+    #custom-c06-chapter .c06-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    #custom-c06-chapter .lede { margin-top: -8px; }
+    #custom-c06-chapter svg { margin-bottom: -6px; }
+    #custom-c06-chapter svg text { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+  </style>
+  <div class="ch-num" data-fx="blur">06</div>
+  <svg id="c06-ch-svg" viewBox="0 0 1300 340" width="1300" height="340" aria-label="A customer message and two replies. The on-brand reply (green, chosen) and the off-brand reply (red, rejected) both flow into a DPO plus LoRA node. On the right, two reward bars start at the reference line. In a loop, the chosen bar falls a little to minus 0.21 and the rejected bar falls far to minus 1.35, so the margin grows to 1.14."></svg>
+  <h2 class="display">Preference tuning</h2>
+  <p class="lede" data-fx="up">When the right answer is a judgment, train on pairs. Watch what the margin is made of.</p>
+  <div class="c06-row" data-fx="stagger">
+    <span class="tag t-human">Acme support QA: on-brand replies</span>
+    <span class="tag t-model">Qwen2.5-0.5B-Instruct + LoRA · DPOTrainer</span>
+    <span class="tag t-state">3 seed pairs ×100 + 3,000 UltraFeedback pairs</span>
+    <span class="tag t-tool">trl 1.16.0 · peft 0.21.2 · one 16-24 GB GPU</span>
+    <a class="cite doc" href="https://huggingface.co/docs/trl/main/en/dpo_trainer" target="_blank" rel="noopener"><b>Docs</b>&nbsp;TRL DPO Trainer</a>
+  </div>
+  <aside class="notes">This chapter is Lab 5: the Acme support QA team already marks replies as on-brand, which means empathetic, specific and taking action, or off-brand, which means dismissive or blaming the customer. We turn those judgments into chosen and rejected pairs and train with DPO plus LoRA, so there is no reward model and no sampling during training. Watch the bars: DPO pushes the two replies apart, but most of the margin comes from the rejected reply falling, not from the chosen reply rising; the numbers are the illustrative log values from the lab. Analogy: a coach who mostly says "never say that again" changes the habit fast, but can also make the player too quiet, so we read samples too. Likely question: "When do I need a reward model instead?" When you want a learned score for RL or for ranking new replies, which is the build-up later in this chapter.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c06-chapter";
+  // illustrative DPO log values from the Lab 5 run (keys verified in dpo_trainer.py)
+  const END = { chosen: -0.21, rejected: -1.35 };
+  const ZERO_Y = 92, SCALE = 140;             // px per reward unit
+  const BAR = { cx: 740, rx: 860, w: 84 };
+  const DPO = { x: 440, y: 112, w: 210, h: 116 };
+  let tl = null, P = null, prox = null, val = null;
+
+  const el = (parent, tag, attrs, style, text) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (style) Object.assign(e.style, style);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  };
+  const mono = (w, s) => `${w} ${s}px var(--f-mono)`;
+
+  function card(svg, y, h, tone, label, lines) {
+    el(svg, "rect", { x: 0, y, width: 380, height: h, rx: 14 }, { fill: `var(--${tone}-soft)`, stroke: `var(--${tone})`, strokeWidth: 2.2 });
+    el(svg, "text", { x: 16, y: y + 24 }, { font: mono(700, 13), fill: `var(--${tone})` }, label);
+    lines.forEach((t, i) => el(svg, "text", { x: 16, y: y + 48 + i * 20 }, { font: "500 15px var(--f-body)", fill: "var(--ink-2)" }, t));
+  }
+
+  function build(svg) {
+    svg.innerHTML = "";
+    // customer message
+    el(svg, "rect", { x: 0, y: 0, width: 300, height: 44, rx: 12 }, { fill: "var(--surface-2)", stroke: "var(--human)", strokeWidth: 2 });
+    el(svg, "text", { x: 16, y: 28 }, { font: mono(600, 14), fill: "var(--human)" }, "\"My package is 5 days late.\"");
+    // chosen / rejected cards
+    card(svg, 62, 116, "state", "chosen · on-brand", ["Sorry about the delay. Your parcel is at the", "Leeds depot and arrives tomorrow; I added", "a $5 credit."]);
+    card(svg, 214, 80, "risk", "rejected · off-brand", ["Shipping delays happen. Please wait."]);
+    // wires into DPO
+    const wC = el(svg, "path", { d: `M380 120 C410 120 410 150 ${DPO.x} 150` }, { fill: "none", stroke: "var(--state)", strokeWidth: 2.4 });
+    const wR = el(svg, "path", { d: `M380 254 C410 254 410 192 ${DPO.x} 192` }, { fill: "none", stroke: "var(--risk)", strokeWidth: 2.4 });
+    // DPO node
+    el(svg, "rect", { x: DPO.x, y: DPO.y, width: DPO.w, height: DPO.h, rx: 18 }, { fill: "var(--model-soft)", stroke: "var(--model)", strokeWidth: 2.5 });
+    el(svg, "text", { x: DPO.x + DPO.w / 2, y: DPO.y + 46, "text-anchor": "middle" }, { font: mono(700, 22), fill: "var(--ink)" }, "DPO + LoRA");
+    el(svg, "text", { x: DPO.x + DPO.w / 2, y: DPO.y + 72, "text-anchor": "middle" }, { font: mono(500, 13), fill: "var(--muted)" }, "beta = 0.1");
+    el(svg, "text", { x: DPO.x + DPO.w / 2, y: DPO.y + 92, "text-anchor": "middle" }, { font: mono(500, 13), fill: "var(--muted)" }, "ref = adapter off");
+    const glow = el(svg, "rect", { x: DPO.x, y: DPO.y, width: DPO.w, height: DPO.h, rx: 18 }, { fill: "var(--model)", opacity: 0 });
+    el(svg, "line", { x1: DPO.x + DPO.w, y1: 170, x2: 702, y2: 170 }, { stroke: "var(--model)", strokeWidth: 2.4 });
+    el(svg, "path", { d: "M694 163 L704 170 L694 177" }, { fill: "none", stroke: "var(--model)", strokeWidth: 2.4 });
+    // pulses on the input wires
+    const dC = el(svg, "circle", { cx: 380, cy: 120, r: 7 }, { fill: "var(--state)", opacity: 0 });
+    const dR = el(svg, "circle", { cx: 380, cy: 254, r: 7 }, { fill: "var(--risk)", opacity: 0 });
+    // chart: rewards relative to the reference
+    el(svg, "text", { x: 720, y: 20 }, { font: mono(700, 13), fill: "var(--ink-2)" }, "rewards · illustrative log");
+    el(svg, "line", { x1: 720, y1: ZERO_Y, x2: 960, y2: ZERO_Y }, { stroke: "var(--line-2)", strokeWidth: 2, strokeDasharray: "6 5" });
+    el(svg, "text", { x: 720, y: 46 }, { font: mono(500, 12), fill: "var(--muted)" }, "dashed line = reference");
+    const bc = el(svg, "rect", { x: BAR.cx, y: ZERO_Y, width: BAR.w, height: 0, rx: 6 }, { fill: "var(--state)", opacity: 0.85 });
+    const br = el(svg, "rect", { x: BAR.rx, y: ZERO_Y, width: BAR.w, height: 0, rx: 6 }, { fill: "var(--risk)", opacity: 0.85 });
+    el(svg, "text", { x: BAR.cx + BAR.w / 2, y: ZERO_Y - 12, "text-anchor": "middle" }, { font: mono(700, 13), fill: "var(--state)" }, "chosen");
+    el(svg, "text", { x: BAR.rx + BAR.w / 2, y: ZERO_Y - 12, "text-anchor": "middle" }, { font: mono(700, 13), fill: "var(--risk)" }, "rejected");
+    const tc = el(svg, "text", { x: BAR.cx + BAR.w / 2, y: ZERO_Y + 24, "text-anchor": "middle" }, { font: mono(700, 15), fill: "var(--ink)" }, "0.00");
+    const tr = el(svg, "text", { x: BAR.rx + BAR.w / 2, y: ZERO_Y + 24, "text-anchor": "middle" }, { font: mono(700, 15), fill: "var(--ink)" }, "0.00");
+    // margin bracket between the bar bottoms
+    const mb = el(svg, "path", { d: "" }, { fill: "none", stroke: "var(--human)", strokeWidth: 2.4 });
+    const mt = el(svg, "text", { x: 720, y: 318 }, { font: mono(700, 15), fill: "var(--human)" }, "");
+    const cap = el(svg, "text", { x: 720, y: 340 }, { font: mono(600, 13), fill: "var(--muted)" }, "");
+    P = { glow, wC, wR, dC, dR, bc, br, tc, tr, mb, mt, cap };
+  }
+
+  function setVals(t) {
+    const c = END.chosen * t, r = END.rejected * t, m = c - r;
+    const hc = -c * SCALE, hr = -r * SCALE;
+    P.bc.setAttribute("height", hc);
+    P.br.setAttribute("height", hr);
+    P.tc.setAttribute("y", ZERO_Y + hc + 22);
+    P.tr.setAttribute("y", ZERO_Y + hr + 22);
+    P.tc.textContent = c.toFixed(2);
+    P.tr.textContent = r.toFixed(2);
+    const y1 = ZERO_Y + hc, y2 = ZERO_Y + hr, x = 952;
+    P.mb.setAttribute("d", m > 0.04 ? `M${x - 8} ${y1} L${x} ${y1} L${x} ${y2} L${x - 8} ${y2}` : "");
+    P.mt.textContent = `rewards/margins ${m.toFixed(2)}`;
+    P.cap.textContent = t < 0.02 ? "step 0: policy = reference, loss = ln 2" : "rejected falls faster than chosen";
+  }
+
+  const along = (path, dot, o) => {
+    const L = path.getTotalLength();
+    return { onUpdate() { const q = path.getPointAtLength(o.t * L); dot.setAttribute("cx", q.x); dot.setAttribute("cy", q.y); } };
+  };
+
+  function play() {
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    val = { t: 0 };
+    prox = { a: { t: 0 }, b: { t: 0 } };
+    setVals(0);
+    tl = gsap.timeline({ repeat: reduce ? 0 : -1, repeatDelay: 1.4 });
+    tl.call(() => setVals(0), null, 0);
+    for (let k = 0; k < 3; k++) {
+      const t0 = 0.4 + k * 1.3;
+      tl.set([P.dC, P.dR], { opacity: 1 }, t0)
+        .fromTo(prox.a, { t: 0 }, { t: 1, duration: 0.7, ease: "power1.inOut", ...along(P.wC, P.dC, prox.a) }, t0)
+        .fromTo(prox.b, { t: 0 }, { t: 1, duration: 0.7, ease: "power1.inOut", ...along(P.wR, P.dR, prox.b) }, t0)
+        .set([P.dC, P.dR], { opacity: 0 }, t0 + 0.7)
+        .fromTo(P.glow, { opacity: 0.4 }, { opacity: 0, duration: 0.5 }, t0 + 0.7)
+        .to(val, { t: (k + 1) / 3, duration: 0.6, ease: "power2.out", onUpdate: () => setVals(val.t) }, t0 + 0.75);
+    }
+    tl.to({}, { duration: 1.8 });
+    if (reduce) { tl.progress(1); setVals(1); }
+  }
+
+  function stop() {
+    if (tl) { tl.kill(); tl = null; }
+    if (val) gsap.killTweensOf(val);
+    if (prox) gsap.killTweensOf([prox.a, prox.b]);
+    if (P) gsap.killTweensOf([P.glow, P.dC, P.dR]);
+  }
+
+  Deck.register(ID, {
+    enter(slide) {
+      stop();
+      build(slide.querySelector("#c06-ch-svg"));
+      play();
+    },
+    step() {},
+    leave() { stop(); },
+  });
+})();
+</script>

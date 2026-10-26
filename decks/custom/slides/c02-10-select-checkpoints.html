@@ -1,0 +1,146 @@
+<section class="slide" id="custom-c02-select-checkpoints" data-tone="model" data-title="Checkpoint selection">
+  <div class="kicker"><span class="pill">arXiv</span> Sep 2026</div>
+  <h2 class="title sm">Pick SFT checkpoints by generated accuracy, not by validation loss</h2>
+  <div class="grid fill" style="grid-template-columns:640px 1fr;gap:26px">
+    <div class="stack sc-left">
+      <div class="paper">
+        <div class="pid">arXiv:2609.36569 <span>29 Sep 2026</span></div>
+        <h4>From Checkpoint Variation to Selection Gains in SFT</h4>
+        <div class="find">60 math SFT runs: generation-based picks (generated accuracy / checkpoint agreement) beat matched NLL picks by <b>+0.71</b> / <b>+0.85</b> percentage points (pp).</div>
+        <div class="so">Score every checkpoint on ≥ 300 items with the task metric.</div>
+      </div>
+      <div class="code-wrap" data-step="2">
+        <div class="code-head">refunds_sft/step3b_score_checkpoints.py · after step 3</div>
+        <pre class="code sc-code" data-lang="python" data-focus="2:7-9, 3:10-16"><code>import glob, re, torch
+from peft import PeftModel
+from transformers import AutoModelForCausalLM, AutoTokenizer
+from common import refund_splits
+BASE, PH = "Qwen/Qwen3-0.6B", re.compile(r"\{\{[^}]+\}\}")
+tok, test = AutoTokenizer.from_pretrained(BASE), refund_splits()["test"]
+for ck in sorted(glob.glob("qwen3-0.6b-refund-lora/checkpoint-*")):
+    base = AutoModelForCausalLM.from_pretrained(BASE, dtype=torch.bfloat16)
+    model, kept = PeftModel.from_pretrained(base, ck).eval(), 0
+    for r in test:
+        enc = tok.apply_chat_template(r["messages"][:2],   # SYSTEM + user
+            add_generation_prompt=True, enable_thinking=False,
+            return_tensors="pt", return_dict=True)
+        out = model.generate(**enc, max_new_tokens=128, do_sample=False)
+        reply = tok.decode(out[0, enc["input_ids"].shape[1]:])
+        gold = set(PH.findall(r["messages"][2]["content"]))
+        kept += gold &lt;= set(PH.findall(reply))
+    print(ck, "placeholder_kept", round(kept / len(test), 3))</code></pre>
+      </div>
+    </div>
+
+    <div class="stack sc-right">
+      <svg id="sc-svg" viewBox="0 0 726 300" width="726" height="300" aria-label="Six checkpoints: validation NLL bars and generated-accuracy bars from zero; the lowest-NLL checkpoint is not the most accurate one"></svg>
+      <div class="sc-tab" data-step="3" data-fx="up">
+        <div class="sc-cap">Lab 1 sweep · 3 of 9 runs (rank × LR grid) · output · illustrative</div>
+        <table class="t">
+          <thead><tr><th>run</th><th>eval_loss</th><th>intent_exact</th><th>placeholder_kept</th></tr></thead>
+          <tbody>
+            <tr><td>r8_lr1e-4</td><td>0.601</td><td>0.912</td><td>0.97</td></tr>
+            <tr class="sc-win"><td>r16_lr2e-4</td><td>0.561</td><td><b class="c-state">0.934</b> <span class="tag t-state">ship this</span></td><td>0.99</td></tr>
+            <tr><td>r64_lr5e-4</td><td><b class="c-agent">0.548</b> <span class="tag t-agent">lowest loss</span></td><td>0.921</td><td>0.93</td></tr>
+          </tbody>
+        </table>
+        <div class="sc-def">intent_exact: the router's intent for the reply = the gold intent · placeholder_kept: every <code>{{…}}</code> of the gold reply is in the output</div>
+      </div>
+      <div class="paper sc-p2" data-step="4">
+        <div class="pid">arXiv:2609.01244 <span>1 Sep 2026</span></div>
+        <div class="find"><b>Post-Training Science for SFT</b>: 4 customer datasets, Qwen3 and Llama up to <b>235B</b>. Validation loss may not rank downstream quality.</div>
+        <div class="so">Sweep the learning rate first, then rank the runs by the task metric.</div>
+      </div>
+    </div>
+  </div>
+  <style>
+    #custom-c02-select-checkpoints .sc-left, #custom-c02-select-checkpoints .sc-right { gap: 12px; }
+    #custom-c02-select-checkpoints .paper { padding: 12px 18px; gap: 6px; }
+    #custom-c02-select-checkpoints .paper h4 { font-size: 19px; }
+    #custom-c02-select-checkpoints .paper .find { font-size: 16px; line-height: 1.4; }
+    #custom-c02-select-checkpoints .paper .so { font-size: 16px; }
+    #custom-c02-select-checkpoints pre.code.sc-code { font-size: 13px; line-height: 1.4; padding: 10px 16px 12px; }
+    #custom-c02-select-checkpoints .code-head { font-size: 13.5px; padding: 8px 14px; }
+    #custom-c02-select-checkpoints .sc-cap, #custom-c02-select-checkpoints .sc-def { font: 500 13.5px/1.35 var(--f-mono); color: var(--muted); margin-bottom: 4px; }
+    #custom-c02-select-checkpoints .sc-def { margin: 6px 0 0; }
+    #custom-c02-select-checkpoints .sc-def code { font-size: 1em; }
+    #custom-c02-select-checkpoints table.t { width: 100%; font-size: 15px; table-layout: auto; }
+    #custom-c02-select-checkpoints table.t td, #custom-c02-select-checkpoints table.t th { padding: 6px 10px; font-family: var(--f-mono); }
+    #custom-c02-select-checkpoints tr.sc-win td { background: var(--state-soft); }
+    #custom-c02-select-checkpoints .tag { font-size: 12.5px; white-space: nowrap; padding: 2px 8px; }
+    #custom-c02-select-checkpoints table.t td:first-child { white-space: nowrap; }
+    #custom-c02-select-checkpoints svg text { font-variant-ligatures: none; }
+  </style>
+  <aside class="notes">The Lab 1 refund adapter saves one checkpoint per epoch, and we set load_best_model_at_end to False, so which one do we ship? The September paper on 60 math SFT runs compares two generation-based rules, generated accuracy and checkpoint agreement, with picking by validation NLL: they win by 0.71 and 0.85 percentage points. That sounds small, but it is free once you have the eval set, and a validation set of about 300 items instead of 32 adds about 0.3 more; the gain over simply keeping the final checkpoint stayed unresolved, so measure it on your task. The chart is a schematic: both rows start at zero, and the guide lines show that the lowest-loss checkpoint and the most accurate checkpoint are different columns. Click 2: the scoring script loads each checkpoint, generates greedily with the training prefix, and counts whether every placeholder of the gold reply survives. Click 3: our sweep shows the same trap: r64 has the lowest eval_loss but a worse intent score than r16, so we ship r16. Rank and learning rate change together in these three rows, which is why the second paper says: sweep the learning rate first, then compare ranks at a fixed rate. intent_exact runs the Gemma 4 router on each reply and compares its intent with the gold intent. Loss is like a typing-speed test for a lawyer: it is related to the job, but you hire on the case results.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const N = 6, X0 = 196, DX = 100, BW = 44;
+  const NLL = [0.95, 0.74, 0.62, 0.57, 0.55, 0.58];
+  const ACC = [0.80, 0.86, 0.90, 0.92, 0.89, 0.88];
+  const LOW = 4, BEST = 3, YT = 48, YA = 160, YB = 286;
+  const xs = (i) => X0 + i * DX;
+  let svg, dots = [], barA = [], valA = [], barB = [], valB = [], guideA, guideB, lblA, lblB, gain, rowB, tweens = [];
+  const mono = "font-family:var(--f-mono)";
+  const mk = (tag, a, p) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); p.appendChild(e); return e; };
+  const tx = (s, a, p) => { const e = mk("text", a, p); e.textContent = s; return e; };
+  const hA = (v) => v * 90, hB = (v) => v * 90;   // both rows start at zero
+
+  function build(slide) {
+    svg = slide.querySelector("#sc-svg");
+    svg.innerHTML = ""; dots = []; barA = []; valA = []; barB = []; valB = [];
+    tx("schematic · one SFT run · 6 saved checkpoints · bars start at 0", { x: 0, y: 14, "font-size": 13.5, fill: "var(--muted)", style: mono }, svg);
+    mk("line", { x1: X0 - 40, y1: YT, x2: xs(N - 1) + 40, y2: YT, stroke: "var(--line-2)", "stroke-width": 3 }, svg);
+    tx("training →", { x: 0, y: YT + 5, "font-size": 15, "font-weight": 600, fill: "var(--ink-2)", style: mono }, svg);
+    // guide lines through both rows for the lowest-NLL column and the best-accuracy column
+    guideA = mk("line", { x1: xs(LOW), x2: xs(LOW), y1: YT + 12, y2: YB, stroke: "var(--agent)", "stroke-width": 2, "stroke-dasharray": "5 4" }, svg);
+    guideB = mk("line", { x1: xs(BEST), x2: xs(BEST), y1: YT + 12, y2: YB, stroke: "var(--state)", "stroke-width": 2, "stroke-dasharray": "5 4" }, svg);
+    const rowA = mk("g", {}, svg); rowB = mk("g", {}, svg);
+    tx("validation", { x: 0, y: YA - 40, "font-size": 15, "font-weight": 600, fill: "var(--agent)", style: mono }, rowA);
+    tx("NLL ↓", { x: 0, y: YA - 20, "font-size": 15, "font-weight": 600, fill: "var(--agent)", style: mono }, rowA);
+    tx("generated", { x: 0, y: YB - 40, "font-size": 15, "font-weight": 600, fill: "var(--state)", style: mono }, rowB);
+    tx("accuracy ↑", { x: 0, y: YB - 20, "font-size": 15, "font-weight": 600, fill: "var(--state)", style: mono }, rowB);
+    mk("line", { x1: X0 - 40, y1: YA, x2: xs(N - 1) + 40, y2: YA, stroke: "var(--line)", "stroke-width": 1.5 }, rowA);
+    mk("line", { x1: X0 - 40, y1: YB, x2: xs(N - 1) + 40, y2: YB, stroke: "var(--line)", "stroke-width": 1.5 }, rowB);
+    for (let i = 0; i < N; i++) {
+      tx("ckpt " + (i + 1), { x: xs(i), y: YT - 16, "font-size": 13, "text-anchor": "middle", fill: "var(--muted)", style: mono }, svg);
+      dots.push(mk("circle", { cx: xs(i), cy: YT, r: 8, fill: "var(--model)" }, svg));
+      const a = mk("rect", { x: xs(i) - BW / 2, y: YA - hA(NLL[i]), width: BW, height: hA(NLL[i]), rx: 5, fill: i === LOW ? "var(--agent)" : "color-mix(in oklab, var(--agent) 28%, var(--surface))" }, rowA);
+      const av = tx(NLL[i].toFixed(2), { x: xs(i) + BW / 2 + 4, y: YA - hA(NLL[i]) + 14, "font-size": 13, "font-weight": i === LOW ? 700 : 500, fill: i === LOW ? "var(--agent)" : "var(--muted)", style: mono }, rowA);
+      const b = mk("rect", { x: xs(i) - BW / 2, y: YB - hB(ACC[i]), width: BW, height: hB(ACC[i]), rx: 5, fill: i === BEST ? "var(--state)" : "color-mix(in oklab, var(--state) 28%, var(--surface))" }, rowB);
+      const bv = tx(Math.round(ACC[i] * 100) + "%", { x: xs(i) + BW / 2 + 4, y: YB - hB(ACC[i]) + 14, "font-size": 13, "font-weight": i === BEST ? 700 : 500, fill: i === BEST ? "var(--state)" : "var(--muted)", style: mono }, rowB);
+      barA.push(a); valA.push(av); barB.push(b); valB.push(bv);
+    }
+    lblA = tx("lowest NLL", { x: xs(LOW) + 8, y: YT + 26, "font-size": 13.5, "font-weight": 700, fill: "var(--agent)", style: mono }, svg);
+    lblB = tx("best accuracy", { x: xs(BEST) - 8, y: YT + 26, "font-size": 13.5, "font-weight": 700, "text-anchor": "end", fill: "var(--state)", style: mono }, svg);
+    gain = tx("", { x: 0, y: 0, opacity: 0 }, svg);
+  }
+  const kill = () => { tweens.forEach((t) => t.kill()); tweens = []; };
+  const vis = (els, v) => gsap.set(els, { opacity: v, scale: 1, y: 0 });
+
+  function render(slide, n, animate) {
+    if (!svg || !slide.contains(svg)) build(slide);
+    kill();
+    vis([...dots, ...barA, ...valA, guideA, lblA], 1);
+    vis([rowB, ...barB, ...valB, guideB, lblB], n >= 1 ? 1 : 0);
+    if (!animate) return;
+    const grow = (bars, vals, guide, lbl) => {
+      const tl = gsap.timeline();
+      tl.fromTo(bars, { scaleY: 0, transformOrigin: "50% 100%" }, { scaleY: 1, duration: 0.5, stagger: 0.08, ease: "power2.out" });
+      tl.fromTo(vals, { opacity: 0 }, { opacity: 1, duration: 0.3, stagger: 0.05 }, "-=0.2");
+      tl.fromTo(guide, { opacity: 0 }, { opacity: 1, duration: 0.4 });
+      tl.fromTo(lbl, { opacity: 0, y: -6 }, { opacity: 1, y: 0, duration: 0.3 }, "-=0.2");
+      return tl;
+    };
+    if (n === 0) tweens.push(grow(barA, valA, guideA, lblA));
+    if (n === 1) tweens.push(grow(barB, valB, guideB, lblB));
+  }
+
+  Deck.register("custom-c02-select-checkpoints", {
+    enter(slide, step) { build(slide); render(slide, step || 0, !step); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { kill(); }
+  });
+})();
+</script>

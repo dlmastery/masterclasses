@@ -1,0 +1,205 @@
+<section class="slide" id="rag-interview-c03-qa-rerank" data-tone="agent" data-title="Rerankers reorder candidates">
+  <style>
+    #rag-interview-c03-qa-rerank .rr-grid { display: grid; grid-template-columns: 580px 1fr; gap: 32px; }
+    #rag-interview-c03-qa-rerank .qa-col { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+    #rag-interview-c03-qa-rerank .qa { gap: 9px; transition: opacity .35s; }
+    #rag-interview-c03-qa-rerank .qa .q { font-size: 21px; }
+    #rag-interview-c03-qa-rerank .qa .a { font-size: 21px; line-height: 1.4; padding: 11px 15px; }
+    #rag-interview-c03-qa-rerank .rr-legend { font-size: 15.5px; line-height: 1.45; color: var(--ink-2); margin: 0; }
+    #rag-interview-c03-qa-rerank .rr-legend b { font-family: var(--f-mono); color: var(--ink); }
+    #rag-interview-c03-qa-rerank .right { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+    #rag-interview-c03-qa-rerank svg.viz { width: 780px; height: 300px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+    #rag-interview-c03-qa-rerank pre.code.xs { font-size: 14px; line-height: 1.5; padding: 12px 16px 14px; }
+    #rag-interview-c03-qa-rerank .code-wrap { transition: opacity .35s; }
+    #rag-interview-c03-qa-rerank .cites { gap: 8px; }
+    #rag-interview-c03-qa-rerank .cite { font-size: 13px; flex-direction: row; align-items: center; gap: 8px; padding: 6px 10px 6px 8px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); white-space: nowrap; }
+  </style>
+  <div class="kicker">Interview · rerankers</div>
+  <h2 class="title">Rerankers reorder candidates; they cannot find what you missed</h2>
+  <div class="rr-grid fill">
+    <div class="qa-col">
+      <div class="qa" data-on="2:dim">
+        <div class="q">Northwind reranks all 150 hybrid candidates and keeps 8. What does it cost, and how do you cut it?</div>
+        <div class="a" data-step="1">One forward pass per pair. Cap 150 → 30 pairs: <b>5× less compute</b>.</div>
+      </div>
+      <div class="qa" data-on="3:dim">
+        <div class="q">Reranking raised Hit@10 a lot, but answers barely improved. Why?</div>
+        <div class="a" data-step="2">It only reorders. <b>Hit@10 +14 pts</b>, answers only <b>+3.8</b>. Measure answers per stage.</div>
+      </div>
+      <div class="qa">
+        <div class="q">A new ranker wins pairwise preference. Ship it?</div>
+        <div class="a" data-step="3">Not yet. Its <b>MRR fell 0.576 → 0.306</b>. Gate on MRR and cost.</div>
+      </div>
+      <p class="rr-legend push"><b>Hit@k</b> any gold chunk in the top k · <b>R@k</b> share of gold chunks in the top k · <b>MRR</b> 1 / rank of the first gold chunk</p>
+      <div class="cites">
+        <a class="cite doc" href="https://huggingface.co/blog/ettin-reranker" target="_blank" rel="noopener"><b>Hugging Face</b>&nbsp;Ettin reranker</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2610.01324" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.01324</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2610.26260" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.26260</a>
+      </div>
+    </div>
+    <div class="right">
+      <svg class="viz" id="rrq-svg" viewBox="0 0 780 300" aria-label="Reranker cost, stage gains and metric disagreement"></svg>
+      <div class="code-wrap" data-on="3:dim">
+        <div class="code-head">rerank_stage.py · sentence-transformers==6.2.0</div>
+        <pre class="code xs" data-lang="python" data-focus="1:6-8, 2:10"><code>from sentence_transformers import CrossEncoder
+from kb import TEXT                        # chunk_id -&gt; text
+from evalkit import evaluate               # prints R@1/3/5, MRR@10, nDCG@5
+from lab3_hybrid import hybrid_search
+ce = CrossEncoder("cross-encoder/ettin-reranker-32m-v1")   # replaces MiniLM
+def rerank_search(query: str, candidates: int = 30, keep: int = 8) -&gt; list[str]:
+    cand_ids = hybrid_search(query, depth=75)[:candidates]   # 30 pairs, not 150
+    hits = ce.rank(query, [TEXT[i] for i in cand_ids], top_k=keep, batch_size=32)
+    return [cand_ids[h["corpus_id"]] for h in hits]
+evaluate("hybrid + Ettin-32M", rerank_search)  # ship on MRR@10 + answer accuracy + p95 ms</code></pre>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Q1 tests whether the candidate counts forward passes: one cross-encoder pass per query-chunk pair. On an H100 in bf16, Ettin-17M scores 7,517 pairs per second and Ettin-1B 928, so 150 pairs cost about 20 ms and 162 ms of compute; on a CPU, 267 and 2.1 pairs per second, so about 0.56 s and 71 s. Capping at 30 pairs cuts all of these by 5×. The code ships Ettin-32M, which Hugging Face recommends with 17M as the MiniLM replacement (NanoBEIR 0.6825 vs MiniLM-L12 0.6369); its speed sits between the two measured sizes, so time it on your own GPU. Two more cost levers: score short child chunks (small chunks that link to a parent section), not whole documents, and spend extra reranking only near the top-k cut-off (BoundaryMORPH, arXiv 2609.27213). Managed options: Google's ranking API runs under 100 ms; an LLM reranker takes 1-2 s. Q2 is the stage-attribution trap: on clinical notes, reranking lifted Hit@10 from 46.6% to 60.6% but answer correctness only from 44.8% to 48.6%; the paper reports Hit@10, while for Northwind you measure R@5 and the reader's real window of 8. Q3: on NevIR, a negation test set, one ranker raised pairwise preference (picking the right one of two documents) from 52.30% to 56.62% while MRR fell from 0.5764 to 0.3055. Zero-shot LLM rerankers also tie: Glean's Jev gave identical scores to about 37 of 41 candidates. Analogy: a reranker is a sorting table, not a bigger net. Likely follow-up: "Your Ettin reranker drops MRR on negation queries. What now?" Add a negation slice to the labelled set and gate the release on it. Next: when a query is still weak after the reranker, should Northwind rewrite it?</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "rag-interview-c03-qa-rerank";
+  let tweens = [], shown = -1;
+
+  function el(p, tag, attrs, style) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (style) Object.assign(e.style, style);
+    p.appendChild(e);
+    return e;
+  }
+  function text(p, x, y, s, o = {}) {
+    const t = el(p, "text", { x, y, "text-anchor": o.anchor || "middle" },
+      { fill: o.fill || "var(--ink-2)", fontFamily: o.font || "var(--f-mono)", fontSize: (o.size || 16) + "px", fontWeight: o.w || 500 });
+    t.textContent = s;
+    return t;
+  }
+  const T = (tw) => { tweens.push(tw); return tw; };
+  function kill() { tweens.forEach((t) => t.kill()); tweens = []; }
+  function count(node, a, b, fmt, animate, delay = 0, dur = 1.0) {
+    if (!animate) { node.textContent = fmt(b); return; }
+    const o = { v: a };
+    node.textContent = fmt(a);
+    T(gsap.to(o, { v: b, duration: dur, delay, ease: "power2.out", onUpdate: () => { node.textContent = fmt(o.v); } }));
+  }
+  const fade = (nodes, animate, delay = 0) => { if (animate) T(gsap.fromTo(nodes, { opacity: 0 }, { opacity: 1, duration: 0.4, delay, stagger: 0.08 })); };
+
+  // ---------- step 0 / 1: 150 vs 30 pairs, three Ettin sizes ----------
+  const X0 = 250, W = 420, MAXMS = 170;
+  const xw = (ms) => W * ms / MAXMS;
+  function cost(svg, n, animate) {
+    text(svg, 24, 30, "H100 bf16 · compute only · one pass per pair", { anchor: "start", size: 16, fill: "var(--ink)", w: 700 });
+    // pps: measured pairs/s; range: our 32M has no published number, so it sits between 17M and 1B
+    const rows = [
+      { name: "Ettin-17M", pps: 7517, y: 46, c: "var(--state)" },
+      { name: "Ettin-32M", sub: "our code", range: [7517, 928], y: 118, c: "var(--agent)" },
+      { name: "Ettin-1B", pps: 928, y: 190, c: "var(--model)" }
+    ];
+    rows.forEach((r, ri) => {
+      text(svg, 24, r.y + (r.sub ? 24 : 34), r.name, { anchor: "start", size: 18, fill: r.sub ? r.c : "var(--ink)", w: 700 });
+      if (r.sub) text(svg, 24, r.y + 46, r.sub, { anchor: "start", size: 14, fill: r.c });
+      [[150, 0], [30, 1]].forEach(([pairs, j]) => {
+        const y = r.y + j * 32;
+        text(svg, X0 - 12, y + 19, pairs + " pairs", { anchor: "end", size: 14, fill: "var(--muted)" });
+        el(svg, "rect", { x: X0, y, width: W, height: 26, rx: 6 }, { fill: "var(--line)", opacity: 0.5 });
+        if (n < 1) return;
+        const delay = ri * 0.3 + j * 0.4;
+        if (r.range) {
+          const lo = pairs / r.range[0] * 1000, hi = pairs / r.range[1] * 1000;
+          const x1 = X0 + xw(lo), w = Math.max(4, xw(hi) - xw(lo));
+          const bar = el(svg, "rect", { x: x1, y, width: animate ? 0 : w, height: 26, rx: 6 },
+            { fill: "var(--agent-soft)", stroke: r.c, strokeWidth: 2, strokeDasharray: "5 4" });
+          if (animate) T(gsap.to(bar, { attr: { width: w }, duration: 0.9, delay, ease: "power2.out" }));
+          const lab = text(svg, x1 + w + 10, y + 19, Math.round(lo) + "–" + Math.round(hi) + " ms", { anchor: "start", size: 18, fill: r.c, w: 700 });
+          fade([lab], animate, delay + 0.6);
+          return;
+        }
+        const ms = pairs / r.pps * 1000, w = Math.max(4, xw(ms));
+        const bar = el(svg, "rect", { x: X0, y, width: animate ? 0 : w, height: 26, rx: 6 }, { fill: r.c, opacity: j ? 1 : 0.55 });
+        if (animate) T(gsap.to(bar, { attr: { width: w }, duration: 0.9, delay, ease: "power2.out" }));
+        const lab = text(svg, X0 + w + 10, y + 19, "", { anchor: "start", size: 18, fill: r.c, w: 700 });
+        count(lab, 0, ms, (v) => Math.round(v) + " ms", animate, delay, 0.9);
+      });
+    });
+    if (n < 1) {
+      text(svg, 460, 284, "150 pairs: how long on a GPU? on a CPU?", { size: 18, fill: "var(--muted)" });
+      return;
+    }
+    const foot = [
+      text(svg, 24, 284, "CPU, 150 pairs: 17M ≈ 0.56 s · 1B ≈ 71 s · time 32M on your hardware", { anchor: "start", size: 16, fill: "var(--risk)", w: 700 })
+    ];
+    fade(foot, animate, 1.4);
+  }
+
+  // ---------- step 2: retrieval moved, answers barely did ----------
+  function stages(svg, animate) {
+    const Y0 = 236, H = 170, MAX = 70;
+    const Yv = (v) => Y0 - v / MAX * H;
+    el(svg, "line", { x1: 50, y1: Y0, x2: 740, y2: Y0 }, { stroke: "var(--line-2)", strokeWidth: 2 });
+    [0, 35, 70].forEach((v) => text(svg, 42, Yv(v) + 5, v + "%", { anchor: "end", size: 13, fill: "var(--muted)" }));
+    const groups = [
+      { name: "Hit@10", a: 46.6, b: 60.6, x: 110, c: "var(--state)", d: "+14.0 pts" },
+      { name: "answer correct", a: 44.8, b: 48.6, x: 440, c: "var(--tool)", d: "+3.8 pts" }
+    ];
+    groups.forEach((g, gi) => {
+      [[g.a, "var(--line-2)", "before", 0], [g.b, g.c, "reranked", 1]].forEach(([v, col, tag, j]) => {
+        const x = g.x + j * 100, h = v / MAX * H;
+        const r = el(svg, "rect", { x, y: animate ? Y0 : Y0 - h, width: 80, height: animate ? 0 : h, rx: 6 }, { fill: col });
+        if (animate) T(gsap.to(r, { attr: { y: Y0 - h, height: h }, duration: 0.9, delay: gi * 0.5 + j * 0.2, ease: "power2.out" }));
+        const lab = text(svg, x + 40, Y0 - h - 10, "", { size: 16, fill: j ? col : "var(--muted)", w: 700 });
+        count(lab, 0, v, (z) => z.toFixed(1) + "%", animate, gi * 0.5 + j * 0.2, 0.9);
+        text(svg, x + 40, Y0 + 20, tag, { size: 14, fill: "var(--muted)" });
+      });
+      text(svg, g.x + 90, 34, g.name, { size: 18, fill: "var(--ink)", w: 700 });
+      const d = text(svg, g.x + 245, Yv(g.b) + 6, g.d, { size: 20, fill: g.c, w: 700 });
+      fade([d], animate, 1.2 + gi * 0.3);
+    });
+    text(svg, 390, 286, "clinical notes, arXiv 2610.01324 · Northwind measures R@5 at the reader's 8", { size: 14, fill: "var(--ink-2)" });
+  }
+
+  // ---------- step 3: preference up, MRR down (one panel, two slopes) ----------
+  function slopes(svg, animate) {
+    text(svg, 390, 32, "Same ranker, NevIR", { size: 20, fill: "var(--ink)", w: 700 });
+    const XA = 200, XB = 520;
+    [XA, XB].forEach((x, i) => {
+      el(svg, "line", { x1: x, y1: 60, x2: x, y2: 236 }, { stroke: "var(--line-2)", strokeWidth: 2, strokeDasharray: "4 5" });
+      text(svg, x, 256, i ? "new ranker" : "baseline", { size: 15, fill: "var(--muted)" });
+    });
+    const L = [
+      { y1: 170, y2: 92, c: "var(--state)", a: "52.3%", b: "56.6% ▲", name: "pairwise preference" },
+      { y1: 110, y2: 214, c: "var(--risk)", a: "0.576", b: "0.306 ▼", name: "MRR" }
+    ];
+    L.forEach((s, i) => {
+      el(svg, "circle", { cx: XA, cy: s.y1, r: 7 }, { fill: s.c });
+      text(svg, XA - 16, s.y1 + 7, s.a, { anchor: "end", size: 22, fill: s.c, w: 700 });
+      const line = el(svg, "line", { x1: XA, y1: s.y1, x2: animate ? XA : XB, y2: animate ? s.y1 : s.y2 }, { stroke: s.c, strokeWidth: 4, strokeLinecap: "round" });
+      const dot = el(svg, "circle", { cx: XB, cy: s.y2, r: 7 }, { fill: s.c });
+      const lb = text(svg, XB + 16, s.y2 + 7, s.b, { anchor: "start", size: 22, fill: s.c, w: 700 });
+      const nm = text(svg, XB + 16, s.y2 + 30, s.name, { anchor: "start", size: 15, fill: s.c });
+      if (animate) {
+        T(gsap.to(line, { attr: { x2: XB, y2: s.y2 }, duration: 1.0, delay: 0.3 + i * 0.5, ease: "power2.inOut" }));
+        fade([dot, lb, nm], animate, 1.2 + i * 0.5);
+      }
+    });
+    text(svg, 390, 286, "NevIR: negation test set · pairwise: picks the right one of two docs", { size: 14, fill: "var(--ink-2)" });
+  }
+
+  function render(slide, n, animate) {
+    const svg = slide.querySelector("#rrq-svg");
+    if (!svg) return;
+    kill();
+    svg.innerHTML = "";
+    shown = n;
+    if (n <= 1) cost(svg, n, animate);
+    else if (n === 2) stages(svg, animate);
+    else slopes(svg, animate);
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { if (shown !== step) render(slide, step, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { kill(); shown = -1; }
+  });
+})();
+</script>

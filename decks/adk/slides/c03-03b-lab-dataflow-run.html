@@ -1,0 +1,52 @@
+<section class="slide" id="adk-c03-lab-dataflow-run" data-tone="agent" data-title="Lab 3.2: what adk run prints">
+  <style>
+    #adk-c03-lab-dataflow-run .dr-main { display: grid; grid-template-columns: 840px 1fr; gap: 44px; align-items: start; }
+    #adk-c03-lab-dataflow-run .out pre.code { font-size: 22px; white-space: pre-wrap; }
+    #adk-c03-lab-dataflow-run .out pre.code code { white-space: pre-wrap; }
+    #adk-c03-lab-dataflow-run .out .cmd { color: #7ee2b8; }
+    #adk-c03-lab-dataflow-run .out .gap { display: block; height: 14px; }
+    #adk-c03-lab-dataflow-run .dr-right { display: flex; flex-direction: column; gap: 26px; min-width: 0; }
+    #adk-c03-lab-dataflow-run table.t { font-size: 22px; }
+    #adk-c03-lab-dataflow-run table.t td { font-family: var(--f-mono); font-size: 21px; padding: 22px 14px; }
+    #adk-c03-lab-dataflow-run table.t td.no { color: var(--risk); font-weight: 700; }
+    #adk-c03-lab-dataflow-run table.t td.yes { color: var(--state); font-weight: 700; }
+    #adk-c03-lab-dataflow-run .cap { display: grid; }
+    #adk-c03-lab-dataflow-run .cap > * { grid-area: 1 / 1; font-size: 25px; line-height: 1.4; color: var(--ink-2); }
+    #adk-c03-lab-dataflow-run .cap code { font-size: .82em; }
+    #adk-c03-lab-dataflow-run, #adk-c03-lab-dataflow-run * { font-variant-ligatures: none !important; }
+    #adk-c03-lab-dataflow-run .out pre.code .dim { color: #a3abd6; opacity: 1; }
+    #adk-c03-lab-dataflow-run .cites .cite { display: inline-flex; flex-direction: row; align-items: center; gap: 10px; white-space: nowrap; padding: 6px 12px 6px 10px; border-radius: 10px; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 3.2</span> Acme refund desk · run it</div>
+  <h2 class="title">adk run prints only messages, and --jsonl shows every node</h2>
+  <div class="dr-main fill">
+    <div class="code-wrap out">
+      <div class="code-head">terminal · output illustrative</div>
+      <pre class="code" data-lang="none"><code><span class="cmd">$ adk run refund_flow "refund A-1001 arrived broken"</span>
+[write_reply]: Thanks for reaching out about order A-1001. Your refund of $89.00 has been approved …
+<span class="ok">[refund_flow]: [audit] reply length=142 chars. WORKFLOW COMPLETED.</span>
+<span class="gap"></span><span data-step="3"><span class="cmd">$ adk run refund_flow "refund A-1002 wobbly legs" --jsonl</span>
+{… "node_path": "refund_flow@1/check_policy@1" …}
+{… "node_path": "refund_flow@1/write_reply@1" …}
+{… "node_path": "refund_flow@1/audit_log@1" …}</span>
+<span data-step="4"><span class="err">A-1002: 41 days &gt; 30, so eligible=false.</span>
+The reply offers store credit.</span></code></pre>
+    </div>
+    <div class="dr-right">
+      <table class="t" data-step="1">
+        <tr><th>node</th><th>signs as</th><th>prints?</th></tr>
+        <tr data-on="2:hot"><td>check_policy</td><td>refund_flow</td><td class="no">no</td></tr>
+        <tr><td>write_reply</td><td>write_reply</td><td class="yes">yes</td></tr>
+        <tr data-on="2:hot"><td>audit_log</td><td>refund_flow</td><td class="yes">yes</td></tr>
+      </table>
+      <div class="cap">
+        <p data-until="1">The plain run shows two lines for four nodes.</p>
+        <p data-step="1" data-until="2">Only events with a <code>message</code> print. <code>check_policy</code> only returns output.</p>
+        <p data-step="2" data-until="3">Function nodes sign as the Workflow. Filter traces on <code>node_info.path</code>.</p>
+        <p data-step="3" data-until="4"><code>--jsonl</code> lists every event. <code>@1</code> is the first run of a node.</p>
+        <p data-step="4">Same graph, other data: the policy check fails, so the prompt changes the reply.</p>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">This is the run of Lab 3.2. The plain adk run shows only two lines for four nodes. Step 1: adk run prints message events only, so check_policy, which only returns a value, shows no text. Step 2: the audit line is signed refund_flow, not audit_log, because function nodes sign their events with the enclosing Workflow's name; an LLM agent node signs with its own name. When you search traces for a function node, filter on event.node_info.path, not on author. Step 3: run A-1002 with --jsonl and every event appears as one JSON line, check_policy included; @1 means the first run of that node. Step 4: A-1002 was delivered 41 days ago, the policy is 30 days, so eligible is false and the instruction makes the reply offer store credit. All output here is illustrative: built from the CLI print code and sample goldens, not executed. A likely question: "Where do I see state changes?" In adk web, or in the state_delta field of each --jsonl event.</aside>
+</section>

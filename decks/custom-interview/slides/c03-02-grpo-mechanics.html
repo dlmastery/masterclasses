@@ -1,0 +1,175 @@
+<section class="slide" id="custom-interview-c03-grpo-mechanics" data-tone="tool" data-title="GRPO mechanics">
+  <style>
+    #custom-interview-c03-grpo-mechanics { gap: 22px; }
+    #custom-interview-c03-grpo-mechanics .c3q-grid { display: grid; grid-template-columns: 1fr 640px; gap: 32px; align-items: start; }
+    #custom-interview-c03-grpo-mechanics .c3q-left { display: grid; gap: 18px; align-content: start; }
+    #custom-interview-c03-grpo-mechanics .cites { flex-wrap: nowrap; align-items: center; }
+    #custom-interview-c03-grpo-mechanics .cite, #custom-interview-c03-grpo-mechanics .cite.paper { display: inline-flex; flex-direction: row; align-items: center; gap: 10px; flex: none; white-space: nowrap; padding: 6px 12px 6px 8px; font-size: 15px; border-radius: 10px; }
+    #custom-interview-c03-grpo-mechanics .qa { gap: 8px; }
+    #custom-interview-c03-grpo-mechanics .qa .q { font-size: 22px; }
+    #custom-interview-c03-grpo-mechanics .qa .a { font-size: 20px; line-height: 1.4; padding: 10px 16px; }
+    #custom-interview-c03-grpo-mechanics .qa .a code { font-size: .82em; }
+    #custom-interview-c03-grpo-mechanics .gloss { font-size: 17px; line-height: 1.4; color: var(--muted); margin-left: 42px; }
+    #custom-interview-c03-grpo-mechanics .gloss b { color: var(--ink-2); font-family: var(--f-mono); }
+    #custom-interview-c03-grpo-mechanics .c3q-right { display: grid; gap: 14px; }
+    #custom-interview-c03-grpo-mechanics pre.code { font-size: 17px; }
+    #custom-interview-c03-grpo-mechanics .token.comment { color: #aab3e0; }
+    #custom-interview-c03-grpo-mechanics .viz { border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+    #custom-interview-c03-grpo-mechanics .viz text { font-family: var(--f-mono); }
+    #custom-interview-c03-grpo-mechanics .vt { fill: var(--ink); font: 700 16px var(--f-mono); }
+    #custom-interview-c03-grpo-mechanics .vs { fill: var(--muted); font: 500 15px var(--f-mono); }
+    #custom-interview-c03-grpo-mechanics .vl { fill: var(--ink-2); font: 600 16px var(--f-mono); }
+    #custom-interview-c03-grpo-mechanics .vok { fill: var(--state); font: 700 16px var(--f-mono); }
+    #custom-interview-c03-grpo-mechanics .vbad { fill: var(--risk); font: 700 16px var(--f-mono); }
+    #custom-interview-c03-grpo-mechanics .d-pos { fill: var(--state); }
+    #custom-interview-c03-grpo-mechanics .d-neg { fill: var(--risk); }
+    #custom-interview-c03-grpo-mechanics .d-off { fill: var(--line-2); }
+    #custom-interview-c03-grpo-mechanics .b-base { fill: var(--line-2); }
+    #custom-interview-c03-grpo-mechanics .b-ok { fill: var(--state); }
+    #custom-interview-c03-grpo-mechanics .b-bad { fill: var(--risk); }
+    #custom-interview-c03-grpo-mechanics .b-mid { fill: var(--tool); opacity: .75; }
+    #custom-interview-c03-grpo-mechanics .axis { stroke: var(--line-2); stroke-width: 1.5; }
+    #custom-interview-c03-grpo-mechanics .cap-line { stroke: var(--risk); stroke-width: 2; stroke-dasharray: 6 5; }
+  </style>
+  <div class="kicker">Interview · GRPO mechanics</div>
+  <h2 class="title">GRPO learns only from groups that disagree</h2>
+  <div class="c3q-grid fill">
+    <div class="c3q-left">
+      <div class="qa">
+        <div class="q">Why does GRPO need no critic, and what does that cost?</div>
+        <div class="a" data-step="1">The group mean is the baseline, so there is no value model. Cost: G samples per prompt, and a same-score group gives zero gradient.</div>
+      </div>
+      <div class="qa">
+        <div class="q">Reward is noisy and many answers hit the length cap. What do you read?</div>
+        <div class="a" data-step="2"><code>completions/clipped_ratio</code>. A cut-off answer scores 0. Above ~10%, raise <code>max_completion_length</code> or mask cut-off answers.</div>
+      </div>
+      <div class="qa">
+        <div class="q">GRPO or rejection-sampling fine-tuning (RFT), on the same prompts and verifier?</div>
+        <div class="a" data-step="3">GRPO: up to +10.9 pts over tuned RFT. Iterated RFT closes only ~30% of that gap. But RL sharpens: pass@20 can fall.</div>
+        <div class="gloss" data-step="3"><b>RFT</b> = sample, keep the verified-correct answers, SFT on them. <b>pass@k</b> = at least 1 of k samples is correct.</div>
+      </div>
+      <div class="cites">
+        <a class="cite paper" href="https://arxiv.org/abs/2610.25812" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.25812</a>
+        <a class="cite doc" href="https://huggingface.co/blog/microsoft/thinkingbox-training" target="_blank" rel="noopener"><b>Blog</b>&nbsp;ThinkingBox</a>
+        <a class="cite repo" href="https://github.com/huggingface/trl/blob/v1.16.0/trl/trainer/grpo_config.py" target="_blank" rel="noopener"><b>Repo</b>&nbsp;trl grpo_config.py</a>
+      </div>
+    </div>
+    <div class="c3q-right">
+      <svg class="viz interactive" id="c03-grpo-viz" viewBox="0 0 640 220" width="640" height="220" aria-label="Picture for the current answer"></svg>
+      <div class="code-wrap">
+        <div class="code-head">lab2_grpo_claims.py · pip install "trl[peft,math_verify]==1.16.0"</div>
+        <pre class="code" data-lang="python" data-focus="1:6, 2:9-10, 3:6-8"><code>from trl import GRPOConfig, GRPOTrainer
+from trl.rewards import accuracy_reward
+from claims_data import claims_dataset  # lab 2 data
+
+args = GRPOConfig(output_dir="qwen-claims-grpo",
+    num_generations=8,               # G per prompt
+    per_device_train_batch_size=8,   # 8 x 4 = 32
+    gradient_accumulation_steps=4,   # = 4 groups of 8
+    max_completion_length=256,       # default 512
+    mask_truncated_completions=True) # default False
+GRPOTrainer(model="Qwen/Qwen2.5-0.5B-Instruct",
+    args=args, reward_funcs=[accuracy_reward],
+    train_dataset=claims_dataset(2000, seed=7)).train()</code></pre>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Ask each question, wait for an answer, then reveal the model answer. The code is the core of lab2_grpo_claims.py, the claims-payout run from the chapter opener, scored by accuracy_reward on a boxed answer. The full lab file also adds LoRA, bf16 loading, a soft length penalty and an eval split. Question one tests the group baseline and its blind spot: a group where all 8 answers score the same has zero advantage, so it costs compute and teaches nothing. The picture shows frac_reward_zero_std, and the fix: probe the base model 8 times per prompt and keep prompts with a pass rate from 0.08 to below 0.90, which is the ThinkingBox rule. Question two tests metric reading: a cut-off answer looks wrong to the verifier, so read clipped_ratio before you blame the reward. The batch must also hold whole groups: 8 per device times 4 accumulation steps is 32 completions, 4 groups of 8, otherwise TRL raises "generation_batch_size must be divisible by num_generations". Question three is the "is it RL or data?" debate: on the same prompts and verifier, GRPO beat tuned RFT by up to 10.9 points, and iterated RFT recovered only 3.2 of those points. Separately, in ThinkingBox pass@1 went from 51.7 to 60.8 while pass@20 fell from 89.4 to 88.0, so RL made the model more reliable, not more capable. Analogy: GRPO grades on the curve inside one exam room; if everyone gets the same mark, nobody learns where they stand.</aside>
+</section>
+<script>
+(() => {
+  const ID = "custom-interview-c03-grpo-mechanics";
+  const MIX = [1, 0, 0, 1, 0, 1, 0, 0];
+  const HIST = [22, 48, 76, 86, 70, 50, 34, 64];           // illustrative length histogram, last bin = hit the cap
+  const RFT = [["RFT", 0, "b-base"], ["iter. RFT", 3.2, "b-mid"], ["GRPO", 10.9, "b-ok"]];
+  const PASS = [["pass@1", 51.7, 60.8, "b-ok"], ["pass@20", 89.4, 88.0, "b-bad"]];
+
+  function views() {
+    // v0: one group of 8
+    let v0 = `<g class="v" data-v="0"><text class="vt" x="24" y="36">one prompt → G = 8 sampled answers</text>`;
+    for (let i = 0; i < 8; i++) v0 += `<circle class="d-off pop" cx="${70 + i * 70}" cy="104" r="20"/>`;
+    v0 += `<text class="vl" x="24" y="172">advantage = (r − group mean) / group std</text>`;
+    v0 += `<text class="vs" x="24" y="200">no value model, no critic</text></g>`;
+
+    // v1: three groups, two of them zero-std
+    const rows = [["mixed", MIX, "std > 0", "vok"], ["all 0", Array(8).fill(0), "std 0", "vbad"], ["all 1", Array(8).fill(1), "std 0", "vbad"]];
+    let v1 = `<g class="v" data-v="1"><text class="vt" x="24" y="30">frac_reward_zero_std = 2/3</text>`;
+    rows.forEach(([lab, rw, tag, cls], r) => {
+      const y = 64 + r * 42;
+      v1 += `<text class="vl" x="24" y="${y + 6}">${lab}</text>`;
+      rw.forEach((v, i) => {
+        const c = r === 0 ? (v ? "d-pos" : "d-neg") : "d-off";
+        v1 += `<circle class="${c} pop" cx="${120 + i * 36}" cy="${y}" r="13"/>`;
+      });
+      v1 += `<text class="${cls}" x="430" y="${y + 6}">${tag}</text>`;
+    });
+    v1 += `<text class="vs" x="24" y="204">fix: probe base 8x, keep 0.08 ≤ p &lt; 0.90 (ThinkingBox)</text></g>`;
+
+    // v2: length histogram with the clipped bin at the 256 cap from the code
+    const base = 170;
+    let v2 = `<g class="v" data-v="2"><text class="vt" x="24" y="30">completion length (illustrative)</text>`;
+    v2 += `<line class="axis" x1="40" y1="${base}" x2="560" y2="${base}"/>`;
+    HIST.forEach((h, i) => {
+      const cls = i === 7 ? "b-bad" : "b-mid";
+      v2 += `<rect class="${cls} grow" x="${46 + i * 64}" y="${base - h}" width="54" height="${h}" rx="4" data-b="${base}"/>`;
+    });
+    const cx = 46 + 7 * 64 + 60;
+    v2 += `<line class="cap-line" x1="${cx}" y1="50" x2="${cx}" y2="${base}"/>`;
+    v2 += `<text class="vbad" x="${cx + 8}" y="70">cap 256</text><text class="vbad" x="${cx + 8}" y="92">→ r = 0</text>`;
+    v2 += `<text class="vs" x="40" y="${base + 22}">0</text><text class="vs" x="${cx}" y="${base + 22}" text-anchor="middle">256 tokens</text>`;
+    v2 += `<text class="vs" x="24" y="212">red share = completions/clipped_ratio</text></g>`;
+
+    // v3: left = GRPO vs RFT (2610.25812); right = ThinkingBox pass@k after GRPO
+    const b3 = 168, s3 = 8.5;
+    let v3 = `<g class="v" data-v="3"><text class="vt" x="20" y="28">gain over tuned RFT, pts</text>`;
+    v3 += `<line class="axis" x1="20" y1="${b3}" x2="310" y2="${b3}"/>`;
+    RFT.forEach(([lab, v, cls], i) => {
+      const x = 30 + i * 96, h = Math.max(3, v * s3);
+      v3 += `<rect class="${cls} grow" x="${x}" y="${b3 - h}" width="70" height="${h}" rx="4" data-b="${b3}"/>`;
+      v3 += `<text class="${i === 2 ? "vok" : "vl"}" x="${x + 35}" y="${b3 - h - 8}" text-anchor="middle">+${v.toFixed(1)}</text>`;
+      v3 += `<text class="vs" x="${x + 35}" y="${b3 + 22}" text-anchor="middle">${lab}</text>`;
+    });
+    v3 += `<line class="axis" x1="330" y1="16" x2="330" y2="204"/>`;
+    v3 += `<text class="vt" x="346" y="28">ThinkingBox (Microsoft)</text>`;
+    const bx = 346, sc = 1.15;
+    PASS.forEach(([lab, a, b, cls], g) => {
+      const x = bx + g * 146, ha = (a - 30) * sc, hb = (b - 30) * sc;
+      v3 += `<rect class="b-base grow" x="${x}" y="${b3 - ha}" width="52" height="${ha}" rx="4" data-b="${b3}"/>`;
+      v3 += `<rect class="${cls} grow" x="${x + 60}" y="${b3 - hb}" width="52" height="${hb}" rx="4" data-b="${b3}"/>`;
+      v3 += `<text class="vs" x="${x + 26}" y="${b3 - ha - 6}" text-anchor="middle">${a.toFixed(1)}</text>`;
+      v3 += `<text class="${g ? "vbad" : "vok"}" x="${x + 86}" y="${b3 - hb - 6}" text-anchor="middle">${b.toFixed(1)}</text>`;
+      v3 += `<text class="vl" x="${x + 56}" y="${b3 + 22}" text-anchor="middle">${lab}</text>`;
+    });
+    v3 += `<text class="vs" x="346" y="210">grey = base, color = GRPO</text></g>`;
+    return v0 + v1 + v2 + v3;
+  }
+
+  // collapse answers that are not shown yet, so each answer pushes the next question down
+  function collapse(slide, n) {
+    slide.querySelectorAll(".c3q-left [data-step]").forEach((el) => { el.style.display = n >= +el.dataset.step ? "" : "none"; });
+  }
+
+  function render(slide, n, animate) {
+    collapse(slide, n);
+    const svg = slide.querySelector("#c03-grpo-viz");
+    if (!svg) return;
+    gsap.killTweensOf(svg.querySelectorAll("*"));
+    svg.innerHTML = views();
+    const k = Math.max(0, Math.min(3, n));
+    svg.querySelectorAll(".v").forEach((g) => { g.style.display = +g.dataset.v === k ? "" : "none"; });
+    if (!animate) return;
+    const cur = svg.querySelector(`.v[data-v="${k}"]`);
+    gsap.from(cur.querySelectorAll(".pop"), { scale: 0, transformOrigin: "50% 50%", duration: 0.45, ease: "back.out(2.2)", stagger: 0.035 });
+    cur.querySelectorAll(".grow").forEach((r, i) => {
+      gsap.from(r, { attr: { y: +r.dataset.b, height: 0 }, duration: 0.7, ease: "power3.out", delay: 0.05 + i * 0.06 });
+    });
+    gsap.from(cur.querySelectorAll("text, line"), { autoAlpha: 0, duration: 0.5, delay: 0.25, stagger: 0.02 });
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { collapse(slide, step || 0); },   // step() also runs on entry and draws the picture
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { const svg = slide.querySelector("#c03-grpo-viz"); if (svg) gsap.killTweensOf(svg.querySelectorAll("*")); }
+  });
+})();
+</script>

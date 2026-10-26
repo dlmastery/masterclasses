@@ -1,0 +1,238 @@
+<section class="slide tight" id="rag-c07-build-search-as-code" data-tone="tool" data-title="Build: search as code (OpenSaC)">
+  <style>
+    #rag-c07-build-search-as-code .sc-grid { display: grid; grid-template-columns: 712px 1fr; gap: 28px; align-items: start; }
+    #rag-c07-build-search-as-code .sc-left, #rag-c07-build-search-as-code .sc-right { gap: 12px; min-width: 0; }
+    #rag-c07-build-search-as-code .code-wrap .code-head { padding: 7px 14px; font-size: 14px; }
+    #rag-c07-build-search-as-code pre.code.sc-t { font-size: 12px; line-height: 1.42; padding: 8px 14px 10px; }
+    #rag-c07-build-search-as-code pre.code.sc-b { font-size: 13.4px; line-height: 1.45; padding: 9px 14px 11px; }
+    #rag-c07-build-search-as-code pre.code.sc-c { font-size: 13.4px; line-height: 1.5; padding: 10px 14px 12px; }
+    #rag-c07-build-search-as-code .sc-rail { position: relative; height: 50px; }
+    #rag-c07-build-search-as-code .sc-rail > p { position: absolute; left: 0; right: 0; top: 0; margin: 0; font-size: 16px; line-height: 1.38; }
+    #rag-c07-build-search-as-code .sc-rail code { font-size: .88em; }
+    #rag-c07-build-search-as-code .sc-deltas { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    #rag-c07-build-search-as-code .sc-deltas .delta { font-size: 18px; white-space: nowrap; padding: 6px 10px; }
+    #rag-c07-build-search-as-code .sc-cites { display: flex; gap: 8px; flex-wrap: wrap; }
+    #rag-c07-build-search-as-code .sc-cites .cite { flex-direction: row; align-items: center; gap: 6px; font-size: 13px; padding: 5px 10px 5px 8px; white-space: nowrap; }
+    #rag-c07-build-search-as-code .sc-cites .cite::before { width: 18px; height: 18px; }
+    #rag-c07-build-search-as-code .sc-left > .code-wrap, #rag-c07-build-search-as-code .sc-right > .code-wrap { width: 100%; }
+    #rag-c07-build-search-as-code .sc-svg { display: block; overflow: visible; }
+    #rag-c07-build-search-as-code .sc-svg text { font-family: var(--f-mono); }
+    #rag-c07-build-search-as-code .sc-svg .band { fill: var(--surface); stroke: var(--line-2); stroke-width: 1.2; }
+    #rag-c07-build-search-as-code .sc-svg .hd { font-size: 12px; font-weight: 700; letter-spacing: .05em; fill: var(--muted); }
+    #rag-c07-build-search-as-code .sc-svg .tn { font-size: 13px; font-weight: 700; }
+    #rag-c07-build-search-as-code .sc-svg .bx { stroke-width: 1.6; }
+    #rag-c07-build-search-as-code .sc-svg .b-tool { fill: var(--tool-soft); stroke: var(--tool); }
+    #rag-c07-build-search-as-code .sc-svg .b-state { fill: var(--state-soft); stroke: var(--state); }
+    #rag-c07-build-search-as-code .sc-svg .b-agent { fill: var(--agent-soft); stroke: var(--agent); }
+    #rag-c07-build-search-as-code .sc-svg .t1 { font-size: 12.5px; font-weight: 700; fill: var(--ink); }
+    #rag-c07-build-search-as-code .sc-svg .t2 { font-size: 11.5px; font-weight: 600; fill: var(--muted); }
+    #rag-c07-build-search-as-code .sc-svg .sbx { fill: none; stroke: var(--state); stroke-width: 1.6; stroke-dasharray: 5 4; }
+    #rag-c07-build-search-as-code .sc-svg .ctx { fill: var(--bg, #fff); stroke: var(--ink-2); stroke-width: 1.4; }
+    #rag-c07-build-search-as-code .sc-svg .v { font-size: 16px; font-weight: 700; }
+  </style>
+  <div class="kicker">Build</div>
+  <h2 class="title">Let the deep-research agent write search code, not tool calls</h2>
+  <div class="sc-grid fill">
+    <div class="stack sc-left">
+      <div class="code-wrap bad" data-step="1">
+        <div class="code-head">Acme desk deep-research mode · before: ReAct transcript</div>
+        <pre class="code sc-b" data-lang="python"><code># ReAct: one tool call per action; every result lands in the context
+# think -&gt; search("EU PFAS restriction textiles")  -&gt; 10 results into context
+# think -&gt; search("PFAS ban outdoor jackets EU")   -&gt; 10 results into context
+# think -&gt; fetch(url_3)                            -&gt; full page into context
+# think -&gt; fetch(url_7)                            -&gt; full page into context</code></pre>
+      </div>
+      <div class="code-wrap good" data-step="2">
+        <div class="code-head">lab6/deep_research_cell.py · after: the agent writes this cell</div>
+        <pre class="code sc-c" data-lang="python" data-focus="2:4-5, 3:6-8, 4:9-9"><code># OpenSaC runs the cell; only printed output becomes an observation
+from opensac import sdk
+
+queries = ["EU PFAS restriction textiles", "PFAS ban outdoor jackets EU"]
+pool = sdk.search(queries, limit=10)         # rankings fused locally, one limit
+if pool:
+    best = sdk.rerank(queries[0], pool[:100], top_n=min(3, len(pool)))
+    doc = sdk.content.fetch(best[0].url)     # the page stays in Python
+    print(best[0].url, doc.text[:800])       # a bounded extract for the model</code></pre>
+      </div>
+      <div class="steps-rail sc-rail">
+        <p data-step="1" data-until="2"><span>Before: each search or fetch costs one model turn. Every result enters the context.</span></p>
+        <p data-step="2" data-until="3"><span><code>sdk.search</code> sends both reformulations and fuses the rankings locally under one limit.</span></p>
+        <p data-step="3" data-until="4"><span>Rerank and fetch run in the sandbox. <code>pool</code>, <code>best</code> and <code>doc</code> stay Python variables.</span></p>
+        <p data-step="4"><span>Only the URL and an 800-character extract enter the context. One cell is one turn.</span></p>
+      </div>
+      <div class="sc-deltas" data-step="4">
+        <span class="delta up">BrowseComp 82.25 → 85.21%</span>
+        <span class="delta up">tokens −37.8%</span>
+        <span class="delta up">cost −36.4%</span>
+        <span class="delta up">time −30.3%</span>
+        <span class="delta down">WideSearch row F1 60.62 → 59.78 (−0.84 pp)</span>
+      </div>
+    </div>
+    <div class="stack sc-right">
+      <svg class="sc-svg" id="sc-svg" viewBox="0 0 652 420" width="652" height="420" aria-label="Split screen. Left, tool calls: four tool-call bubbles appear one by one, each adds a block to the context bar until it is full, and the turn counter reaches 4. Right, search as code: one code cell runs in one turn, the variables pool, best and doc appear in a sandbox box, and only one printed extract drops into the context bar. Last, two token bars grow: 4.1M mean tokens per task for tool calls and 2.6M for search as code, 38 percent fewer."></svg>
+      <div class="code-wrap term">
+        <div class="code-head">run it Monday · Python 3.12+ · not on PyPI yet</div>
+        <pre class="code sc-t" data-lang="bash"><code>$ git clone https://github.com/liuqi6777/OpenSaC &amp;&amp; cd OpenSaC
+$ pip install .
+$ export OPENSAC_SEARCH_PROVIDER=serper OPENSAC_SEARCH_API_KEY=...
+$ export OPENSAC_FETCH_PROVIDER=jina
+$ export OPENSAC_RERANK_BASE_URL=... OPENSAC_RERANK_MODEL=...
+$ export OPENSAC_LLM_BASE_URL=... OPENSAC_LLM_MODEL=...  # OpenAI-compatible
+$ python examples/research.py       # README example · no automatic retries</code></pre>
+      </div>
+      <div class="sc-cites">
+        <a class="cite paper" href="https://arxiv.org/abs/2610.25779" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.25779 OpenSaC: Search as Code</a>
+        <a class="cite repo" href="https://github.com/liuqi6777/OpenSaC" target="_blank" rel="noopener"><b>Repo</b>&nbsp;liuqi6777/OpenSaC</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    This build adds search as code to the compliance desk's deep-research mode, with OpenSaC from arXiv 2610.25779. OpenSaC searches the public web through providers such as serper and jina, so the desk uses it for public questions, here the EU rules on PFAS in textiles behind a chemical-safety failure; the internal supplier archive stays in Lab 6's store and the rank_first index. It is not on PyPI yet: clone the repo, run pip install . with Python 3.12 or newer, and set the search key, the rerank model and the LLM model next to the provider URLs, as the README lists. Before: a ReAct loop spends one model turn per search or fetch, and all twenty results and both pages land in the context. After: the agent writes one cell; sdk.search sends both reformulations and fuses the rankings locally under one limit (the README does not name the method; the separate fuse helper uses weighted reciprocal rank fusion), rerank and fetch run in the sandbox, and only the URL and an 800-character extract of doc.text become the observation. In the paper's leakage-audited run, with Codex 0.147.0, gpt-5.6-luna at xhigh reasoning and a 30-minute budget, BrowseComp went from 82.25% to 85.21%, mean tokens per task fell from 4,102.9k to 2,552.1k, 37.8% fewer, and cost fell 36.4%. Wide list-gathering tasks lose a little: WideSearch row F1 went from 60.62 to 59.78, 0.84 points down, so measure it on your own tasks. Analogy: you send an intern to the library with a written plan and ask for one page of notes, not a phone call after every shelf. Likely question: "What breaks first?" The SDK has no automatic retries, so a provider timeout kills the cell unless you wrap the calls. Meta's RPL paper (arXiv 2610.24854) trains the same primitives-in-a-sandbox idea with RL: +11.5% EM at 4B. Next: what happens when you train the search policy with RL.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const BUB = [
+    ["search(\"PFAS textiles\")", "+10 hits", 52],
+    ["search(\"PFAS jackets\")", "+10 hits", 52],
+    ["fetch(url_3)", "+full page", 84],
+    ["fetch(url_7)", "+full page", 84],
+  ];
+  const VARS = [["pool", "10 fused hits"], ["best", "top 3 reranked"], ["doc", "page text"]];
+  const L_TOK = 4102.9, R_TOK = 2552.1, MW = 400, BX = 150;
+  let B = null, prev = -1, tweens = [];
+  const mk = (p, tag, attrs, cls, txt) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (cls) e.setAttribute("class", cls);
+    if (txt !== undefined) e.textContent = txt;
+    p.appendChild(e); return e;
+  };
+  const fmt = (v) => (v / 1000).toFixed(1) + "M";
+  function build(slide) {
+    const svg = slide.querySelector("#sc-svg");
+    svg.innerHTML = "";
+    // ---- left panel: tool calls ----
+    mk(svg, "rect", { x: 0, y: 0, width: 310, height: 312, rx: 12 }, "band");
+    mk(svg, "text", { x: 14, y: 24 }, "hd", "TOOL CALLS · ReAct");
+    const lTurn = mk(svg, "text", { x: 296, y: 24, "text-anchor": "end", fill: "var(--tool)" }, "tn", "turns 0");
+    const bubbles = BUB.map(([a, b], i) => {
+      const g = mk(svg, "g", {});
+      const y = 40 + i * 50;
+      mk(g, "rect", { x: 14, y, width: 282, height: 38, rx: 19 }, "bx b-tool");
+      mk(g, "text", { x: 30, y: y + 24 }, "t1", a);
+      mk(g, "text", { x: 282, y: y + 24, "text-anchor": "end" }, "t2", b);
+      return g;
+    });
+    mk(svg, "text", { x: 14, y: 260 }, "hd", "CONTEXT");
+    mk(svg, "rect", { x: 14, y: 268, width: 282, height: 28, rx: 6 }, "ctx");
+    let sx = 17;
+    const lSegs = BUB.map(([, , w]) => { const r = mk(svg, "rect", { x: sx, y: 271, width: w - 3, height: 22, rx: 4 }, "bx b-tool"); sx += w; return r; });
+    const full = mk(svg, "text", { x: 296, y: 260, "text-anchor": "end", fill: "var(--risk)" }, "tn", "full");
+    // ---- right panel: search as code ----
+    mk(svg, "rect", { x: 342, y: 0, width: 310, height: 312, rx: 12 }, "band");
+    mk(svg, "text", { x: 356, y: 24 }, "hd", "SEARCH AS CODE");
+    const rTurn = mk(svg, "text", { x: 638, y: 24, "text-anchor": "end", fill: "var(--state)" }, "tn", "turns 0");
+    const cell = mk(svg, "g", {});
+    mk(cell, "rect", { x: 356, y: 40, width: 282, height: 38, rx: 8 }, "bx b-agent");
+    mk(cell, "text", { x: 372, y: 64 }, "t1", "▶ cell 1");
+    mk(cell, "text", { x: 624, y: 64, "text-anchor": "end" }, "t2", "search·rerank·fetch");
+    const sbx = mk(svg, "g", {});
+    mk(sbx, "rect", { x: 356, y: 92, width: 282, height: 150, rx: 10 }, "sbx");
+    mk(sbx, "text", { x: 370, y: 112, fill: "var(--state)" }, "hd", "SANDBOX · PYTHON VARS");
+    const vars = VARS.map(([n, d], i) => {
+      const g = mk(svg, "g", {});
+      const y = 122 + i * 38;
+      mk(g, "rect", { x: 370, y, width: 254, height: 30, rx: 7 }, "bx b-state");
+      mk(g, "text", { x: 384, y: y + 20, fill: "var(--state)" }, "tn", n);
+      mk(g, "text", { x: 610, y: y + 20, "text-anchor": "end" }, "t2", d);
+      return g;
+    });
+    mk(svg, "text", { x: 356, y: 260 }, "hd", "CONTEXT");
+    mk(svg, "rect", { x: 356, y: 268, width: 282, height: 28, rx: 6 }, "ctx");
+    const pr = mk(svg, "g", {});
+    mk(pr, "rect", { x: 359, y: 271, width: 140, height: 22, rx: 4 }, "bx b-state");
+    mk(pr, "text", { x: 429, y: 286, "text-anchor": "middle", fill: "var(--state)" }, "t1", "url + 800 chars");
+    // ---- token bars (step 4 only) ----
+    const tok = mk(svg, "g", {});
+    mk(tok, "rect", { x: 0, y: 326, width: 652, height: 94, rx: 12 }, "band");
+    mk(tok, "text", { x: 14, y: 348 }, "hd", "MEAN TOKENS PER TASK · BROWSECOMP · PAPER");
+    mk(tok, "text", { x: 14, y: 378 }, "t1", "tool calls");
+    mk(tok, "text", { x: 14, y: 408 }, "t1", "search as code");
+    const mL = mk(tok, "rect", { x: BX, y: 362, width: 0, height: 22, rx: 6 }, "bx b-tool");
+    const mR = mk(tok, "rect", { x: BX, y: 392, width: 0, height: 22, rx: 6 }, "bx b-state");
+    const vL = mk(tok, "text", { x: BX + 8, y: 379, fill: "var(--tool)" }, "v", "");
+    const vR = mk(tok, "text", { x: BX + 8, y: 409, fill: "var(--state)" }, "v", "");
+    B = { lTurn, rTurn, bubbles, lSegs, full, cell, sbx, vars, pr, tok, mL, mR, vL, vR };
+  }
+  function setBars(f) {
+    const l = L_TOK * f, r = R_TOK * f;
+    const wl = MW * l / L_TOK, wr = MW * r / L_TOK;
+    B.mL.setAttribute("width", wl); B.mR.setAttribute("width", wr);
+    B.vL.setAttribute("x", BX + wl + 10); B.vR.setAttribute("x", BX + wr + 10);
+    B.vL.textContent = fmt(l);
+    B.vR.textContent = fmt(r) + (f >= 1 ? "   −38%" : "");
+  }
+  function render(slide, n, animate) {
+    if (!B) build(slide);
+    tweens.forEach((t) => t.kill()); tweens = [];
+    const fwd = animate && n === prev + 1;
+    // step 1: four tool calls, four turns, the context fills
+    if (fwd && n === 1) {
+      gsap.set([...B.bubbles, ...B.lSegs, B.full], { opacity: 0 });
+      const tl = gsap.timeline();
+      B.bubbles.forEach((b, i) => {
+        tl.fromTo(b, { opacity: 0, x: -24 }, { opacity: 1, x: 0, duration: 0.3, ease: "power2.out" }, i * 0.45);
+        tl.fromTo(B.lSegs[i], { opacity: 0, scaleX: 0, transformOrigin: "0% 50%" }, { opacity: 1, scaleX: 1, duration: 0.3 }, i * 0.45 + 0.15);
+        tl.call(() => { B.lTurn.textContent = "turns " + (i + 1); }, null, i * 0.45);
+      });
+      tl.to(B.full, { opacity: 1, duration: 0.3 }, 1.9);
+      tweens.push(tl);
+    } else {
+      gsap.set([...B.bubbles, ...B.lSegs, B.full], { opacity: n >= 1 ? 1 : 0, x: 0, scaleX: 1 });
+      B.lTurn.textContent = "turns " + (n >= 1 ? 4 : 0);
+    }
+    // step 2: one cell, one turn, pool lands in the sandbox
+    if (fwd && n === 2) {
+      B.rTurn.textContent = "turns 1";
+      tweens.push(gsap.fromTo(B.cell, { opacity: 0, y: -14 }, { opacity: 1, y: 0, duration: 0.35 }));
+      tweens.push(gsap.fromTo(B.vars[0], { opacity: 0, scale: 0.5, transformOrigin: "497px 137px" }, { opacity: 1, scale: 1, duration: 0.4, delay: 0.35, ease: "back.out(2)" }));
+    } else {
+      gsap.set(B.cell, { opacity: n >= 2 ? 1 : 0, y: 0 });
+      gsap.set(B.vars[0], { opacity: n >= 2 ? 1 : 0, scale: 1 });
+      B.rTurn.textContent = "turns " + (n >= 2 ? 1 : 0);
+    }
+    gsap.set(B.sbx, { opacity: n >= 2 ? 1 : 0.35 });
+    // step 3: best and doc stay in Python variables
+    if (fwd && n === 3) {
+      tweens.push(gsap.fromTo([B.vars[1], B.vars[2]], { opacity: 0, scale: 0.5, transformOrigin: "50% 50%" }, { opacity: 1, scale: 1, duration: 0.4, stagger: 0.3, ease: "back.out(2)" }));
+    } else {
+      gsap.set([B.vars[1], B.vars[2]], { opacity: n >= 3 ? 1 : 0, scale: 1 });
+    }
+    // step 4: one printed extract enters the context; the token bars grow from 0
+    if (fwd && n === 4) {
+      setBars(0);
+      gsap.set(B.tok, { opacity: 1 });
+      tweens.push(gsap.fromTo(B.pr, { opacity: 0, y: -120 }, { opacity: 1, y: 0, duration: 0.6, ease: "power3.in" }));
+      const o = { f: 0 };
+      tweens.push(gsap.fromTo(B.tok, { opacity: 0 }, { opacity: 1, duration: 0.3, delay: 0.5 }));
+      tweens.push(gsap.to(o, { f: 1, duration: 1.6, delay: 0.7, ease: "power2.out", onUpdate: () => setBars(o.f), onComplete: () => setBars(1) }));
+    } else {
+      gsap.set(B.pr, { opacity: n >= 4 ? 1 : 0, y: 0 });
+      gsap.set(B.tok, { opacity: n >= 4 ? 1 : 0 });
+      setBars(n >= 4 ? 1 : 0);
+    }
+    prev = n;
+  }
+  Deck.register("rag-c07-build-search-as-code", {
+    enter(slide, step) { prev = -1; B = null; render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() {
+      tweens.forEach((t) => t.kill()); tweens = [];
+      if (B) gsap.killTweensOf([B.cell, B.sbx, B.pr, B.full, B.tok, ...B.bubbles, ...B.lSegs, ...B.vars]);
+      prev = -1;
+    }
+  });
+})();
+</script>

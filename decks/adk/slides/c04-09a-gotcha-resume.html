@@ -1,0 +1,120 @@
+<section class="slide tight" id="adk-c04-gotcha-resume" data-tone="risk" data-title="Gotcha: rerun_on_resume">
+  <style>
+    #adk-c04-gotcha-resume .gr-grid { display: grid; grid-template-columns: 760px 1fr; gap: 28px; align-items: start; }
+    #adk-c04-gotcha-resume .gr-col { display: flex; flex-direction: column; gap: 22px; }
+    #adk-c04-gotcha-resume .gotcha { font-size: 19px; line-height: 1.45; padding: 20px 22px; gap: 12px 16px; }
+    #adk-c04-gotcha-resume .gotcha > b { font-size: 14px; }
+    #adk-c04-gotcha-resume .gotcha .err { font: 500 16px/1.45 var(--f-mono); color: var(--risk); }
+    #adk-c04-gotcha-resume .gotcha .src { color: var(--muted); font: 500 15px/1.4 var(--f-mono); }
+    #adk-c04-gotcha-resume pre.code { font-size: 17px; }
+    #adk-c04-gotcha-resume .cap { position: relative; height: 64px; }
+    #adk-c04-gotcha-resume .cap > p { position: absolute; left: 0; right: 0; top: 0; margin: 0; font-size: 21px; line-height: 1.4; color: var(--ink-2); }
+    #adk-c04-gotcha-resume svg text { font-family: var(--f-mono); }
+    #adk-c04-gotcha-resume .gr-h { font-size: 17px; font-weight: 700; fill: var(--ink); }
+    #adk-c04-gotcha-resume .gr-par { fill: var(--agent-soft); stroke: var(--agent); stroke-width: 2; }
+    #adk-c04-gotcha-resume .gr-kid { fill: var(--tool-soft); stroke: var(--tool); stroke-width: 2; }
+    #adk-c04-gotcha-resume .gr-kid.cached { fill: var(--state-soft); stroke: var(--state); }
+    #adk-c04-gotcha-resume .gr-t { font-size: 16px; font-weight: 700; fill: var(--ink); }
+    #adk-c04-gotcha-resume .gr-n { font-size: 15px; font-weight: 600; fill: var(--muted); }
+    #adk-c04-gotcha-resume .gr-n.ok { fill: var(--state); }
+    #adk-c04-gotcha-resume .gr-n.bad { fill: var(--risk); font-weight: 800; }
+    #adk-c04-gotcha-resume .gr-div { stroke: var(--line); stroke-width: 1.5; stroke-dasharray: 5 6; }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> Dynamic graphs · 1 of 3</div>
+  <h2 class="title">Every ctx.run_node caller needs rerun_on_resume=True</h2>
+  <div class="gr-grid fill">
+    <div class="gr-col">
+      <div class="gotcha">
+        <b>Symptom</b><span class="err">ValueError: A node must have rerun_on_resume=True. Reason is that dynamically scheduled nodes might be interrupted, and the workflow wakes-up/re-runs the parent node, so it can get the child node response.</span>
+        <b class="why">Cause</b><span>The parent calls <code>ctx.run_node</code> with the default <code>rerun_on_resume=False</code>. <span class="src">_dynamic_node_scheduler.py:769-774</span></span>
+        <b class="fix">Fix</b><span><code>@node(rerun_on_resume=True)</code> on every parent. Nested parents need it too.</span>
+      </div>
+      <div class="code-wrap good" data-step="4">
+        <div class="code-head">labs/adk/c04-expense-audit/expense_audit/agent.py · excerpt</div>
+        <pre class="code" data-lang="python"><code>@node(rerun_on_resume=True)  # REQUIRED for any ctx.run_node caller
+async def orchestrate(ctx: Context, node_input: str):
+  lines = [l.strip() for l in node_input.split(";") if l.strip()]
+  raw = await asyncio.gather(*[
+      ctx.run_node(auditor, node_input=l, use_sub_branch=True)
+      for l in lines])</code></pre>
+      </div>
+    </div>
+    <div class="gr-col">
+      <svg id="gr-svg" viewBox="0 0 604 470" width="604" height="470" aria-label="Run 1: the parent starts three children; line-3 is interrupted. On resume the parent re-runs from the top; line-1 and line-2 are replayed from history with cached outputs, and only line-3 runs again.">
+        <text class="gr-h" x="0" y="20">run 1</text>
+        <rect class="gr-par" id="gr-p1" x="0" y="36" width="604" height="40" rx="10"/>
+        <text class="gr-t" x="16" y="62">orchestrate</text>
+        <g id="gr-run1">
+          <rect class="gr-kid" data-w="230" x="40" y="88" width="230" height="34" rx="8"/><text class="gr-t" x="54" y="111">line-1</text>
+          <rect class="gr-kid" data-w="290" x="40" y="130" width="290" height="34" rx="8"/><text class="gr-t" x="54" y="153">line-2</text>
+          <rect class="gr-kid" data-w="180" x="40" y="172" width="180" height="34" rx="8"/><text class="gr-t" x="54" y="195">line-3</text>
+        </g>
+        <text class="gr-n ok" id="gr-ok1" x="286" y="111">done</text>
+        <text class="gr-n ok" id="gr-ok2" x="346" y="153">done</text>
+        <text class="gr-n bad" id="gr-int" x="236" y="195">interrupted</text>
+        <line class="gr-div" x1="0" y1="236" x2="604" y2="236"/>
+        <g id="gr-res">
+          <text class="gr-h" x="0" y="272">resume · the parent re-runs from the top</text>
+          <rect class="gr-par" x="0" y="288" width="604" height="40" rx="10"/>
+          <text class="gr-t" x="16" y="314">orchestrate</text>
+          <rect class="gr-kid cached" data-w="40" x="40" y="340" width="40" height="34" rx="8"/><text class="gr-n ok" x="96" y="363">line-1 · replayed from history</text>
+          <rect class="gr-kid cached" data-w="40" x="40" y="382" width="40" height="34" rx="8"/><text class="gr-n ok" x="96" y="405">line-2 · replayed from history</text>
+          <rect class="gr-kid" data-w="180" x="40" y="424" width="180" height="34" rx="8"/><text class="gr-t" x="54" y="447">line-3</text><text class="gr-n" x="236" y="447">runs again</text>
+        </g>
+      </svg>
+      <div class="cap">
+        <p data-until="1">Why the flag exists: a child can be interrupted mid-run.</p>
+        <p data-step="1" data-until="2">Run 1: two children finish. <code>line-3</code> stops, e.g. on a crash.</p>
+        <p data-step="2" data-until="3">On resume, ADK re-runs the parent from the top.</p>
+        <p data-step="3" data-until="4">Finished children return cached outputs. Only line-3 runs again.</p>
+        <p data-step="4">Keep the parent thin. Put side effects in the children.</p>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Three bugs bite the orchestrator from the Acme expense audit; this is the first: a parent that calls ctx.run_node without rerun_on_resume=True gets the ValueError on the left. Read the error on the left: it says a node must have rerun_on_resume=True, because dynamically scheduled nodes might be interrupted and the workflow re-runs the parent to collect the child's response. The animation shows why. In run 1 two children finish and the third is interrupted, for example by a crash or by a request for human input. On resume, ADK re-runs the parent from the top; the finished ctx.run_node calls are replayed from history and return their cached outputs, and only the unfinished child runs again. So the fix is one decorator argument, on every parent, including nested ones, and a design rule: keep the parent thin, because its own code runs again on each resume; put database writes and emails in child nodes, which are cached. Think of a project manager who re-reads the whole checklist every morning, but does not redo the ticked items. A likely question: "Does a static graph need this?" No; it is about parents that schedule nodes at run time.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c04-gotcha-resume";
+  let tl = null;
+  function stop() { if (tl) { tl.kill(); tl = null; } }
+  function render(slide, n, animate) {
+    stop();
+    const q = (s) => slide.querySelector(s), qa = (s) => [...slide.querySelectorAll(s)];
+    const kids1 = qa("#gr-run1 rect"), ok = [q("#gr-ok1"), q("#gr-ok2")], intr = q("#gr-int"), res = q("#gr-res");
+    const kidsR = qa("#gr-res rect.gr-kid");
+    gsap.killTweensOf([...kids1, ...ok, intr, res, ...kidsR]);
+    kids1.forEach((r) => r.setAttribute("width", n >= 1 ? r.dataset.w : 0));
+    gsap.set(ok, { opacity: n >= 1 ? 1 : 0 });
+    gsap.set(intr, { opacity: n >= 1 ? 1 : 0 });
+    gsap.set(res, { opacity: n >= 2 ? 1 : 0 });
+    kidsR.forEach((r) => r.setAttribute("width", n >= 3 ? r.dataset.w : 0));
+    gsap.set(qa("#gr-res .gr-n, #gr-res rect.gr-kid + text"), { opacity: n >= 3 ? 1 : 0 });
+    if (!animate) return;
+    tl = gsap.timeline();
+    if (n === 1) {
+      gsap.set([...ok, intr], { opacity: 0 });
+      kids1.forEach((r, i) => {
+        r.setAttribute("width", 0);
+        tl.to(r, { attr: { width: +r.dataset.w }, duration: [0.9, 1.1, 0.7][i], ease: "none" }, 0);
+      });
+      tl.to(ok[0], { opacity: 1, duration: 0.2 }, 0.9).to(ok[1], { opacity: 1, duration: 0.2 }, 1.1)
+        .fromTo(intr, { opacity: 0, x: -6 }, { opacity: 1, x: 0, duration: 0.3, ease: "back.out(3)" }, 0.7);
+    } else if (n === 2) {
+      tl.fromTo(res, { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.45 });
+    } else if (n === 3) {
+      gsap.set(qa("#gr-res .gr-n, #gr-res rect.gr-kid + text"), { opacity: 0 });
+      kidsR.forEach((r, i) => {
+        r.setAttribute("width", 0);
+        tl.to(r, { attr: { width: +r.dataset.w }, duration: i < 2 ? 0.15 : 0.7, ease: "none" }, i < 2 ? i * 0.2 : 0.5);
+      });
+      tl.to(qa("#gr-res .gr-n, #gr-res rect.gr-kid + text"), { opacity: 1, duration: 0.3, stagger: 0.15 }, 0.1);
+    }
+  }
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { stop(); }
+  });
+})();
+</script>

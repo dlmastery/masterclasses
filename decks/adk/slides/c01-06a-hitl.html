@@ -1,0 +1,116 @@
+<section class="slide" id="adk-c01-hitl" data-tone="human" data-title="Build: approval over $200">
+  <style>
+    #adk-c01-hitl pre.code, #adk-c01-hitl pre.code * { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #adk-c01-hitl .hl-main { display: grid; grid-template-columns: 730px 1fr; gap: 36px; align-items: center; }
+    #adk-c01-hitl .hl-right { gap: 20px; min-width: 0; }
+    #adk-c01-hitl svg { display: block; overflow: visible; }
+    #adk-c01-hitl svg text { font-family: var(--f-mono); }
+    #adk-c01-hitl .tk { font-size: 15px; fill: var(--muted); }
+    #adk-c01-hitl .thl { font-size: 16px; font-weight: 700; fill: var(--human); }
+    #adk-c01-hitl .bx { font-size: 16px; font-weight: 700; }
+    #adk-c01-hitl .tokt { font-size: 17px; font-weight: 700; fill: var(--ink); }
+    #adk-c01-hitl .hl-cap { position: relative; min-height: 64px; }
+    #adk-c01-hitl .hl-cap > p { position: absolute; left: 0; right: 0; top: 0; font-size: 21px; line-height: 1.4; }
+  </style>
+  <div class="kicker"><span class="pill">Build</span> Acme refund desk · human approval over $200</div>
+  <h2 class="title">Gate refunds over $200 with require_confirmation, not a prompt line</h2>
+  <div class="hl-main fill">
+    <div class="code-wrap good">
+      <div class="code-head">labs/adk/lab1-refund-guardrails/refund_agent/agent.py · excerpt</div>
+      <pre class="code" data-lang="python" data-focus="2:3-8, 3:10-14"><code>from google.adk.tools import FunctionTool, ToolContext
+
+APPROVAL_THRESHOLD_USD = 200.0
+
+def needs_approval(order_id: str, amount_usd: float,
+                   tool_context: ToolContext) -> bool:
+    """Same parameters as issue_refund. ..."""
+    return amount_usd > APPROVAL_THRESHOLD_USD
+
+root_agent = Agent(
+    # ... name, model, instruction, callbacks as before
+    tools=[lookup_order, check_refund_eligibility,
+           FunctionTool(issue_refund,
+                        require_confirmation=needs_approval)],
+)</code></pre>
+    </div>
+    <div class="hl-right stack">
+      <svg id="hl-svg" viewBox="0 0 620 330" width="620" height="330" aria-label="Three refund amounts on a scale with a $200 approval threshold">
+        <line x1="20" y1="92" x2="600" y2="92" style="stroke:var(--line-2)" stroke-width="3"/>
+        <line x1="20" y1="84" x2="20" y2="100" style="stroke:var(--line-2)" stroke-width="2.5"/><text class="tk" x="20" y="124" text-anchor="middle">$0</text>
+        <line x1="310" y1="84" x2="310" y2="100" style="stroke:var(--line-2)" stroke-width="2.5"/><text class="tk" x="310" y="124" text-anchor="middle">$700</text>
+        <line x1="600" y1="84" x2="600" y2="100" style="stroke:var(--line-2)" stroke-width="2.5"/><text class="tk" x="600" y="124" text-anchor="end">$1,400</text>
+        <g id="hl-th">
+          <line x1="102.9" y1="30" x2="102.9" y2="104" style="stroke:var(--human)" stroke-width="3" stroke-dasharray="6 5"/>
+          <text class="thl" x="102.9" y="124" text-anchor="middle">$200</text>
+          <text class="thl" x="114" y="22">needs_approval: amount_usd &gt; 200.0</text>
+        </g>
+        <rect x="10" y="160" width="250" height="144" rx="16" style="fill:var(--state-soft);stroke:var(--state)" stroke-width="2"/>
+        <text class="bx" x="28" y="190" style="fill:var(--state)">issued</text>
+        <rect id="hl-wait" x="290" y="160" width="320" height="144" rx="16" style="fill:var(--human-soft);stroke:var(--human)" stroke-width="2"/>
+        <text class="bx" id="hl-waitl" x="308" y="190" style="fill:var(--human)">waits for a human yes</text>
+        <g class="hl-tok"><rect x="-30" y="-18" width="60" height="36" rx="18" style="fill:var(--bg)" stroke-width="2.5"/><text class="tokt" x="0" y="6" text-anchor="middle">$80</text></g>
+        <g class="hl-tok"><rect x="-38" y="-18" width="76" height="36" rx="18" style="fill:var(--bg)" stroke-width="2.5"/><text class="tokt" x="0" y="6" text-anchor="middle">$250</text></g>
+        <g class="hl-tok"><rect x="-46" y="-18" width="92" height="36" rx="18" style="fill:var(--bg)" stroke-width="2.5"/><text class="tokt" x="0" y="6" text-anchor="middle">$1,299</text></g>
+      </svg>
+      <div class="hl-cap">
+        <p data-step="1" data-until="2">Prompt only: "ask a supervisor first" is a request. The model ran all three refunds.</p>
+        <p data-step="2" data-until="3">ADK calls the predicate with the tool's own arguments. It must return a real <code>bool</code>.</p>
+        <p data-step="3">Wrap the tool. Over $200 the call stops until a human answers.</p>
+      </div>
+    </div>
+  </div>
+  <div class="cites">
+    <a class="cite repo" href="https://github.com/google/adk-python/blob/v2.13.0/src/google/adk/tools/function_tool.py" target="_blank" rel="noopener"><b>Repo</b>&nbsp;adk-python v2.13.0 · tools/function_tool.py</a>
+  </div>
+  <aside class="notes">
+    The cap from the last build is a hard ceiling at $1,500. Between $200 and $1,500 Acme wants a person to decide. Step 1: an instruction such as "ask a supervisor before any refund over $200" is only a request to the model; nothing stops the call, so all three refunds ran. Step 2: require_confirmation takes a bool or a predicate; ADK calls needs_approval with the tool's own arguments, unfiltered, so the predicate must take the same parameter names, including tool_context, or Python raises a TypeError about an unexpected keyword argument. Step 3: wrap issue_refund in FunctionTool; $80 is issued at once, $250 and $1,299 wait. The issue_refund body writes refunds_issued to state, so approved refunds are auditable; it is in labs/adk/lab1-refund-guardrails. Analogy: the predicate is the till that calls the manager for any refund over the limit. Likely question: "Can the model skip the gate?" No: the gate is in FunctionTool, not in the prompt. Next: what the human and the model see.
+  </aside>
+</section>
+<script>
+(() => {
+  const SX = (v) => 20 + (v / 1400) * 580;
+  const AMT = [80, 250, 1299];
+  const ON_SCALE = AMT.map((v) => [SX(v), 60]);
+  const ISSUED_ALL = [[60, 226], [168, 226], [112, 274]];
+  const GATED = [[80, 240], [370, 240], [500, 240]];
+  let last = -1, tl = null;
+  function grab(s) {
+    const toks = [...s.querySelectorAll(".hl-tok")];
+    return { toks, rects: toks.map((t) => t.querySelector("rect")), th: s.querySelector("#hl-th"), wait: s.querySelector("#hl-wait"), waitl: s.querySelector("#hl-waitl") };
+  }
+  const posFor = (n) => (n <= 0 ? ON_SCALE : n === 1 ? ISSUED_ALL : n === 2 ? ON_SCALE : GATED);
+  function colors(e, n) {
+    e.rects.forEach((r, i) => {
+      let c = "--tool";
+      if (n === 1) c = i === 0 ? "--state" : "--risk";
+      else if (n >= 2) c = i === 0 ? "--state" : "--human";
+      r.style.stroke = `var(${c})`;
+    });
+  }
+  function setFinal(e, n) {
+    posFor(n).forEach(([x, y], i) => gsap.set(e.toks[i], { x, y, autoAlpha: 1 }));
+    gsap.set(e.th, { autoAlpha: n >= 2 ? 1 : 0 });
+    gsap.set([e.wait, e.waitl], { autoAlpha: n >= 3 ? 1 : 0.2 });
+    colors(e, n);
+  }
+  function render(slide, n, animate) {
+    const e = grab(slide);
+    if (tl) tl.kill();
+    gsap.killTweensOf([...e.toks, e.th, e.wait, e.waitl]);
+    setFinal(e, n);
+    const fwd = animate && n === last + 1;
+    last = n;
+    if (!fwd) return;
+    tl = gsap.timeline();
+    const from = posFor(n - 1), to = posFor(n);
+    to.forEach(([x, y], i) => tl.fromTo(e.toks[i], { x: from[i][0], y: from[i][1] }, { x, y, duration: 0.6, ease: "power2.inOut" }, 0.1 + i * 0.2));
+    if (n === 2) tl.fromTo(e.th, { autoAlpha: 0, y: -14 }, { autoAlpha: 1, y: 0, duration: 0.45, ease: "back.out(2)" }, 0.5);
+    if (n === 3) tl.fromTo([e.wait, e.waitl], { autoAlpha: 0.2 }, { autoAlpha: 1, duration: 0.4 }, 0);
+  }
+  Deck.register("adk-c01-hitl", {
+    enter(slide, n) { last = n - 1; render(slide, n, false); last = n; },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { if (tl) tl.kill(); tl = null; last = -1; }
+  });
+})();
+</script>

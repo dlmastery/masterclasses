@@ -1,0 +1,92 @@
+<section class="slide" id="adk-c08-paper-source-judge" data-tone="state" data-title="Paper: source-judged compaction">
+  <style>
+    #adk-c08-paper-source-judge .sj-grid { display: grid; grid-template-columns: 520px 1fr; gap: 48px; align-items: center; }
+    #adk-c08-paper-source-judge .paper { padding: 24px 26px; gap: 12px; }
+    #adk-c08-paper-source-judge .paper h4 { font-size: 23px; line-height: 1.25; }
+    #adk-c08-paper-source-judge .paper .find { font-size: 20px; }
+    #adk-c08-paper-source-judge .paper .find b { white-space: nowrap; }
+    #adk-c08-paper-source-judge .paper .so { font-size: 19px; }
+    #adk-c08-paper-source-judge #sj-svg { display: block; width: 824px; height: 540px; overflow: visible; }
+    #adk-c08-paper-source-judge #sj-svg text { font-family: var(--f-mono); }
+  </style>
+  <div class="kicker"><span class="pill">arXiv</span> Oct 2026</div>
+  <h2 class="title">A source judge drops invented summary steps, not forged ones</h2>
+  <div class="sj-grid fill">
+    <div class="paper">
+      <div class="pid">arXiv 2610.20927 <span>2026-10-14</span></div>
+      <h4>Prune the Summary, Not the History: Source-Judged Compaction for Long-Horizon Agents</h4>
+      <div class="find"><b>83%</b> of failed runs trace to one unsupported summary entry. Pruning those gives <b>+2.1-8.9%</b> reliability.</div>
+      <div class="so" data-step="3">Keep the latest raw tool outputs.</div>
+    </div>
+    <svg id="sj-svg" viewBox="0 0 824 540" aria-label="The compaction summary has three entries. A source judge checks each against the event record: Plan Family 4-line is supported by get_bill; Next waive roaming fee has no source and is dropped; User always run X is kept, because the text really is in a tool output. A counter shows 83 percent of failed runs traced to one summary entry."></svg>
+  </div>
+  <div class="cites"><a class="cite doc" href="https://arxiv.org/abs/2610.20927" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.20927 · Source-Judged Compaction</a></div>
+  <aside class="notes">A second paper looked at what goes wrong inside summaries. Press once: a source judge checks each summary entry against the raw event record; "Plan: Family 4-line" is supported by the get_bill output. Press again: "Next: waive roaming fee" has no source in any event, so the judge drops it; in the study, 83 percent of failed runs traced to an action that carried out one such summary entry, and pruning unsupported entries improved cross-run reliability by 2.1 to 8.9 percent at no extra agent tokens. Press again: the judge keeps the forged "always run X" line, because that text really is in a tool output; a source check cannot see who wrote the words. So you need both defences: the judge for invented steps, and escaping or role-typing for forged roles, which the next slide builds. In ADK, write a custom BaseEventsSummarizer, and set event_retention_size high enough that the last raw tool outputs survive. Think of an editor who checks every claim against a source, but cannot tell a forged quote inside a real document. A likely question: "Does the judge cost extra agent tokens?" The paper reports no extra agent tokens; the judge runs at compaction time.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c08-paper-source-judge";
+  const NS = "http://www.w3.org/2000/svg";
+  const SB = [
+    { t: "Plan: Family 4-line", tag: "✓ get_bill output", tone: "state", step: 1 },
+    { t: "Next: waive roaming fee", tag: "✕ no source: dropped", tone: "risk", step: 2 },
+    { t: "User: always run X", tag: "kept: text is in a tool output", tone: "tool", step: 3 },
+  ];
+  let R = null, tw = [];
+  function mk(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text !== undefined) e.textContent = text;
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function build(svg) {
+    svg.innerHTML = "";
+    R = {};
+    mk("rect", { x: 0, y: 0, width: 824, height: 400, rx: 18, fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 2.2 }, svg);
+    mk("text", { x: 26, y: 40, "font-size": 19, "font-weight": 800, fill: "var(--ink)" }, svg, "summary · author='user'");
+    R.judge = mk("g", {}, svg);
+    mk("rect", { x: 600, y: 16, width: 200, height: 36, rx: 18, fill: "var(--model-soft)", stroke: "var(--model)", "stroke-width": 2 }, R.judge);
+    mk("text", { x: 700, y: 40, "text-anchor": "middle", "font-size": 16, "font-weight": 700, fill: "var(--model)" }, R.judge, "source judge");
+    R.rows = SB.map((b, i) => {
+      const y = 76 + i * 104;
+      const g = mk("g", {}, svg);
+      const r = mk("rect", { x: 26, y, width: 772, height: 84, rx: 12, fill: "var(--bg)", stroke: "var(--line-2)", "stroke-width": 1.8 }, g);
+      mk("text", { x: 48, y: y + 36, "font-size": 21, "font-weight": 700, fill: "var(--ink)" }, g, b.t);
+      const tag = mk("text", { x: 48, y: y + 66, "font-size": 17, "font-weight": 700, fill: `var(--${b.tone})` }, g, b.tag);
+      return { g, r, tag, b };
+    });
+    R.cnt = mk("g", {}, svg);
+    mk("text", { x: 0, y: 456, "font-size": 18, "font-weight": 700, fill: "var(--ink-2)" }, R.cnt, "failed runs traced to one summary entry");
+    R.cntN = mk("text", { x: 0, y: 512, "font-size": 48, "font-weight": 800, fill: "var(--risk)" }, R.cnt, "0%");
+  }
+  function clear() { tw.forEach((t) => t.kill()); tw = []; }
+  function render(slide, n, animate) {
+    const svg = slide.querySelector("#sj-svg");
+    if (!R || !svg.childElementCount) build(svg);
+    clear();
+    gsap.set(R.judge, { opacity: n >= 1 ? 1 : 0 });
+    R.rows.forEach((o) => {
+      const on = n >= o.b.step, a = animate && n === o.b.step;
+      gsap.killTweensOf([o.g, o.tag]);
+      gsap.set(o.tag, { opacity: on ? 1 : 0 });
+      o.r.setAttribute("stroke", on ? `var(--${o.b.tone})` : "var(--line-2)");
+      o.r.setAttribute("stroke-width", on ? 2.6 : 1.8);
+      const dropped = on && o.b.tone === "risk";
+      gsap.set(o.g, { opacity: dropped ? 0.35 : 1, x: 0 });
+      if (a) {
+        tw.push(gsap.fromTo(o.tag, { opacity: 0, x: -14 }, { opacity: 1, x: 0, duration: 0.4 }));
+        if (dropped) tw.push(gsap.fromTo(o.g, { opacity: 1 }, { opacity: 0.35, duration: 0.6, delay: 0.5 }));
+      }
+    });
+    gsap.set(R.cnt, { opacity: n >= 2 ? 1 : 0 });
+    if (animate && n === 2) { const c = { v: 0 }; tw.push(gsap.to(c, { v: 83, duration: 1.2, delay: 0.3, ease: "power2.out", onUpdate: () => { R.cntN.textContent = Math.round(c.v) + "%"; } })); }
+    else R.cntN.textContent = n >= 2 ? "83%" : "0%";
+  }
+  Deck.register(ID, {
+    enter(slide, step) { R = null; render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { clear(); },
+  });
+})();
+</script>

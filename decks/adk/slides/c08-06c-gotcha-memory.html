@@ -1,0 +1,89 @@
+<section class="slide" id="adk-c08-gotcha-memory" data-tone="risk" data-title="Gotcha: no memory service">
+  <style>
+    #adk-c08-gotcha-memory .gm-grid { display: grid; grid-template-columns: 800px 1fr; gap: 44px; align-items: start; }
+    #adk-c08-gotcha-memory .gm-col { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
+    #adk-c08-gotcha-memory .gotcha { font-size: 20px; line-height: 1.45; padding: 20px 24px; }
+    #adk-c08-gotcha-memory .gotcha .em { font-family: var(--f-mono); font-size: 18px; color: var(--risk); }
+    #adk-c08-gotcha-memory #gm-svg { display: block; width: 548px; height: 450px; overflow: visible; }
+    #adk-c08-gotcha-memory #gm-svg text { font-family: var(--f-mono); }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> Memory</div>
+  <h2 class="title">A hand-built Runner has no memory service until you pass one</h2>
+  <div class="gm-grid fill">
+    <div class="gm-col">
+      <div class="gotcha" data-step="1">
+        <b>Symptom</b><span class="em">ValueError: Cannot add session to memory: memory service is not available.</span>
+        <b class="why">Cause</b><span>The <code>Runner</code> was built without <code>memory_service</code>.</span>
+        <b class="fix">Fix</b><span>Pass the Memory Bank service to the <code>Runner</code>.</span>
+      </div>
+      <div class="code-wrap good" data-step="2">
+        <div class="code-head">support_app.py · fixed · google-adk==2.13.0</div>
+        <pre class="code" data-lang="python" data-focus="2:5-6, 3:6"><code>memory = VertexAiMemoryBankService(
+    project=os.environ["GOOGLE_CLOUD_PROJECT"],
+    location=os.environ["GOOGLE_CLOUD_LOCATION"],
+    agent_engine_id=os.environ["AGENT_ENGINE_ID"])
+runner = Runner(app=app, session_service=InMemorySessionService(),
+                memory_service=memory)   # no service: ValueError</code></pre>
+      </div>
+    </div>
+    <svg id="gm-svg" viewBox="0 0 548 450" aria-label="A Runner box with an empty memory_service socket and a ValueError badge. Then a Memory Bank plug slides into the socket and the badge turns OK."></svg>
+  </div>
+  <aside class="notes">The third Acme failure: the day-one callback crashes. Press once: add_session_to_memory raises "Cannot add session to memory: memory service is not available", because a Runner that you build by hand has no memory service; the socket in the picture is empty. Press again: pass memory_service=VertexAiMemoryBankService(...) to the Runner, and the plug slides in. Press again: the same rule holds for artifacts: a hand-built Runner has no artifact service either, and save_artifact raises "Artifact service is not initialized." Think of it like a phone with no SIM card: the phone works, but it cannot make the call you asked for. A likely question: "Why does adk web not crash?" adk web supplies an in-memory memory service by default, which hides the problem until a restart, as the next slide shows.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c08-gotcha-memory";
+  const NS = "http://www.w3.org/2000/svg";
+  let R = null, tw = [];
+  function mk(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text !== undefined) e.textContent = text;
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function build(svg) {
+    svg.innerHTML = "";
+    R = {};
+    mk("rect", { x: 0, y: 40, width: 240, height: 200, rx: 18, fill: "var(--agent-soft)", stroke: "var(--agent)", "stroke-width": 2.4 }, svg);
+    mk("text", { x: 120, y: 132, "text-anchor": "middle", "font-size": 24, "font-weight": 800, fill: "var(--ink)" }, svg, "Runner");
+    mk("text", { x: 120, y: 160, "text-anchor": "middle", "font-size": 15, fill: "var(--ink-2)" }, svg, "session_service ✓");
+    mk("path", { d: "M240,108 H284 V172 H240", fill: "none", stroke: "var(--agent)", "stroke-width": 3 }, svg);
+    mk("text", { x: 0, y: 274, "font-size": 16, "font-weight": 700, fill: "var(--muted)" }, svg, "memory_service socket");
+    R.plug = mk("g", {}, svg);
+    mk("rect", { x: 330, y: 70, width: 218, height: 140, rx: 18, fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 2.4 }, R.plug);
+    mk("rect", { x: 296, y: 124, width: 34, height: 32, rx: 4, fill: "var(--state)" }, R.plug);
+    mk("text", { x: 439, y: 136, "text-anchor": "middle", "font-size": 19, "font-weight": 800, fill: "var(--state)" }, R.plug, "Memory Bank");
+    mk("text", { x: 439, y: 162, "text-anchor": "middle", "font-size": 15, fill: "var(--ink-2)" }, R.plug, "VertexAiMemory…");
+    R.art = mk("g", {}, svg);
+    mk("text", { x: 0, y: 418, "font-size": 16, "font-weight": 700, fill: "var(--ink-2)" }, R.art, "same rule for artifacts:");
+    mk("text", { x: 0, y: 440, "font-size": 15, fill: "var(--risk)" }, R.art, "Artifact service is not initialized.");
+    R.badge = mk("g", {}, svg);
+    R.bR = mk("rect", { x: 94, y: 320, width: 360, height: 52, rx: 26, fill: "var(--risk)" }, R.badge);
+    R.bT = mk("text", { x: 274, y: 353, "text-anchor": "middle", "font-size": 19, "font-weight": 800, fill: "#fff" }, R.badge, "ValueError");
+  }
+  function clear() { tw.forEach((t) => t.kill()); tw = []; }
+  function render(slide, n, animate) {
+    const svg = slide.querySelector("#gm-svg");
+    if (!R || !svg.childElementCount) build(svg);
+    clear();
+    gsap.killTweensOf([R.plug, R.badge]);
+    const ok = n >= 2;
+    R.bR.setAttribute("fill", ok ? "var(--state)" : "var(--risk)");
+    R.bT.textContent = ok ? "OK: memory saved" : "ValueError";
+    gsap.set(R.badge, { opacity: n >= 1 ? 1 : 0, scale: 1 });
+    gsap.set(R.art, { opacity: n >= 3 ? 1 : 0 });
+    if (animate && n === 3) tw.push(gsap.fromTo(R.art, { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.4 }));
+    if (animate && n === 1) tw.push(gsap.fromTo(R.badge, { opacity: 0, scale: 0.5, transformOrigin: "50% 50%" }, { opacity: 1, scale: 1, duration: 0.4, ease: "back.out(2.4)" }));
+    if (animate && n === 2) {
+      gsap.set(R.plug, { x: 40, opacity: 0.3 });
+      tw.push(gsap.to(R.plug, { x: 0, opacity: 1, duration: 0.8, ease: "power3.out" }));
+    } else gsap.set(R.plug, { x: ok ? 0 : 40, opacity: ok ? 1 : 0.3 });
+  }
+  Deck.register(ID, {
+    enter(slide, step) { R = null; render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { clear(); },
+  });
+})();
+</script>

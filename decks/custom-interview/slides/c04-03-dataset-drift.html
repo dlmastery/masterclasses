@@ -1,0 +1,119 @@
+<section class="slide" id="custom-interview-c04-dataset-drift" data-tone="state" data-title="Coverage, drift and label noise">
+  <style>
+    #custom-interview-c04-dataset-drift .cols { display: grid; grid-template-columns: 1fr 650px; gap: 28px; }
+    #custom-interview-c04-dataset-drift .left { display: flex; flex-direction: column; gap: 14px; }
+    #custom-interview-c04-dataset-drift .qa { gap: 6px; }
+    #custom-interview-c04-dataset-drift .qa .q { font-size: 21px; }
+    #custom-interview-c04-dataset-drift .qa .a { font-size: 18px; line-height: 1.4; padding: 10px 16px; }
+    #custom-interview-c04-dataset-drift .qa .a[style*="visibility: hidden"] { display: none; }
+    #custom-interview-c04-dataset-drift .qa .a .tags { margin-top: 6px; }
+    #custom-interview-c04-dataset-drift .qa .a .cite.paper { flex-direction: row; gap: 8px; padding: 4px 10px 4px 6px; border-radius: 10px; font-size: 14px; }
+    #custom-interview-c04-dataset-drift .right { position: relative; display: flex; flex-direction: column; gap: 12px; }
+    #custom-interview-c04-dataset-drift .card { display: flex; flex-direction: column; gap: 6px; }
+    #custom-interview-c04-dataset-drift .cap { font: 700 14px/1.2 var(--f-mono); color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+    #custom-interview-c04-dataset-drift .card pre.code { font-size: 14px; padding: 8px 14px; }
+    #custom-interview-c04-dataset-drift .card .code-head { padding-top: 6px; padding-bottom: 6px; }
+    #custom-interview-c04-dataset-drift svg text { font-family: var(--f-mono); }
+    #custom-interview-c04-dataset-drift .hero { position: absolute; inset: 0 0 auto 0; display: flex; flex-direction: column; gap: 16px; padding-top: 4px; }
+    #custom-interview-c04-dataset-drift .hero .big { font: 700 96px/1 var(--f-display); letter-spacing: -.04em; color: var(--ink); }
+    #custom-interview-c04-dataset-drift .nodel { display: flex; align-items: center; gap: 14px; }
+    #custom-interview-c04-dataset-drift .nodel .x { font: 700 18px/1 var(--f-mono); color: var(--risk); padding: 6px 10px; border: 2px solid var(--risk); border-radius: 8px; background: var(--risk-soft); }
+    #custom-interview-c04-dataset-drift .nodel .t { font: 600 16px/1.3 var(--f-mono); color: var(--human); }
+  </style>
+  <div class="kicker">Interview · Stage: contract and label audit · 2 of 3</div>
+  <h2 class="title">Ask about coverage and provenance, not the row count</h2>
+  <div class="cols fill">
+    <div class="left">
+      <div class="qa">
+        <div class="q">“We have 50k support-ticket rows, ready to train.” What do you ask?</div>
+        <div class="a" data-step="1"><b>Ask what the rows cover.</b> Rows per taxonomy leaf (the lowest-level category), with a minimum n per eval slice. Provenance, license and synthetic share per subset.</div>
+      </div>
+      <div class="qa">
+        <div class="q">KS flags <code>days_since_order</code> every day, but PSI says stable. Why?</div>
+        <div class="a" data-step="2"><b>At n = 20k vs 5k, a p-value flags tiny shifts.</b> PSI is a binned distribution distance: &lt; 0.1 stable, 0.1–0.25 moderate, &gt; 0.25 major. Split September in two and alert above that PSI noise floor.</div>
+      </div>
+      <div class="qa">
+        <div class="q">cleanlab flags 223 of 3,000 tickets as mislabeled. Delete them?</div>
+        <div class="a" data-step="3"><b>No: review them.</b> <code>pred_probs</code> must be out-of-sample, or the model has memorized the noisy labels. In a Google Play study (870k apps), removing apps that three noise detectors flagged did not help. Relabel, retrain, re-score a frozen eval slice.
+          <div class="tags"><a class="cite paper" href="https://arxiv.org/abs/2609.25487" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2609.25487 mislabeled apps in Google Play</a></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="right">
+      <div class="hero" data-until="1">
+        <div class="cap">What the team reports</div>
+        <div class="big">50,000 rows</div>
+        <div class="tags"><span class="tag t-risk">no coverage map</span><span class="tag t-risk">no provenance</span><span class="tag t-risk">no eval slices</span></div>
+      </div>
+
+      <!-- Q1: coverage per leaf -->
+      <div class="card" data-step="1">
+        <div class="cap">Q1 · rows per taxonomy leaf (illustrative)</div>
+        <svg id="c04dd-tree" viewBox="0 0 590 116" width="590" height="116" aria-label="Rows per leaf; the eu-west outage leaf has zero rows">
+          <line x1="0" y1="86" x2="590" y2="86" stroke="var(--line-2)" stroke-width="2"/>
+          <g class="bars" fill="var(--state)" fill-opacity=".8">
+            <rect x="14" y="10" width="44" height="76"/><rect x="88" y="34" width="44" height="52"/>
+            <rect x="162" y="22" width="44" height="64"/><rect x="236" y="52" width="44" height="34"/>
+            <rect x="310" y="28" width="44" height="58"/><rect x="384" y="58" width="44" height="28"/>
+            <rect x="458" y="64" width="44" height="22"/>
+          </g>
+          <rect x="532" y="16" width="44" height="70" fill="none" stroke="var(--risk)" stroke-width="2.5" stroke-dasharray="5 4"/>
+          <text x="554" y="56" text-anchor="middle" font-size="16" font-weight="700" fill="var(--risk)">n=0</text>
+          <g font-size="14" fill="var(--ink-2)" text-anchor="middle">
+            <text x="36" y="106">refund</text><text x="110" y="106">invoice</text><text x="184" y="106">2FA</text><text x="258" y="106">SSO</text>
+            <text x="332" y="106">late</text><text x="406" y="106">damaged</text><text x="480" y="106">503</text><text x="554" y="106" fill="var(--risk)" font-weight="700">eu-west</text>
+          </g>
+        </svg>
+        <div class="code-wrap"><pre class="code" data-lang="python"><code>n = df.groupby(["category", "leaf"]).size()
+print(n[n &lt; 30])      # leaves below the minimum n per slice</code></pre></div>
+      </div>
+
+      <!-- Q2: PSI vs KS -->
+      <div class="card" data-step="2">
+        <div class="code-wrap out">
+          <div class="code-head">python lab2_psi_ks.py · Sep (n = 20k) vs Oct (n = 5k) · captured</div>
+          <pre class="code" data-lang="text"><code><span class="dim">feature              PSI  KS p      reading</span>
+refund_amount_usd  0.243  5.9e-148  <span class="err">real drift: both agree</span>
+days_since_order   0.003  2.2e-02   <span class="ok">KS only: noise at large n</span>
+items_in_order     0.001  5.0e-01   <span class="ok">stable</span></code></pre>
+        </div>
+        <div class="code-wrap"><div class="code-head">lab2_psi_ks.py · key lines · shares per Sep quantile bin</div><pre class="code" data-lang="python"><code>psi = np.sum((cur_share - ref_share) * np.log(cur_share / ref_share))
+p = ks_2samp(ref_values, cur_values).pvalue   # scipy.stats</code></pre></div>
+      </div>
+
+      <!-- Q3: review queue, not delete list -->
+      <div class="card" data-step="3">
+        <div class="code-wrap"><pre class="code" data-lang="python"><code>model, texts, labels = ...   # TF-IDF + LR pipeline, 3,000 tickets
+pred_probs = cross_val_predict(model, texts, labels, cv=5,
+                               method="predict_proba")  # out-of-sample
+ranked = find_label_issues(labels, pred_probs, n_jobs=1,
+             return_indices_ranked_by="self_confidence")</code></pre></div>
+        <div class="nodel"><span class="x">✕ rows auto-deleted: 0</span><span class="t">→ 223 ranked rows to human review, top first</span></div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Ask each question, wait for an answer, then reveal; each answer adds one evidence card on the right, and the cards stay. Question 1 tests whether the candidate audits a dataset like a reviewer: a row count says nothing about an empty taxonomy leaf, such as eu-west outages with zero rows, an unknown license or a synthetic share. A taxonomy leaf is the lowest-level category. Question 2 is about scale: at 20,000 against 5,000 rows, KS gives p = 0.02 for days_since_order while PSI is 0.003, so the KS alert is noise. refund_amount_usd is different: PSI 0.243 and a tiny KS p-value agree, and that is real drift after the holiday promo. Set the alert threshold from a reference-versus-reference split: compute PSI between two halves of September, and alert only above that noise floor. Question 3 tests the cleanlab workflow: out-of-sample pred_probs, then a review queue, never an auto-delete list. In the Google Play study the label was a proxy, like a rushed vendor's ticket label, and deleting flagged rows did not improve the model. After relabelling, retrain and re-score a frozen eval slice. The tickets come from the lab's tickets.py generator; model is a TF-IDF plus logistic-regression pipeline. Likely follow-up: "Why must pred_probs be out-of-sample?" An in-sample model has memorized the noisy labels, so it agrees with them and cleanlab finds almost nothing. Hand-off: the next slide asks where the rows came from, which no detector can answer after training.</aside>
+</section>
+<script>
+(() => {
+  const ID = "custom-interview-c04-dataset-drift";
+  let tw = [];
+  const kill = () => { tw.forEach((t) => t.kill()); tw = []; };
+  Deck.register(ID, {
+    enter(slide, n) { this.step(slide, n, false); },
+    step(slide, n, animate) {
+      kill();
+      const bars = slide.querySelectorAll("#c04dd-tree .bars rect");
+      gsap.set(bars, { scaleY: 1, transformOrigin: "50% 100%" });
+      if (animate && n === 1) {
+        tw.push(gsap.from(bars, { scaleY: 0, transformOrigin: "50% 100%", duration: 0.6, stagger: 0.08, ease: "power2.out", delay: 0.3 }));
+      }
+      const x = slide.querySelector(".nodel .x");
+      gsap.set(x, { scale: 1 });
+      if (animate && n === 3) tw.push(gsap.from(x, { scale: 1.6, duration: 0.5, ease: "back.out(2)", delay: 0.8 }));
+    },
+    leave() { kill(); }
+  });
+})();
+</script>

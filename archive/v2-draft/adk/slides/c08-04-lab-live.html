@@ -1,0 +1,284 @@
+<section class="slide tight" id="adk-c08-lab-live" data-tone="state" data-title="Lab 8.3: run_live voice billing">
+  <style>
+    #adk-c08-lab-live .lab-head { gap: 12px; flex-wrap: nowrap; }
+    #adk-c08-lab-live .lab-head .run { font-size: 14.5px; padding: 7px 11px; white-space: nowrap; }
+    #adk-c08-lab-live .lab-head .pins { font: 500 13.5px/1.3 var(--f-mono); color: var(--ink-2); white-space: nowrap; }
+    #adk-c08-lab-live .lab-head .cite { font-size: 13px; padding: 4px 9px; white-space: nowrap; margin-left: auto; }
+    #adk-c08-lab-live .lv-body { display: grid; grid-template-columns: 510px 584px minmax(0, 1fr); gap: 18px; align-items: start; }
+    #adk-c08-lab-live .lv-col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    #adk-c08-lab-live .code-head { padding: 7px 14px; font-size: 13px; }
+    #adk-c08-lab-live .lv-setup pre.code { font-size: 14px; line-height: 1.4; padding: 8px 14px 9px; }
+    #adk-c08-lab-live .lv-main pre.code { font-size: 13.5px; line-height: 1.4; padding: 8px 14px 9px; }
+    #adk-c08-lab-live .out pre.code { font-size: 12.5px; line-height: 1.4; padding: 7px 14px 8px; }
+    #adk-c08-lab-live #lv-svg { display: block; width: 100%; height: auto; overflow: visible; }
+    #adk-c08-lab-live #lv-svg text { font-family: var(--f-mono); }
+    #adk-c08-lab-live .lv-rail { gap: 9px; }
+    #adk-c08-lab-live .lv-rail > * { font-size: 14px; line-height: 1.34; grid-template-columns: 26px 1fr; gap: 8px; }
+    #adk-c08-lab-live .lv-rail > *::before { width: 24px; height: 24px; font-size: 13px; border-radius: 7px; }
+    #adk-c08-lab-live .lv-rail code, #adk-c08-lab-live .callout code { font-size: 12.5px; white-space: normal; overflow-wrap: anywhere; }
+    #adk-c08-lab-live .lv-col > .cite { align-self: flex-start; flex-direction: row; gap: 8px; font-size: 12.5px; padding: 4px 9px; }
+    #adk-c08-lab-live .callout { font-size: 14px; line-height: 1.36; padding: 10px 12px 10px 40px; }
+    #adk-c08-lab-live .callout b { font-family: var(--f-mono); font-size: 13px; }
+    #adk-c08-lab-live .lv-alt { font-size: 13.5px; line-height: 1.35; color: var(--ink-2); }
+    #adk-c08-lab-live .lv-alt code { font-size: 12.5px; white-space: normal; overflow-wrap: anywhere; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 8</span> Bluefin Telecom support · step 3 of 3</div>
+  <h2 class="title">run_live streams the billing answer as audio plus a transcript</h2>
+  <div class="lab-head">
+    <span class="run">python live_billing.py</span>
+    <span class="pins">.env: GOOGLE_GENAI_USE_ENTERPRISE=TRUE · GOOGLE_CLOUD_LOCATION=us-central1 (not global)</span>
+    <a class="cite repo" href="https://github.com/google/adk-python/blob/v2.13.0/src/google/adk/runners.py" target="_blank" rel="noopener"><b>Repo</b>&nbsp;runners.py · v2.13.0</a>
+  </div>
+  <div class="lv-body fill">
+    <div class="lv-col">
+      <div class="code-wrap lv-setup">
+        <div class="code-head">live_billing.py · part 1 · tool, agent, .wav</div>
+        <pre class="code" data-lang="python" data-focus="1:3-9"><code># imports: asyncio, wave, Agent, Runner, RunConfig,
+#   LiveRequestQueue, InMemorySessionService, types
+def get_balance(account_id: str) -&gt; dict:
+    """Returns balance and due date for an account."""
+    return {"status": "success", "balance_usd": 84.20,
+            "due": "2026-11-05"}
+agent = Agent(name="voice_billing", tools=[get_balance],
+    model="gemini-live-2.5-flash-native-audio",
+    instruction="Be brief. Never quote new-plan prices.")
+def save_wav(pcm: bytes) -&gt; None:   # 24 kHz, mono
+    with wave.open("answer.wav", "wb") as w:
+        w.setparams((1, 2, 24000, 0, "NONE", None))
+        w.writeframes(pcm)</code></pre>
+      </div>
+      <svg id="lv-svg" viewBox="0 0 520 280" aria-label="Live stream. A text prompt, standing in for a microphone, goes through LiveRequestQueue to the Live API with send_content. The Live API calls get_balance, and the result 84.20, due 11-05 returns along an arrow. Audio streams back into an audio lane and transcript chips appear until turn_complete ends the loop."></svg>
+    </div>
+    <div class="lv-col">
+      <div class="code-wrap lv-main">
+        <div class="code-head">live_billing.py · part 2 · the live loop</div>
+        <pre class="code" data-lang="python" data-focus="2:2-4, 3:5-7, 4:8-23"><code>async def main() -&gt; None:
+    runner = Runner(agent=agent, app_name="bluefin_voice",
+                    session_service=InMemorySessionService(),
+                    auto_create_session=True)
+    cfg = RunConfig(response_modalities=["AUDIO"],
+        output_audio_transcription=types.AudioTranscriptionConfig(),
+        session_resumption=types.SessionResumptionConfig())
+    q = LiveRequestQueue()                 # one queue per call
+    q.send_content(types.Content(role="user", parts=[
+        types.Part(text="What's my balance on BF-3310?")]))
+    pcm = bytearray()
+    try:
+        async for ev in runner.run_live(
+                user_id="cust-42", session_id="call-1",
+                live_request_queue=q, run_config=cfg):
+            t = ev.output_transcription
+            if t and t.text: print("agent:", t.text)
+            for p in (ev.content.parts if ev.content else []):
+                if p.inline_data: pcm += p.inline_data.data
+            if ev.turn_complete: break
+    finally: q.close()
+    save_wav(bytes(pcm))
+asyncio.run(main())</code></pre>
+      </div>
+      <div class="code-wrap out" data-step="4">
+        <div class="code-head">terminal · output illustrative</div>
+        <pre class="code" data-lang="none"><code><span class="ok">agent: Your balance on BF-3310 is 84 dollars 20, due November 5th.</span>
+answer.wav written · 153,600 bytes = 3.2 s at 24 kHz</code></pre>
+      </div>
+    </div>
+    <div class="lv-col">
+      <div class="steps-rail lv-rail">
+        <div data-step="1"><span><code>get_balance</code> is the only tool. The instruction forbids new-plan prices.</span></div>
+        <div data-step="2"><span>Without <code>auto_create_session=True</code>: <code>SessionNotFoundError: Session not found: call-1</code>.</span></div>
+        <div data-step="3"><span>Native audio is audio-only out. Text comes from <code>output_audio_transcription</code>.</span></div>
+        <div data-step="4"><span>Break on <code>turn_complete</code>, then <code>close()</code>. Text stands in for the mic: real calls send 16 kHz PCM with <code>q.send_realtime(blob)</code>.</span></div>
+      </div>
+      <div class="callout insight" data-step="5"><div><b>2610.17619</b> ASR errors on numbers cost 21.9-25.7 pp of tool-call accuracy. Re-confirm account numbers.</div></div>
+      <a class="cite paper" data-step="5" href="https://arxiv.org/abs/2610.17619" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.17619</a>
+      <div class="lv-alt" data-step="5">Mic in the browser: <code>adk web --no-reload .</code> (Windows needs <code>--no-reload</code>).</div>
+    </div>
+  </div>
+  <aside class="notes">This is the last step of the Bluefin lab: the same support team now answers billing calls by voice through the Live API on Agent Platform, so the .env sets GOOGLE_GENAI_USE_ENTERPRISE=TRUE and a regional location; with an AI Studio key instead, set it to FALSE, add GOOGLE_API_KEY, and use the preview model gemini-3.1-flash-live-preview. Walk the code in four moves: a plain get_balance tool and an agent on the native-audio Live model; a Runner with auto_create_session, because run_live needs a session; a RunConfig that asks for audio out, an output transcript and session resumption; and a loop that reads events until turn_complete, closes the queue and saves the 24 kHz PCM as answer.wav so you can hear it. The script sends text as a stand-in for the microphone; a real call streams 16 kHz PCM chunks with send_realtime and adds input_audio_transcription. The LiveRequestQueue is like a phone line you hang up with close(), so you dial a new one for every call. Two traps: StreamingMode.BIDI in RunConfig does not start live mode, only runner.run_live does, and the location must be regional, not global. A likely question is "can I guard what the caller says?": model callbacks run in live mode in 2.13, but a before_model_callback sees only the transcript, after the model already heard the audio, so re-confirm account numbers in the tool, which is where the ASR paper says voice agents fail. A second paper, Heartbeat Thinking (arXiv 2610.26233), cut final-response latency by 36.4% by running read-only tool calls while the caller still speaks. That completes Lab 8; the next slide tunes the step-1 cache for real customer pauses and adds compaction.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c08-lab-live";
+  const NS = "http://www.w3.org/2000/svg";
+  const BYTES = 153600;
+  const NB = 90, BW = 8;                 // waveform bars, 8 px apart (two lane widths for the scroll)
+  const LX = 384, LY = 8, LW = 136, LH0 = 46, LH1 = 150;   // Live API box: header only, then full
+  const CHIPS = [
+    { x: 8, y: 166, w: 176, t: "Your balance on BF-3310", num: true },
+    { x: 190, y: 166, w: 140, t: "is 84 dollars 20,", num: true },
+    { x: 8, y: 196, w: 146, t: "due November 5th.", num: false },
+  ];
+  let tw = [], loops = [], R = null;
+
+  function mk(tag, attrs, parent) {
+    const e = document.createElementNS(NS, tag);
+    for (const [a, v] of Object.entries(attrs)) e.setAttribute(a, v);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function txt(p, x, y, s, a) { const t = mk("text", Object.assign({ x, y, "font-size": 12.5, fill: "var(--ink-2)" }, a || {}), p); t.textContent = s; return t; }
+  function box(p, x, y, w, h, tone, label, sub, rx) {
+    const g = mk("g", {}, p);
+    const r = mk("rect", { x, y, width: w, height: h, rx: rx || 10, fill: `var(--${tone}-soft)`, stroke: `var(--${tone})`, "stroke-width": 1.8 }, g);
+    txt(g, x + w / 2, sub ? y + 19 : y + h / 2 + 5, label, { "font-size": 13, "font-weight": 700, "text-anchor": "middle", fill: "var(--ink)" });
+    if (sub) txt(g, x + w / 2, y + 35, sub, { "font-size": 11.5, "text-anchor": "middle", fill: "var(--muted)" });
+    g._r = r;
+    return g;
+  }
+  function arrow(p, d, color, dash, marker) {
+    const e = mk("path", { d, fill: "none", stroke: color, "stroke-width": 2, "stroke-linecap": "round", "stroke-dasharray": dash || "none" }, p);
+    if (marker) e.setAttribute("marker-end", `url(#${marker})`);
+    return e;
+  }
+
+  function build(svg) {
+    svg.innerHTML = "";
+    R = {};
+    const defs = mk("defs", {}, svg);
+    [["lv-ag", "var(--line-2)"], ["lv-am", "var(--model)"], ["lv-at", "var(--tool)"]].forEach(([id, c]) => {
+      const m = mk("marker", { id, viewBox: "0 0 10 10", refX: 8, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto-start-reverse" }, defs);
+      mk("path", { d: "M0,0 L10,5 L0,10 z", fill: c }, m);
+    });
+    const clip = mk("clipPath", { id: "lv-clip" }, defs);
+    mk("rect", { x: 4, y: 110, width: 344, height: 44 }, clip);
+
+    // upstream: text prompt (mic stand-in) -> queue -> Live API
+    R.caller = box(svg, 0, LY, 128, LH0, "human", "text prompt", "stand-in for mic", 14);
+    arrow(svg, `M132,${LY + 23} H146`, "var(--line-2)", null, "lv-ag");
+    R.queue = box(svg, 150, LY, 152, LH0, "state", "LiveRequestQueue");
+    R.up = arrow(svg, `M306,${LY + 23} H${LX - 6}`, "var(--line-2)", null, "lv-ag");
+    txt(svg, 343, LY + 46, "send_content", { "font-size": 11, "font-weight": 700, "text-anchor": "middle", fill: "var(--muted)" });
+    R.live = box(svg, LX, LY, LW, LH0, "model", "Live API", "native audio");
+    // step 2: the runner creates the session
+    R.sess = mk("g", {}, svg);
+    mk("rect", { x: 150, y: 66, width: 152, height: 26, rx: 13, fill: "var(--bg)", stroke: "var(--state)", "stroke-width": 1.8 }, R.sess);
+    txt(R.sess, 226, 83, "session call-1 ✓", { "font-size": 12, "font-weight": 700, "text-anchor": "middle", fill: "var(--state)" });
+    // step 3: RunConfig pills inside the Live API box (the box grows with them)
+    R.cfg = mk("g", {}, svg);
+    [["AUDIO out", 76], ["transcript out", 104], ["resumption", 132]].forEach(([s, y]) => {
+      mk("rect", { x: LX + 12, y: y - 16, width: LW - 24, height: 23, rx: 6, fill: "var(--bg)", stroke: "var(--model)", "stroke-width": 1.3 }, R.cfg);
+      txt(R.cfg, LX + LW / 2, y, s, { "font-size": 12, "font-weight": 700, "text-anchor": "middle", fill: "var(--model)" });
+    });
+    // step 3: audio lane and transcript area
+    R.lanes = mk("g", {}, svg);
+    mk("rect", { x: 0, y: 108, width: 352, height: 48, rx: 8, fill: "var(--surface)", stroke: "var(--line-2)", "stroke-width": 1 }, R.lanes);
+    txt(R.lanes, 0, 102, "audio → answer.wav", { "font-size": 12, "font-weight": 700, fill: "var(--model)" });
+    mk("rect", { x: 0, y: 160, width: 352, height: 64, rx: 8, fill: "none", stroke: "var(--line-2)", "stroke-width": 1, "stroke-dasharray": "4 4" }, R.lanes);
+    arrow(R.lanes, `M${LX - 2},132 H358`, "var(--model)", null, "lv-am");
+    // waveform (clipped, scrolls inside the audio lane)
+    const wfc = mk("g", { "clip-path": "url(#lv-clip)" }, svg);
+    R.wf = mk("g", {}, wfc);
+    for (let i = 0; i < NB; i++) {
+      const h = 6 + 34 * Math.abs(Math.sin(i * 0.71) * Math.cos(i * 0.23));
+      mk("rect", { x: 8 + i * BW, y: 132 - h / 2, width: 4, height: h, rx: 2, fill: "var(--model)", opacity: 0.75 }, R.wf);
+    }
+    // transcript chips
+    R.chips = CHIPS.map((c) => {
+      const g = mk("g", {}, svg);
+      const r = mk("rect", { x: c.x, y: c.y, width: c.w, height: 24, rx: 12, fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 1.6 }, g);
+      txt(g, c.x + c.w / 2, c.y + 16.5, c.t, { "font-size": 12, "font-weight": 700, "text-anchor": "middle", fill: "var(--ink)" });
+      g._r = r; g._num = c.num;
+      return g;
+    });
+    R.asr = txt(svg, 344, 214, "ASR risk: numbers", { "font-size": 12, "font-weight": 800, "text-anchor": "end", fill: "var(--risk)" });
+    // tool call and its return path
+    R.tool = box(svg, LX, 196, LW, 38, "tool", "get_balance()");
+    R.call = arrow(svg, `M${LX + 18},${LY + LH1 + 2} V192`, "var(--tool)", "4 3", "lv-at");
+    R.ret = arrow(svg, `M${LX + 88},194 V${LY + LH1 + 4}`, "var(--tool)", null, "lv-at");
+    R.res = mk("g", {}, svg);
+    mk("rect", { x: LX + 38, y: 164, width: 100, height: 22, rx: 11, fill: "var(--bg)", stroke: "var(--tool)", "stroke-width": 1.5 }, R.res);
+    txt(R.res, LX + 88, 179, "84.20 · 11-05", { "font-size": 11.5, "font-weight": 700, "text-anchor": "middle", fill: "var(--tool)" });
+    // byte counter + turn_complete flag at the end of the stream
+    R.cnt = txt(svg, 0, 250, "audio bytes: 0", { "font-size": 12.5, "font-weight": 700, fill: "var(--model)" });
+    R.flag = mk("g", {}, svg);
+    mk("rect", { x: 168, y: 236, width: 184, height: 24, rx: 7, fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 1.5 }, R.flag);
+    txt(R.flag, 260, 252.5, "turn_complete → break", { "font-size": 12, "font-weight": 700, "text-anchor": "middle", fill: "var(--state)" });
+    // moving request packet
+    R.pkt = mk("g", {}, svg);
+    mk("rect", { x: -40, y: -11, width: 80, height: 22, rx: 11, fill: "var(--human)" }, R.pkt);
+    txt(R.pkt, 0, 4, "BF-3310?", { "font-size": 11.5, "font-weight": 700, "text-anchor": "middle", fill: "#fff" });
+  }
+
+  function clear() { tw.forEach((t) => t.kill()); tw = []; loops.forEach((t) => t.kill()); loops = []; }
+  function show(el, on, animate, delay, from) {
+    gsap.killTweensOf(el);
+    if (!on) { gsap.set(el, { opacity: 0 }); return; }
+    if (animate) tw.push(gsap.fromTo(el, Object.assign({ opacity: 0 }, from || {}), { opacity: 1, scale: 1, y: 0, duration: 0.4, delay: delay || 0, ease: "power2.out" }));
+    else gsap.set(el, { opacity: 1, scale: 1, y: 0 });
+  }
+  function setCount(v) { R.cnt.textContent = "audio bytes: " + Math.round(v).toLocaleString("en-US"); }
+
+  function render(slide, n, animate) {
+    const svg = slide.querySelector("#lv-svg");
+    if (!svg) return;
+    if (!svg.childElementCount) build(svg);
+    clear();
+    const a = (k) => animate && n === k;
+    // step 1: the tool attached to the Live model (call and return paths)
+    gsap.killTweensOf([R.tool, R.call, R.ret]);
+    const toolOp = n >= 1 ? (n >= 4 ? 1 : 0.6) : 0;
+    gsap.set([R.tool, R.call, R.ret], { opacity: toolOp, scale: 1 });
+    if (a(1)) { gsap.set([R.tool, R.call, R.ret], { opacity: 0 }); tw.push(gsap.to([R.tool, R.call, R.ret], { opacity: 0.6, duration: 0.4, delay: 0.15 })); }
+    // step 2: session chip
+    show(R.sess, n >= 2, a(2), 0, { y: -8 });
+    // step 3: the Live API box grows to hold the RunConfig pills; the lanes appear
+    gsap.killTweensOf(R.live._r);
+    if (a(3)) {
+      gsap.set(R.live._r, { attr: { height: LH0 } });
+      tw.push(gsap.to(R.live._r, { attr: { height: LH1 }, duration: 0.5, ease: "power2.out" }));
+    } else gsap.set(R.live._r, { attr: { height: n >= 3 ? LH1 : LH0 } });
+    show(R.cfg, n >= 3, a(3), 0.35);
+    show(R.lanes, n >= 3, a(3), 0.5);
+    gsap.set(R.cnt, { opacity: n >= 3 ? 1 : 0 });
+    // the call / return arrows connect the tool to the bottom of the Live API box
+    const top = LY + (n >= 3 ? LH1 : LH0);
+    R.call.setAttribute("d", `M${LX + 18},${top + 2} V192`);
+    R.ret.setAttribute("d", `M${LX + 88},194 V${top + 4}`);
+    // step 4: the turn runs
+    const done = n >= 4;
+    gsap.killTweensOf([R.wf, R.pkt, R.res, R.flag, ...R.chips]);
+    gsap.set(R.wf, { x: 0, opacity: done ? 1 : 0 });
+    gsap.set(R.pkt, { opacity: 0 });
+    R.chips.forEach((c) => gsap.set(c, { opacity: done ? 1 : 0, y: 0 }));
+    gsap.set(R.res, { opacity: done ? 1 : 0 });
+    gsap.set(R.flag, { opacity: done ? 1 : 0 });
+    setCount(done ? BYTES : 0);
+    if (a(4)) {
+      gsap.set([R.wf, R.res, R.flag, ...R.chips], { opacity: 0 });
+      gsap.set(R.tool, { opacity: 0.6 });
+      setCount(0);
+      gsap.set(R.pkt, { x: 64, y: LY + 23, opacity: 1 });
+      tw.push(gsap.to(R.pkt, { x: 226, duration: 0.5, ease: "power1.inOut" }));
+      tw.push(gsap.to(R.pkt, { x: LX + LW / 2, duration: 0.6, delay: 0.55, ease: "power1.inOut" }));
+      tw.push(gsap.to(R.pkt, { opacity: 0, duration: 0.2, delay: 1.15 }));
+      tw.push(gsap.to(R.tool, { opacity: 1, duration: 0.2, delay: 1.3 }));
+      tw.push(gsap.fromTo(R.tool, { scale: 1 }, { scale: 1.08, svgOrigin: `${LX + LW / 2} 215`, duration: 0.16, yoyo: true, repeat: 3, delay: 1.3 }));
+      tw.push(gsap.fromTo(R.res, { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.45, delay: 1.8, ease: "power2.out" }));
+      tw.push(gsap.to(R.wf, { opacity: 1, duration: 0.25, delay: 2.3 }));
+      loops.push(gsap.fromTo(R.wf, { x: 0 }, { x: -44 * BW, duration: 1.5, ease: "none", repeat: 1, delay: 2.3, onComplete: () => gsap.set(R.wf, { x: 0 }) }));
+      const c = { v: 0 };
+      tw.push(gsap.to(c, { v: BYTES, duration: 3, delay: 2.3, ease: "none", onUpdate: () => setCount(c.v) }));
+      R.chips.forEach((ch, i) => tw.push(gsap.fromTo(ch, { opacity: 0, y: -10 }, { opacity: 1, y: 0, duration: 0.35, delay: 2.7 + i * 0.8, ease: "back.out(2)" })));
+      tw.push(gsap.fromTo(R.flag, { opacity: 0, scale: 0.8, transformOrigin: "50% 50%" }, { opacity: 1, scale: 1, duration: 0.35, delay: 5.4, ease: "back.out(2)" }));
+    }
+    // step 5: numbers in the transcript are the ASR risk
+    gsap.set(R.asr, { opacity: n >= 5 ? 1 : 0 });
+    R.chips.forEach((ch) => {
+      const risk = n >= 5 && ch._num;
+      ch._r.setAttribute("stroke", risk ? "var(--risk)" : "var(--state)");
+      ch._r.setAttribute("fill", risk ? "var(--risk-soft)" : "var(--state-soft)");
+      ch._r.setAttribute("stroke-width", risk ? 2.4 : 1.6);
+    });
+    if (a(5)) R.chips.forEach((ch) => { if (ch._num) tw.push(gsap.fromTo(ch, { scale: 1 }, { scale: 1.06, transformOrigin: "50% 50%", duration: 0.18, yoyo: true, repeat: 3 })); });
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) {
+      clear();
+      if (slide) gsap.killTweensOf(slide.querySelectorAll("#lv-svg *"));
+    },
+  });
+})();
+</script>

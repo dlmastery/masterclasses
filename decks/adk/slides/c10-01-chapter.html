@@ -1,0 +1,151 @@
+<section class="slide chapter" id="adk-c10-chapter" data-tone="risk" data-title="Ch 10: Guardrails, deploy and AgentOps">
+  <style>
+    #adk-c10-chapter { gap: 20px; padding-bottom: 76px; }
+    #adk-c10-chapter svg { overflow: visible; flex: none; }
+    #adk-c10-chapter svg text { font-family: var(--f-mono); }
+    #adk-c10-chapter .display { font-size: 92px; max-width: 1392px; }
+    #adk-c10-chapter .lede { max-width: 1300px; }
+  </style>
+  <div class="ch-num" data-fx="blur">10</div>
+  <svg id="c10c-svg" viewBox="0 0 1040 300" width="1040" height="300" aria-label="An animation that repeats. An oval track has six stations, clockwise: Guard, Trace, Deploy, Canary, Publish and Observe. A package token named hr_agent makes one lap and each station lights as the token reaches it. At Observe an alert shows tokens per invocation above 1.5 times the baseline. A rollback arc from Observe to Deploy lights, the token takes the shortcut back to Deploy, and Deploy shows REV_PREV=100."></svg>
+  <h2 class="display">Guardrails, deploy and AgentOps</h2>
+  <p class="lede" data-fx="up">Take the Acme HR assistant to production: guard it, trace it, ship it, canary it, roll it back.</p>
+  <div class="cites" data-fx="stagger">
+    <a class="cite codelab" href="https://codelabs.developers.google.com/secure-customer-service-agent/instructions" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;Build a Secure Agent with Model Armor and Identity</a>
+    <a class="cite codelab" href="https://codelabs.developers.google.com/next26/adk-deploy-scale" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;Stateful Data Science Agent on Agent Runtime</a>
+    <span class="tag t-risk">tested on google-adk 2.13.0</span>
+  </div>
+  <aside class="notes">This chapter takes the Acme People Team HR assistant from a laptop to production, and every station on the track is one lab or build-up. We guard it with our own plugin and Model Armor, trace it without putting employee data into spans, deploy it to Agent Runtime, Cloud Run or GKE, canary the new revision, publish it to Gemini Enterprise, and observe it. Watch the red arc in the animation: when tokens per invocation go above 1.5 times the baseline, which is the signature of a loop, we roll back in one command and the loop starts again. Think of it as a pit lane in a race: the car goes out, the team watches the telemetry, and a bad lap brings it straight back in. A likely question: "Why not just use the Model Armor settings in the Gemini Enterprise console?" Because those settings do not protect ADK agents, so the guards must live in the agent code. Next: Lab 10 step 1 puts the first station, the guard, into hr_agent/agent.py.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "adk-c10-chapter";
+  const CX = 520, CY = 150, RX = 400, RY = 116;
+  // six stations clockwise; angle in degrees on the ellipse (SVG y grows down)
+  const ST = [
+    { a: 210, name: "Guard",   sub: "plugin + Model Armor", tone: "risk" },
+    { a: 270, name: "Trace",   sub: "OTel, no PII",         tone: "state" },
+    { a: 330, name: "Deploy",  sub: "adk deploy",           tone: "tool" },
+    { a: 30,  name: "Canary",  sub: "tag URL · 5% → 25%",  tone: "tool" },
+    { a: 90,  name: "Publish", sub: "Gemini Enterprise",    tone: "human" },
+    { a: 150, name: "Observe", sub: "Cloud Trace · alerts", tone: "state" },
+  ];
+  const BW = 236, BH = 62;
+  let tl = null, P = null;
+
+  const el = (parent, tag, attrs, style, text) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (style) Object.assign(e.style, style);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  };
+  const mono = (w, s) => ({ font: `${w} ${s}px var(--f-mono)` });
+  const pt = (deg) => { const r = deg * Math.PI / 180; return [CX + RX * Math.cos(r), CY + RY * Math.sin(r)]; };
+
+  function build(svg) {
+    svg.innerHTML = "";
+    const root = el(svg, "g", {});
+    // track
+    el(root, "ellipse", { cx: CX, cy: CY, rx: RX, ry: RY }, { fill: "none", stroke: "var(--line-2)", strokeWidth: 3, strokeDasharray: "2 10", strokeLinecap: "round" });
+    // rollback chord: Observe -> Deploy, drawn inside the oval
+    const [ox, oy] = pt(150), [dx, dy] = pt(330);
+    const chordD = `M${ox + BW / 2 - 10} ${oy - 8} Q ${CX} ${CY + 40} ${dx - BW / 2 + 10} ${dy + 8}`;
+    const chord = el(root, "path", { d: chordD }, { fill: "none", stroke: "var(--risk)", strokeWidth: 3, strokeDasharray: "8 8", opacity: 0.18 });
+    const chordHead = el(root, "path", { d: `M${dx - BW / 2 + 10} ${dy + 8} l-16 -2 l7 13 z` }, { fill: "var(--risk)", opacity: 0.18 });
+    const chordLbl = el(root, "text", { x: CX, y: CY + 12, "text-anchor": "middle" }, { ...mono(700, 17), fill: "var(--risk)", opacity: 0.25 }, "rollback");
+    // stations
+    const boxes = ST.map((s) => {
+      const [x, y] = pt(s.a);
+      const g = el(root, "g", { transform: `translate(${x - BW / 2} ${y - BH / 2})` });
+      el(g, "rect", { width: BW, height: BH, rx: 14 }, { fill: "var(--surface-2)" });
+      const r = el(g, "rect", { width: BW, height: BH, rx: 14 }, { fill: "var(--surface)", stroke: "var(--line-2)", strokeWidth: 2 });
+      const t = el(g, "text", { x: BW / 2, y: 26, "text-anchor": "middle" }, { ...mono(800, 19), fill: "var(--muted)" }, s.name);
+      el(g, "text", { x: BW / 2, y: 49, "text-anchor": "middle" }, { ...mono(500, 14), fill: "var(--muted)" }, s.sub);
+      return { r, t, tone: s.tone };
+    });
+    // alert at Observe and badge at Deploy
+    const alert = el(root, "g", { transform: `translate(${ox - 92} ${oy + 34})` }, { opacity: 0 });
+    el(alert, "rect", { width: 184, height: 28, rx: 8 }, { fill: "var(--risk-soft)", stroke: "var(--risk)", strokeWidth: 1.6 });
+    el(alert, "text", { x: 92, y: 19, "text-anchor": "middle" }, { ...mono(700, 14), fill: "var(--risk)" }, "tokens/inv > 1.5x");
+    const badge = el(root, "g", { transform: `translate(${dx - 80} ${dy - 66})` }, { opacity: 0 });
+    el(badge, "rect", { width: 160, height: 28, rx: 8 }, { fill: "var(--state-soft)", stroke: "var(--state)", strokeWidth: 1.6 });
+    el(badge, "text", { x: 80, y: 19, "text-anchor": "middle" }, { ...mono(700, 14), fill: "var(--state)" }, "REV_PREV=100");
+    // package token
+    const tok = el(root, "g", {});
+    el(tok, "rect", { x: -54, y: -16, width: 108, height: 32, rx: 8 }, { fill: "var(--agent)", stroke: "var(--surface-2)", strokeWidth: 2 });
+    el(tok, "text", { x: 0, y: 5, "text-anchor": "middle" }, { ...mono(700, 15), fill: "#fff" }, "hr_agent");
+    P = { root, boxes, chord, chordHead, chordLbl, chordD, alert, badge, tok };
+    place(ST[0].a);
+  }
+
+  // the token rides on an inner oval, so it never covers a station label
+  function place(deg) {
+    const r = deg * Math.PI / 180;
+    const x = CX + (RX - 190) * Math.cos(r), y = CY + (RY - 56) * Math.sin(r);
+    P.tok.setAttribute("transform", `translate(${x.toFixed(1)} ${y.toFixed(1)})`);
+  }
+
+  function lightOn(t, b, at) {
+    t.to(b.r, { fill: `var(--${b.tone}-soft)`, stroke: `var(--${b.tone})`, duration: 0.25 }, at)
+      .to(b.t, { fill: `var(--${b.tone})`, duration: 0.25 }, at);
+  }
+
+  function play() {
+    const p = P;
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    tl = gsap.timeline({ repeat: reduce ? 0 : -1, repeatDelay: 0.3 });
+    const proxy = { a: ST[0].a };
+    tl.set(p.root, { opacity: 1 }, 0)
+      .set(p.boxes.map((b) => b.r), { fill: "var(--surface)", stroke: "var(--line-2)" }, 0)
+      .set(p.boxes.map((b) => b.t), { fill: "var(--muted)" }, 0)
+      .set([p.alert, p.badge], { opacity: 0 }, 0)
+      .set([p.chord, p.chordHead], { opacity: 0.18 }, 0)
+      .set(p.chordLbl, { opacity: 0.25 }, 0)
+      .call(() => place(ST[0].a), null, 0);
+    lightOn(tl, p.boxes[0], 0.2);
+    let t = 0.7;
+    for (let i = 1; i < ST.length; i++) {
+      const from = ST[0].a + (i - 1) * 60, to = ST[0].a + i * 60;
+      tl.fromTo(proxy, { a: from }, { a: to, duration: 0.9, ease: "power2.inOut", onUpdate: () => place(proxy.a) }, t);
+      lightOn(tl, p.boxes[i], t + 0.85);
+      t += 1.25;
+    }
+    // Observe raises the alert; the rollback arc lights; the token takes the shortcut to Deploy
+    tl.to(p.alert, { opacity: 1, duration: 0.25 }, t)
+      .to(p.boxes[5].r, { stroke: "var(--risk)", duration: 0.2, yoyo: true, repeat: 3 }, t)
+      .to([p.chord, p.chordHead], { opacity: 1, duration: 0.3 }, t + 0.6)
+      .to(p.chordLbl, { opacity: 1, duration: 0.3 }, t + 0.6);
+    const path = el(p.root, "path", { d: p.chordD }, { fill: "none", stroke: "none" });
+    const L = path.getTotalLength();
+    const cp = { s: 0 };
+    tl.fromTo(cp, { s: 0 }, { s: 1, duration: 1.1, ease: "power2.inOut", onUpdate: () => {
+      const q = path.getPointAtLength(cp.s * L);
+      p.tok.setAttribute("transform", `translate(${q.x.toFixed(1)} ${q.y.toFixed(1)})`);
+    } }, t + 1.0)
+      .to(p.badge, { opacity: 1, duration: 0.25 }, t + 2.1)
+      .to(p.boxes[3].r, { fill: "var(--surface)", stroke: "var(--line-2)", duration: 0.3 }, t + 2.1)
+      .to(p.boxes[3].t, { fill: "var(--muted)", duration: 0.3 }, t + 2.1)
+      .to(p.root, { opacity: 0, duration: 0.45 }, t + 3.8);
+    if (reduce) tl.progress(0.9);
+  }
+
+  function stop() {
+    if (tl) tl.kill();
+    tl = null;
+    if (P) gsap.killTweensOf([P.root, P.alert, P.badge, P.chord, P.chordHead, P.chordLbl, ...P.boxes.flatMap((b) => [b.r, b.t])]);
+  }
+
+  Deck.register(ID, {
+    enter(slide) {
+      stop();
+      build(slide.querySelector("#c10c-svg"));
+      play();
+    },
+    step() {},
+    leave() { stop(); },
+  });
+})();
+</script>

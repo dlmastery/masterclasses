@@ -1,0 +1,224 @@
+<section class="slide" id="rag-interview-c03-debug-rerank" data-tone="agent" data-title="Debug: reranker drops recall">
+  <style>
+    #rag-interview-c03-debug-rerank .dr-main { display: grid; grid-template-columns: 770px 1fr; gap: 30px; }
+    #rag-interview-c03-debug-rerank .dr-left { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    #rag-interview-c03-debug-rerank .dr-right { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    #rag-interview-c03-debug-rerank .dr-prompt { font-size: 19px; line-height: 1.4; color: var(--ink-2); }
+    #rag-interview-c03-debug-rerank .dr-prompt b { color: var(--ink); }
+    #rag-interview-c03-debug-rerank .dr-ctx { font-size: 18px; line-height: 1.4; color: var(--ink-2); margin: 0; padding-left: 4px; }
+    #rag-interview-c03-debug-rerank .dr-left pre.code { font-size: 14.5px; line-height: 1.5; padding: 10px 16px 12px; }
+    #rag-interview-c03-debug-rerank .code-wrap .code-head { padding: 7px 14px; font-size: 13.5px; }
+    #rag-interview-c03-debug-rerank .lab-head { gap: 12px; flex-wrap: nowrap; }
+    #rag-interview-c03-debug-rerank .lab-head .pins { font: 500 14px/1.3 var(--f-mono); color: var(--muted); white-space: nowrap; }
+    #rag-interview-c03-debug-rerank .steps-rail { gap: 8px; }
+    #rag-interview-c03-debug-rerank .steps-rail > * { font-size: 19px; grid-template-columns: 34px 1fr; align-items: center; }
+    #rag-interview-c03-debug-rerank .dr-slot { display: grid; }
+    #rag-interview-c03-debug-rerank .dr-slot > * { grid-area: 1 / 1; align-self: start; min-width: 0; }
+    #rag-interview-c03-debug-rerank .gotcha { font-size: 16.5px; line-height: 1.38; padding: 12px 16px; grid-template-columns: 84px 1fr; gap: 5px 12px; }
+    #rag-interview-c03-debug-rerank .gotcha > b { font-size: 13px; }
+    #rag-interview-c03-debug-rerank .code-wrap.good pre.code { font-size: 13.5px; line-height: 1.5; padding: 10px 14px 12px; }
+    #rag-interview-c03-debug-rerank .code-wrap.good .delta { font-size: 13px; margin-left: 10px; }
+    #rag-interview-c03-debug-rerank #dr-viz text { font-family: var(--f-mono); }
+    #rag-interview-c03-debug-rerank .dr-foot { font-size: 15px; color: var(--ink-2); margin: 0; }
+    #rag-interview-c03-debug-rerank .cites { gap: 8px; }
+    #rag-interview-c03-debug-rerank .cite { font-size: 13px; }
+  </style>
+  <div class="kicker"><span class="pill">Debug this</span> reranking</div>
+  <h2 class="title">Debug this: after reranking, recall falls to zero</h2>
+  <div class="dr-main fill">
+    <div class="dr-left">
+      <div class="code-wrap bad">
+        <div class="code-head">rerank.py · Northwind v1, MiniLM baseline</div>
+        <pre class="code" data-lang="python" data-focus="1:6-7, 2:8, 3:8"><code>from sentence_transformers import CrossEncoder
+from kb import TEXT                       # chunk_id -&gt; text
+from lab3_hybrid import hybrid_search     # query -&gt; ranked chunk_ids
+reranker = CrossEncoder("cross-encoder/ms-marco-MiniLM-L6-v2", max_length=512)
+def rerank_search(query: str, candidates: int = 30, keep: int = 5) -&gt; list[str]:
+    cand_ids = hybrid_search(query)[:candidates]
+    hits = reranker.rank(query, [TEXT[i] for i in cand_ids], top_k=keep)
+    return [h["corpus_id"] for h in hits if h["score"] &gt; 0.5]
+print(rerank_search("zipper broke on my pack after 3 years"))</code></pre>
+      </div>
+      <div class="code-wrap out">
+        <div class="code-head">output · illustrative · evaluate() on the 15 labelled queries</div>
+        <pre class="code" data-lang="none"><code><span class="err">[3]</span>                                   # gold chunk is "c09"
+hybrid           R@5=0.933  MRR@10=0.770
+<span class="err">hybrid + MiniLM  R@5=0.000  MRR@10=0.000</span>
+<span class="ok" data-step="4">['c09', 'c08', 'c06', 'c10', 'c03']   # after the fix</span>
+<span class="ok" data-step="4">hybrid + MiniLM  R@5=0.933  MRR@10=0.860</span></code></pre>
+      </div>
+      <svg id="dr-viz" viewBox="0 0 770 214" width="770" height="214" aria-label="Reranker output: what rank() returns, positions and logits"></svg>
+    </div>
+    <div class="dr-right">
+      <div class="lab-head"><span class="run">python rerank.py</span><span class="pins">sentence-transformers==6.2.0</span></div>
+      <div class="panel k-human tight dr-prompt">
+        <span>Hybrid alone gives <b>R@5 = 0.93</b>. With the reranker, R@5 is <b>0</b>. Find <b>two bugs</b> on one line.</span>
+      </div>
+      <p class="dr-ctx" data-step="1">First, what the code does: <code>rank()</code> scores 30 (query, chunk) pairs and returns the top 5 as dicts, best first.</p>
+      <div class="steps-rail">
+        <div data-step="2"><span><code>corpus_id</code> is a position, not a chunk ID</span></div>
+        <div data-step="3"><span><code>score</code> is a raw logit, not a probability</span></div>
+      </div>
+      <div class="dr-slot">
+        <div class="gotcha" data-step="2" data-until="3">
+          <b>Symptom</b><span>The function returns ints such as <code>[3]</code>. Every metric is 0.</span>
+          <b class="why">Cause</b><span><code>corpus_id</code> is the index into the list you passed (0-29), not your chunk ID.</span>
+          <b class="fix">Fix</b><span>Map it back: <code>cand_ids[h["corpus_id"]]</code>.</span>
+        </div>
+        <div class="gotcha" data-step="3" data-until="4">
+          <b>Symptom</b><span>4 of 5 reranked hits disappear.</span>
+          <b class="why">Cause</b><span>The model's <code>config.json</code> sets an Identity activation, so <code>rank()</code> returns raw logits, about −11 to +11.</span>
+          <b class="fix">Fix</b><span>Rank only. For a cut-off, pass <code>activation_fn=torch.nn.Sigmoid()</code> and tune it on labels.</span>
+        </div>
+        <div class="code-wrap good" data-step="4">
+          <div class="code-head">rerank.py · fixed return line <span class="delta up">R@5 0.000 → 0.933</span></div>
+          <pre class="code" data-lang="python"><code># corpus_id = position in cand_ids; scores are raw logits
+return [cand_ids[h["corpus_id"]] for h in hits]
+# need a cut-off? get 0-1 scores, tune it on labels:
+# CrossEncoder(..., activation_fn=torch.nn.Sigmoid())</code></pre>
+        </div>
+      </div>
+      <p class="dr-foot push" data-step="4">Same trap: Cohere and Voyage rerank also return an index into your list.</p>
+      <div class="cites">
+        <a class="cite doc" href="https://huggingface.co/cross-encoder/ms-marco-MiniLM-L6-v2" target="_blank" rel="noopener"><b>Model card</b>&nbsp;ms-marco-MiniLM-L6-v2</a>
+        <a class="cite repo" href="https://github.com/huggingface/sentence-transformers" target="_blank" rel="noopener"><b>Repo</b>&nbsp;sentence-transformers</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Show the code and the output, and ask the room for two bugs on one line before you reveal anything. The first click is context only: rank() scores the 30 pairs and returns 5 dicts, best first. Bug one: corpus_id is the position in the list you passed, so the function returns 3 instead of "c09" and every string comparison in the evaluator fails. Bug two: ms-marco-MiniLM-L6-v2 stores an Identity activation in its config.json, so the scores are raw logits from about −11 to +11, and a 0.5 threshold throws away 4 of the 5 top-ranked hits. After the fix, the reranker moves c09 from position 3 in the hybrid list to rank 1, so MRR@10 rises from 0.770 to 0.860 while R@5 stays at 0.933: a reranker only reorders. Analogy: the reranker hands back seat numbers from your own guest list, not names, and it scores on a scale you did not choose. The same position-index trap exists in the Cohere and Voyage rerank APIs. A likely follow-up: "How do you set a no-answer cut-off?" Pass a sigmoid or use a calibrated model, tune the threshold on labelled data, and re-tune after every model upgrade. Next: this fixed MiniLM rerank_search is the baseline; swap in Ettin and count the cost.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "rag-interview-c03-debug-rerank";
+  // illustrative hybrid candidates for "zipper broke on my pack after 3 years" (first 5 of 30)
+  const CANDS = ["c06", "c08", "c10", "c09", "c03"];
+  // rank() top-5 output (logits from the lab): [position, chunk, score, label side]
+  const HITS = [[3, "c09", 6.91, -1], [1, "c08", -2.48, -1], [0, "c06", -6.10, -1], [2, "c10", -9.73, -1], [4, "c03", -10.42, 1]];
+  const AX0 = 50, AX1 = 720, AY = 112;
+  const ax = (s) => AX0 + ((s + 12) / 20) * (AX1 - AX0);
+  let gP, gA, gB, gC, g0, arrow, wrong, dots = [], thr, caps, chips = [], built = false;
+  const el = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); parent.appendChild(e); return e; };
+  const tx = (p, x, y, s, a) => { const t = el("text", Object.assign({ x, y, "font-size": 16, fill: "var(--ink-2)" }, a || {}), p); t.textContent = s; return t; };
+
+  function build(svg) {
+    svg.innerHTML = ""; dots = []; chips = [];
+    // 0: before any click
+    g0 = el("g", {}, svg);
+    tx(g0, 385, 110, "Find both bugs before the next click.", { "text-anchor": "middle", "font-size": 18, fill: "var(--muted)" });
+    // P: what rank() does (no values yet)
+    gP = el("g", {}, svg);
+    tx(gP, 0, 20, "rank(query, 30 texts, top_k=5)", { "font-size": 16, fill: "var(--ink)", "font-weight": 700 });
+    for (let i = 0; i < 30; i++) {
+      el("rect", { x: (i % 10) * 30, y: 44 + Math.floor(i / 10) * 30, width: 22, height: 22, rx: 4, fill: "var(--agent-soft)", stroke: "var(--agent)", "stroke-width": 1.2 }, gP);
+    }
+    tx(gP, 0, 156, "30 pairs, one forward pass each", { "font-size": 15 });
+    el("path", { d: "M 320 88 h 60 m -10 -8 l 10 8 l -10 8", fill: "none", stroke: "var(--ink-2)", "stroke-width": 2.5 }, gP);
+    for (let i = 0; i < 5; i++) {
+      el("rect", { x: 400, y: 30 + i * 26, width: 360, height: 22, rx: 6, fill: "var(--model-soft)", stroke: "var(--model)", "stroke-width": 1.2 }, gP);
+      tx(gP, 412, 46 + i * 26, '{"corpus_id": …, "score": …}', { "font-size": 14, fill: "var(--ink)" });
+    }
+    tx(gP, 400, 178, "5 dicts, sorted best first", { "font-size": 15 });
+    // A: positions vs chunk IDs
+    gA = el("g", {}, svg);
+    tx(gA, 0, 18, "cand_ids = hybrid top 30 (first 5 shown)", { "font-size": 15, fill: "var(--muted)" });
+    CANDS.forEach((c, i) => {
+      const x = i * 112;
+      tx(gA, x + 46, 44, "pos " + i, { "font-size": 14, "text-anchor": "middle", fill: "var(--muted)" });
+      const r = el("rect", { x, y: 52, width: 92, height: 40, rx: 8, fill: "var(--surface-2)", stroke: i === 3 ? "var(--state)" : "var(--line-2)", "stroke-width": i === 3 ? 3 : 1.5 }, gA);
+      tx(gA, x + 46, 78, c, { "font-size": 17, "font-weight": 700, "text-anchor": "middle", fill: "var(--ink)" });
+    });
+    tx(gA, 580, 78, "… pos 29", { "font-size": 16, fill: "var(--muted)" });
+    el("rect", { x: 0, y: 124, width: 392, height: 38, rx: 8, fill: "var(--model-soft)", stroke: "var(--model)", "stroke-width": 1.5 }, gA);
+    tx(gA, 14, 149, 'rank() → {"corpus_id": 3, "score": 6.91}', { "font-size": 15.5, fill: "var(--ink)" });
+    arrow = el("path", { d: "M 200 124 C 240 108, 360 116, 382 96", fill: "none", stroke: "var(--state)", "stroke-width": 2.6 }, gA);
+    el("path", { d: "M 382 94 l -8 9 l 12 1 z", fill: "var(--state)" }, gA);
+    wrong = el("g", {}, gA);
+    tx(wrong, 0, 196, "code returns 3", { "font-size": 17, fill: "var(--risk)", "font-weight": 700 });
+    tx(wrong, 160, 196, "→ evaluator wants \"c09\" → miss", { "font-size": 17 });
+    tx(wrong, 410, 149, "cand_ids[3] = \"c09\"", { "font-size": 17, fill: "var(--state)", "font-weight": 700 });
+    // B: logit axis with the 0.5 threshold
+    gB = el("g", {}, svg);
+    tx(gB, 0, 18, "h[\"score\"] for the 5 hits: raw logits", { "font-size": 15, fill: "var(--muted)" });
+    el("line", { x1: AX0, y1: AY, x2: AX1, y2: AY, stroke: "var(--line-2)", "stroke-width": 2.5 }, gB);
+    [-12, -8, -4, 0, 4, 8].forEach((v) => {
+      el("line", { x1: ax(v), y1: AY, x2: ax(v), y2: AY + 7, stroke: "var(--line-2)", "stroke-width": 2 }, gB);
+      tx(gB, ax(v), AY + 26, (v > 0 ? "+" : "") + v, { "font-size": 15, "text-anchor": "middle", fill: "var(--muted)" });
+    });
+    HITS.forEach(([, c, s, side], i) => {
+      const keep = s > 0.5;
+      const d = el("circle", { cx: ax(s), cy: AY, r: 9, fill: keep ? "var(--state)" : "var(--agent)" }, gB);
+      d._x = ax(s); d._keep = keep; d._i = i;
+      d._t = tx(gB, ax(s), side < 0 ? AY - 20 : AY + 52, c + " " + s.toFixed(2), { "font-size": 15, "text-anchor": "middle", fill: "var(--ink)", "font-weight": 600 });
+      dots.push(d);
+    });
+    thr = el("line", { x1: ax(0.5), y1: 34, x2: ax(0.5), y2: AY + 32, stroke: "var(--risk)", "stroke-width": 2.5, "stroke-dasharray": "6 4" }, gB);
+    tx(gB, ax(0.5) + 10, 46, "score > 0.5", { "font-size": 16, fill: "var(--risk)", "font-weight": 700 });
+    caps = el("g", {}, gB);
+    tx(caps, 0, 204, "dropped: 4 of 5 top-ranked hits", { "font-size": 20, fill: "var(--risk)", "font-weight": 700 });
+    tx(caps, 770, 204, "kept: 1, returned as 3", { "font-size": 20, "text-anchor": "end", fill: "var(--state)", "font-weight": 700 });
+    // C: fixed list
+    gC = el("g", {}, svg);
+    tx(gC, 0, 18, "fixed: rank order, mapped back to chunk IDs", { "font-size": 15, fill: "var(--muted)" });
+    HITS.forEach(([p, c, s], i) => {
+      const g = el("g", {}, gC);
+      const x = i * 152;
+      el("rect", { x, y: 34, width: 136, height: 84, rx: 10, fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": i === 0 ? 3 : 1.2 }, g);
+      tx(g, x + 68, 62, "rank " + (i + 1) + " " + c, { "font-size": 17, "font-weight": 700, "text-anchor": "middle", fill: "var(--ink)" });
+      tx(g, x + 68, 86, "was pos " + p, { "font-size": 14.5, "text-anchor": "middle", fill: "var(--ink-2)" });
+      tx(g, x + 68, 107, "logit " + s.toFixed(2), { "font-size": 14.5, "text-anchor": "middle", fill: i === 0 ? "var(--state)" : "var(--muted)", "font-weight": i === 0 ? 700 : 500 });
+      chips.push(g);
+    });
+    tx(gC, 0, 156, "The reranker moved c09 from position 3 to rank 1.", { "font-size": 17, fill: "var(--ink)" });
+    tx(gC, 0, 190, "R@5 0.933 (reorder only) · MRR@10 0.770 → 0.860", { "font-size": 18, fill: "var(--state)", "font-weight": 700 });
+    built = true;
+  }
+
+  function kill() {
+    gsap.killTweensOf([g0, gP, gA, gB, gC, arrow, wrong, thr, caps, ...dots, ...chips]);
+    dots.forEach((d) => gsap.killTweensOf(d._t));
+  }
+
+  function paint(n, animate) {
+    kill();
+    const show = (g, on) => (animate ? gsap.to(g, { opacity: on ? 1 : 0, duration: 0.35 }) : gsap.set(g, { opacity: on ? 1 : 0 }));
+    show(g0, n === 0); show(gP, n === 1); show(gA, n === 2); show(gB, n === 3); show(gC, n >= 4);
+    const len = 240;
+    arrow.setAttribute("stroke-dasharray", len);
+    if (n === 2 && animate) {
+      gsap.fromTo(arrow, { attr: { "stroke-dashoffset": len } }, { attr: { "stroke-dashoffset": 0 }, duration: 0.7, ease: "power2.out", delay: 0.2 });
+      gsap.fromTo(wrong, { opacity: 0 }, { opacity: 1, duration: 0.4, delay: 0.8 });
+    } else {
+      gsap.set(arrow, { attr: { "stroke-dashoffset": 0 } });
+      gsap.set(wrong, { opacity: 1 });
+    }
+    dots.forEach((d) => {
+      const fill = n >= 3 && !d._keep ? "var(--line-2)" : d._keep ? "var(--state)" : "var(--agent)";
+      if (n === 3 && animate) {
+        gsap.fromTo(d, { attr: { cx: ax(0.5) }, opacity: 0 }, { attr: { cx: d._x }, opacity: 1, duration: 0.6, delay: 0.1 + d._i * 0.08, ease: "power2.out" });
+        gsap.fromTo(d._t, { opacity: 0 }, { opacity: 1, duration: 0.3, delay: 0.5 + d._i * 0.08 });
+        gsap.set(d, { attr: { fill: d._keep ? "var(--state)" : "var(--agent)" } });
+        gsap.to(d, { attr: { fill }, duration: 0.3, delay: 1.2 });
+      } else {
+        gsap.set(d, { attr: { cx: d._x, fill }, opacity: 1 });
+        gsap.set(d._t, { opacity: 1 });
+      }
+    });
+    if (n === 3 && animate) {
+      gsap.fromTo(thr, { attr: { y2: 34 } }, { attr: { y2: AY + 32 }, duration: 0.5, delay: 0.8 });
+      gsap.fromTo(caps, { opacity: 0 }, { opacity: 1, duration: 0.3, delay: 1.3 });
+    } else {
+      gsap.set(thr, { attr: { y2: AY + 32 } });
+      gsap.set(caps, { opacity: 1 });
+    }
+    if (n >= 4 && animate) gsap.fromTo(chips, { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.4, stagger: 0.1, ease: "back.out(1.6)" });
+    else gsap.set(chips, { opacity: 1, y: 0 });
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { build(slide.querySelector("#dr-viz")); paint(step || 0, false); },
+    step(slide, n, animate) { if (!built) build(slide.querySelector("#dr-viz")); paint(n, animate); },
+    leave() { if (built) kill(); }
+  });
+})();
+</script>

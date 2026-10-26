@@ -1,0 +1,59 @@
+<section class="slide" id="adk-c01-lab-tools" data-tone="tool" data-title="Lab 1: the docstring is the schema">
+  <style>
+    #adk-c01-lab-tools pre.code, #adk-c01-lab-tools pre.code * { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #adk-c01-lab-tools a.cite.paper { flex-direction: row; padding: 8px 14px 8px 10px; gap: 10px; border-radius: 10px; border: 1px solid var(--line); background: color-mix(in oklab, var(--surface) 60%, transparent); }
+    #adk-c01-lab-tools .gotcha code { white-space: normal; overflow-wrap: anywhere; }
+    #adk-c01-lab-tools .gotcha > span { min-width: 0; }
+    #adk-c01-lab-tools .lt-main { display: grid; grid-template-columns: 850px 1fr; gap: 36px; align-items: center; }
+    #adk-c01-lab-tools .lt-right { gap: 22px; min-width: 0; }
+    #adk-c01-lab-tools .sch { border: 2px solid var(--tool); border-radius: 18px; background: var(--surface); padding: 20px 22px 22px; display: grid; gap: 16px; }
+    #adk-c01-lab-tools .sch-hd { font: 600 15px/1 var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+    #adk-c01-lab-tools .sch-nm { font: 700 24px/1.1 var(--f-mono); color: var(--ink); }
+    #adk-c01-lab-tools .sr { display: grid; gap: 6px; padding: 12px 14px; border-radius: 12px; background: var(--tool-soft); border: 1px solid color-mix(in oklab, var(--tool) 35%, transparent); }
+    #adk-c01-lab-tools .sr .k { font: 700 16px/1.2 var(--f-mono); color: var(--tool); }
+    #adk-c01-lab-tools .sr .v { font: 500 18px/1.35 var(--f-mono); color: var(--ink); }
+    #adk-c01-lab-tools .lt-cap { position: relative; min-height: 64px; }
+    #adk-c01-lab-tools .lt-cap > p { position: absolute; left: 0; right: 0; top: 0; font-size: 21px; line-height: 1.4; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 1</span> Acme refund desk · step 2 of 8</div>
+  <h2 class="title">The signature and the docstring become the schema the model reads</h2>
+  <div class="lt-main fill">
+    <div class="code-wrap">
+      <div class="code-head">labs/adk/lab1-refund-tools/refund_agent/agent.py · excerpt</div>
+      <pre class="code" data-lang="python" data-focus="1:5, 2:7-8, 3:10-13"><code>from typing import Annotated
+from pydantic import Field
+
+def lookup_order(
+    order_id: Annotated[str, Field(description="Order ID, e.g. A-1001")],
+) -> dict:
+    """Look up an order.
+
+    Always call this before answering a refund question."""
+    order = ORDERS.get(order_id.strip().upper())
+    if order is None:
+        return {"status": "error",
+                "error_message": f"No order with ID {order_id}."}
+    return {"status": "success", "order": order}</code></pre>
+    </div>
+    <div class="lt-right stack">
+      <div class="sch">
+        <div class="sch-hd">tool schema · what the model reads</div>
+        <div class="sch-nm">lookup_order</div>
+        <div class="sr" data-step="1" data-fx="left"><span class="k">order_id.description</span><span class="v">"Order ID, e.g. A-1001"</span></div>
+        <div class="sr" data-step="2" data-fx="left"><span class="k">description</span><span class="v">"Look up an order. Always call this before answering…"</span></div>
+        <div class="sr" data-step="3" data-fx="left"><span class="k">returns</span><span class="v">a dict · errors are data too</span></div>
+      </div>
+      <div class="lt-cap">
+        <p data-step="1" data-until="2"><code>Field(description=...)</code> describes one parameter.</p>
+        <p data-step="2" data-until="3">The whole docstring becomes the tool description. ADK does not parse an <code>Args:</code> section.</p>
+        <p data-step="3">Return a dict. Any other value arrives as <code>{'result': value}</code>.</p>
+      </div>
+    </div>
+  </div>
+  <div class="cites">
+    <a class="cite codelab" href="https://codelabs.developers.google.com/devsite/codelabs/build-agents-with-adk-empowering-with-tools" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;Building AI Agents with ADK: Empowering with Tools</a>
+  </div>
+  <aside class="notes">
+    The model never sees your Python. It sees a schema built from the signature and the docstring. Step 1: Annotated with Field(description=...) gives order_id its own description. Step 2: the whole cleaned docstring becomes the tool description, verbatim; ADK does not parse a Google-style Args: section, so per-parameter text goes in Field. The codelab says it plainly: "The LLM uses the docstring to decide when and how to call the tool." Step 3: return a dict, also for errors, so the model can read the error and recover; any non-dict value is wrapped as {'result': value}. Analogy: the docstring is the label on a drawer; the model never opens the drawer, it only reads the label. Likely question: "Where do I say when not to call the tool?" In the docstring: when to call it, what it returns, what it will not do. Next: the second tool and the agent.
+  </aside>
+</section>

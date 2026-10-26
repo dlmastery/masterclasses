@@ -1,0 +1,184 @@
+<section class="slide tight" id="adk-c06-lab-mcp-server" data-tone="tool" data-title="Lab 6.1: MCP server over stdio">
+  <style>
+    #adk-c06-lab-mcp-server .lab-head { gap: 12px; flex-wrap: nowrap; }
+    #adk-c06-lab-mcp-server .lab-head .run { font-size: 15px; white-space: nowrap; }
+    #adk-c06-lab-mcp-server .lab-head .cite { font-size: 13.5px; padding: 4px 9px; white-space: nowrap; }
+    #adk-c06-lab-mcp-server .lab-head .cite:first-of-type { margin-left: auto; }
+    #adk-c06-lab-mcp-server .ms-body { display: grid; grid-template-columns: 774px 1fr; gap: 22px; align-items: start; }
+    #adk-c06-lab-mcp-server .ms-right { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+    #adk-c06-lab-mcp-server .code-head { padding: 7px 14px; font-size: 14px; }
+    #adk-c06-lab-mcp-server .ms-code pre.code { font-size: 15px; line-height: 1.34; padding: 8px 14px 10px; }
+    #adk-c06-lab-mcp-server .ms-out pre.code { font-size: 14.5px; line-height: 1.4; padding: 7px 14px 9px; }
+    #adk-c06-lab-mcp-server .ms-diag .node { padding: 9px 14px; }
+    #adk-c06-lab-mcp-server .ms-diag .node .nt { font-size: 17px; }
+    #adk-c06-lab-mcp-server .ms-diag .node .ns { font-size: 14px; }
+    #adk-c06-lab-mcp-server .ms-diag .group .gl { font-size: 14px; }
+    #adk-c06-lab-mcp-server .ms-rail { grid-template-columns: 1fr 1fr; gap: 8px 16px; }
+    #adk-c06-lab-mcp-server .ms-rail > * { font-size: 15.5px; line-height: 1.32; grid-template-columns: 26px 1fr; gap: 8px; }
+    #adk-c06-lab-mcp-server .ms-rail > *::before { width: 24px; height: 24px; font-size: 13px; border-radius: 7px; }
+    #adk-c06-lab-mcp-server .ms-rail code { font-size: 14px; }
+    #adk-c06-lab-mcp-server .ms-pipe { position: absolute; left: 0; top: 0; overflow: visible; z-index: 0; }
+    #adk-c06-lab-mcp-server .ms-pipe text { font: 700 15px var(--f-mono); }
+  </style>
+  <div class="kicker"><span class="pill">Lab 6</span> Northwind claims desk · step 1 of 4</div>
+  <h2 class="title">An MCP 2.x server exposes three claim tools over stdio</h2>
+  <div class="lab-head">
+    <span class="run">python claims_agent/claims_server.py &lt; /dev/null</span>
+    <a class="cite codelab" href="https://codelabs.developers.google.com/getting-started-mcp-a2a-adk" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;Getting Started with MCP, ADK and A2A</a>
+    <a class="cite doc" href="https://adk.dev/tools-custom/mcp-tools/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;adk.dev MCP tools</a>
+  </div>
+  <div class="ms-body fill">
+    <div class="code-wrap ms-code">
+      <div class="code-head">claims_agent/claims_server.py · mcp 2.3.0</div>
+      <pre class="code" data-lang="python" data-focus="1:2, 2:3, 3:6-25, 4:26-27, 5:3"><code>import logging, os, sys
+from mcp.server.mcpserver import MCPServer
+logging.basicConfig(stream=sys.stderr, level=logging.INFO)  # not stdout
+mcp = MCPServer("claims-server")
+CLAIMS = {"CLM-1001": {"status": "open", "amount": 1800.0}}
+@mcp.tool()
+def get_claim(claim_id: str) -&gt; dict:
+    """Return status and amount (USD) for a claim id like CLM-1001."""
+    if claim_id not in CLAIMS:
+        return {"status": "error", "message": f"Unknown claim {claim_id}."}
+    return {"status": "ok", "claim_id": claim_id, **CLAIMS[claim_id]}
+@mcp.tool()
+def approve_claim(claim_id: str, approved_amount: float) -&gt; dict:
+    """Approve a claim and schedule a payout of approved_amount USD."""
+    claim = CLAIMS.get(claim_id)
+    if claim is None or approved_amount &gt; claim["amount"]:  # server rule
+        return {"status": "error", "message": "Unknown claim or amount too high."}
+    claim["status"] = "approved"
+    return {"status": "ok", "claim_id": claim_id, "paid": approved_amount}
+@mcp.tool()
+def purge_claim(claim_id: str) -&gt; dict:
+    """Permanently delete a claim record (admin role only)."""
+    if os.environ.get("CLAIMS_ROLE") != "admin":  # server role check
+        return {"status": "error", "message": "Needs the admin role."}
+    return {"status": "ok", "purged": CLAIMS.pop(claim_id, None) is not None}
+if __name__ == "__main__":
+    mcp.run()  # transport defaults to "stdio"</code></pre>
+    </div>
+    <div class="ms-right">
+      <div class="diagram ms-diag" style="width:596px;height:232px">
+        <svg class="ms-pipe" width="596" height="232" viewBox="0 0 596 232" aria-label="The stdio pipe between the ADK agent and the claims-server process. The top lane is stdout and carries JSON-RPC messages both ways. The bottom lane is stderr and carries log lines to the terminal.">
+          <rect class="ms-lane-out" x="178" y="40" width="186" height="24" rx="12" style="fill:var(--tool-soft);stroke:var(--tool);stroke-width:2.5" />
+          <text x="271" y="28" text-anchor="middle" class="ms-lbl-out" style="fill:var(--ink-2)">stdout: JSON-RPC</text>
+          <rect x="178" y="181" width="186" height="24" rx="12" style="fill:var(--state-soft);stroke:var(--state);stroke-width:2.5" />
+          <path d="M190 193 L202 185 L202 201 Z" style="fill:var(--state)" />
+          <text x="271" y="226" text-anchor="middle" style="fill:var(--ink-2)">stderr: logs</text>
+          <g class="ms-flow"></g>
+          <g class="ms-print" style="opacity:0">
+            <rect x="0" y="0" width="76" height="24" rx="6" style="fill:var(--risk);stroke:var(--bg);stroke-width:2" />
+            <text x="38" y="17" text-anchor="middle" style="fill:#fff;font-size:13.5px">print()</text>
+          </g>
+          <g class="ms-dead" style="opacity:0">
+            <rect x="190" y="82" width="164" height="32" rx="8" style="fill:var(--risk-soft);stroke:var(--risk);stroke-width:2" />
+            <text x="272" y="104" text-anchor="middle" style="fill:var(--risk)">✕ session died</text>
+          </g>
+        </svg>
+        <div class="node n-agent" id="ms-agent" style="left:0;top:20px;width:178px"><span class="nt">claims_desk</span><span class="ns">McpToolset</span></div>
+        <div class="node n-human pill" id="ms-term" style="left:0;top:171px;width:178px"><span class="nt">terminal</span></div>
+        <div class="group g-tool" style="left:360px;top:0;width:236px;height:232px"><span class="gl">claims-server · MCPServer</span></div>
+        <div class="node n-tool" id="ms-t1" data-fx="none" style="left:376px;top:34px;width:204px"><span class="nt">get_claim</span></div>
+        <div class="node n-tool" id="ms-t2" data-fx="none" style="left:376px;top:102px;width:204px"><span class="nt">approve_claim</span></div>
+        <div class="node n-risk" id="ms-t3" data-fx="none" style="left:376px;top:170px;width:204px"><span class="nt">purge_claim</span></div>
+      </div>
+      <div class="steps-rail ms-rail">
+        <div data-step="1"><span>mcp 2.x renamed <code>FastMCP</code> to <code>MCPServer</code>. The old import fails.</span></div>
+        <div data-step="2"><span>Logs go to stderr. stdout carries only JSON-RPC.</span></div>
+        <div data-step="3"><span>Three tools. The server checks amount and role. Step 2 hides <code>purge_claim</code>.</span></div>
+        <div data-step="4"><span><code>mcp.run()</code> uses stdio. Run it alone to see import errors.</span></div>
+        <div data-step="5"><span>One <code>print()</code> on stdout breaks the JSON-RPC stream.</span></div>
+      </div>
+      <div class="code-wrap out ms-out" data-step="4">
+        <div class="code-head">output · illustrative</div>
+        <pre class="code" data-lang="out"><code>$ python claims_agent/claims_server.py &lt; /dev/null
+<span class="ok">stdout: empty</span>   <span class="dim"># only JSON-RPC may go there</span>
+<span class="dim">stderr: import errors and tracebacks show here first</span>
+<span class="dim"># stdin is closed: the server starts, reads end of input, exits</span>
+<span data-step="5" data-fx="fade"><span class="dim"># after print("server ready"), adk web logs:</span>
+<span class="err">ConnectionError: Failed to create MCP session: ...</span>
+<span class="ok">fix:</span> logging.info("server ready")   <span class="dim"># goes to stderr</span></span></code></pre>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">This is step 1 of the Northwind claims desk lab: a small MCP server with three claim tools that the agent starts as a child process. Walk the five steps. Step 1, the import: mcp 2.x renamed FastMCP to MCPServer, so old tutorials fail with an import error. Step 2, logging goes to stderr, because over stdio the stdout pipe carries the JSON-RPC messages and nothing else. Step 3, the three tools: get_claim returns a structured error for an unknown id, approve_claim refuses an amount above the claim, and purge_claim refuses callers without the admin role, so the server keeps its own checks whatever the client does. Step 4, mcp.run() picks stdio by default; running the server alone with stdin closed shows import errors in the terminal, because the server starts, reads the end of its input and exits. Step 5, one print() on stdout breaks the stream, and the agent sees "Failed to create MCP session"; use logging instead. Think of stdout as a phone line that a fax machine uses: if you say one word into it, the fax fails. A likely question: "Why not just remove purge_claim from the server?" Other MCP clients may need it, so the server keeps it behind its role check, and each client filters what its model may see. On Windows, use WSL or the cmd form from the setup slide.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "adk-c06-lab-mcp-server";
+  let loops = [], tl = null;
+
+  function clear(slide) {
+    loops.forEach((t) => t.kill()); loops = [];
+    if (tl) tl.kill(); tl = null;
+    if (slide) gsap.killTweensOf(slide.querySelectorAll(".ms-print, .ms-dead, .ms-lane-out, .ms-lbl-out, #ms-t1, #ms-t2, #ms-t3"));
+  }
+  function dot(g, r, fill) {
+    const c = document.createElementNS(NS, "circle");
+    c.setAttribute("r", r); c.setAttribute("cx", 0); c.setAttribute("cy", 0);
+    c.style.fill = fill; c.style.opacity = 0;
+    g.appendChild(c);
+    return c;
+  }
+  // deterministic flow: JSON-RPC requests go right, responses go left, log lines go left
+  function startFlow(flow) {
+    flow.innerHTML = "";
+    const specs = [];
+    for (let i = 0; i < 3; i++) specs.push({ c: dot(flow, 6, "var(--agent)"), from: 190, to: 352, y: 52, delay: i * 0.6 });
+    for (let i = 0; i < 3; i++) specs.push({ c: dot(flow, 6, "var(--tool)"), from: 352, to: 190, y: 52, delay: 0.3 + i * 0.6 });
+    for (let i = 0; i < 3; i++) specs.push({ c: dot(flow, 5, "var(--state)"), from: 352, to: 206, y: 193, delay: 0.15 + i * 0.6 });
+    specs.forEach((s) => {
+      const t = gsap.timeline({ repeat: -1, delay: s.delay });
+      t.set(s.c, { attr: { cx: s.from, cy: s.y }, opacity: 0 })
+        .to(s.c, { opacity: 1, duration: 0.15 })
+        .to(s.c, { attr: { cx: s.to }, duration: 1.5, ease: "none" }, 0)
+        .to(s.c, { opacity: 0, duration: 0.15 }, 1.35);
+      loops.push(t);
+    });
+  }
+
+  function render(slide, n, animate) {
+    clear(slide);
+    const svg = slide.querySelector(".ms-pipe");
+    const flow = svg.querySelector(".ms-flow");
+    const pr = svg.querySelector(".ms-print"), dead = svg.querySelector(".ms-dead");
+    const lane = svg.querySelector(".ms-lane-out"), lbl = svg.querySelector(".ms-lbl-out");
+    flow.innerHTML = "";
+    // the three tools are visible but faint until step 3 lights them
+    const chips = [...slide.querySelectorAll("#ms-t1, #ms-t2, #ms-t3")];
+    if (animate && n === 3) gsap.fromTo(chips, { opacity: 0.3 }, { opacity: 1, duration: 0.4, stagger: 0.15 });
+    else gsap.set(chips, { opacity: n >= 3 ? 1 : 0.3 });
+    const broken = n >= 5;
+    gsap.set(lane, { fill: "var(--tool-soft)", stroke: "var(--tool)" });
+    gsap.set(lbl, { fill: "var(--ink-2)" });
+    gsap.set([pr, dead], { opacity: 0, x: 0, y: 0 });
+    if (n >= 2 && !broken) startFlow(flow);
+    if (!broken) return;
+    // step 5: a print() line enters stdout, turns the lane red, and the session dies
+    const end = () => {
+      gsap.set(lane, { fill: "var(--risk-soft)", stroke: "var(--risk)" });
+      gsap.set(lbl, { fill: "var(--risk)" });
+      gsap.set(dead, { opacity: 1 });
+    };
+    if (animate) {
+      tl = gsap.timeline();
+      tl.set(pr, { opacity: 1, x: 370, y: 40 })
+        .to(pr, { x: 234, duration: 0.9, ease: "power1.in" })
+        .to(lane, { fill: "var(--risk-soft)", stroke: "var(--risk)", duration: 0.2 })
+        .to(lbl, { fill: "var(--risk)", duration: 0.2 }, "<")
+        .fromTo(dead, { opacity: 0, scale: 0.6, transformOrigin: "50% 50%" }, { opacity: 1, scale: 1, duration: 0.3, ease: "back.out(2)" });
+    } else {
+      gsap.set(pr, { opacity: 1, x: 234, y: 40 });
+      end();
+    }
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { clear(slide); },
+  });
+})();
+</script>

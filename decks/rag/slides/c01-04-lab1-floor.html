@@ -1,0 +1,168 @@
+<section class="slide tight" id="rag-c01-lab1-floor" data-tone="human" data-title="The floor run">
+  <style>
+    #rag-c01-lab1-floor .f-main { display: grid; grid-template-columns: 836px 1fr; gap: 28px; }
+    #rag-c01-lab1-floor .f-left, #rag-c01-lab1-floor .f-right { gap: 12px; min-width: 0; }
+    #rag-c01-lab1-floor .lab-head { font-size: 16px; gap: 12px; }
+    #rag-c01-lab1-floor .lab-head .run { font-size: 14px; }
+    #rag-c01-lab1-floor .code-wrap .code-head { padding: 8px 14px; font-size: 13.5px; }
+    #rag-c01-lab1-floor pre.code { font-size: 13px; line-height: 1.45; padding: 12px 18px 14px; }
+    #rag-c01-lab1-floor .code-wrap.out pre.code { font-size: 12.5px; line-height: 1.5; padding: 10px 18px 12px; }
+    #rag-c01-lab1-floor .card { border: 1px solid var(--line-2); border-radius: 16px; background: var(--surface); padding: 12px 14px 10px; }
+    #rag-c01-lab1-floor .card-head { font: 600 13px/1 var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); display: flex; justify-content: space-between; margin-bottom: 6px; }
+    #rag-c01-lab1-floor .card svg { display: block; overflow: visible; }
+    #rag-c01-lab1-floor .tray { margin-top: 8px; border: 1.5px dashed color-mix(in oklab, var(--risk) 45%, transparent); border-radius: 12px; padding: 8px 10px; min-height: 44px; display: flex; gap: 6px; flex-wrap: nowrap; align-items: center; }
+    #rag-c01-lab1-floor .tray .lbl { font: 700 12px/1 var(--f-mono); color: var(--risk); text-transform: uppercase; letter-spacing: .05em; margin-right: 4px; white-space: nowrap; }
+    #rag-c01-lab1-floor .chip { font: 600 12.5px/1 var(--f-mono); padding: 5px 6px; border-radius: 7px; color: var(--risk); background: var(--risk-soft); border: 1px solid color-mix(in oklab, var(--risk) 35%, transparent); opacity: 0; }
+    #rag-c01-lab1-floor .steps-rail { gap: 8px; }
+    #rag-c01-lab1-floor .steps-rail > * { font-size: 16px; line-height: 1.35; grid-template-columns: 30px 1fr; gap: 10px; }
+    #rag-c01-lab1-floor .steps-rail > *::before { width: 26px; height: 26px; font-size: 13px; }
+    #rag-c01-lab1-floor .steps-rail code { font-size: 13.5px; }
+    #rag-c01-lab1-floor .callout { font-size: 15px; padding: 9px 14px; line-height: 1.4; }
+    #rag-c01-lab1-floor .callout code { font-size: 12.5px; }
+    #rag-c01-lab1-floor .src { display: flex; gap: 10px; align-items: center; }
+    #rag-c01-lab1-floor .cite { font-size: 13.5px; padding: 5px 10px 5px 8px; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 1</span> Northwind support · step 3 of 4</div>
+  <h2 class="title">The floor run: a retriever that ignores the query scores 0.333</h2>
+  <div class="f-main fill">
+    <div class="f-left stack">
+      <div class="lab-head"><span class="run">python evalkit.py</span><span>stdlib only · Python 3.12</span></div>
+      <div class="code-wrap">
+        <div class="code-head">evalkit.py · part 2 of 2: the harness</div>
+        <pre class="code" data-lang="python" data-focus="1:2-3, 2:6-13, 3:19-21"><code># evalkit.py (continued): QUERIES and the four metric functions are defined above
+def evaluate(name: str, search, ks=(1, 3, 5)) -> dict:
+    """search(query_text) -> ranked list of chunk ids, best first."""
+    rows = {f"R@{k}": 0.0 for k in ks} | {"MRR@10": 0.0, "nDCG@5": 0.0}
+    misses = []
+    for qid, (text, gold) in QUERIES.items():
+        ranked = search(text)
+        for k in ks:
+            rows[f"R@{k}"] += recall_at_k(ranked, gold, k)
+        rows["MRR@10"] += mrr(ranked, gold)
+        rows["nDCG@5"] += ndcg_at_k(ranked, gold, 5)
+        if not hit_at_k(ranked, gold, 5):
+            misses.append(qid)
+    n = len(QUERIES)
+    rows = {m: round(v / n, 3) for m, v in rows.items()}
+    print(f"{name:&lt;22}", "  ".join(f"{m}={v:.3f}" for m, v in rows.items()), "| miss@5:", misses)
+    return rows
+
+if __name__ == "__main__":
+    from kb import IDS
+    evaluate("corpus-order (floor)", lambda q: IDS)   # a 'retriever' that ignores the query</code></pre>
+      </div>
+      <div class="code-wrap out" data-step="3">
+        <div class="code-head">output · executed, stdlib, Python 3.12, 2026-10-23 (one line, wrapped here)</div>
+        <pre class="code" data-lang="none"><code><span class="ok">corpus-order (floor)   R@1=0.067  R@3=0.233  R@5=0.333  MRR@10=0.197  nDCG@5=0.211</span>
+<span>| miss@5:</span> <span class="err">['q02', 'q05', 'q06', 'q08', 'q09', 'q10', 'q12', 'q13', 'q14', 'q15']</span></code></pre>
+      </div>
+    </div>
+    <div class="f-right stack">
+      <div class="card">
+        <div class="card-head"><span>scorecard · 15 queries</span><span>corpus order</span></div>
+        <svg id="c01f-svg" viewBox="0 0 500 200" width="500" height="200" aria-label="Floor scores for five metrics"></svg>
+        <div class="tray" id="c01f-tray"><span class="lbl">miss@5</span></div>
+      </div>
+      <div class="steps-rail">
+        <div data-step="1"><span>Any <code>search(text) -&gt; ranked ids</code> plugs in: BM25, hybrid, rerankers, Qdrant.</span></div>
+        <div data-step="2"><span>Sum each metric per query. No gold chunk in the top 5 adds the query to miss@5.</span></div>
+        <div data-step="3"><span>The floor returns all 18 chunks in corpus order for every query.</span></div>
+      </div>
+      <div class="callout pitfall" data-step="4"><span>A real retriever near the floor? Check ID mapping first: positions <code>[3, 0, 7]</code> never match <code>'c04'</code>.</span></div>
+      <div class="callout tip" data-step="5"><span>ranx 0.3.21 cross-check: ask for <code>"mrr@10"</code>. Plain <code>"mrr"</code> uses the whole run.</span></div>
+      <div class="src" data-step="5">
+        <a class="cite repo" href="https://github.com/AmenRa/ranx" target="_blank" rel="noopener"><b>Repo</b>&nbsp;AmenRa/ranx README: Evaluate</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    The harness takes any function that maps query text to a ranked list of chunk ids, so BM25, hybrid search, rerankers and Qdrant all plug in later without a change, and the numbers stay comparable. The floor run passes a retriever that ignores the query and returns the corpus in order; this output is the one in the course that was really executed, on the standard library and Python 3.12. It scores recall at 5 of 0.333 and MRR of 0.197, and it misses 10 of 15 queries in the top 5. Analogy: the floor is the price of a random guess on a multiple-choice exam; any student who studied must beat it. If a real retriever lands near these numbers, check the ID mapping before you blame the model, because integer positions never match string ids like c04. A likely question is "why not just use ranx?": you can, as a cross-check, but compare against mrr at 10, because plain mrr in ranx reads the whole run. Next: the first real retriever, BM25, goes into the same evaluate() call.
+  </aside>
+</section>
+<script>
+(() => {
+  const ID = "rag-c01-lab1-floor";
+  const NS = "http://www.w3.org/2000/svg";
+  const METRICS = [["R@1", 0.067], ["R@3", 0.233], ["R@5", 0.333], ["MRR@10", 0.197], ["nDCG@5", 0.211]];
+  const MISSES = ["q02", "q05", "q06", "q08", "q09", "q10", "q12", "q13", "q14", "q15"];
+  const BASE = 172, H = 140, X = 52, BW = 56, GAP = 36;     // y of the axis, px for score 1.0, bar layout
+  const bx = (i) => X + i * (BW + GAP);
+  const by = (v) => BASE - v * H;
+  const mk = (tag, attrs, parent, text) => {
+    const el = document.createElementNS(NS, tag);
+    for (const k in attrs) el.setAttribute(k, attrs[k]);
+    if (text !== undefined) el.textContent = text;
+    parent.appendChild(el);
+    return el;
+  };
+  let svg = null, R = null, chips = [];
+
+  function build(slide) {
+    svg = slide.querySelector("#c01f-svg");
+    const tray = slide.querySelector("#c01f-tray");
+    if (!svg._built) {
+      svg.innerHTML = "";
+      R = { bars: [], vals: [] };
+      const mono = "font-family:var(--f-mono)";
+      [0, 0.5, 1].forEach((t) => {
+        mk("line", { x1: 40, x2: 500, y1: by(t), y2: by(t), style: "stroke:var(--line-2);stroke-width:1" }, svg);
+        mk("text", { x: 32, y: by(t) + 4, "text-anchor": "end", style: mono + ";font-size:12px;fill:var(--muted)" }, svg, t.toFixed(1));
+      });
+      METRICS.forEach(([name], i) => {
+        R.bars.push(mk("rect", { x: bx(i), y: BASE, width: BW, height: 0, rx: 5, style: "fill:var(--muted);opacity:.75" }, svg));
+        R.vals.push(mk("text", { x: bx(i) + BW / 2, y: BASE - 8, "text-anchor": "middle", style: mono + ";font-size:14px;font-weight:700;fill:var(--ink)" }, svg, "0.000"));
+        mk("text", { x: bx(i) + BW / 2, y: BASE + 20, "text-anchor": "middle", style: mono + ";font-size:13px;font-weight:600;fill:var(--ink-2)" }, svg, name);
+      });
+      // floor profile: one dashed segment on top of each bar, joined into one line
+      const pts = METRICS.map(([, v], i) => `${bx(i) - 6},${by(v)} ${bx(i) + BW + 6},${by(v)}`).join(" ");
+      R.floor = mk("g", {}, svg);
+      R.floorLine = mk("polyline", { points: pts, style: "fill:none;stroke:var(--risk);stroke-width:2.5;stroke-dasharray:7 5" }, R.floor);
+      mk("text", { x: 500, y: by(0.333) - 34, "text-anchor": "end", style: "font-size:14px;font-weight:600;fill:var(--risk)" }, R.floor, "floor: any retriever must beat this");
+      svg._R = R; svg._built = true;
+    }
+    R = svg._R;
+    if (!tray._built) {
+      MISSES.forEach((q) => { const s = document.createElement("span"); s.className = "chip"; s.textContent = q; tray.appendChild(s); });
+      tray._built = true;
+    }
+    chips = [...tray.querySelectorAll(".chip")];
+  }
+
+  function render(n, animate) {
+    if (!R) return;
+    const on = n >= 3;
+    const d = animate ? 0.8 : 0;
+    METRICS.forEach(([, v], i) => {
+      const target = on ? v : 0;
+      gsap.to(R.bars[i], { attr: { y: by(target), height: BASE - by(target) }, duration: d, delay: on && animate ? 0.2 + i * 0.12 : 0, ease: "power2.out", overwrite: true });
+      const t = R.vals[i];
+      if (t._tw) { t._tw.kill(); t._tw = null; }
+      const paint = (x) => { t._v = x; t.textContent = !on && x === 0 ? "–" : x.toFixed(3); t.setAttribute("y", by(x) - 8); };
+      if (!animate) paint(target);
+      else {
+        const o = { v: t._v || 0 };
+        t._tw = gsap.to(o, { v: target, duration: d, delay: on ? 0.2 + i * 0.12 : 0, ease: "power2.out", onUpdate: () => paint(o.v), onComplete: () => paint(target) });
+      }
+    });
+    // the ten missed queries slide into the tray, one by one, after the bars
+    chips.forEach((c, i) => gsap.to(c, { autoAlpha: on ? 1 : 0, x: on ? 0 : -24, duration: animate ? 0.35 : 0, delay: on && animate ? 1.0 + i * 0.07 : 0, ease: "back.out(2)", overwrite: true }));
+    // step 4: the dashed floor profile
+    gsap.to(R.floor, { autoAlpha: n >= 4 ? 1 : 0, duration: animate ? 0.4 : 0, overwrite: true });
+    const len = 640;
+    R.floorLine.style.strokeDasharray = n >= 4 && animate ? `${len}` : "7 5";
+    if (n >= 4 && animate) {
+      gsap.fromTo(R.floorLine, { strokeDashoffset: len }, { strokeDashoffset: 0, duration: 0.8, ease: "power2.inOut", onComplete: () => { R.floorLine.style.strokeDasharray = "7 5"; R.floorLine.style.strokeDashoffset = 0; } });
+    } else { gsap.killTweensOf(R.floorLine); R.floorLine.style.strokeDashoffset = 0; }
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { build(slide); render(step || 0, false); },
+    step(slide, n, animate) { build(slide); render(n, animate); },
+    leave() {
+      if (svg) gsap.killTweensOf(svg.querySelectorAll("*"));
+      chips.forEach((c) => gsap.killTweensOf(c));
+      if (R) R.vals.forEach((t) => { if (t._tw) { t._tw.kill(); t._tw = null; } });
+    }
+  });
+})();
+</script>

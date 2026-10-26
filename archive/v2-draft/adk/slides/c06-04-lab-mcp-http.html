@@ -1,0 +1,195 @@
+<section class="slide tight" id="adk-c06-lab-mcp-http" data-tone="tool" data-title="Lab 6.3: streamable HTTP">
+  <style>
+    #adk-c06-lab-mcp-http .lab-head { gap: 12px; flex-wrap: nowrap; }
+    #adk-c06-lab-mcp-http .lab-head .run { font-size: 15px; white-space: nowrap; }
+    #adk-c06-lab-mcp-http .lab-head .pins { font: 500 15px/1.3 var(--f-mono); color: var(--muted); white-space: nowrap; }
+    #adk-c06-lab-mcp-http .lab-head .cite { font-size: 13.5px; padding: 4px 9px; margin-left: auto; white-space: nowrap; }
+    #adk-c06-lab-mcp-http .mh-grid { display: grid; grid-template-columns: 724px 1fr; gap: 24px; align-items: start; }
+    #adk-c06-lab-mcp-http .mh-stack { display: grid; }
+    #adk-c06-lab-mcp-http .mh-stack > * { grid-area: 1 / 1; align-self: start; }
+    #adk-c06-lab-mcp-http .mh-after { display: flex; flex-direction: column; gap: 12px; }
+    #adk-c06-lab-mcp-http .code-head { padding: 7px 14px; font-size: 14px; }
+    #adk-c06-lab-mcp-http pre.code { font-size: 15px; line-height: 1.45; padding: 9px 14px 11px; }
+    #adk-c06-lab-mcp-http .mh-strip pre.code { padding: 7px 14px 8px; }
+    #adk-c06-lab-mcp-http .mh-right { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+    #adk-c06-lab-mcp-http .mh-rail { grid-template-columns: 1fr 1fr; gap: 8px 16px; }
+    #adk-c06-lab-mcp-http .mh-rail > * { font-size: 16px; line-height: 1.34; grid-template-columns: 26px 1fr; gap: 8px; }
+    #adk-c06-lab-mcp-http .mh-rail > *::before { width: 24px; height: 24px; font-size: 13px; border-radius: 7px; }
+    #adk-c06-lab-mcp-http .mh-rail code { font-size: 14px; }
+    #adk-c06-lab-mcp-http .mh-out pre.code { font-size: 14.5px; line-height: 1.42; }
+    #adk-c06-lab-mcp-http .mh-out .role, #adk-c06-lab-mcp-http .mh-out .dim { color: #9aa5c4; }
+    /* scene: agent -- session -- server */
+    #adk-c06-lab-mcp-http .sc { position: relative; width: 644px; height: 236px; }
+    #adk-c06-lab-mcp-http .sc svg { position: absolute; inset: 0; overflow: visible; }
+    #adk-c06-lab-mcp-http .sc-box { position: absolute; top: 20px; height: 196px; border-radius: 14px; border: 2px solid; }
+    #adk-c06-lab-mcp-http .sc-box .bl { position: absolute; left: 12px; top: 10px; font: 700 15px/1.25 var(--f-mono); }
+    #adk-c06-lab-mcp-http .sc-agent { left: 0; width: 214px; border-color: var(--agent); background: var(--agent-soft); }
+    #adk-c06-lab-mcp-http .sc-agent .bl { color: var(--agent); }
+    #adk-c06-lab-mcp-http .sc-srv { left: 444px; width: 200px; border-color: var(--tool); background: var(--tool-soft); }
+    #adk-c06-lab-mcp-http .sc-srv .bl { color: var(--tool); }
+    #adk-c06-lab-mcp-http .sc-ep { position: absolute; left: 12px; bottom: 12px; font: 700 15px/1 var(--f-mono); color: var(--ink); }
+    #adk-c06-lab-mcp-http .sc-card { position: absolute; left: 0; top: 0; height: 32px; border-radius: 8px; border: 1.5px solid var(--tool); background: var(--bg);
+      display: flex; align-items: center; padding: 0 9px; font: 600 14px/1 var(--f-mono); color: var(--ink); white-space: nowrap; z-index: 3; }
+    #adk-c06-lab-mcp-http .sc-card b { color: var(--model); }
+    #adk-c06-lab-mcp-http .sc-tube { position: absolute; left: 250px; top: 92px; width: 158px; height: 52px; border-radius: 26px; border: 2px solid var(--state);
+      background: var(--state-soft); display: grid; place-items: center; font: 700 15px/1 var(--f-mono); color: var(--state); opacity: 0; z-index: 2; }
+    #adk-c06-lab-mcp-http .sc-to { position: absolute; left: 244px; top: 160px; width: 170px; text-align: center; font: 600 14px/1.3 var(--f-mono); color: var(--ink-2); opacity: 0; }
+    #adk-c06-lab-mcp-http .sc-wire { fill: none; stroke: var(--state); stroke-width: 3; stroke-dasharray: 8 7; opacity: 0; }
+    #adk-c06-lab-mcp-http .sc-glow { box-shadow: 0 0 0 4px color-mix(in oklab, var(--tool) 40%, transparent); }
+    #adk-c06-lab-mcp-http .sc-call { position: absolute; left: 0; top: 0; width: 14px; height: 14px; border-radius: 50%; background: var(--model); opacity: 0; z-index: 4; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 6</span> Northwind claims desk · step 3 of 4</div>
+  <h2 class="title">The claims handbook runs as a streamable HTTP MCP server</h2>
+  <div class="lab-head">
+    <span class="run">python claims_agent/handbook_server.py</span>
+    <span class="run">adk web .</span>
+    <span class="pins">prompt: "Is towing covered?"</span>
+    <a class="cite repo" href="https://github.com/google/adk-python/tree/v2.13.0/contributing/samples/mcp/mcp_streamablehttp_agent" target="_blank" rel="noopener"><b>Repo</b>&nbsp;mcp_streamablehttp_agent</a>
+  </div>
+  <div class="mh-grid fill">
+    <div class="mh-stack">
+      <div class="code-wrap" data-until="2">
+        <div class="code-head">claims_agent/handbook_server.py · terminal 2</div>
+        <pre class="code" data-lang="python" data-focus="1:16-18"><code>from mcp.server.mcpserver import MCPServer
+mcp = MCPServer("claims-handbook-server")
+POLICIES = {
+    "glass": "Glass repair has no deductible on comprehensive policies.",
+    "rental": "Rental car covered up to 30 days at $40 per day.",
+    "towing": "Towing covered up to 50 miles per incident.",
+}
+@mcp.tool()
+def search_policy(topic: str) -&gt; str:
+    """Search the claims handbook. topic is one of: glass, rental, towing."""
+    return POLICIES.get(topic.lower(), f"No policy found for '{topic}'.")
+@mcp.tool()
+def list_topics() -&gt; list[str]:
+    """List claims-handbook topics that search_policy understands."""
+    return sorted(POLICIES)
+if __name__ == "__main__":
+    # mcp 2.x: host and port go to run(); the path defaults to /mcp
+    mcp.run(transport="streamable-http", host="127.0.0.1", port=3000)</code></pre>
+      </div>
+      <div class="mh-after" data-step="2">
+        <div class="code-wrap mh-strip">
+          <div class="code-head">claims_agent/handbook_server.py · terminal 2 · running</div>
+          <pre class="code" data-lang="python"><code>mcp.run(transport="streamable-http", host="127.0.0.1", port=3000)</code></pre>
+        </div>
+        <div class="code-wrap">
+          <div class="code-head">claims_agent/agent.py · adds handbook_tools</div>
+          <pre class="code" data-lang="python" data-focus="2:4-7, 3:8-9, 4:13-14"><code>from google.adk.tools.mcp_tool import StreamableHTTPConnectionParams
+# above: the step 2 imports, payout_needs_human and claims_tools
+handbook_tools = McpToolset(
+    connection_params=StreamableHTTPConnectionParams(
+        url="http://127.0.0.1:3000/mcp",   # path defaults to /mcp
+        timeout=5.0,                       # connect, default 5.0 s
+        sse_read_timeout=300.0),           # streamed reads, default 300 s
+    tool_filter=["search_policy", "list_topics"],
+    tool_name_prefix="handbook",           # handbook_search_policy
+)
+root_agent = LlmAgent(
+    name="claims_desk", model="gemini-3.5-flash",
+    instruction=("You help claims adjusters. Look up a claim before approving "
+                 "it. Answer coverage only from handbook_search_policy."),
+    tools=[claims_tools, handbook_tools],
+)</code></pre>
+        </div>
+      </div>
+    </div>
+    <div class="mh-right">
+      <div class="sc" id="mh-sc">
+        <svg viewBox="0 0 644 236" width="644" height="236" aria-hidden="true">
+          <path class="sc-wire" data-k="l" d="M214 118 L 250 118"/>
+          <path class="sc-wire" data-k="r" d="M408 118 L 444 118"/>
+        </svg>
+        <div class="sc-box sc-agent"><span class="bl">claims_desk<br>model's tools</span></div>
+        <div class="sc-box sc-srv"><span class="bl">claims-handbook<br>-server</span><span class="sc-ep">:3000/mcp</span></div>
+        <div class="sc-tube">session</div>
+        <div class="sc-to">connect 5.0 s<br>read 300 s</div>
+        <div class="sc-card" data-k="sp">search_policy</div>
+        <div class="sc-card" data-k="lt">list_topics</div>
+        <div class="sc-card" data-k="sp2">search_policy</div>
+        <div class="sc-card" data-k="lt2">list_topics</div>
+        <i class="sc-call"></i>
+      </div>
+      <div class="steps-rail mh-rail">
+        <div data-step="1"><span>mcp 2.x: <code>host</code> and <code>port</code> go to <code>run()</code>. The path defaults to <code>/mcp</code>.</span></div>
+        <div data-step="2"><span>Connect timeout 5.0 s. Streamed reads wait up to 300 s.</span></div>
+        <div data-step="3"><span>Filter and prefix as in step 2. The model sees <code>handbook_search_policy</code>.</span></div>
+        <div data-step="4"><span>The instruction keeps coverage answers on the handbook tool.</span></div>
+      </div>
+      <div class="code-wrap out mh-out" data-step="4">
+        <div class="code-head">output · illustrative</div>
+        <pre class="code" data-lang="out"><code><span class="role">[user]:</span> Is towing covered?
+<span class="role">[claims_desk]:</span> call <span class="ok">handbook_search_policy</span> {"topic": "towing"}
+<span class="role">[claims_desk]:</span> result "Towing covered up to 50 miles per incident."
+<span class="role">[claims_desk]:</span> <span class="ok">Towing is covered up to 50 miles per incident.</span></code></pre>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">This is step 3 of the Northwind claims desk: the claims handbook runs as its own MCP server over streamable HTTP, in terminal 2, and claims_desk mounts it as a second toolset. Unlike stdio, this server is a network service: many agents can share it, and it keeps running when the agent stops. Step 1: in mcp 2.x, host and port go to run(), not to the MCPServer constructor, and the endpoint path defaults to /mcp, so the agent URL must end in /mcp. Step 2: StreamableHTTPConnectionParams sets a 5 second connect timeout and a 300 second read timeout for streamed responses. Step 3: the same filter and prefix as step 2, so the model sees handbook_search_policy and handbook_list_topics, and the two servers cannot collide on a name. Step 4: the instruction tells the model to answer coverage questions only from the handbook tool. Think of the stdio server as a cook inside the restaurant, and the HTTP server as a supplier across the street that many restaurants use. A likely question: "Do I still start claims_server.py myself?" No, McpToolset starts it over stdio; only the handbook server needs its own terminal. Step 4 sends each broker's identity to this server.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c06-lab-mcp-http";
+  let tw = [];
+  function clear() { tw.forEach((t) => t.kill()); tw = []; }
+  const SRV = { sp: [456, 62], lt: [456, 104] };     // chips inside the server box
+  const AG = { sp: [10, 72], lt: [10, 114] };         // slots in the agent's tool list
+  const LANE_Y = 102;
+
+  function render(slide, n, animate) {
+    clear();
+    const q = (s) => slide.querySelector(s);
+    const card = (k) => q(`.sc-card[data-k="${k}"]`);
+    const go = (el, props) => { if (animate) tw.push(gsap.to(el, { duration: 0.5, ease: "power3.out", overwrite: "auto", ...props })); else gsap.set(el, props); };
+    const srv = q(".sc-srv"), ep = q(".sc-ep"), tube = q(".sc-tube"), to = q(".sc-to"), call = q(".sc-call");
+    const wires = [...slide.querySelectorAll(".sc-wire")];
+    gsap.set(card("sp"), { x: SRV.sp[0], y: SRV.sp[1] });
+    gsap.set(card("lt"), { x: SRV.lt[0], y: SRV.lt[1] });
+
+    // step 1: the server listens on :3000/mcp
+    srv.classList.toggle("sc-glow", n === 1);
+    if (animate && n === 1) tw.push(gsap.fromTo(ep, { scale: 1.4 }, { scale: 1, duration: 0.6, ease: "back.out(2)" }));
+
+    // step 2: one session with the two timeouts
+    go(tube, { opacity: n >= 2 ? 1 : 0 });
+    go(to, { opacity: n >= 2 ? 1 : 0 });
+    wires.forEach((w) => go(w, { opacity: n >= 2 ? 1 : 0 }));
+    if (n >= 2 && animate) wires.forEach((w) => tw.push(gsap.fromTo(w, { strokeDashoffset: 0 }, { strokeDashoffset: -30, duration: 0.8, ease: "none", repeat: -1 })));
+
+    // step 3: tools/list comes back through the session; each tool gets the handbook_ prefix
+    const label = (el, base, on) => { el.innerHTML = on ? `<b>handbook_</b>${base}` : base; };
+    ["sp", "lt"].forEach((k, i) => {
+      const el = card(k + "2"), base = k === "sp" ? "search_policy" : "list_topics";
+      if (n < 3) { gsap.set(el, { x: SRV[k][0], y: SRV[k][1], opacity: 0 }); label(el, base, false); return; }
+      if (animate && n === 3) {
+        label(el, base, false);
+        gsap.set(el, { x: SRV[k][0], y: SRV[k][1], opacity: 1 });
+        tw.push(gsap.timeline({ delay: 0.2 + i * 0.45 })
+          .to(el, { y: LANE_Y, x: 420, duration: 0.35, ease: "power2.inOut" })
+          .to(el, { x: 262, duration: 0.55, ease: "none" })
+          .call(() => label(el, base, true))
+          .fromTo(el, { scale: 1.12 }, { scale: 1, duration: 0.3, ease: "back.out(3)" })
+          .to(el, { x: AG[k][0], y: AG[k][1], duration: 0.5, ease: "power2.inOut" }));
+      } else { label(el, base, true); gsap.set(el, { x: AG[k][0], y: AG[k][1], opacity: 1 }); }
+    });
+
+    // step 4: one call travels to the server and back
+    gsap.set(call, { opacity: 0, x: 214, y: 111 });
+    if (n >= 4 && animate && n === 4) {
+      tw.push(gsap.timeline({ repeat: 2, delay: 0.3 })
+        .set(call, { x: 214, opacity: 1, background: "var(--model)" })
+        .to(call, { x: 440, duration: 0.8, ease: "none" })
+        .set(call, { background: "var(--state)" })
+        .to(call, { x: 214, duration: 0.8, ease: "none" })
+        .set(call, { opacity: 0 }));
+    }
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { clear(); if (slide) gsap.killTweensOf(slide.querySelectorAll(".sc *")); },
+  });
+})();
+</script>

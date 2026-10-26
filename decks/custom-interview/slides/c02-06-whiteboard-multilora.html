@@ -1,0 +1,147 @@
+<section class="slide" id="custom-interview-c02-whiteboard-multilora" data-tone="model" data-title="Whiteboard: per-tenant LoRA for 200 customers">
+  <style>
+    #custom-interview-c02-whiteboard-multilora .wb-grid { display: grid; grid-template-columns: 400px 1fr; gap: 32px; }
+    #custom-interview-c02-whiteboard-multilora .prompt { padding: 16px 20px; gap: 10px; }
+    #custom-interview-c02-whiteboard-multilora .prompt p { font-size: 18px; line-height: 1.42; margin: 0; color: var(--ink); }
+    #custom-interview-c02-whiteboard-multilora .prompt .tag, #custom-interview-c02-whiteboard-multilora .fleet .tag { font-size: 15px; padding: 5px 9px 5px 8px; }
+    #custom-interview-c02-whiteboard-multilora .steps-rail { gap: 12px; }
+    #custom-interview-c02-whiteboard-multilora .steps-rail > * { font-size: 18px; line-height: 1.35; }
+    #custom-interview-c02-whiteboard-multilora code, #custom-interview-c02-whiteboard-multilora pre.code * { font-variant-ligatures: none; }
+    #custom-interview-c02-whiteboard-multilora .node .ns { font-size: 14px; }
+    #custom-interview-c02-whiteboard-multilora .chips { display: flex; gap: 8px; margin-top: 6px; }
+    #custom-interview-c02-whiteboard-multilora .chip { white-space: nowrap; font: 700 14px/1 var(--f-mono); padding: 6px 10px; border-radius: 999px; color: #fff; }
+    #custom-interview-c02-whiteboard-multilora .c-a { background: var(--agent); }
+    #custom-interview-c02-whiteboard-multilora .c-b { background: var(--tool); }
+    #custom-interview-c02-whiteboard-multilora .c-c { background: var(--state); }
+    #custom-interview-c02-whiteboard-multilora .wb-tok { position: absolute; left: 0; top: 0; z-index: 4; width: 24px; height: 24px; border-radius: 50%;
+      display: grid; place-items: center; font: 700 13px/1 var(--f-mono); color: #fff; opacity: 0; visibility: hidden; box-shadow: 0 0 10px currentColor; }
+    #custom-interview-c02-whiteboard-multilora .wb-tok.c-a { color: var(--agent); } #custom-interview-c02-whiteboard-multilora .wb-tok.c-b { color: var(--tool); } #custom-interview-c02-whiteboard-multilora .wb-tok.c-c { color: var(--state); }
+    #custom-interview-c02-whiteboard-multilora .wb-tok span { color: #fff; }
+    #custom-interview-c02-whiteboard-multilora .wb-num { position: absolute; z-index: 3; width: 28px; height: 28px; border-radius: 9px; display: grid; place-items: center;
+      font: 700 15px/1 var(--f-mono); color: #fff; background: var(--model); box-shadow: 0 0 0 3px var(--surface, #fff); }
+    #custom-interview-c02-whiteboard-multilora .wb-term { position: absolute; left: 0; top: 432px; width: 540px; }
+    #custom-interview-c02-whiteboard-multilora .wb-term pre.code { font-size: 14.5px; line-height: 1.5; padding: 10px 14px 12px; }
+    #custom-interview-c02-whiteboard-multilora .wb-term .code-head { padding: 7px 14px; font-size: 14px; }
+    #custom-interview-c02-whiteboard-multilora .wb-fail { position: absolute; left: 566px; top: 432px; width: 394px; font-size: 16px; line-height: 1.38; padding: 12px 14px; z-index: 2; grid-template-columns: 76px 1fr; gap: 4px 10px; }
+    #custom-interview-c02-whiteboard-multilora .wb-fail > b { font-size: 12.5px; }
+    #custom-interview-c02-whiteboard-multilora .wb-fail .cites { grid-column: 1 / -1; gap: 8px; margin-top: 4px; display: flex; flex-wrap: wrap; }
+    #custom-interview-c02-whiteboard-multilora .wb-fail .cite { font-size: 13.5px; }
+    #custom-interview-c02-whiteboard-multilora .wb-lead { position: absolute; left: 0; top: 0; z-index: 1; overflow: visible; pointer-events: none; }
+  </style>
+  <div class="kicker"><span class="pill">Whiteboard</span> System design</div>
+  <h2 class="title">Design per-tenant fine-tuning for 200 enterprise customers</h2>
+  <div class="wb-grid fill">
+    <div class="stack" style="gap:18px">
+      <div class="panel k-model prompt">
+        <h4>Prompt</h4>
+        <p>200 enterprise tenants each want a tuned assistant. One GPU pool. New adapters weekly. No tenant may see another tenant's behavior.</p>
+        <div class="tags"><span class="tag t-model">1 base: Qwen3-0.6B</span><span class="tag t-state">weekly adapters</span><span class="tag t-risk">tenant isolation</span></div>
+      </div>
+      <div class="steps-rail">
+        <div data-step="1"><span>One LoRA SFT per tenant: 10.09M params, ~40 MB fp32 (~20 MB bf16).</span></div>
+        <div data-step="2"><span>Registry diffs adapter keys and runs 5 golden prompts.</span></div>
+        <div data-step="3"><span>Eval gate: adapter on/off A/B on the same weights.</span></div>
+        <div data-step="4"><span>Router maps the auth <code>tenant_id</code>, never the request body, to an adapter.</span></div>
+      </div>
+      <div class="tags fleet" data-step="1"><span class="tag t-state">200 adapters ≈ 8 GB</span><span class="tag t-risk">200 base copies ≈ 240 GB</span></div>
+    </div>
+
+    <div class="diagram" id="wb-dg" style="width:960px;height:630px"
+         data-wires="data>check@1:flow{state}; check>sft@1 [pass]; sft>reg@2:flow{model} [adapter]; reg>gate@3:bt [candidate]; gate>vllm@4:bt{human} [promote]; req>router@4 [auth tenant_id]; router>vllm@4 [model=tenant]">
+      <div class="node n-state" id="data" style="left:0;top:20px;width:155px" data-step="1"><span class="nt">Tenant data</span><span class="ns">JSONL</span></div>
+      <div class="node n-tool" id="check" style="left:240px;top:20px;width:190px" data-step="1"><span class="nt">Contract check</span><span class="ns">template + mask</span></div>
+      <div class="node n-model" id="sft" style="left:515px;top:20px;width:150px" data-step="1"><span class="nt">LoRA SFT</span><span class="ns">per tenant</span></div>
+      <div class="node n-state" id="reg" style="left:750px;top:20px;width:210px" data-step="2" data-fx="pop"><span class="nt">Adapter registry</span><span class="ns">key diff + golden</span></div>
+      <div class="node n-human" id="gate" style="left:750px;top:170px;width:210px" data-step="3" data-fx="pop"><span class="nt">Eval gate</span><span class="ns">adapter on / off</span></div>
+      <div class="node n-human pill" id="req" style="left:0;top:322px;width:150px" data-step="4"><span class="nt">Request</span><span class="ns">tenant A · B · C</span></div>
+      <div class="node n-agent" id="router" style="left:235px;top:316px;width:190px" data-step="4"><span class="nt">Router</span><span class="ns">auth tenant → adapter</span></div>
+      <div class="node n-model" id="vllm" style="left:560px;top:300px;width:400px" data-step="4">
+        <span class="nt">vLLM shared base</span><span class="ns">--enable-lora · --max-loras 8</span>
+        <div class="chips"><span class="chip c-a">tenant A</span><span class="chip c-b">tenant B</span><span class="chip c-c">tenant C</span></div>
+      </div>
+      <div class="wb-num" style="left:226px;top:6px" data-step="1">1</div>
+      <div class="wb-num" style="left:501px;top:6px" data-step="1">1</div>
+      <div class="wb-num" style="left:736px;top:6px" data-step="2">2</div>
+      <div class="wb-num" style="left:736px;top:156px" data-step="3">3</div>
+      <div class="wb-num" style="left:221px;top:302px" data-step="4">4</div>
+      <div class="wb-num" style="left:546px;top:286px" data-step="4">4</div>
+      <div class="wb-tok c-a"><span>A</span></div>
+      <div class="wb-tok c-b"><span>B</span></div>
+      <div class="wb-tok c-c"><span>C</span></div>
+
+      <div class="code-wrap term wb-term" data-step="4">
+        <div class="code-head">serve 200 adapters on one base</div>
+        <pre class="code" data-lang="bash"><code>$ export VLLM_ALLOW_RUNTIME_LORA_UPDATING=True
+$ vllm serve Qwen/Qwen3-0.6B --enable-lora \
+    --max-lora-rank 16 --max-loras 8 \
+    --max-cpu-loras 200
+# weekly: hot-load a new adapter, no restart
+$ curl -X POST $URL/v1/load_lora_adapter -d \
+  '{"lora_name":"tenantA","lora_path":"./a"}'
+# request: {"model": "tenantA", "messages": [...]}</code></pre>
+      </div>
+      <svg class="wb-lead" width="960" height="630" data-step="5" aria-hidden="true">
+        <path d="M 760 432 L 760 396" fill="none" stroke="var(--risk)" stroke-width="2.5" stroke-dasharray="6 5"/>
+        <circle cx="760" cy="396" r="5" fill="var(--risk)"/>
+      </svg>
+      <div class="gotcha wb-fail" data-step="5">
+        <b>Symptom</b><span>Adapter keys silently dropped. Output = base, no error.</span>
+        <b class="why">Cause</b><span>PEFT drops unexpected keys; transformers v5 renames break adapters in vLLM.</span>
+        <b class="fix">Fix</b><span>CI loads each adapter in vLLM. Greedy tokens must match PEFT on 3 golden prompts.</span>
+        <div class="cites">
+          <a class="cite repo" href="https://github.com/huggingface/peft/issues/3804" target="_blank" rel="noopener"><b>Issue</b>&nbsp;PEFT #3804</a>
+          <a class="cite repo" href="https://github.com/huggingface/peft/issues/3896" target="_blank" rel="noopener"><b>Issue</b>&nbsp;PEFT #3896 (vLLM)</a>
+        </div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Read the prompt and let the candidate ask questions first: how many tenants, how often adapters change, and what isolation means. Use the refund assistant as tenant A. The key insight is that 200 tenants need 200 small adapters on one shared base, not 200 model copies: 10.09M parameters are about 40 MB in fp32 or 20 MB in bf16, so 200 adapters are about 8 GB of storage, against about 240 GB for 200 bf16 copies of the 1.2 GB base. The numbered badges match the steps on the left. Steps 2 and 3 separate senior answers: a key-diff load check, a golden-output test, and a same-weights A/B with disable_adapter. Step 4 is multi-LoRA serving in vLLM. max_lora_rank must be at least the adapter rank, 16 here. max_loras is how many adapters can be in one batch on the GPU, and its default is 1; max_cpu_loras is the CPU cache. When tenant 151 calls and its adapter is not on the GPU, vLLM swaps it in from the CPU cache, and that first request pays the load cost. Weekly adapters load at runtime through /v1/load_lora_adapter when VLLM_ALLOW_RUNTIME_LORA_UPDATING is set, or with a rolling restart. Each request names its adapter in the OpenAI model field. Isolation: the router takes tenant_id from authentication, never from the request body; log the adapter name on every request, and test the tenant-to-adapter map in CI. The last step shows what fails silently: PeftModel.from_pretrained drops unexpected keys and strict=True does nothing (PEFT issue 3804), and transformers v5 module renames can make vLLM ignore an adapter (filed on the PEFT repo as issue 3896). The analogy: one engine with 200 swappable keys. Next chapter: reinforcement learning and rewards.</aside>
+</section>
+<script>
+(() => {
+  const ID = "custom-interview-c02-whiteboard-multilora";
+  let loop = null, tw = [];
+  const box = (el, d) => { let x = 0, y = 0, n = el; while (n && n !== d) { x += n.offsetLeft; y += n.offsetTop; n = n.offsetParent; } return { x, y, w: el.offsetWidth, h: el.offsetHeight }; };
+  function stop() { if (loop) { loop.kill(); loop = null; } tw.forEach((t) => t.kill()); tw = []; }
+  function render(slide, n, animate) {
+    stop();
+    const d = slide.querySelector("#wb-dg");
+    const toks = [...d.querySelectorAll(".wb-tok")];
+    const chips = [...d.querySelectorAll(".chip")];
+    if (n < 4) { gsap.set(toks, { autoAlpha: 0 }); gsap.set(chips, { x: 0, y: 0, autoAlpha: 1 }); return; }
+    const R = box(d.querySelector("#req"), d), T = box(d.querySelector("#router"), d), V = box(d.querySelector("#vllm"), d), G = box(d.querySelector("#reg"), d);
+    // adapters dock from the registry into the shared base
+    if (animate && n === 4) chips.forEach((c, i) => {
+      const C = box(c, d);
+      tw.push(gsap.fromTo(c, { x: G.x + G.w / 2 - (C.x + C.w / 2), y: G.y + G.h / 2 - (C.y + C.h / 2), autoAlpha: 0 },
+        { x: 0, y: 0, autoAlpha: 1, duration: 0.9, delay: 0.5 + i * 0.25, ease: "power3.inOut" }));
+    });
+    else gsap.set(chips, { x: 0, y: 0, autoAlpha: 1 });
+    // requests: each tenant's token rides just below the wires (so it never covers a wire label),
+    // Request -> Router -> base, then lights its own adapter chip
+    loop = gsap.timeline({ repeat: -1, delay: animate && n === 4 ? 1.8 : 0.3 });
+    toks.forEach((t, i) => {
+      const C = box(chips[i], d), at = i * 1.3, h = 12, below = 30;
+      const p = [
+        [R.x + R.w - h, R.y + R.h / 2 - h + below],
+        [T.x - h, T.y + T.h / 2 - h + below],
+        [T.x + T.w - h, T.y + T.h / 2 - h + below],
+        [V.x - h, V.y + V.h / 2 - h + below],
+        [C.x + C.w / 2 - h, C.y + C.h / 2 - h]
+      ];
+      loop.set(t, { x: p[0][0], y: p[0][1], autoAlpha: 1, scale: 1 }, at)
+        .to(t, { x: p[1][0], y: p[1][1], duration: 0.45, ease: "none" }, at)
+        .to(t, { x: p[2][0], y: p[2][1], duration: 0.35, ease: "none" }, at + 0.45)
+        .to(t, { x: p[3][0], y: p[3][1], duration: 0.45, ease: "none" }, at + 0.8)
+        .to(t, { x: p[4][0], y: p[4][1], autoAlpha: 0, scale: 0.4, duration: 0.4, ease: "power2.in" }, at + 1.25)
+        .to(chips[i], { scale: 1.18, duration: 0.15, yoyo: true, repeat: 1 }, at + 1.6);
+    });
+    loop.to({}, { duration: 0.6 });
+  }
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { stop(); gsap.set(slide.querySelectorAll(".wb-tok"), { autoAlpha: 0 }); }
+  });
+})();
+</script>

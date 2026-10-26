@@ -1,0 +1,228 @@
+<section class="slide tight" id="adk-c05-gotcha-retry" data-tone="human" data-title="Gotcha: retry and resume">
+  <style>
+    #adk-c05-gotcha-retry pre.code, #adk-c05-gotcha-retry code { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #adk-c05-gotcha-retry .gr-body { display: grid; grid-template-columns: 560px minmax(0, 1fr); gap: 28px; align-items: start; }
+    #adk-c05-gotcha-retry .gr-left { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+    #adk-c05-gotcha-retry .gotcha { grid-template-columns: 84px 1fr; gap: 6px 12px; padding: 14px 18px; font-size: 17px; line-height: 1.35; }
+    #adk-c05-gotcha-retry .gotcha > b { font-size: 13px; line-height: 1.7; }
+    #adk-c05-gotcha-retry .gotcha .gr-n { grid-column: 1 / -1; font: 700 23px/1.2 var(--f-display); color: var(--ink); }
+    #adk-c05-gotcha-retry .gotcha .gr-n i { font-style: normal; color: var(--risk); font-family: var(--f-mono); margin-right: 8px; }
+    #adk-c05-gotcha-retry .gotcha .gr-src { color: var(--muted); font: 500 14px var(--f-mono); }
+    #adk-c05-gotcha-retry .gotcha code { font-size: 15px; }
+    #adk-c05-gotcha-retry .gr-stage { display: grid; min-width: 0; }
+    #adk-c05-gotcha-retry .gr-set { grid-area: 1 / 1; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+    #adk-c05-gotcha-retry .code-head { padding: 7px 14px; font-size: 13px; }
+    #adk-c05-gotcha-retry pre.code { font-size: 15px; line-height: 1.45; padding: 10px 16px 12px; }
+    #adk-c05-gotcha-retry .out pre.code, #adk-c05-gotcha-retry .out pre.code code { white-space: pre-wrap; font-size: 14px; }
+    #adk-c05-gotcha-retry .gr-cites { display: flex; gap: 8px; flex-wrap: wrap; }
+    #adk-c05-gotcha-retry .gr-cites .cite { font-size: 13px; padding: 4px 9px; }
+    #adk-c05-gotcha-retry .gr-fig { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); padding: 10px 14px; }
+    #adk-c05-gotcha-retry .gr-fig svg { display: block; width: 100%; height: auto; overflow: visible; }
+    #adk-c05-gotcha-retry svg text { font-family: var(--f-mono); }
+    #adk-c05-gotcha-retry .gr-h { font-size: 16px; font-weight: 700; fill: var(--ink); }
+    #adk-c05-gotcha-retry .gr-grp { fill: none; stroke: var(--line-2); stroke-width: 2; stroke-dasharray: 6 5; }
+    #adk-c05-gotcha-retry .gr-gl { font-size: 13px; fill: var(--muted); }
+    #adk-c05-gotcha-retry .gr-start { fill: var(--surface-2); stroke: var(--line-2); stroke-width: 2; }
+    #adk-c05-gotcha-retry .gr-node { stroke-width: 2; }
+    #adk-c05-gotcha-retry .gr-nt { font-size: 15px; font-weight: 700; fill: var(--ink); }
+    #adk-c05-gotcha-retry .gr-wire { fill: none; stroke: var(--line-2); stroke-width: 2; }
+    #adk-c05-gotcha-retry .gr-mark { font-size: 14px; font-weight: 700; }
+    #adk-c05-gotcha-retry .gr-cnt { font-size: 26px; font-weight: 800; }
+    #adk-c05-gotcha-retry .gr-env rect { stroke-width: 2; }
+    #adk-c05-gotcha-retry .gr-env path { fill: none; stroke-width: 2; }
+    #adk-c05-gotcha-retry .gr-div { stroke: var(--line); stroke-width: 1.2; }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> Retry and resume</div>
+  <h2 class="title sm">Retries and resume are at-least-once, so side effects need idempotency</h2>
+  <div class="gr-body fill">
+    <div class="gr-left">
+      <div class="gotcha">
+        <span class="gr-n"><i>1</i>Retries never happen</span>
+        <b data-step="1">Symptom</b><span data-step="1">A gateway 503 ends <code>pay</code> on attempt 1.</span>
+        <b class="fix" data-step="1">Fix</b><span data-step="1">Let transient errors raise. No <code>except Exception</code>.</span>
+      </div>
+      <div class="gotcha">
+        <span class="gr-n"><i>2</i>One run, two emails <span class="gr-src">· open #7524</span></span>
+        <b data-step="2">Symptom</b><span data-step="2"><code>send_email</code> runs again when a sibling retries.</span>
+        <b class="fix" data-step="2">Fix</b><span data-step="2">Put <code>retry_config</code> on the node that fails.</span>
+      </div>
+      <div class="gotcha">
+        <span class="gr-n"><i>3</i>The gateway pays twice</span>
+        <b data-step="3">Symptom</b><span data-step="3">A crash after the charge re-runs <code>pay</code>.</span>
+        <b class="fix" data-step="3">Fix</b><span data-step="3">Send one stable key: <code>"payout-" + invocation_id</code>.</span>
+      </div>
+      <div class="gr-cites" data-step="3">
+        <a class="cite repo" href="https://github.com/google/adk-python/issues/7524" target="_blank" rel="noopener"><b>Repo</b>&nbsp;adk-python #7524</a>
+        <a class="cite doc" href="https://adk.dev/runtime/resume/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;adk.dev/runtime/resume</a>
+        <a class="cite doc" href="https://adk.dev/2.0/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;adk.dev/2.0 migration guide</a>
+      </div>
+    </div>
+    <div class="gr-stage">
+      <div class="gr-set" data-step="1" data-until="2">
+        <div class="code-wrap bad">
+          <div class="code-head">payouts/app.py · pay</div>
+          <pre class="code" data-lang="python"><code>async def pay(ctx: Context, node_input: str):
+  try:
+    if ctx.attempt_count &lt; 3:
+      raise ConnectionError("gateway 503")
+  except Exception:
+    yield Event(output="error"); return  # RetryConfig never sees the 503</code></pre>
+        </div>
+        <div class="code-wrap good">
+          <div class="code-head">payouts/app.py · pay (Lab 5 step 3)</div>
+          <pre class="code" data-lang="python"><code>async def pay(ctx: Context, node_input: str):
+  if ctx.attempt_count &lt; 3:
+    raise ConnectionError("gateway 503")  # it raises, so RetryConfig retries
+  # Never catch BaseException. ADK raises NodeInterruptedError, a
+  # BaseException, to interrupt a node "so user code cannot
+  # accidentally catch it with except Exception".</code></pre>
+        </div>
+      </div>
+      <div class="gr-set" data-step="2" data-until="3">
+        <div class="code-wrap out bad">
+          <div class="code-head">output · issue #7524 repro · SQLite session</div>
+          <pre class="code" data-lang="none"><code><span class="err">[sqlite] node executions: {'flaky': 2, 'send_email': 2} emails sent: ['email #1', 'email #2']</span></code></pre>
+        </div>
+        <div class="gr-fig">
+          <svg id="gr-svg" viewBox="0 0 700 234" aria-label="Retry on the enclosing workflow re-runs send_email and sends two emails; retry on the flaky node sends one">
+            <defs>
+              <g id="gr-envdef"><rect x="0" y="0" width="30" height="21" rx="3" stroke-width="2"/><path d="M1 2 L15 12 L29 2" fill="none" stroke-width="2"/></g>
+            </defs>
+            <text class="gr-h" x="0" y="16">retry on the enclosing workflow</text>
+            <text class="gr-h" id="gr-hb" x="366" y="16">retry on the flaky node</text>
+            <line class="gr-div" x1="352" y1="0" x2="352" y2="234"/>
+            <!-- panel A -->
+            <rect class="gr-grp" id="gr-ga" x="84" y="32" width="260" height="152" rx="12"/>
+            <text class="gr-gl" id="gr-gla" x="94" y="50">Workflow retry</text>
+            <rect class="gr-start" x="0" y="94" width="66" height="32" rx="16"/>
+            <text class="gr-nt" x="33" y="115" text-anchor="middle">START</text>
+            <path class="gr-wire" d="M66 104 C 82 104, 84 78, 100 78"/>
+            <path class="gr-wire" d="M66 116 C 82 116, 84 142, 100 142"/>
+            <rect class="gr-node" id="gr-fa" x="100" y="60" width="122" height="36" rx="9"/>
+            <text class="gr-nt" x="161" y="83" text-anchor="middle">flaky</text>
+            <text class="gr-mark" id="gr-ma" x="228" y="83">✕</text>
+            <rect class="gr-node" id="gr-sa" x="100" y="124" width="122" height="36" rx="9"/>
+            <text class="gr-nt" x="161" y="147" text-anchor="middle">send_email</text>
+            <use href="#gr-envdef" class="gr-env" id="gr-ea1" x="234" y="131"/>
+            <use href="#gr-envdef" class="gr-env" id="gr-ea2" x="276" y="131"/>
+            <text class="gr-cnt" id="gr-ca" x="0" y="224">emails sent: 0</text>
+            <!-- panel B -->
+            <rect class="gr-grp" x="450" y="32" width="250" height="152" rx="12"/>
+            <text class="gr-gl" x="460" y="50">Workflow (no retry)</text>
+            <rect class="gr-start" x="366" y="94" width="66" height="32" rx="16"/>
+            <text class="gr-nt" x="399" y="115" text-anchor="middle">START</text>
+            <path class="gr-wire" d="M432 104 C 448 104, 450 78, 466 78"/>
+            <path class="gr-wire" d="M432 116 C 448 116, 450 142, 466 142"/>
+            <rect class="gr-node" id="gr-fb" x="466" y="60" width="122" height="36" rx="9"/>
+            <text class="gr-nt" x="527" y="83" text-anchor="middle">flaky</text>
+            <circle id="gr-rb" cx="527" cy="78" r="0" style="fill:none;stroke:var(--tool);stroke-width:2.5"/>
+            <text class="gr-mark" id="gr-mb" x="594" y="83">✕</text>
+            <text class="gr-gl" id="gr-rbl" x="466" y="114">node retry</text>
+            <rect class="gr-node" id="gr-sb" x="466" y="124" width="122" height="36" rx="9"/>
+            <text class="gr-nt" x="527" y="147" text-anchor="middle">send_email</text>
+            <use href="#gr-envdef" class="gr-env" id="gr-eb1" x="600" y="131"/>
+            <text class="gr-cnt" id="gr-cb" x="366" y="224">emails sent: 0</text>
+          </svg>
+        </div>
+        <div class="code-wrap good">
+          <div class="code-head">payouts/app.py · the retry already sits on pay (step 3)</div>
+          <pre class="code" data-lang="python"><code>@node(retry_config=RetryConfig(max_attempts=4, initial_delay=0.5, jitter=0.0,
+                               exceptions=[ConnectionError, "NodeTimeoutError"]),
+      timeout=2.0)
+async def pay(ctx: Context, node_input: str):    # body: Lab 5 step 3</code></pre>
+        </div>
+      </div>
+      <div class="gr-set" data-step="3">
+        <div class="code-wrap bad">
+          <div class="code-head">payouts/app.py · pay</div>
+          <pre class="code" data-lang="python"><code>from uuid import uuid4
+async def pay(ctx: Context, node_input: str):
+  key = str(uuid4())               # a new key after every crash and resume
+  yield Event(output=f"PAID idempotency_key={key}")</code></pre>
+        </div>
+        <div class="code-wrap good">
+          <div class="code-head">payouts/app.py · pay (Lab 5 step 3)</div>
+          <pre class="code" data-lang="python"><code>async def pay(ctx: Context, node_input: str):
+  key = "payout-" + ctx.invocation_id   # same key on retry and resume
+  yield Event(output=f"PAID idempotency_key={key}")
+  # "Tool call to resume needs to be idempotent": resume is
+  # at-least-once, so the gateway must dedupe on this key.</code></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">These three bugs hit the ACME-GmbH payout after the retry lab works; each one shows the buggy code first and then the fix. First, a node body that catches Exception and returns "error" hides the 503 from RetryConfig, so the node ends on attempt 1; the 2.0 migration guide says not to wrap the body like this. Let transient errors raise, and never catch BaseException, because ADK raises NodeInterruptedError, a BaseException, to interrupt a node. Second, issue 7524 is still open: the reporter's graph fans out flaky and send_email under a workflow that carries retry_config; when flaky fails once on a SQLite session, the retry re-runs the finished send_email too, so the customer gets two emails, while a retry on the flaky node itself sends one. The cause is that the finished sibling's output was still being persisted when the batch was cancelled, which is why InMemory passes and SQLite fails, so test resume and retry on the session backend you use in production. Our payout already follows the fix, because the retry sits on pay. Third, a crash between the charge and the persisted event re-runs pay, because resume is at-least-once: a uuid4 key changes on every run, so the gateway cannot detect the second charge, while payout- plus the invocation id stays the same. Think of the idempotency key as a cheque number: the bank pays a given cheque number once, however many times it is presented. Two related points for questions: Pub/Sub triggers create a new session for each redelivery, and since 2.12.0 tools can see the trigger delivery id to detect it; and do not change the graph while runs are paused, because checkpoint versioning is still an open item. Next: three recent papers on what an approval must bind.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c05-gotcha-retry";
+  let tl = null;
+  const q = (s, sel) => s.querySelector(sel);
+  const on = (el, v) => el.setAttribute("opacity", v ? "1" : "0");
+  function node(el, tone) {
+    el.style.fill = `var(--${tone}-soft)`;
+    el.style.stroke = `var(--${tone})`;
+  }
+  function env(el, shown, tone) {
+    on(el, shown);
+    el.style.fill = `var(--${tone}-soft)`;
+    el.style.stroke = `var(--${tone})`;
+  }
+  function mark(el, state) {
+    // state: 0 hidden, 1 fail, 2 ok
+    on(el, state > 0);
+    el.textContent = state === 2 ? "✓ try 2" : "✕ try 1";
+    el.style.fill = state === 2 ? "var(--state)" : "var(--risk)";
+  }
+  // a in [0,1]: retry on the enclosing workflow re-runs the finished sibling
+  function renderA(s, a) {
+    node(q(s, "#gr-fa"), a > 0.3 && a <= 0.6 ? "risk" : "tool");
+    node(q(s, "#gr-sa"), "tool");
+    mark(q(s, "#gr-ma"), a > 0.6 ? 2 : a > 0.3 ? 1 : 0);
+    const grp = q(s, "#gr-ga");
+    const flash = a > 0.42 && a <= 0.62;
+    grp.style.stroke = a > 0.42 ? "var(--risk)" : "";
+    grp.style.strokeWidth = flash ? "3.5" : "2";
+    q(s, "#gr-gla").textContent = a > 0.42 ? "Workflow retry: re-runs both" : "Workflow retry";
+    q(s, "#gr-gla").style.fill = a > 0.42 ? "var(--risk)" : "";
+    env(q(s, "#gr-ea1"), a > 0.15, "tool");
+    env(q(s, "#gr-ea2"), a > 0.75, "risk");
+    const nA = (a > 0.15 ? 1 : 0) + (a > 0.75 ? 1 : 0);
+    const c = q(s, "#gr-ca");
+    c.textContent = "emails sent: " + nA;
+    c.style.fill = nA > 1 ? "var(--risk)" : "var(--ink)";
+  }
+  // b in [0,1]: retry on the flaky node only; send_email runs once
+  function renderB(s, b) {
+    node(q(s, "#gr-fb"), b > 0.3 && b <= 0.62 ? "risk" : "tool");
+    node(q(s, "#gr-sb"), "tool");
+    mark(q(s, "#gr-mb"), b > 0.62 ? 2 : b > 0.3 ? 1 : 0);
+    const ring = q(s, "#gr-rb");
+    const r = b > 0.42 && b <= 0.62 ? 20 + 26 * ((b - 0.42) / 0.2) : 0;
+    ring.setAttribute("r", String(r));
+    ring.setAttribute("opacity", r > 0 ? String(1 - (r - 20) / 30) : "0");
+    on(q(s, "#gr-rbl"), b > 0.42);
+    env(q(s, "#gr-eb1"), b > 0.15, "state");
+    const c = q(s, "#gr-cb");
+    c.textContent = "emails sent: " + (b > 0.15 ? 1 : 0);
+    c.style.fill = b > 0.15 ? "var(--state)" : "var(--ink)";
+  }
+  function stop() { if (tl) tl.kill(); tl = null; }
+  function build(s, n, animate) {
+    stop();
+    const A = { a: n >= 2 ? 1 : 0 }, B = { b: n >= 2 ? 1 : 0 };
+    if (animate && n === 2) { A.a = 0; B.b = 0; }
+    renderA(s, A.a); renderB(s, B.b);
+    if (animate && n === 2) {
+      tl = gsap.timeline({ delay: 0.5 });
+      tl.to(A, { a: 1, duration: 3.0, ease: "none", onUpdate: () => renderA(s, A.a) })
+        .to(B, { b: 1, duration: 2.6, ease: "none", onUpdate: () => renderB(s, B.b) }, "+=0.3");
+    }
+  }
+  Deck.register(ID, {
+    enter(slide, n) { if (!tl) build(slide, n || 0, false); },
+    step(slide, n, animate) { build(slide, n, animate); },
+    leave() { stop(); }
+  });
+})();
+</script>

@@ -1,0 +1,259 @@
+<section class="slide" id="custom-c11-harness-traps" data-tone="tool" data-title="Gotcha: eval harness traps">
+  <style>
+    #custom-c11-harness-traps { gap: 18px; }
+    #custom-c11-harness-traps .h-grid { display: grid; grid-template-columns: 650px 1fr; gap: 24px; min-height: 0; }
+    #custom-c11-harness-traps .h-left, #custom-c11-harness-traps .h-right { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+    #custom-c11-harness-traps .code-head { padding: 6px 14px; font-size: 13px; }
+    #custom-c11-harness-traps .h-code pre.code { font-size: 11.2px; line-height: 14.6px; padding: 8px 12px 9px; white-space: pre; }
+    #custom-c11-harness-traps .out pre.code, #custom-c11-harness-traps .out pre.code code { font-size: 11.4px; line-height: 16px; white-space: pre; }
+    #custom-c11-harness-traps .out pre.code { padding: 7px 12px 8px; }
+    #custom-c11-harness-traps .out pre.code code { padding: 0; }
+    #custom-c11-harness-traps .gotcha { grid-template-columns: 80px 1fr; gap: 3px 12px; padding: 9px 14px; font-size: 14.5px; line-height: 1.34; }
+    #custom-c11-harness-traps .gotcha > b { font-size: 12px; line-height: 1.6; }
+    #custom-c11-harness-traps .gotcha .gh { grid-column: 1 / -1; font: 700 12.5px/1.3 var(--f-mono); color: var(--ink); letter-spacing: .02em; }
+    #custom-c11-harness-traps .gotcha .gh span { color: var(--muted); font-weight: 500; }
+    #custom-c11-harness-traps .gotcha code, #custom-c11-harness-traps .callout code { font-size: .86em; }
+    #custom-c11-harness-traps .callout { padding: 7px 13px; font-size: 14px; line-height: 1.34; gap: 10px; }
+    #custom-c11-harness-traps .callout::before { width: 22px; height: 22px; font-size: 13px; }
+    #custom-c11-harness-traps .cites { display: flex; gap: 6px; flex-wrap: nowrap; }
+    #custom-c11-harness-traps .cite { font-size: 12px; padding: 4px 8px 4px 6px; white-space: nowrap; flex: none; gap: 8px; }
+    #custom-c11-harness-traps pre.code, #custom-c11-harness-traps pre.code *, #custom-c11-harness-traps code, #custom-c11-harness-traps .code-head, #custom-c11-harness-traps svg text { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #c11h-svg text { font-family: var(--f-mono); }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> Eval tooling · lm-eval 0.4.13 · Inspect · vLLM</div>
+  <h2 class="title">Eval traps: dropped items, shared caches, zero-scored answers</h2>
+  <div class="h-grid fill">
+    <div class="h-left">
+      <div class="panel tight flat" style="padding:6px 8px">
+        <svg id="c11h-svg" viewBox="0 0 632 228" width="632" height="228" role="img" aria-label="Three animated panels on a toy example of 10 items with 3 refusals. Panel 1, denominator: step 1 the 3 refusal tiles drop out and the fraction rises from 7 of 10 (70%) to 7 of 7 (100%), marked inflated; step 2 they come back as zeros and the fraction returns to 7 of 10. Panel 2, cache key: step 3 one cache keyed by prompt only sends model A's answers to model B (red), then the key gains model@sha and the cache splits into two boxes, one per model. Panel 3, extractor: step 4 the outputs B, B. 4 and ANSWER: B go through extract_letter and all come out as B."></svg>
+      </div>
+      <div class="code-wrap h-code">
+        <div class="code-head">score_fix.py · plain Python 3.12, no harness API</div>
+        <pre class="code" data-lang="python" data-focus="2:9-14, 3:16-17, 4:3-7"><code>import re
+
+LETTER = re.compile(r"^\s*(?i:answer\s*[:=]\s*)?\(?([A-D])\b")
+
+def extract_letter(output: str) -> str | None:          # 'B. 4', 'ANSWER: B' -> 'B'
+    m = LETTER.match(output)
+    return m.group(1) if m else None
+
+def score_all(outputs: list[str], golds: list[str]) -> dict:
+    preds = [extract_letter(o) for o in outputs]
+    scores = [1.0 if p == g else 0.0 for p, g in zip(preds, golds, strict=True)]
+    errored = sum(p is None for p in preds)              # refusal / unparseable -> 0.0
+    return {"accuracy": sum(scores) / len(scores),        # denominator = ALL items
+            "scored": len(scores) - errored, "errored": errored, "unscored": 0}
+
+def cache_path(model: str, sha: str) -> str:              # lm_eval --use_cache PATH
+    return f"cache/{model}@{sha}"                          # one cache per model@revision
+
+print(score_all(["B", "B. 4", "ANSWER: B", "I cannot answer."], ["B"] * 4))
+print(cache_path("claims-agent-v2", "4f1c9e2"))</code></pre>
+      </div>
+    </div>
+    <div class="h-right">
+      <div class="gotcha" data-step="1">
+        <div class="gh">1 · Unscorable items leave the denominator <span>lm-eval #4062 (open)</span></div>
+        <b>Symptom</b><span>Headline accuracy is inflated. Refusals and unparseable answers vanish.</span>
+        <b class="why">Cause</b><span>A <code>process_results</code> that returns <code>{}</code> drops the document from the mean.</span>
+        <b class="fix" data-step="2">Fix</b><span data-step="2">Score unparseable answers as 0.0. Report scored, errored and unscored counts.</span>
+      </div>
+      <div class="gotcha" data-step="3">
+        <div class="gh">2 · The cache serves model A's answers to model B <span>lm-eval #4063 (open)</span></div>
+        <b>Symptom</b><span>Model B shows model A's scores.</span>
+        <b class="why">Cause</b><span>The <code>--use_cache</code> key is <code>sha256([request_type] + args)</code>. It has no model name, revision or <code>model_args</code>.</span>
+        <b class="fix">Fix</b><span>One cache path per <code>model@sha</code>, or no cache for final numbers.</span>
+      </div>
+      <div class="gotcha" data-step="4">
+        <div class="gh">3 · Correct answers score 0.0 <span>lm-eval #4187 · PR #4188</span></div>
+        <b>Symptom</b><span><code>B. 4</code> and <code>ANSWER: B</code> score 0.0 in <code>mmlu_*_generative</code>. The repro flips 0.0000 ↔ 0.9333 when only the endpoint changes.</span>
+        <b class="why">Cause</b><span>Only a bare <code>B</code> gets 1.0. The answer extraction misses formatted letters.</span>
+        <b class="fix">Fix</b><span>A multiple-choice letter extractor. Read 20 filtered predictions by eye.</span>
+      </div>
+      <div class="code-wrap out" data-step="4">
+        <div class="code-head">output · real run (Python 3.12.3)</div>
+        <pre class="code" data-lang="none"><code>{'accuracy': <span class="ok">0.75</span>, 'scored': 3, 'errored': <span class="err">1</span>, 'unscored': 0}
+<span class="ok">cache/claims-agent-v2@4f1c9e2</span></code></pre>
+      </div>
+      <div class="callout pitfall" data-step="5"><span><code>temperature=0</code> is not deterministic: five byte-identical greedy vLLM requests gave five completions. Run N ≥ 3 times and report the variance. Inspect graders with no role used the evaluated model: bind <code>model_role="grader"</code>.</span></div>
+      <div class="cites push" data-step="5">
+        <a class="cite repo" href="https://github.com/EleutherAI/lm-evaluation-harness/issues/4062" target="_blank" rel="noopener"><b>lm-eval</b>&nbsp;#4062</a>
+        <a class="cite repo" href="https://github.com/EleutherAI/lm-evaluation-harness/issues/4063" target="_blank" rel="noopener"><b>lm-eval</b>&nbsp;#4063</a>
+        <a class="cite repo" href="https://github.com/EleutherAI/lm-evaluation-harness/issues/4187" target="_blank" rel="noopener"><b>lm-eval</b>&nbsp;#4187</a>
+        <a class="cite repo" href="https://github.com/vllm-project/vllm/issues/54521" target="_blank" rel="noopener"><b>vLLM</b>&nbsp;#54521</a>
+        <a class="cite repo" href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/4695" target="_blank" rel="noopener"><b>Inspect</b>&nbsp;#4695</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">The gate is only as honest as the pass column it reads. Before we trust the claims-agent number, we check the harness, because three open lm-eval issues change the headline without any error. First, an item that the scorer cannot parse leaves the denominator, so refusals make the model look better: in the toy panel 7 of 10 becomes 7 of 7. Second, the response cache key has no model name or revision, so model B can get model A's cached answers; give every model@sha its own cache path, or turn the cache off for final numbers. Third, a strict answer filter scores "B. 4" as wrong; the reporter's repro flipped between 0.0000 and 0.9333 when only the endpoint changed, so read 20 filtered predictions by eye. Analogy: a scale that ignores the heavy boxes always reports a light shipment. Likely question: "Is temperature 0 enough for repeatable evals?" No: vLLM returned five different completions for five identical greedy requests, so run at least three times and report the variance.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c11-harness-traps";
+  const REFUSE = [2, 6, 9];                                  // toy: 10 items, 3 refusals
+  const tileXY = (i) => ({ x: 8 + (i % 5) * 38, y: 30 + Math.floor(i / 5) * 38 });
+  const trayXY = (j) => ({ x: 8 + j * 38, y: 192 });
+  const INS = ["B", "B. 4", "ANSWER: B"];
+  let S = null;
+
+  function mk(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  }
+  const T = (x, y, a) => Object.assign({ x, y, "font-size": 11, fill: "var(--ink-2)" }, a || {});
+
+  function build(slide) {
+    const svg = slide.querySelector("#c11h-svg");
+    if (svg._S) return svg._S;
+    svg.innerHTML = "";
+    const s = { prev: 0, tweens: [] };
+    const defs = mk("defs", {}, svg);
+    [["c11h-ahm", "var(--muted)"], ["c11h-ahr", "var(--risk)"]].forEach(([id, col]) => {
+      const m = mk("marker", { id, viewBox: "0 0 10 10", refX: 8, refY: 5, markerWidth: 6, markerHeight: 6, orient: "auto" }, defs);
+      mk("path", { d: "M0 0 L10 5 L0 10 z", fill: col }, m);
+    });
+    // ---------- panel 1: denominator
+    s.pA = mk("g", {}, svg);
+    mk("text", T(8, 14, { "font-size": 11.5, "font-weight": 700, fill: "var(--ink)" }), s.pA, "1 denominator");
+    s.tiles = Array.from({ length: 10 }, (_, i) => {
+      const bad = REFUSE.includes(i), p = tileXY(i);
+      const g = mk("g", {}, s.pA);
+      const r = mk("rect", { x: 0, y: 0, width: 30, height: 30, rx: 6, fill: bad ? "var(--risk-soft)" : "var(--state-soft)", stroke: bad ? "var(--risk)" : "var(--state)", "stroke-width": 1.4 }, g);
+      const t = mk("text", T(15, 20, { "font-size": 14, "font-weight": 700, "text-anchor": "middle", fill: bad ? "var(--risk)" : "var(--state)" }), g, bad ? "?" : "✓");
+      gsap.set(g, { x: p.x, y: p.y });
+      return { g, r, t, bad, home: p, tray: bad ? trayXY(REFUSE.indexOf(i)) : null };
+    });
+    s.frac = mk("text", T(8, 136, { "font-size": 24, "font-weight": 800, fill: "var(--ink)" }), s.pA, "7 / 10 = 70%");
+    s.fracL = mk("text", T(8, 158, { "font-size": 11, "font-weight": 700, fill: "var(--muted)" }), s.pA, "toy: 10 items, 3 refusals");
+    s.tray = mk("text", T(8, 184, { "font-size": 10, fill: "var(--risk)", opacity: 0 }), s.pA, "dropped from the mean:");
+    // ---------- panel 2: cache key
+    s.pB = mk("g", {}, svg);
+    mk("text", T(226, 14, { "font-size": 11.5, "font-weight": 700, fill: "var(--ink)" }), s.pB, "2 cache key");
+    const pill = (x, y, label, tone) => {
+      mk("rect", { x, y, width: 78, height: 26, rx: 13, fill: `var(--${tone}-soft)`, stroke: `var(--${tone})`, "stroke-width": 1.4 }, s.pB);
+      mk("text", T(x + 39, y + 17, { "font-size": 11, "font-weight": 700, "text-anchor": "middle", fill: `var(--${tone})` }), s.pB, label);
+    };
+    pill(226, 44, "model A", "model");
+    pill(226, 150, "model B", "model");
+    s.shared = mk("g", {}, s.pB);
+    mk("rect", { x: 330, y: 86, width: 86, height: 50, rx: 8, fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 1.6 }, s.shared);
+    mk("text", T(373, 107, { "font-size": 11.5, "font-weight": 700, "text-anchor": "middle", fill: "var(--state)" }), s.shared, "cache");
+    mk("text", T(373, 124, { "font-size": 9.5, "text-anchor": "middle" }), s.shared, "key: prompt");
+    s.wA = mk("path", { d: "M304 57 C 320 57, 330 80, 346 86", fill: "none", stroke: "var(--muted)", "stroke-width": 1.6, "marker-end": "url(#c11h-ahm)" }, s.pB);
+    s.wB = mk("path", { d: "M346 136 C 330 145, 322 163, 306 163", fill: "none", stroke: "var(--risk)", "stroke-width": 2, "marker-end": "url(#c11h-ahr)", opacity: 0 }, s.pB);
+    s.packet = mk("g", { opacity: 0 }, s.pB);
+    mk("rect", { x: -26, y: -9, width: 52, height: 18, rx: 4, fill: "var(--model-soft)", stroke: "var(--model)", "stroke-width": 1.2 }, s.packet);
+    mk("text", T(0, 4, { "font-size": 9.5, "font-weight": 700, "text-anchor": "middle", fill: "var(--model)" }), s.packet, "A's ans");
+    s.wrong = mk("text", T(226, 206, { "font-size": 10.5, "font-weight": 700, fill: "var(--risk)", opacity: 0 }), s.pB, "✕ B scored with A's answers");
+    s.split = [44, 150].map((y, i) => {
+      const g = mk("g", { opacity: 0 }, s.pB);
+      mk("line", { x1: 304, y1: y + 13, x2: 334, y2: y + 13, stroke: "var(--state)", "stroke-width": 1.6 }, g);
+      mk("rect", { x: 334, y: y - 2, width: 86, height: 30, rx: 7, fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 1.6 }, g);
+      mk("text", T(377, y + 17, { "font-size": 10.5, "font-weight": 700, "text-anchor": "middle", fill: "var(--state)" }), g, i ? "B@sha2" : "A@sha1");
+      return g;
+    });
+    s.right = mk("text", T(226, 206, { "font-size": 10.5, "font-weight": 700, fill: "var(--state)", opacity: 0 }), s.pB, "✓ key + model@sha");
+    // ---------- panel 3: extractor
+    s.pC = mk("g", {}, svg);
+    mk("text", T(446, 14, { "font-size": 11.5, "font-weight": 700, fill: "var(--ink)" }), s.pC, "3 extractor");
+    s.ins = INS.map((t, i) => {
+      const y = 40 + i * 52;
+      mk("rect", { x: 446, y, width: 78, height: 26, rx: 6, fill: "var(--surface-2)", stroke: "var(--line-2)", "stroke-width": 1.2 }, s.pC);
+      mk("text", T(485, y + 17, { "font-size": 10.5, "font-weight": 700, "text-anchor": "middle", fill: "var(--ink)" }), s.pC, t);
+      const z = mk("text", T(485, y + 40, { "font-size": 9.5, "font-weight": 700, "text-anchor": "middle", fill: i ? "var(--risk)" : "var(--state)" }), s.pC, i ? "strict: 0.0" : "strict: 1.0");
+      return { y, z };
+    });
+    mk("path", { d: "M534 40 L572 98 L572 122 L534 180 Z", fill: "var(--tool-soft)", stroke: "var(--tool)", "stroke-width": 1.6 }, s.pC);
+    mk("text", T(553, 202, { "font-size": 9.5, "font-weight": 700, "text-anchor": "middle", fill: "var(--tool)" }), s.pC, "extract_letter");
+    s.dots = INS.map((_, i) => mk("circle", { cx: 524, cy: 53 + i * 52, r: 5, fill: "var(--tool)", opacity: 0 }, s.pC));
+    s.outs = INS.map((_, i) => {
+      const g = mk("g", { opacity: 0 }, s.pC);
+      const y = 40 + i * 52;
+      mk("line", { x1: 574, y1: 110, x2: 586, y2: y + 13, stroke: "var(--state)", "stroke-width": 1.4 }, g);
+      mk("rect", { x: 588, y, width: 42, height: 26, rx: 6, fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 1.4 }, g);
+      mk("text", T(609, y + 17, { "font-size": 11, "font-weight": 800, "text-anchor": "middle", fill: "var(--state)" }), g, "B");
+      return g;
+    });
+    s.allOk = mk("text", T(446, 226, { "font-size": 10.5, "font-weight": 700, fill: "var(--state)", opacity: 0 }), s.pC, "✓ 1.0 · 1.0 · 1.0");
+    svg._S = s;
+    return s;
+  }
+
+  function render(s, n, animate) {
+    s.tweens.forEach((t) => t.kill()); s.tweens = [];
+    const A = (k) => animate && n === k && s.prev === k - 1;
+    const tw = (el, v, d) => s.tweens.push(gsap.to(el, Object.assign({ duration: .5, ease: "power2.out" }, v, { delay: d || 0 })));
+    const put = (el, v, k, d) => (A(k) ? tw(el, v, d) : gsap.set(el, v));
+    // panel focus: the active trap is bright, others fade back
+    put(s.pA, { opacity: n >= 3 ? 0.6 : 1 }, 3);
+    put(s.pB, { opacity: n === 3 ? 1 : n >= 4 ? 0.6 : 0.28 }, 3);
+    if (A(4)) tw(s.pB, { opacity: 0.6 });
+    put(s.pC, { opacity: n >= 4 ? 1 : 0.28 }, 4);
+    // ---- panel 1: steps 1 and 2
+    s.tiles.forEach((t) => {
+      if (!t.bad) return;
+      const out = n === 1;
+      put(t.g, Object.assign({ opacity: out ? 0.45 : 1 }, out ? t.tray : t.home), out ? 1 : 2, 0.1);
+      t.t.textContent = n >= 2 ? "0" : "?";
+      gsap.set(t.r, { attr: { "stroke-dasharray": out ? "3 3" : "none" } });
+    });
+    const F = n === 1 ? ["7 / 7 = 100%", "var(--risk)", "refusals dropped: inflated", "var(--risk)"]
+      : n >= 2 ? ["7 / 10 = 70%", "var(--state)", "refusal scored 0.0: honest", "var(--state)"]
+      : ["7 / 10 = 70%", "var(--ink)", "toy: 10 items, 3 refusals", "var(--muted)"];
+    s.frac.textContent = F[0]; s.frac.setAttribute("fill", F[1]);
+    s.fracL.textContent = F[2]; s.fracL.setAttribute("fill", F[3]);
+    if (A(1) || A(2)) { gsap.set(s.frac, { opacity: 0 }); tw(s.frac, { opacity: 1 }, .45); }
+    else gsap.set(s.frac, { opacity: 1 });
+    put(s.tray, { opacity: n === 1 ? 1 : 0 }, 1);
+    // ---- panel 2: step 3 (shared cache serves the wrong model, then the key splits)
+    if (A(3)) {
+      gsap.set([s.shared, s.wA], { opacity: 1 });
+      gsap.set(s.split, { opacity: 0 }); gsap.set([s.right, s.wrong, s.wB], { opacity: 0 });
+      gsap.set(s.packet, { x: 373, y: 111, opacity: 0 });
+      tw(s.wB, { opacity: 1, duration: .3 }, .3);
+      tw(s.packet, { opacity: 1, duration: .2 }, .3);
+      tw(s.packet, { x: 266, y: 163, duration: .7, ease: "power2.inOut" }, .5);
+      tw(s.wrong, { opacity: 1, duration: .3 }, 1.1);
+      tw([s.shared, s.wA, s.wB, s.packet, s.wrong], { opacity: 0, duration: .4 }, 2.2);
+      s.split.forEach((g, i) => tw(g, { opacity: 1, duration: .45 }, 2.5 + i * .15));
+      tw(s.right, { opacity: 1, duration: .3 }, 2.8);
+    } else {
+      const on = n >= 3;
+      gsap.set([s.shared, s.wA], { opacity: on ? 0 : 1 });
+      gsap.set([s.wB, s.packet, s.wrong], { opacity: 0 });
+      gsap.set(s.split, { opacity: on ? 1 : 0 });
+      gsap.set(s.right, { opacity: on ? 1 : 0 });
+    }
+    // ---- panel 3: step 4 (outputs go through the extractor)
+    s.ins.forEach((o, i) => {
+      if (A(4)) {
+        gsap.set(s.dots[i], { attr: { cx: 524, cy: 53 + i * 52 }, opacity: 0 });
+        tw(s.dots[i], { opacity: 1, duration: .15 }, .2 + i * .25);
+        tw(s.dots[i], { attr: { cx: 572, cy: 110 }, duration: .5, ease: "power1.in" }, .3 + i * .25);
+        tw(s.dots[i], { opacity: 0, duration: .15 }, .8 + i * .25);
+        tw(s.outs[i], { opacity: 1, duration: .35 }, .85 + i * .25);
+        o.z.textContent = i ? "strict: 0.0" : "strict: 1.0";
+      } else {
+        gsap.set(s.dots[i], { opacity: 0 });
+        gsap.set(s.outs[i], { opacity: n >= 4 ? 1 : 0 });
+      }
+    });
+    put(s.allOk, { opacity: n >= 4 ? 1 : 0 }, 4, 1.7);
+    s.prev = n;
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { S = build(slide); S.prev = step || 0; render(S, step || 0, false); },
+    step(slide, n, animate) { S = build(slide); render(S, n, animate); },
+    leave(slide) {
+      const svg = slide.querySelector("#c11h-svg");
+      if (svg && svg._S) { svg._S.tweens.forEach((t) => t.kill()); svg._S.tweens = []; }
+      if (svg) gsap.killTweensOf(svg.querySelectorAll("*"));
+    }
+  });
+})();
+</script>

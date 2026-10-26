@@ -1,0 +1,117 @@
+<section class="slide" id="adk-c09-lab-exit" data-tone="model" data-title="Lab 9.10: Exit code 1">
+  <style>
+    #adk-c09-lab-exit .c9-split { --c9l: 740px; }
+    #adk-c09-lab-exit .c9-cap { min-height: 100px; }
+    #adk-c09-lab-exit .exit { color: #ff8fab; font-weight: 700; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 9</span> Acme refund eval gate · step 10 of 15</div>
+  <h2 class="title">Since 2.13, adk eval exits 1 when any case fails</h2>
+  <div class="c9-split fill">
+    <div class="code-wrap out">
+      <div class="code-head">terminal · agent without the 500 USD sentence · illustrative</div>
+      <pre class="code" data-lang="none" data-focus="1:10, 3:8"><code>$ adk eval refund_agent refund_agent/refund.evalset.json \
+    --config_file_path=refund_agent/test_config.json
+Eval Run Summary
+refund_golden:
+  <span class="ok">Tests passed: 1</span>
+  <span class="err">Tests failed: 1</span>
+<span class="err">Metric: refund_policy_score, Status: FAILED, Score: 0.0</span>
+Metric: token_usage_v1, Status: NOT_EVALUATED, Score: 2843.0
+$ echo "exit code: $?"
+<span class="exit">exit code: 1</span></code></pre>
+    </div>
+    <div class="c9-col">
+      <svg class="c9-svg" id="c9x-svg" viewBox="0 0 620 380" aria-label="Two CI lanes. In google-adk 2.13.0 a failed eval exits 1 and the pipeline stops before deploy. Before 2.13.0 the same failed eval exited 0 and the failing agent shipped."></svg>
+      <div class="c9-cap">
+        <p data-step="1" data-until="2">Exit 1 if any case fails <b>or none ran</b>. CI stops before deploy.</p>
+        <p data-step="2" data-until="3">Before 2.13.0 it always exited 0. Old pipelines shipped red runs.</p>
+        <p data-step="3"><code>token_usage_v1</code> and the other efficiency metrics never pass or fail.</p>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Step ten: run the evalset from the shell and look at the exit code, because the exit code is the only thing CI reads. We use the broken agent from the config slide, without the 500 dollar sentence: one case fails, and since 2.13.0 adk eval exits 1 when any case fails or when no case ran, so the pipeline stops before deploy. The source is cli_tools_click.py lines 1604 to 1613, and the 2.13.0 changelog lists it. Before 2.13.0 it printed the red result and still exited 0, so older pipelines deployed the failing agent; think of a smoke alarm that beeped but did not call anyone. The efficiency metrics, such as token_usage_v1, are added automatically and show NOT_EVALUATED: they report cost, they never fail a run. A likely question: "How do I rerun one case?" Append a colon and the eval id to the evalset path, for example refund.evalset.json:large_refund_escalates.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c09-lab-exit";
+  const NS = "http://www.w3.org/2000/svg";
+  const X = [0, 166, 332, 498], W = 122, NH = 64;
+  const LANES = [{ y: 44, label: "google-adk 2.13.0", tone: "state" }, { y: 236, label: "before 2.13.0", tone: "risk" }];
+  let tw = [], R = null;
+  function mk(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const [a, v] of Object.entries(attrs)) e.setAttribute(a, v);
+    if (text !== undefined) e.textContent = text;
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function node(p, i, y, tone, label, sub, subTone) {
+    const g = mk("g", {}, p);
+    mk("rect", { x: X[i], y, width: W, height: NH, rx: 12, fill: `var(--${tone}-soft)`, stroke: `var(--${tone})`, "stroke-width": 2 }, g);
+    mk("text", { x: X[i] + W / 2, y: y + (sub ? 27 : 39), "font-size": 18, "font-weight": 700, "text-anchor": "middle", fill: "var(--ink)" }, g, label);
+    if (sub) mk("text", { x: X[i] + W / 2, y: y + 50, "font-size": 15, "font-weight": 700, "text-anchor": "middle", fill: `var(--${subTone || "muted"})` }, g, sub);
+    return g;
+  }
+  function build(svg) {
+    svg.innerHTML = "";
+    R = { svg, lanes: [] };
+    const defs = mk("defs", {}, svg);
+    const m = mk("marker", { id: "c9x-ah", viewBox: "0 0 10 10", refX: 8, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto" }, defs);
+    mk("path", { d: "M0,0 L10,5 L0,10 z", fill: "var(--line-2)" }, m);
+    LANES.forEach((L, k) => {
+      const g = mk("g", {}, svg);
+      const lane = { g };
+      mk("text", { x: 0, y: L.y - 14, "font-size": 18, "font-weight": 700, fill: `var(--${L.tone})` }, g, L.label);
+      node(g, 0, L.y, "agent", "build", "pip install");
+      node(g, 1, L.y, "risk", "adk eval", "1 case failed", "risk");
+      node(g, 2, L.y, k ? "state" : "risk", k ? "exit 0" : "exit 1", k ? "looks green" : "stop", k ? "state" : "risk");
+      node(g, 3, L.y, "tool", "deploy", "");
+      [0, 1, 2].forEach((i) => mk("path", { d: `M${X[i] + W + 4},${L.y + NH / 2} H${X[i + 1] - 6}`, fill: "none", stroke: "var(--line-2)", "stroke-width": 2.5, "marker-end": "url(#c9x-ah)" }, g));
+      lane.tok = mk("circle", { cx: 0, cy: L.y + NH / 2, r: 9, fill: "var(--model)" }, g);
+      lane.note = mk("text", { x: 620, y: L.y + NH + 36, "font-size": 18, "font-weight": 800, "text-anchor": "end", fill: k ? "var(--risk)" : "var(--state)" }, g, k ? "failing agent ships" : "deploy blocked");
+      if (!k) lane.bar = mk("rect", { x: X[3] - 28, y: L.y + 6, width: 10, height: NH - 12, rx: 4, fill: "var(--risk)" }, g);
+      R.lanes.push(lane);
+    });
+  }
+  function clear() { tw.forEach((t) => t.kill()); tw = []; }
+  function setLane(k, played, anim) {
+    const L = R.lanes[k], y = LANES[k].y + NH / 2;
+    const parts = [L.tok, L.note].concat(L.bar ? [L.bar] : []);
+    gsap.killTweensOf(parts);
+    const startX = X[0] + W + 10, endX = k ? X[3] + W / 2 : X[3] - 42;
+    if (!played) {
+      gsap.set(L.tok, { opacity: 0, attr: { cx: startX, cy: y } });
+      gsap.set(L.note, { opacity: 0 });
+      if (L.bar) gsap.set(L.bar, { opacity: 0 });
+      gsap.set(L.g, { opacity: 0.35 });
+      return;
+    }
+    gsap.set(L.g, { opacity: 1 });
+    if (anim) {
+      gsap.set(L.tok, { opacity: 1, attr: { cx: startX, cy: y } });
+      gsap.set(L.note, { opacity: 0 });
+      if (L.bar) gsap.set(L.bar, { opacity: 0, scaleY: 0, transformOrigin: "50% 50%" });
+      tw.push(gsap.to(L.tok, { attr: { cx: endX }, duration: k ? 1.5 : 1.1, delay: 0.3, ease: "power1.inOut" }));
+      if (L.bar) tw.push(gsap.to(L.bar, { opacity: 1, scaleY: 1, duration: 0.35, delay: 1.35, ease: "back.out(2)" }));
+      tw.push(gsap.to(L.note, { opacity: 1, duration: 0.4, delay: k ? 1.85 : 1.5 }));
+    } else {
+      gsap.set(L.tok, { opacity: 1, attr: { cx: endX, cy: y } });
+      gsap.set(L.note, { opacity: 1 });
+      if (L.bar) gsap.set(L.bar, { opacity: 1, scaleY: 1 });
+    }
+  }
+  function render(slide, n, animate) {
+    const svg = slide.querySelector("#c9x-svg");
+    if (!svg) return;
+    if (!R || R.svg !== svg || !svg.childElementCount) build(svg);
+    clear();
+    setLane(0, n >= 1, animate && n === 1);
+    setLane(1, n >= 2, animate && n === 2);
+  }
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { clear(); },
+  });
+})();
+</script>

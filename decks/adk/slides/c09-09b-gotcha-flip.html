@@ -1,0 +1,94 @@
+<section class="slide" id="adk-c09-gotcha-flip" data-tone="risk" data-title="Gotcha: a metric flipped">
+  <style>
+    #adk-c09-gotcha-flip .c9-split { --c9l: 600px; }
+    #adk-c09-gotcha-flip .gotcha { font-size: 19px; line-height: 1.4; grid-template-columns: 104px 1fr; }
+    #adk-c09-gotcha-flip .eg-lbl { fill: var(--ink); font-size: 21px; font-weight: 700; }
+    #adk-c09-gotcha-flip .eg-sub { fill: var(--ink-2); font-size: 17px; }
+    #adk-c09-gotcha-flip .eg-chip rect { stroke-width: 2.2; }
+    #adk-c09-gotcha-flip .eg-chip text { font-size: 20px; font-weight: 800; }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> Evals</div>
+  <h2 class="title">safety_v1 flipped its scale, so keep a case that must fail</h2>
+  <div class="c9-split fill">
+    <div class="c9-fig">
+      <svg class="c9-svg" id="eg-svg" viewBox="0 0 570 400" aria-label="A fixture table. With safety_v1 the known-good case passes and the known-bad case fails. When safety_v1 silently resolves to safety_v3, the results flip: known-good fails and known-bad passes, so the gate must block the deploy.">
+        <rect id="eg-mbox" x="0" y="4" width="570" height="52" rx="12" fill="var(--model-soft)" stroke="var(--model)" stroke-width="2.2"/>
+        <text id="eg-mtx" class="eg-lbl" x="20" y="38">metric: safety_v1</text>
+        <text class="eg-sub" x="0" y="112">fixture</text>
+        <text class="eg-sub" x="330" y="112">expect</text>
+        <text class="eg-sub" x="452" y="112">got</text>
+        <text class="eg-lbl" x="0" y="168">known-good</text>
+        <text class="eg-lbl" x="330" y="168" style="fill:var(--state)">PASS</text>
+        <g id="eg-c1" class="eg-chip"><rect x="440" y="136" width="120" height="46" rx="10"/><text x="500" y="167" text-anchor="middle">PASS</text></g>
+        <text class="eg-lbl" x="0" y="240">known-bad</text>
+        <text class="eg-lbl" x="330" y="240" style="fill:var(--risk)">FAIL</text>
+        <g id="eg-c2" class="eg-chip"><rect x="440" y="208" width="120" height="46" rx="10"/><text x="500" y="239" text-anchor="middle">FAIL</text></g>
+        <line x1="0" y1="290" x2="570" y2="290" stroke="var(--line)" stroke-width="1.5"/>
+        <circle id="eg-lamp" cx="14" cy="336" r="13"/>
+        <text id="eg-ltx" class="eg-lbl" x="40" y="343">fixtures agree: gate is sound</text>
+        <text class="eg-sub" x="0" y="388">#7258 · fixed in 2.10.0 · pin aiplatform too</text>
+      </svg>
+    </div>
+    <div class="c9-col">
+      <div class="gotcha">
+        <b>Symptom</b><span>Harmful answers pass the <code>safety_v1</code> gate.</span>
+        <b class="why">Cause</b><span><code>safety_v1</code> resolved to <code>safety_v3</code>, which scores the other way.</span>
+        <b class="fix">Fix</b><span>Pin both packages. Keep a known-bad case that must fail.</span>
+      </div>
+      <div class="code-wrap good" data-step="3">
+        <div class="code-head">labs/adk/lab9-refund-eval/ci/eval_gate.sh · end</div>
+        <pre class="code" data-lang="bash"><code># known-bad: expects issue_refund on A-2040, so it MUST fail
+if adk eval refund_agent refund_agent/known_bad.evalset.json \
+     --config_file_path="$CFG"; then
+  echo "gate passed a known-bad case"; exit 1
+fi</code></pre>
+      </div>
+      <div class="cites" data-step="3"><a class="cite repo" href="https://github.com/google/adk-python/issues/7258" target="_blank" rel="noopener"><b>Issue</b>&nbsp;#7258 safety_v1 flip</a></div>
+    </div>
+  </div>
+  <i hidden data-step="1"></i>
+  <aside class="notes">A third silent failure: the metric itself changes meaning. safety_v1 resolved to the unversioned latest safety metric, which became safety_v3 and scores in the opposite direction, issue 7258; it is fixed in 2.10.0, but the behaviour also depends on the google-cloud-aiplatform version, so pin both. Watch the fixture table: with a sound metric, the known-good case passes and the known-bad case fails; after the flip both results invert, and only the known-bad fixture tells you. The gate script ends with exactly that: known_bad.evalset.json is a copy of the A-2040 case that expects issue_refund for 820 dollars, so a correct agent must fail it, and if adk eval exits 0 the gate stops. Analogy: you test a scale with a known weight before you trust it. A likely question: "Why does the known-bad case fail on a correct agent?" The correct agent escalates instead of refunding, so the trajectory metric does not match the expected issue_refund call.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c09-gotcha-flip";
+  let tl = null;
+  const q = (s, id) => s.querySelector("#" + id);
+  function chip(s, id, txt, good) {
+    const g = q(s, id);
+    g.querySelector("text").textContent = txt;
+    g.querySelector("rect").style.fill = good ? "var(--state-soft)" : "var(--risk-soft)";
+    g.querySelector("rect").style.stroke = good ? "var(--state)" : "var(--risk)";
+    g.querySelector("text").style.fill = good ? "var(--state)" : "var(--risk)";
+  }
+  function paint(s, flipped) {
+    q(s, "eg-mtx").textContent = flipped ? "safety_v1 → latest = safety_v3" : "metric: safety_v1";
+    q(s, "eg-mbox").style.stroke = flipped ? "var(--risk)" : "var(--model)";
+    chip(s, "eg-c1", flipped ? "FAIL" : "PASS", !flipped);
+    chip(s, "eg-c2", flipped ? "PASS" : "FAIL", !flipped);
+    q(s, "eg-lamp").style.fill = flipped ? "var(--risk)" : "var(--state)";
+    q(s, "eg-ltx").textContent = flipped ? "known-bad passed: block it" : "fixtures agree: gate is sound";
+    q(s, "eg-ltx").style.fill = flipped ? "var(--risk)" : "var(--state)";
+  }
+  function stop() { if (tl) { tl.kill(); tl = null; } }
+  function render(s, n, animate) {
+    stop();
+    gsap.set(q(s, "eg-svg"), { opacity: n >= 1 ? 1 : 0.35 });
+    if (n < 2) { paint(s, false); return; }
+    if (n === 2 && animate) {
+      paint(s, false);
+      tl = gsap.timeline({ delay: 0.6 });
+      tl.call(() => paint(s, true));
+      tl.fromTo([q(s, "eg-c1"), q(s, "eg-c2")], { scale: 1.25, transformOrigin: "50% 50%" }, { scale: 1, duration: 0.45, ease: "back.out(3)" });
+      tl.fromTo(q(s, "eg-lamp"), { scale: 1.6, transformOrigin: "center" }, { scale: 1, duration: 0.5, ease: "back.out(3)" }, "<");
+      return;
+    }
+    paint(s, true);
+  }
+  Deck.register(ID, {
+    enter(slide, n) { render(slide, n || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { stop(); }
+  });
+})();
+</script>

@@ -1,0 +1,209 @@
+<section class="slide chapter" id="adk-c05-chapter" data-tone="human" data-title="Ch 5: Durable execution and HITL">
+  <style>
+    #adk-c05-chapter { gap: 14px; padding-bottom: 70px; }
+    #adk-c05-chapter .ch-num { top: auto; bottom: 24px; right: 40px; font-size: 230px; }
+    #adk-c05-chapter svg { overflow: visible; flex: none; }
+    #adk-c05-chapter svg text { font-family: var(--f-mono); }
+    #adk-c05-chapter .display { font-size: 80px; max-width: 1392px; }
+    #adk-c05-chapter .lede { max-width: 1060px; font-size: 22px; }
+    #adk-c05-chapter .c05c-map { margin: 0; font-size: 18px; color: var(--ink-2); max-width: 1060px; }
+    #adk-c05-chapter .c05c-map code { font-size: 16px; }
+    #adk-c05-chapter .quote { font-size: 24px; max-width: 1060px; margin: 0; }
+    #adk-c05-chapter .c05c-def { margin: 4px 0 0; font-size: 16px; color: var(--muted); max-width: 1060px; }
+    #adk-c05-chapter .c05c-row { display: flex; gap: 12px; align-items: center; flex-wrap: nowrap; }
+    #adk-c05-chapter .c05c-row .tiny { font: 500 12px/1 var(--f-mono); color: var(--muted); margin-left: 8px; }
+  </style>
+  <div class="ch-num" data-fx="blur">05</div>
+  <svg id="c05c-svg" viewBox="0 0 1392 352" width="1392" height="352" aria-label="Two pipelines animate in turn and repeat. Top: a refund token runs START, intake, draft_reply to manager_gate, which pauses; days later a manager answers approve along a curved arrow, and the token resumes to issue_refund. Bottom: a payout token runs kyc_lookup and analyst_review, a checkpoint goes to payouts.db, a crash hits pay; process 2 replays kyc_lookup from history, pay fails twice and succeeds on attempt 3, and side_effects.log keeps one line"></svg>
+  <h2 class="display">Durable execution and HITL</h2>
+  <p class="lede" data-fx="up">Build Acme refund approvals that wait days for a manager, and payouts that survive a pause or a crash without paying twice.</p>
+  <p class="c05c-map" data-fx="up"><code>RequestInput</code> waits for a human · <code>RetryConfig</code> retries a flaky call · <code>ResumabilityConfig</code> continues an interrupted run</p>
+  <div data-fx="up">
+    <p class="quote">"Tool call to resume needs to be idempotent."</p>
+    <p class="c05c-def">ResumabilityConfig docstring: resume is at-least-once. <b>Idempotent</b> = running it twice has the same effect as once: one payout, not two.</p>
+  </div>
+  <div class="c05c-row" data-fx="stagger">
+    <a class="cite repo" href="https://github.com/google/adk-python/blob/v2.13.0/src/google/adk/apps/_configs.py" target="_blank" rel="noopener"><b>Repo</b>&nbsp;adk-python v2.13.0 · apps/_configs.py</a>
+    <a class="cite doc" href="https://adk.dev/graphs/human-input/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;adk.dev Human input</a>
+    <a class="cite doc" href="https://adk.dev/runtime/resume/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;adk.dev Resume</a>
+    <span class="tiny">tested on google-adk 2.13.0</span>
+  </div>
+  <aside class="notes">This chapter builds two Acme jobs that run longer than one process. A refund over $500 stops at a manager_gate node and waits, maybe for days, until a manager answers from a later shell command; the answer can approve, reject or ask for a revised draft. A payout to ACME-GmbH retries a flaky gateway, and after a pause or a crash a new process continues from the SQLite checkpoint and replays the finished nodes instead of running them again. The lab demonstrates the pause case end to end; step 4 then shows the one extra call you make to continue after a crash, and the retry gotcha slide shows what a crash adds: a payment can run twice. Think of a checkpoint like a bookmark in a long book: you do not reread the chapters you finished, but you do reread the page you were on, so that page must be safe to read twice. That is why the ResumabilityConfig docstring says the resumed tool call must be idempotent. A likely question: "Is resume exactly-once?" No, it is at-least-once, so every payment and refund carries an idempotency key. Next: Lab 5 step 1 builds the refund gate.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "adk-c05-chapter";
+  let tl = null, P = null;
+
+  const el = (parent, tag, attrs, style, text) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (style) Object.assign(e.style, style);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  };
+  const mono = (w, s) => ({ font: `${w} ${s}px var(--f-mono)` });
+
+  function node(parent, x, y, w, h, tone, label, pill) {
+    const g = el(parent, "g", {});
+    const r = el(g, "rect", { x, y, width: w, height: h, rx: pill ? h / 2 : 12 },
+      { fill: `var(--${tone}-soft)`, stroke: `var(--${tone})`, strokeWidth: 2.5 });
+    el(g, "text", { x: x + w / 2, y: y + h / 2 + 7, "text-anchor": "middle" }, { ...mono(700, 19), fill: "var(--ink)" }, label);
+    g._r = r; g._tone = tone;
+    return g;
+  }
+  function wire(parent, d, tone, dashed) {
+    return el(parent, "path", { d, fill: "none", "marker-end": "url(#c05c-ah)" },
+      { stroke: tone ? `var(--${tone})` : "var(--line-2)", strokeWidth: 2.5, strokeDasharray: dashed ? "7 5" : "none" });
+  }
+  function along(t, dot, path, at, dur) {
+    const L = path.getTotalLength(), o = { p: 0 };
+    t.fromTo(o, { p: 0 }, { p: 1, duration: dur, ease: "power1.inOut", immediateRender: false, onUpdate: () => {
+      const pt = path.getPointAtLength(o.p * L); dot.setAttribute("cx", pt.x); dot.setAttribute("cy", pt.y);
+    } }, at);
+    t.set(dot, { opacity: 1 }, at).set(dot, { opacity: 0 }, at + dur);
+  }
+
+  function build(svg) {
+    svg.innerHTML = "";
+    const defs = el(svg, "defs", {});
+    const m = el(defs, "marker", { id: "c05c-ah", viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 6, markerHeight: 6, orient: "auto-start-reverse" });
+    el(m, "path", { d: "M0,0 L10,5 L0,10 z" }, { fill: "var(--line-2)" });
+    const mh = el(defs, "marker", { id: "c05c-ahh", viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 6, markerHeight: 6, orient: "auto-start-reverse" });
+    el(mh, "path", { d: "M0,0 L10,5 L0,10 z" }, { fill: "var(--human)" });
+    const root = el(svg, "g", {});
+
+    // A. refund pipeline (top row)
+    const Y = 30, H = 56, CY = Y + H / 2;
+    el(root, "text", { x: 0, y: 16 }, { ...mono(600, 16), fill: "var(--muted)" }, "refund · RequestInput pauses the graph");
+    [[100, 150], [290, 340], [520, 570], [770, 820]].forEach(([a, b]) => wire(root, `M${a} ${CY} L${b - 4} ${CY}`));
+    const aN = [node(root, 0, Y, 100, H, "human", "START", true), node(root, 150, Y, 140, H, "tool", "intake"),
+      node(root, 340, Y, 180, H, "model", "draft_reply"), node(root, 570, Y, 200, H, "human", "manager_gate"),
+      node(root, 820, Y, 180, H, "tool", "issue_refund")];
+    const pause = el(root, "g", {});
+    el(pause, "circle", { cx: 770, cy: Y, r: 17 }, { fill: "var(--human)" });
+    el(pause, "rect", { x: 763, y: Y - 8, width: 5, height: 16, rx: 1 }, { fill: "#fff" });
+    el(pause, "rect", { x: 772, y: Y - 8, width: 5, height: 16, rx: 1 }, { fill: "#fff" });
+    const refunded = el(root, "text", { x: 910, y: 122, "text-anchor": "middle" }, { ...mono(700, 18), fill: "var(--state)" }, "REFUNDED $820");
+    // the manager answers days later: one curved arrow manager -> manager_gate
+    const clock = el(root, "g", {});
+    el(clock, "circle", { cx: 292, cy: 170, r: 21 }, { fill: "var(--human-soft)", stroke: "var(--human)", strokeWidth: 2.5 });
+    const hand = el(clock, "line", { x1: 292, y1: 170, x2: 292, y2: 155 }, { stroke: "var(--human)", strokeWidth: 3, strokeLinecap: "round" });
+    const mgr = node(root, 330, 147, 150, 46, "human", "manager", true);
+    const ans = el(root, "path", { d: "M480 170 C 600 170, 670 158, 670 92", fill: "none", "marker-end": "url(#c05c-ahh)" },
+      { stroke: "var(--human)", strokeWidth: 2.8 });
+    el(root, "rect", { x: 500, y: 184, width: 206, height: 30, rx: 15 }, { fill: "var(--bg)", stroke: "var(--human)", strokeWidth: 1.5 });
+    el(root, "text", { x: 603, y: 205, "text-anchor": "middle" }, { ...mono(700, 15), fill: "var(--human)" }, "approve · days later");
+    const aPath1 = el(root, "path", { d: `M50 ${CY} L670 ${CY}` }, { fill: "none", stroke: "none" });
+    const aPath2 = el(root, "path", { d: `M670 ${CY} L910 ${CY}` }, { fill: "none", stroke: "none" });
+    const aTok = el(root, "circle", { cx: 50, cy: CY, r: 10 }, { fill: "var(--human)", opacity: 0 });
+    const mTok = el(root, "circle", { cx: 480, cy: 170, r: 9 }, { fill: "var(--human)", opacity: 0 });
+
+    // B. payout pipeline (bottom row)
+    const BY = 236, BH = 56, BCY = BY + BH / 2;
+    el(root, "text", { x: 0, y: 222 }, { ...mono(600, 16), fill: "var(--muted)" }, "payout · retry + resume from SQLite");
+    [[170, 220], [430, 480]].forEach(([a, b]) => wire(root, `M${a} ${BCY} L${b - 4} ${BCY}`));
+    const bN = [node(root, 0, BY, 170, BH, "tool", "kyc_lookup"), node(root, 220, BY, 210, BH, "human", "analyst_review"),
+      node(root, 480, BY, 110, BH, "tool", "pay")];
+    el(root, "path", { d: `M590 ${BCY} L636 ${BCY}` }, { stroke: "var(--line-2)", strokeWidth: 2, strokeDasharray: "3 5", fill: "none" });
+    const atts = ["1 ✕", "2 ✕", "3 ✓"].map((s, i) => {
+      const g = el(root, "g", {}, { opacity: 0.25 });
+      const ok = i === 2;
+      el(g, "rect", { x: 640 + i * 82, y: BY + 10, width: 68, height: 36, rx: 18 },
+        { fill: ok ? "var(--state-soft)" : "var(--risk-soft)", stroke: ok ? "var(--state)" : "var(--risk)", strokeWidth: 2 });
+      el(g, "text", { x: 674 + i * 82, y: BY + 34, "text-anchor": "middle" }, { ...mono(700, 16), fill: ok ? "var(--state)" : "var(--risk)" }, s);
+      return g;
+    });
+    const ckpt = el(root, "path", { d: `M325 ${BY + BH} C 325 344, 880 344, 952 296`, fill: "none", "marker-end": "url(#c05c-ah)" },
+      { stroke: "var(--state)", strokeWidth: 2.2, strokeDasharray: "7 5" });
+    const cyl = el(root, "g", {});
+    const cylBody = el(cyl, "path", { d: "M958 250 L958 298 A44 12 0 0 0 1046 298 L1046 250" }, { fill: "var(--state-soft)", stroke: "var(--state)", strokeWidth: 2.5 });
+    const cylTop = el(cyl, "ellipse", { cx: 1002, cy: 250, rx: 44, ry: 12 }, { fill: "var(--state-soft)", stroke: "var(--state)", strokeWidth: 2.5 });
+    el(cyl, "text", { x: 1002, y: 334, "text-anchor": "middle" }, { ...mono(700, 16), fill: "var(--state)" }, "payouts.db");
+    const log = el(root, "text", { x: 1068, y: 282 }, { ...mono(700, 17), fill: "var(--ink-2)", opacity: 0 }, "side_effects.log: 1 line");
+    const procs = ["process 1", "process 1 · crash", "process 2 · resume"].map((s, i) =>
+      el(root, "text", { x: 1392, y: 222, "text-anchor": "end" }, { ...mono(700, 16), fill: i === 1 ? "var(--risk)" : i === 2 ? "var(--state)" : "var(--muted)", opacity: 0 }, s));
+    const replayed = el(root, "text", { x: 85, y: 318, "text-anchor": "middle" }, { ...mono(600, 15), fill: "var(--muted)", opacity: 0 }, "replayed");
+    const bolt = el(root, "path", { d: "M600 196 L570 236 L588 238 L556 278" , fill: "none" },
+      { stroke: "var(--risk)", strokeWidth: 5, strokeLinejoin: "round", strokeLinecap: "round", opacity: 0 });
+    const bPath1 = el(root, "path", { d: `M85 ${BCY} L535 ${BCY}` }, { fill: "none", stroke: "none" });
+    const bPath2 = el(root, "path", { d: `M958 274 C 820 330, 620 330, 535 ${BY + BH}` }, { fill: "none", stroke: "none" });
+    const bTok = el(root, "circle", { cx: 85, cy: BCY, r: 10 }, { fill: "var(--tool)", opacity: 0 });
+    const bTok2 = el(root, "circle", { cx: 958, cy: 274, r: 10 }, { fill: "var(--state)", opacity: 0 });
+
+    P = { root, aN, pause, refunded, clock, hand, mgr, ans, aPath1, aPath2, aTok, mTok,
+      bN, atts, ckpt, cyl, cylBody, cylTop, log, procs, replayed, bolt, bPath1, bPath2, bTok, bTok2 };
+  }
+
+  function play() {
+    const p = P;
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const all = [...p.aN, p.mgr, ...p.bN];
+    tl = gsap.timeline({ repeat: reduce ? 0 : -1, repeatDelay: 0.4 });
+    // reset: the skeleton is always drawn; only tokens and states change
+    all.forEach((g) => tl.set(g._r, { fill: `var(--${g._tone}-soft)`, stroke: `var(--${g._tone})` }, 0));
+    tl.set([p.pause, p.refunded, p.aTok, p.mTok, p.log, p.replayed, p.bolt, p.bTok, p.bTok2, ...p.procs], { opacity: 0 }, 0)
+      .set(p.procs[0], { opacity: 1 }, 0)
+      .set(p.atts, { opacity: 0.25 }, 0)
+      .set(p.hand, { rotation: 0, svgOrigin: "292 170" }, 0)
+      .set(p.pause, { scale: 1, transformOrigin: "50% 50%" }, 0)
+      .set([p.cylBody, p.cylTop], { fill: "var(--state-soft)" }, 0);
+
+    // 1. the $820 refund runs to manager_gate and pauses
+    along(tl, p.aTok, p.aPath1, 0.2, 1.2);
+    tl.set(p.aTok, { opacity: 1, attr: { cx: 670, cy: 30 } }, 1.4)
+      .to(p.pause, { opacity: 1, duration: 0.2 }, 1.4)
+      .to(p.pause, { scale: 1.25, duration: 0.3, yoyo: true, repeat: 3, ease: "sine.inOut" }, 1.6);
+    // 2. days pass; the manager answers along the curved arrow
+    tl.to(p.hand, { rotation: 720, svgOrigin: "292 170", duration: 1.2, ease: "power1.inOut" }, 1.6);
+    along(tl, p.mTok, p.ans, 2.8, 0.6);
+    tl.to(p.pause, { opacity: 0, duration: 0.2 }, 3.4).set(p.aTok, { opacity: 0 }, 3.45);
+    // 3. the token resumes to issue_refund
+    along(tl, p.aTok, p.aPath2, 3.45, 0.45);
+    tl.to(p.aN[4]._r, { fill: "var(--state-soft)", stroke: "var(--state)", duration: 0.2 }, 3.9)
+      .to(p.refunded, { opacity: 1, duration: 0.25 }, 3.9);
+
+    // 4. payout: checkpoint, then a crash at pay
+    along(tl, p.bTok, p.bPath1, 4.3, 1.0);
+    tl.fromTo(p.ckpt, { strokeDashoffset: 60 }, { strokeDashoffset: 0, duration: 0.5, ease: "none" }, 4.7)
+      .to(p.bolt, { opacity: 1, duration: 0.1 }, 5.3)
+      .to(p.bN[2]._r, { fill: "var(--risk-soft)", stroke: "var(--risk)", duration: 0.1 }, 5.3)
+      .set(p.procs[0], { opacity: 0 }, 5.3).set(p.procs[1], { opacity: 1 }, 5.3)
+      .to(p.bolt, { opacity: 0, duration: 0.3 }, 5.8);
+    // 5. process 2: the checkpoint glows, kyc_lookup is replayed, pay retries
+    tl.to([p.cylBody, p.cylTop], { fill: "var(--state)", duration: 0.25, yoyo: true, repeat: 1 }, 5.9)
+      .set(p.procs[1], { opacity: 0 }, 6.0).set(p.procs[2], { opacity: 1 }, 6.0)
+      .to(p.bN[0]._r, { fill: "var(--surface)", stroke: "var(--line-2)", duration: 0.25 }, 6.1)
+      .to(p.replayed, { opacity: 1, duration: 0.2 }, 6.1)
+      .to(p.bN[2]._r, { fill: "var(--tool-soft)", stroke: "var(--tool)", duration: 0.2 }, 6.1);
+    along(tl, p.bTok2, p.bPath2, 6.2, 0.5);
+    [6.8, 7.2, 7.6].forEach((at, i) => {
+      tl.to(p.atts[i], { opacity: 1, duration: 0.15 }, at);
+      if (i < 2) tl.to(p.bN[2]._r, { fill: "var(--risk-soft)", duration: 0.12, yoyo: true, repeat: 1 }, at);
+    });
+    tl.to(p.bN[2]._r, { fill: "var(--state-soft)", stroke: "var(--state)", duration: 0.2 }, 7.6)
+      .to(p.log, { opacity: 1, duration: 0.25 }, 7.8)
+      .set({}, {}, 10.0);
+    if (reduce) tl.progress(0.99);
+  }
+
+  Deck.register(ID, {
+    enter(slide) {
+      if (tl) tl.kill();
+      build(slide.querySelector("#c05c-svg"));
+      play();
+    },
+    step() {},
+    leave() {
+      if (tl) tl.kill();
+      tl = null;
+      if (P) {
+        gsap.killTweensOf([P.pause, P.refunded, P.hand, P.aTok, P.mTok, P.log, P.replayed, P.bolt, P.bTok, P.bTok2, P.ckpt, P.cylBody, P.cylTop, ...P.procs, ...P.atts]);
+        [...P.aN, P.mgr, ...P.bN].forEach((g) => gsap.killTweensOf(g._r));
+      }
+    },
+  });
+})();
+</script>

@@ -1,0 +1,145 @@
+<section class="slide chapter" id="custom-c04-chapter" data-tone="tool" data-title="Ch 4: Rewards you can unit-test">
+  <style>
+    #custom-c04-chapter .c04-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    #custom-c04-chapter .lede { margin-top: -8px; }
+    #custom-c04-chapter svg { margin-bottom: -6px; }
+  </style>
+  <div class="ch-num" data-fx="blur">04</div>
+  <svg id="c04-ch-svg" viewBox="0 0 1240 270" width="1240" height="270" aria-label="Three test tubes, good, hack and broken, each send a completion card into an amber reward() node. The good card scores 1.0, the hack and the broken card score 0.0. After all three, a green CI check pulses with 3 of 3 tests passed."></svg>
+  <h2 class="display">Rewards you can unit-test</h2>
+  <p class="lede" data-fx="up">A reward function is code. Test it with a known hack before it meets a GPU.</p>
+  <div class="c04-row" data-fx="stagger">
+    <span class="tag t-human">Acme refunds desk: refund-decision agent</span>
+    <span class="tag t-state">gold labels from the policy engine</span>
+    <span class="tag t-tool">one reward: TRL 1.16.0 · OpenAI graders · Vertex Gemini RFT</span>
+    <span class="tag t-tool">unit tests: Python 3.11+, CPU, no packages</span>
+    <a class="cite doc" href="https://huggingface.co/docs/trl/main/en/grpo_trainer" target="_blank" rel="noopener"><b>Docs</b>&nbsp;TRL GRPO Trainer</a>
+  </div>
+  <aside class="notes">This chapter is Lab 3: the Acme refunds desk has an agent that answers with an answer block holding decision, refund_amount and reason, and the policy engine of record gives the gold labels. We write the reward once as plain Python, unit-test it on a CPU with hand-written completions, and then run the same logic in TRL GRPO, as an OpenAI python grader, and as a Vertex Gemini RFT reward. Watch the loop: the good answer scores 1.0, but the hack and the broken answer must score 0.0, and only then does the CI check go green. Analogy: you test a smoke detector with test smoke before you trust it to guard the building. Likely question: "Why test a reward at all, it is ten lines?" Because our first draft of this exact reward paid 0.5 to a schema-less hack, and GRPO amplifies any cheap partial credit it finds.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c04-chapter";
+  // the three hand-written test completions and the scores decision_reward gives them (lab-rl Lab 1, RAN)
+  const TESTS = [
+    { name: "good", tone: "state", text: '{"decision": "approve", "refund_amount": 49.99,', text2: ' "reason": "within 30 days"}', score: "1.0" },
+    { name: "hack", tone: "risk", text: '{"decision": "approve"}', text2: 'approve deny escalate', score: "0.0" },
+    { name: "broken", tone: "muted", text: "Sure! I approved it.", text2: "", score: "0.0" },
+  ];
+  const TUBE_X = [14, 98, 182], TUBE_Y = 40, TUBE_W = 54, TUBE_H = 170;
+  const CARD_X = 264, CARD_Y = 88, CARD_W = 380, CARD_H = 82;
+  const NODE = { x: 664, y: 54, w: 196, h: 150 };
+  const TAG_X = 900, TAG_Y = [62, 116, 170];
+  const CI = { x: 1150, y: 128, r: 36 };
+  let tl = null, P = null;
+
+  const el = (parent, tag, attrs, style, text) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (style) Object.assign(e.style, style);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  };
+  const mono = (w, s) => `${w} ${s}px var(--f-mono)`;
+  const col = (t) => `var(--${t})`;
+
+  function build(svg) {
+    svg.innerHTML = "";
+    // test tubes
+    const tubes = TESTS.map((t, i) => {
+      const g = el(svg, "g", {});
+      const x = TUBE_X[i];
+      el(g, "path", { d: `M${x} ${TUBE_Y} L${x} ${TUBE_Y + TUBE_H - 27} A27 27 0 0 0 ${x + TUBE_W} ${TUBE_Y + TUBE_H - 27} L${x + TUBE_W} ${TUBE_Y}` }, { fill: "var(--surface-2)", stroke: "var(--line-2)", strokeWidth: 2 });
+      const liquid = el(g, "path", { d: `M${x + 5} ${TUBE_Y + 70} L${x + 5} ${TUBE_Y + TUBE_H - 27} A22 22 0 0 0 ${x + TUBE_W - 5} ${TUBE_Y + TUBE_H - 27} L${x + TUBE_W - 5} ${TUBE_Y + 70} Z` }, { fill: col(t.tone), opacity: 0.55 });
+      el(g, "line", { x1: x - 6, y1: TUBE_Y, x2: x + TUBE_W + 6, y2: TUBE_Y }, { stroke: "var(--line-2)", strokeWidth: 3, strokeLinecap: "round" });
+      el(g, "text", { x: x + TUBE_W / 2, y: TUBE_Y + TUBE_H + 30, "text-anchor": "middle" }, { font: mono(700, 15), fill: t.tone === "muted" ? "var(--muted)" : col(t.tone) }, t.name);
+      return { g, liquid };
+    });
+    el(svg, "text", { x: 0, y: 18 }, { font: mono(600, 14), fill: "var(--muted)" }, "tests/test_rewards.py");
+    // the reward() node
+    const node = el(svg, "g", {});
+    const nodeBox = el(node, "rect", { x: NODE.x, y: NODE.y, width: NODE.w, height: NODE.h, rx: 18 }, { fill: "var(--tool-soft)", stroke: "var(--tool)", strokeWidth: 2.5 });
+    el(node, "text", { x: NODE.x + NODE.w / 2, y: NODE.y + 66, "text-anchor": "middle" }, { font: mono(700, 24), fill: "var(--ink)" }, "reward()");
+    el(node, "text", { x: NODE.x + NODE.w / 2, y: NODE.y + 96, "text-anchor": "middle" }, { font: mono(500, 14), fill: "var(--muted)" }, "decision_reward");
+    el(node, "text", { x: NODE.x + NODE.w / 2, y: NODE.y + 118, "text-anchor": "middle" }, { font: mono(500, 13), fill: "var(--muted)" }, "pure Python · CPU");
+    const glow = el(node, "rect", { x: NODE.x, y: NODE.y, width: NODE.w, height: NODE.h, rx: 18 }, { fill: "var(--tool)", opacity: 0 });
+    // lane from the tubes to the node
+    el(svg, "line", { x1: 250, y1: CARD_Y + CARD_H / 2, x2: NODE.x - 8, y2: CARD_Y + CARD_H / 2 }, { stroke: "var(--line-2)", strokeWidth: 2, strokeDasharray: "6 6" });
+    // the travelling completion card
+    const card = el(svg, "g", {});
+    const cardBox = el(card, "rect", { x: CARD_X, y: CARD_Y, width: CARD_W, height: CARD_H, rx: 12 }, { fill: "var(--surface-2)", stroke: "var(--line-2)", strokeWidth: 2 });
+    const cardName = el(card, "text", { x: CARD_X + 16, y: CARD_Y + 24 }, { font: mono(700, 14), fill: "var(--ink)" }, "");
+    const cardText = el(card, "text", { x: CARD_X + 16, y: CARD_Y + 46 }, { font: mono(500, 12), fill: "var(--ink-2)" }, "");
+    const cardText2 = el(card, "text", { x: CARD_X + 16, y: CARD_Y + 66 }, { font: mono(500, 12), fill: "var(--ink-2)" }, "");
+    // score tags
+    const tags = TESTS.map((t, i) => {
+      const g = el(svg, "g", {});
+      const ok = t.name === "good";
+      el(g, "rect", { x: TAG_X, y: TAG_Y[i], width: 118, height: 38, rx: 19 }, { fill: ok ? "var(--state-soft)" : "var(--surface-2)", stroke: ok ? "var(--state)" : "var(--line-2)", strokeWidth: 2 });
+      el(g, "text", { x: TAG_X + 16, y: TAG_Y[i] + 25 }, { font: mono(600, 14), fill: "var(--muted)" }, t.name);
+      el(g, "text", { x: TAG_X + 104, y: TAG_Y[i] + 25, "text-anchor": "end" }, { font: mono(700, 16), fill: ok ? "var(--state)" : "var(--ink)" }, t.score);
+      return g;
+    });
+    // CI check
+    const ci = el(svg, "g", {});
+    const ciRing = el(ci, "circle", { cx: CI.x, cy: CI.y, r: CI.r }, { fill: "var(--state-soft)", stroke: "var(--state)", strokeWidth: 3 });
+    const ciTick = el(ci, "path", { d: `M${CI.x - 15} ${CI.y + 1} L${CI.x - 4} ${CI.y + 13} L${CI.x + 17} ${CI.y - 12}` }, { fill: "none", stroke: "var(--state)", strokeWidth: 5, strokeLinecap: "round", strokeLinejoin: "round" });
+    const ciTxt = el(svg, "text", { x: CI.x, y: CI.y + CI.r + 30, "text-anchor": "middle" }, { font: mono(700, 14), fill: "var(--muted)" }, "tests 0/3");
+    el(svg, "text", { x: CI.x, y: CI.y - CI.r - 16, "text-anchor": "middle" }, { font: mono(700, 14), fill: "var(--state)" }, "CI");
+    P = { tubes, node, nodeBox, glow, card, cardBox, cardName, cardText, cardText2, tags, ci, ciRing, ciTick, ciTxt };
+  }
+
+  function play() {
+    const p = P;
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    tl = gsap.timeline({ repeat: reduce ? 0 : -1, repeatDelay: 1.0 });
+    // reset at time 0: no tags, CI grey, card hidden
+    tl.set(p.tags, { opacity: 0, x: -12 }, 0)
+      .set(p.card, { opacity: 0, x: 0 }, 0)
+      .set(p.glow, { opacity: 0 }, 0)
+      .set(p.ci, { opacity: 0.25, scale: 1, svgOrigin: `${CI.x} ${CI.y}` }, 0)
+      .set(p.tubes.map((t) => t.g), { y: 0 }, 0)
+      .call(() => { p.ciTxt.textContent = "tests 0/3"; p.ciTxt.style.fill = "var(--muted)"; }, null, 0);
+    TESTS.forEach((t, i) => {
+      const at = 0.4 + i * 2.1;
+      const stroke = t.tone === "muted" ? "var(--line-2)" : col(t.tone);
+      tl.call(() => {
+        p.cardName.textContent = t.name;
+        p.cardName.style.fill = t.tone === "muted" ? "var(--muted)" : col(t.tone);
+        p.cardText.textContent = t.text;
+        p.cardText2.textContent = t.text2;
+        p.cardBox.style.stroke = stroke;
+      }, null, at)
+        .to(p.tubes[i].g, { y: -10, duration: 0.2, yoyo: true, repeat: 1, ease: "power1.out" }, at)
+        .fromTo(p.card, { opacity: 0, x: -16 }, { opacity: 1, x: 0, duration: 0.45, ease: "power2.out" }, at + 0.1)
+        .to(p.card, { x: 60, opacity: 0, duration: 0.55, ease: "power2.in" }, at + 0.95)
+        .fromTo(p.glow, { opacity: 0.45 }, { opacity: 0, duration: 0.5 }, at + 1.4)
+        .to(p.tags[i], { opacity: 1, x: 0, duration: 0.35, ease: "back.out(2)" }, at + 1.5)
+        .call(() => { p.ciTxt.textContent = `tests ${i + 1}/3`; }, null, at + 1.6);
+    });
+    // all three behave as expected: the CI check turns green and pulses
+    const done = 0.4 + 3 * 2.1;
+    tl.call(() => { p.ciTxt.textContent = "tests 3/3 pass"; p.ciTxt.style.fill = "var(--state)"; }, null, done)
+      .to(p.ci, { opacity: 1, duration: 0.3 }, done)
+      .to(p.ci, { scale: 1.14, duration: 0.3, yoyo: true, repeat: 3, ease: "sine.inOut" }, done + 0.1)
+      .to({}, { duration: 1.4 });
+    if (reduce) tl.progress(1);
+  }
+
+  Deck.register(ID, {
+    enter(slide) {
+      if (tl) tl.kill();
+      build(slide.querySelector("#c04-ch-svg"));
+      play();
+    },
+    step() {},
+    leave() {
+      if (tl) tl.kill();
+      tl = null;
+      if (P) gsap.killTweensOf([P.card, P.glow, P.ci, ...P.tags, ...P.tubes.map((t) => t.g)]);
+    },
+  });
+})();
+</script>

@@ -1,0 +1,218 @@
+<section class="slide" id="custom-c08-lab7-groupkfold" data-tone="risk" data-title="Lab 7: KFold vs GroupKFold">
+  <style>
+    #custom-c08-lab7-groupkfold { gap: 20px; }
+    #custom-c08-lab7-groupkfold .gk-grid { display: grid; grid-template-columns: 700px 1fr; gap: 26px; min-height: 0; }
+    #custom-c08-lab7-groupkfold .gk-left, #custom-c08-lab7-groupkfold .gk-right { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    #custom-c08-lab7-groupkfold .lab-head { font-size: 14px; gap: 10px; }
+    #custom-c08-lab7-groupkfold .lab-head .run { font-size: 14.5px; padding: 7px 11px; }
+    #custom-c08-lab7-groupkfold .code-head { padding: 7px 14px; font-size: 13.5px; }
+    #custom-c08-lab7-groupkfold .gk-code pre.code { font-size: 11px; line-height: 1.4; padding: 10px 14px 12px; }
+    #custom-c08-lab7-groupkfold .gk-out pre.code { font-size: 11.5px; line-height: 1.45; padding: 8px 14px 10px; }
+    #custom-c08-lab7-groupkfold .steps-rail { gap: 9px; }
+    #custom-c08-lab7-groupkfold .steps-rail > * { font-size: 15px; line-height: 1.36; grid-template-columns: 30px 1fr; gap: 10px; }
+    #custom-c08-lab7-groupkfold .steps-rail > *::before { width: 26px; height: 26px; font-size: 14px; }
+    #custom-c08-lab7-groupkfold .steps-rail code { font-size: .84em; }
+    #custom-c08-lab7-groupkfold .cites { display: flex; gap: 10px; flex-wrap: wrap; margin-top: auto; }
+    #custom-c08-lab7-groupkfold pre.code, #custom-c08-lab7-groupkfold pre.code *, #custom-c08-lab7-groupkfold code, #custom-c08-lab7-groupkfold svg text { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #c08gk-svg text { font-family: var(--f-mono); }
+  </style>
+  <div class="kicker"><span class="pill">Lab 7</span> Acme refund-fraud model · step 2 of 5</div>
+  <h2 class="title">Same model, same data: KFold 0.886, GroupKFold 0.602 ROC-AUC</h2>
+  <div class="gk-grid fill">
+    <div class="gk-left">
+      <div class="lab-head"><span class="run">LOKY_MAX_CPU_COUNT=4 python lab7_leakage_splits.py</span><span class="small">scikit-learn==1.9.1 · ~50 s · PowerShell: <code>$env:LOKY_MAX_CPU_COUNT=4</code></span></div>
+      <div class="code-wrap gk-code">
+        <div class="code-head">fraud_data/lab7_leakage_splits.py · lines 1-29</div>
+        <pre class="code" data-lang="python" data-focus="1:7-20, 2:22-25, 3:26-27, 4:28-29"><code>"""Lab 7 - Leakage-safe validation for a refund-fraud model: GroupKFold and TimeSeriesSplit."""
+import numpy as np
+import pandas as pd
+from sklearn.ensemble import HistGradientBoostingClassifier
+from sklearn.model_selection import GroupKFold, KFold, TimeSeriesSplit, cross_val_score
+
+rng = np.random.default_rng(0)
+n_customers, per_customer = 400, 15
+customer = np.repeat(np.arange(n_customers), per_customer)
+# Each customer has a stable "fingerprint" (device, address hash) and a fixed fraud propensity.
+fraudster = rng.random(n_customers) &lt; 0.15
+profile = rng.normal(size=(n_customers, 5))
+profile[fraudster, 0] += 0.8          # weak, REAL signal that generalizes to new customers
+fingerprint, is_fraudster = profile[customer], fraudster[customer]
+noise = rng.normal(size=(len(customer), 5))
+df = pd.DataFrame(np.hstack([fingerprint + 0.3 * noise, noise[:, :2]]),
+                  columns=[f"f{i}" for i in range(7)])
+df["customer_id"] = customer
+df["event_day"] = rng.integers(0, 365, len(df))
+y = (is_fraudster &amp; (rng.random(len(df)) &lt; 0.8)).astype(int)
+
+X = df.drop(columns=["customer_id", "event_day"])
+model = HistGradientBoostingClassifier(max_iter=200, random_state=0)
+
+leaky = cross_val_score(model, X, y, cv=KFold(5, shuffle=True, random_state=0), scoring="roc_auc")
+safe = cross_val_score(model, X, y, groups=df["customer_id"],
+                       cv=GroupKFold(n_splits=5, shuffle=True, random_state=0), scoring="roc_auc")
+print(f"KFold (rows shuffled, customers leak):  ROC-AUC {leaky.mean():.3f} +/- {leaky.std():.3f}")
+print(f"GroupKFold (customer never in both):    ROC-AUC {safe.mean():.3f} +/- {safe.std():.3f}")</code></pre>
+      </div>
+      <div class="cites">
+        <a class="cite doc" href="https://scikit-learn.org/stable/modules/cross_validation.html" target="_blank" rel="noopener"><b>Docs</b>&nbsp;3.1. Cross-validation: evaluating estimator performance - scikit-learn 1.9.1</a>
+      </div>
+    </div>
+    <div class="gk-right">
+      <svg id="c08gk-svg" viewBox="0 0 740 330" width="666" height="297" role="img" aria-label="Ten of 400 customers, each a row of 15 event dots. Step 1: one row is boxed: 15 events share one fingerprint. Step 2, KFold: in every row 12 dots go to the train side in blue and 3 to the test side in amber, and a red arc links the two sides: every customer leaks. Step 3, GroupKFold: whole rows move; customers 2 and 7 go to test, the rest to train, and no arc remains. Step 4: two ROC-AUC bars count up to 0.886 for KFold and 0.602 for GroupKFold, with the 0.28 gap shaded red."></svg>
+      <div class="code-wrap out gk-out" data-step="4">
+        <div class="code-head">output · captured run</div>
+        <pre class="code" data-lang="none"><code><span class="err">KFold (rows shuffled, customers leak):  ROC-AUC 0.886 +/- 0.025</span>
+<span class="ok">GroupKFold (customer never in both):    ROC-AUC 0.602 +/- 0.075</span></code></pre>
+      </div>
+      <div class="steps-rail">
+        <div data-step="1"><span>Each customer keeps one stable fingerprint over 15 events. Only fraudsters get the real signal: <code>+0.8</code> on <code>f0</code>.</span></div>
+        <div data-step="2"><span><code>KFold</code> shuffles rows. Every customer lands in train and test, so the model learns fingerprints.</span></div>
+        <div data-step="3"><span><code>shuffle</code>, <code>random_state</code>: keyword-only, new in 1.6. Group by the unit the deployed model meets first. No <code>groups=</code>: <code>ValueError: The 'groups' parameter should not be None.</code></span></div>
+        <div data-step="4"><span>The 0.28 gap is memorized fingerprints. Only 0.60 holds for new customers. Rare positives: <code>StratifiedGroupKFold</code>.</span></div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">This is step 2 of Lab 7: the same HistGradientBoosting model on the same 6,000 refund events, scored with two different splitters. Step 1: the data has 400 customers with 15 events each, and every customer keeps a stable fingerprint, while only fraudsters get a weak real signal on f0. Step 2: KFold shuffles rows, so every customer has events in train and in test, and the model can memorize the fingerprint instead of learning fraud. Step 3: GroupKFold with groups set to customer_id keeps each customer on one side; the group key is a business decision, the unit the deployed model sees for the first time, such as customer, household, device or policy. Step 4: 0.886 against 0.602 is a 0.28 gap of pure memorization, and only 0.60 is the number to report for new customers. Analogy: a student who saw the exam questions last week scores high, but the score says nothing about new questions. Likely question: why not always use GroupKFold? Use it whenever the same entity can appear more than once; with rare positives use StratifiedGroupKFold so every fold keeps some fraud cases. Hand-off: GroupKFold stops customers leaking; step 3 stops the future leaking, with the same file and the same df.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c08-lab7-groupkfold";
+  const ROWS = 10, DOTS = 15, TX = 82, SX = 362, DX = 15, RY = 70, RH = 24;
+  const TEST_ROWS = [2, 7];                       // GroupKFold: 2 of 10 customers = 1 of 5 folds
+  const isTestK = (i, j) => (7 * i + 3 * j) % 5 === 0; // KFold: exactly 3 of 15 rows per customer
+  const Y0 = 300, YS = 480;                        // gauge: AUC 0.5 at y=300, 1.0 at y=60
+  const gy = (v) => Y0 - (v - 0.5) * YS;
+  let S = null;
+
+  function mk(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  }
+
+  function layout(n) {
+    // returns per dot {x, fill, op}
+    const out = [];
+    for (let i = 0; i < ROWS; i++) {
+      let k = 0, m = 0;
+      for (let j = 0; j < DOTS; j++) {
+        let x = TX + j * DX, fill = "var(--muted)", op = n >= 1 ? 0.8 : 0.4;
+        if (n === 2) {
+          if (isTestK(i, j)) { x = SX + (m++) * DX; fill = "var(--tool)"; }
+          else { x = TX + (k++) * DX; fill = "var(--agent)"; }
+          op = 1;
+        } else if (n >= 3) {
+          if (TEST_ROWS.includes(i)) { x = SX + j * DX; fill = "var(--tool)"; }
+          else { x = TX + j * DX; fill = "var(--agent)"; }
+          op = 1;
+        }
+        out.push({ x, fill, op });
+      }
+    }
+    return out;
+  }
+
+  function build(slide) {
+    const svg = slide.querySelector("#c08gk-svg");
+    if (svg._S) return svg._S;
+    svg.innerHTML = "";
+    const s = { prev: -1, dots: [], links: [] };
+    mk("text", { x: 8, y: 20, "font-size": 13, "font-weight": 700, fill: "var(--ink)" }, svg, "10 of 400 customers · 15 events each · cv = 5 folds");
+    s.heads = mk("g", { opacity: 0 }, svg);
+    mk("text", { x: TX - 5, y: 50, "font-size": 12, "font-weight": 700, fill: "var(--agent)" }, s.heads, "train folds (4/5)");
+    mk("text", { x: SX - 5, y: 50, "font-size": 12, "font-weight": 700, fill: "var(--tool)" }, s.heads, "test fold (1/5)");
+    mk("line", { x1: 342, y1: 58, x2: 342, y2: RY + ROWS * RH - 10, stroke: "var(--line-2)", "stroke-width": 1.5, "stroke-dasharray": "5 4" }, s.heads);
+    // row labels
+    for (let i = 0; i < ROWS; i++) mk("text", { x: 8, y: RY + i * RH + 4, "font-size": 11, fill: "var(--muted)" }, svg, "cust " + i);
+    // KFold leak arcs (behind dots)
+    for (let i = 0; i < ROWS; i++) {
+      const y = RY + i * RH;
+      s.links.push(mk("path", { d: `M${TX + 11 * DX + 6} ${y - 4} Q 300 ${y - 18} ${SX - 6} ${y - 4}`, fill: "none", stroke: "var(--risk)", "stroke-width": 2, opacity: 0 }, svg));
+    }
+    // dots
+    for (let i = 0; i < ROWS; i++) for (let j = 0; j < DOTS; j++)
+      s.dots.push(mk("circle", { cx: TX + j * DX, cy: RY + i * RH, r: 5, fill: "var(--muted)", opacity: 0.4 }, svg));
+    // step 1 bracket on row 0
+    s.box = mk("rect", { x: TX - 10, y: RY - 11, width: DOTS * DX + 6, height: 22, rx: 8, fill: "none", stroke: "var(--human)", "stroke-width": 2, opacity: 0 }, svg);
+    // captions, one per step
+    s.cap = [
+      null,
+      mk("text", { x: 8, y: 318, "font-size": 12.5, "font-weight": 700, fill: "var(--human)", opacity: 0 }, svg, "1 customer = 15 rows with one fingerprint"),
+      mk("text", { x: 8, y: 318, "font-size": 12.5, "font-weight": 700, fill: "var(--risk)", opacity: 0 }, svg, "leak: 10 of 10 customers in train AND test"),
+      mk("text", { x: 8, y: 318, "font-size": 12.5, "font-weight": 700, fill: "var(--state)", opacity: 0 }, svg, "groups=customer_id: 0 customers in both"),
+    ];
+    // gauges
+    const g = s.gauge = mk("g", { opacity: 0 }, svg);
+    mk("text", { x: 669, y: 46, "text-anchor": "middle", "font-size": 12, "font-weight": 700, fill: "var(--ink)" }, g, "ROC-AUC");
+    mk("line", { x1: 600, y1: Y0, x2: 738, y2: Y0, stroke: "var(--line-2)", "stroke-width": 1.5 }, g);
+    mk("text", { x: 598, y: Y0 + 4, "text-anchor": "end", "font-size": 10, fill: "var(--muted)" }, g, "0.5");
+    s.band = mk("rect", { x: 642, y: gy(0.886), width: 54, height: gy(0.602) - gy(0.886), fill: "var(--risk-soft)", stroke: "var(--risk)", "stroke-width": 1, "stroke-dasharray": "4 3", opacity: 0 }, g);
+    s.bandT = mk("g", { opacity: 0 }, g);
+    mk("text", { x: 669, y: 178, "text-anchor": "middle", "font-size": 13, "font-weight": 700, fill: "var(--risk)" }, s.bandT, "0.28");
+    mk("text", { x: 669, y: 193, "text-anchor": "middle", "font-size": 11, fill: "var(--risk)" }, s.bandT, "gap");
+    s.barK = mk("rect", { x: 606, y: Y0, width: 36, height: 0, rx: 4, fill: "var(--risk)" }, g);
+    s.barG = mk("rect", { x: 696, y: Y0, width: 36, height: 0, rx: 4, fill: "var(--state)" }, g);
+    s.whK = mk("path", { d: `M618 ${gy(0.911)} h12 M624 ${gy(0.911)} V${gy(0.861)} M618 ${gy(0.861)} h12`, stroke: "var(--ink)", "stroke-width": 1.5, fill: "none", opacity: 0 }, g);
+    s.whG = mk("path", { d: `M708 ${gy(0.677)} h12 M714 ${gy(0.677)} V${gy(0.527)} M708 ${gy(0.527)} h12`, stroke: "var(--ink)", "stroke-width": 1.5, fill: "none", opacity: 0 }, g);
+    s.numK = mk("text", { x: 624, y: gy(0.911) - 8, "text-anchor": "middle", "font-size": 11.5, "font-weight": 700, fill: "var(--risk)", stroke: "var(--surface)", "stroke-width": 4, "paint-order": "stroke" }, g, "0.500");
+    s.numG = mk("text", { x: 721, y: gy(0.677) - 8, "text-anchor": "middle", "font-size": 11.5, "font-weight": 700, fill: "var(--state)", stroke: "var(--surface)", "stroke-width": 4, "paint-order": "stroke" }, g, "0.500");
+    mk("text", { x: 624, y: 316, "text-anchor": "middle", "font-size": 11, fill: "var(--muted)" }, g, "KFold");
+    mk("text", { x: 714, y: 316, "text-anchor": "middle", "font-size": 11, fill: "var(--muted)" }, g, "Group");
+    svg._S = s;
+    return s;
+  }
+
+  function setGauge(s, t) {
+    // t = 0..1 progress
+    const k = 0.5 + 0.386 * t, gg = 0.5 + 0.102 * t;
+    s.barK.setAttribute("y", gy(k)); s.barK.setAttribute("height", Y0 - gy(k));
+    s.barG.setAttribute("y", gy(gg)); s.barG.setAttribute("height", Y0 - gy(gg));
+    s.numK.textContent = k.toFixed(3); s.numG.textContent = gg.toFixed(3);
+  }
+
+  function render(s, n, animate) {
+    const els = [...s.dots, ...s.links, ...s.cap.filter(Boolean), s.heads, s.box, s.gauge, s.band, s.bandT, s.whK, s.whG];
+    gsap.killTweensOf(els);
+    if (s.tl) { s.tl.kill(); s.tl = null; }
+    const to = (el, v, d) => (animate ? gsap.to(el, { ...v, duration: .5, delay: d || 0 }) : gsap.set(el, v));
+    const L = layout(n);
+    s.dots.forEach((c, idx) => {
+      const p = L[idx], i = Math.floor(idx / DOTS);
+      const d = animate ? (n >= 2 ? i * 0.06 + (idx % DOTS) * 0.008 : (idx % DOTS) * 0.01) : 0;
+      if (animate) gsap.to(c, { attr: { cx: p.x }, fill: p.fill, opacity: p.op, duration: .7, delay: d, ease: "power3.inOut" });
+      else gsap.set(c, { attr: { cx: p.x }, fill: p.fill, opacity: p.op });
+    });
+    s.links.forEach((l, i) => to(l, { opacity: n === 2 ? 0.9 : 0 }, n === 2 ? 0.7 + i * 0.05 : 0));
+    to(s.heads, { opacity: n >= 2 ? 1 : 0 });
+    to(s.box, { opacity: n === 1 ? 1 : 0 });
+    s.cap.forEach((c, i) => c && to(c, { opacity: i === Math.min(n, 3) ? 1 : 0 }, i === Math.min(n, 3) ? 0.4 : 0));
+    to(s.gauge, { opacity: n >= 4 ? 1 : 0 });
+    if (n >= 4 && animate && s.prev < 4) {
+      setGauge(s, 0);
+      gsap.set([s.band, s.bandT, s.whK, s.whG], { opacity: 0 });
+      const o = { t: 0 };
+      s.tl = gsap.timeline();
+      s.tl.to(o, { t: 1, duration: 1.4, ease: "power2.out", delay: .3, onUpdate: () => setGauge(s, o.t) })
+          .to([s.whK, s.whG], { opacity: 1, duration: .3 })
+          .to([s.band, s.bandT], { opacity: 1, duration: .4 });
+    } else {
+      setGauge(s, n >= 4 ? 1 : 0);
+      gsap.set([s.band, s.bandT, s.whK, s.whG], { opacity: n >= 4 ? 1 : 0 });
+    }
+    s.prev = n;
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { S = build(slide); S.prev = step; render(S, step, false); },
+    step(slide, n, animate) { S = build(slide); render(S, n, animate); },
+    leave(slide) {
+      const svg = slide.querySelector("#c08gk-svg");
+      if (svg && svg._S && svg._S.tl) { svg._S.tl.kill(); svg._S.tl = null; }
+      if (svg) gsap.killTweensOf(svg.querySelectorAll("*"));
+    }
+  });
+})();
+</script>

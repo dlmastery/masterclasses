@@ -1,0 +1,118 @@
+<section class="slide" id="custom-interview-c01-rag-pressure" data-tone="agent" data-title="Interview: score retrieval first">
+  <style>
+    #custom-interview-c01-rag-pressure .qa .a { font-size: 20px; }
+    #custom-interview-c01-rag-pressure table.t td, #custom-interview-c01-rag-pressure table.t th { font-size: 18px; padding: 8px 12px; }
+    #custom-interview-c01-rag-pressure table.t td:first-child { font-family: var(--f-mono); white-space: nowrap; }
+    #custom-interview-c01-rag-pressure pre.code, #custom-interview-c01-rag-pressure pre.code * { font-variant-ligatures: none; }
+    #custom-interview-c01-rag-pressure pre.code.sm { font-size: 17px; line-height: 1.45; }
+    #custom-interview-c01-rag-pressure svg.viz { display: block; width: 100%; height: 280px; }
+    #custom-interview-c01-rag-pressure .cite.paper { flex-direction: row; gap: 10px; border-radius: 10px; padding: 6px 12px; }
+    #custom-interview-c01-rag-pressure .tags .tag { font-size: 17px; }
+  </style>
+  <div class="kicker">Interview · RAG evaluation · 1 of 2</div>
+  <h2 class="title">When RAG answers are wrong, score retrieval on its own first</h2>
+  <div class="grid fill" style="grid-template-columns: 1fr 680px; gap: 36px">
+    <div class="stack" style="gap:20px">
+      <div class="qa">
+        <div class="q">Hit rate@20 is high, but the claims answers are still wrong. Where do you look?</div>
+        <div class="a" data-step="1">At retrieval. The claim needs 2 facts; the top 20 holds 1. Score all-evidence recall, then faithfulness.</div>
+      </div>
+      <table class="t" data-step="2">
+        <tr><th>metric</th><th>counts a question as a hit when</th></tr>
+        <tr><td>hit@k</td><td>any required chunk is in the top k</td></tr>
+        <tr><td>recall@k</td><td>share of required chunks in the top k</td></tr>
+        <tr><td>all-evidence</td><td>every required chunk is in the top k</td></tr>
+      </table>
+      <div class="paper" data-step="3">
+        <div class="pid">arXiv:2610.26951 <span>Oct 2026</span></div>
+        <div class="find">Similarity retrieval finds <b>any</b> relevant chunk far more reliably than <b>all</b> required chunks.</div>
+        <div class="so">Label every required chunk per question. Rerank to a small top-n.</div>
+      </div>
+      <div class="cites" data-step="3"><a class="cite paper" href="https://arxiv.org/abs/2610.26951" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.26951 The Bottleneck Is Retrieval, Not Reading</a></div>
+    </div>
+
+    <div class="stack" style="gap:14px">
+      <svg class="viz" id="cirp-svg" viewBox="0 0 756 300" aria-label="A claim query retrieves 3 chunks but only 1 of 2 required facts"></svg>
+      <div class="tags" data-step="2" data-fx="stagger"><span class="tag t-state">hit@20 = 1</span><span class="tag t-tool">recall@20 = 0.5</span><span class="tag t-risk">all-evidence = 0</span></div>
+      <div class="code-wrap" data-step="2">
+        <div class="code-head">retrieval_eval.py · plain Python</div>
+        <pre class="code sm" data-lang="python" data-focus="2:2-3, 3:6-8"><code>def all_evidence_recall(rows, k=20):
+    ok = [set(r["required"]) &lt;= set(r["retrieved"][:k])
+          for r in rows]
+    return sum(ok) / len(rows)
+
+rows = [{"required": ["c12", "c40"],
+         "retrieved": ["c12", "c7", "c3"]}]
+print(all_evidence_recall(rows))   # 0.0</code></pre>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    Ask the question and wait. First fix the metric words, because candidates mix them up. Hit rate at k counts a question as a hit when any one required chunk is in the top k. Recall at k is the share of all required chunks that are in the top k. All-evidence recall counts a question only when every required chunk is in the top k. In the diagram the claim needs two facts, the deductible and the flood exclusion; the top 20 holds only the deductible. So hit@20 is 1, recall@20 is 0.5, and all-evidence recall is 0, and the generator cannot answer correctly however good it is. Click 2 shows the three numbers and the five-line function: label the required chunk ids per question, then test that the required set is a subset of the top k. Click 3: arXiv 2610.26951 found that similarity retrieval finds any relevant chunk far more reliably than all required chunks, so answer-only evals hide grounding failures. Score retrieval first, then faithfulness, then rerank to a small top-n. Analogy: an open-book exam is fair only if the book holds every page you need. Likely follow-up: "How do you label all required chunks?" Start from real failure traces and let a domain expert mark every clause the answer must cite.
+  </aside>
+</section>
+<script>
+(() => {
+  const ID = "custom-interview-c01-rag-pressure";
+  const NS = "http://www.w3.org/2000/svg";
+  let loops = [], S = null;
+  const mk = (p, tag, a = {}, st = {}) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); Object.assign(e.style, st); p.appendChild(e); return e; };
+  const txt = (p, x, y, s, st = {}) => { const t = mk(p, "text", { x, y, "text-anchor": "middle" }, Object.assign({ font: "600 18px var(--f-display)", fill: "var(--ink)" }, st)); t.textContent = s; return t; };
+  const box = (p, x, y, w, h, tone, label, sub, dash) => {
+    const g = mk(p, "g");
+    mk(g, "rect", { x, y, width: w, height: h, rx: 12 }, { fill: `color-mix(in oklab, var(--${tone}) 10%, var(--bg))`, stroke: `var(--${tone})`, strokeWidth: 2, strokeDasharray: dash ? "6 5" : "none" });
+    txt(g, x + w / 2, y + h / 2 + (sub ? -4 : 6), label);
+    if (sub) txt(g, x + w / 2, y + h / 2 + 18, sub, { font: "500 15px var(--f-mono)", fill: "var(--muted)" });
+    return g;
+  };
+  const wire = (p, d, tone, dash) => mk(p, "path", { d, fill: "none" }, { stroke: `var(--${tone})`, strokeWidth: 2.4, strokeDasharray: dash ? "7 6" : "none", markerEnd: `url(#${ID}-arr-${tone})` });
+  const dot = (p) => mk(p, "circle", { r: 6, cx: 0, cy: 0 }, { fill: "var(--agent)", opacity: 0 });
+
+  function build(svg) {
+    svg.innerHTML = "";
+    const defs = mk(svg, "defs");
+    ["ink-2", "state"].forEach((t) => {
+      const m = mk(defs, "marker", { id: `${ID}-arr-${t}`, viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto-start-reverse" });
+      mk(m, "path", { d: "M0 0 L10 5 L0 10 z" }, { fill: `var(--${t})` });
+    });
+    const s = {};
+    s.q = box(svg, 0, 112, 140, 76, "human", "Claim query", "needs 2 facts");
+    const CY = [20, 123, 226];
+    s.ch = CY.map((y, i) => box(svg, 230, y, 220, 56, "state", ["chunk 1 · deductible", "chunk 2 · similar", "chunk 3 · similar"][i], "top 20"));
+    s.qw = CY.map((y) => wire(svg, `M140 150 C 185 150, 185 ${y + 28}, 228 ${y + 28}`, "ink-2"));
+    /* step 1 only: the facts the answer needs */
+    s.facts = mk(svg, "g");
+    box(s.facts, 530, 30, 226, 66, "state", "fact A · deductible", "required · found");
+    box(s.facts, 530, 130, 226, 66, "risk", "fact B · flood excl.", "required · missing", true);
+    wire(s.facts, "M450 48 C 490 48, 490 63, 528 63", "state");
+    mk(s.facts, "rect", { x: 568, y: 230, width: 150, height: 36, rx: 18 }, { fill: "var(--risk)" });
+    txt(s.facts, 643, 254, "1 / 2 evidence", { fill: "#fff", font: "700 16px var(--f-mono)" });
+    s.dots = [0, 1, 2].map(() => dot(svg));
+    return s;
+  }
+
+  const kill = () => { loops.forEach((t) => t.kill()); loops = []; };
+  /* dots travel along the query wires only and fade before they reach a box */
+  const along = (d, path, dur, delay) => {
+    const L = path.getTotalLength(), o = { t: 0 };
+    return gsap.to(o, { t: 1, duration: dur, delay, repeat: -1, repeatDelay: 0.6, ease: "none",
+      onUpdate: () => { const pt = path.getPointAtLength(o.t * L); d.setAttribute("cx", pt.x); d.setAttribute("cy", pt.y); d.style.opacity = o.t < 0.08 || o.t > 0.88 ? 0 : 1; } });
+  };
+
+  function render(n, animate) {
+    if (!S) return;
+    kill();
+    const D = animate ? 0.45 : 0;
+    const to = (el, v) => (D ? gsap.to(el, Object.assign({ duration: D }, v)) : gsap.set(el, v));
+    to(S.facts, { autoAlpha: n >= 1 ? 1 : 0 });
+    S.ch.forEach((c, i) => to(c, { opacity: n >= 1 && i > 0 ? 0.4 : 1 }));
+    S.dots.forEach((d, i) => loops.push(along(d, S.qw[i], 1.1, i * 0.25)));
+  }
+
+  Deck.register(ID, {
+    enter(slide, n) { S = build(slide.querySelector("#cirp-svg")); render(n || 0, false); },
+    step(slide, n, animate) { render(n, animate); },
+    leave() { kill(); if (S) gsap.killTweensOf([S.facts, ...S.ch]); }
+  });
+})();
+</script>

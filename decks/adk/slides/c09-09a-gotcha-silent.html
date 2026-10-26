@@ -1,0 +1,38 @@
+<section class="slide" id="adk-c09-gotcha-silent" data-tone="risk" data-title="Gotcha: silent green runs">
+  <style>
+    #adk-c09-gotcha-silent .c9-split { --c9l: 540px; }
+    #adk-c09-gotcha-silent .gotcha { font-size: 19px; line-height: 1.4; grid-template-columns: 104px 1fr; }
+    #adk-c09-gotcha-silent .gotcha .em { font-family: var(--f-mono); font-size: 16px; color: var(--risk); }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> Evals</div>
+  <h2 class="title">A wrong config path or zero cases still gives a green run</h2>
+  <div class="c9-split fill">
+    <div class="c9-col">
+      <div class="gotcha" data-step="1">
+        <b>Symptom</b><span><code>refund_policy_score</code> is missing from the output.</span>
+        <b class="why">Cause</b><span>A typo in the config path. ADK logs only <span class="em">Using default criteria.</span></span>
+        <b class="fix">Fix</b><span><code>test -f</code> the config first.</span>
+      </div>
+      <div class="gotcha" data-step="2">
+        <b>Symptom</b><span>A green pipeline on a failing eval.</span>
+        <b class="why">Cause</b><span>Exit 0 before 2.13.0, and <code>| tee</code> hides the exit code.</span>
+        <b class="fix">Fix</b><span><code>pipefail</code>, then count the cases that ran.</span>
+      </div>
+      <div class="cites" data-step="3"><a class="cite repo" href="https://github.com/google/adk-python/issues/6951" target="_blank" rel="noopener"><b>Issue</b>&nbsp;#6951 zero cases passed</a></div>
+    </div>
+    <div class="code-wrap good">
+      <div class="code-head">labs/adk/lab9-refund-eval/ci/eval_gate.sh · excerpt</div>
+      <pre class="code" data-lang="bash" data-focus="1:3-4, 2:1, 3:6-9, 4:10"><code>set -euo pipefail
+export PYTHONPATH=$PWD
+CFG=refund_agent/test_config.json
+test -f "$CFG" || { echo "missing $CFG"; exit 1; }
+
+adk eval refund_agent refund_agent/refund.evalset.json \
+  --config_file_path="$CFG" --print_detailed_results | tee eval.log
+N=$(grep -c '^Eval Id:' eval.log || true)
+test "$N" -eq 2 || { echo "ran $N of 2 cases"; exit 1; }
+grep -q 'Metric: refund_policy_score' eval.log || exit 1</code></pre>
+    </div>
+  </div>
+  <aside class="notes">Two failures that look like success: the pipeline is green, so nobody looks. First: a typo in the config path is not an error. ADK logs "No config file supplied or file not found. Using default criteria." and scores with the two defaults, so the 500 dollar rule never runs; the gate script checks that the file exists first. Second: before 2.13.0 adk eval always exited 0, and a pipe into tee hides the exit code unless pipefail is on, so the script sets pipefail and also counts the cases that ran; update that number when you add cases. On the pytest path, before 2.10.0 AgentEvaluator also passed an evalset with zero cases, issue 6951; 2.13.0 raises "No eval cases were evaluated". The last line checks that our own metric really ran. Analogy: test the smoke alarm with smoke, not by looking at the green light. A likely question: "Is the case count not brittle?" Yes, a little, and that is the point: adding a case should be a conscious change to the gate.</aside>
+</section>

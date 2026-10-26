@@ -1,0 +1,204 @@
+<section class="slide" id="custom-interview-c05-thresholds-cost" data-tone="human" data-title="Thresholds from costs">
+  <style>
+    #custom-interview-c05-thresholds-cost .thr-grid { display: grid; grid-template-columns: 770px 1fr; gap: 26px; align-items: start; }
+    #custom-interview-c05-thresholds-cost .qa-col { display: grid; gap: 16px; align-content: start; }
+    #custom-interview-c05-thresholds-cost .qa { gap: 8px; }
+    #custom-interview-c05-thresholds-cost .qa .q { font-size: 21px; }
+    #custom-interview-c05-thresholds-cost .qa .a { font-size: 17px; line-height: 1.42; padding: 10px 14px; }
+    #custom-interview-c05-thresholds-cost .qa .a .tags { margin-top: 8px; gap: 8px; align-items: center; }
+    #custom-interview-c05-thresholds-cost .qa .a .tag { font-size: 13px; padding: 5px 9px 5px 8px; }
+    #custom-interview-c05-thresholds-cost .qa .a .cite { font-size: 13px; padding: 4px 9px 4px 7px; gap: 6px; }
+    #custom-interview-c05-thresholds-cost .qa .a .cite.paper { flex-direction: row; align-items: center; white-space: nowrap; }
+    #custom-interview-c05-thresholds-cost .right { display: grid; gap: 14px; }
+    #custom-interview-c05-thresholds-cost .plot-row { display: grid; grid-template-columns: 404px 1fr; gap: 12px; align-items: center; }
+    #custom-interview-c05-thresholds-cost .plot-row svg { width: 404px; height: 236px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+    #custom-interview-c05-thresholds-cost .cap { display: grid; }
+    #custom-interview-c05-thresholds-cost .cap > * { grid-area: 1 / 1; }
+    #custom-interview-c05-thresholds-cost .cap .stat { --aurora: var(--human); }
+    #custom-interview-c05-thresholds-cost .cap .stat .n { font-size: 50px; }
+    #custom-interview-c05-thresholds-cost .cap .stat .l { font-size: 15px; }
+    #custom-interview-c05-thresholds-cost pre.code.xs { font-size: 13.5px; }
+  </style>
+  <div class="kicker">Interview · Refund fraud and IT tickets · 3 of 3</div>
+  <h2 class="title">Pick thresholds from costs at production prevalence</h2>
+  <div class="thr-grid fill">
+    <div class="qa-col">
+      <div class="qa">
+        <div class="q">A missed refund fraud costs $120, a false hold $15. Which threshold?</div>
+        <div class="a" data-step="1">Calibrate the probabilities first. Then the Bayes threshold is <b>t* = C_FP / (C_FP + C_FN) = 15 / 135 = 0.111</b>. In the refund-fraud lab, a move from 0.5 to the cost-tuned threshold cut cost by <b>31%</b>: $10.72 → $7.38 per case.
+          <div class="tags"><span class="tag t-human">t* = 0.111</span><span class="tag t-state">−31% $ per case</span><a class="cite doc" href="https://scikit-learn.org/stable/auto_examples/model_selection/plot_cost_sensitive_learning.html" target="_blank" rel="noopener"><b>scikit-learn</b>&nbsp;Post-tuning the decision threshold</a></div>
+        </div>
+      </div>
+      <div class="qa">
+        <div class="q">Refund-fraud eval set: 10% fraud; production: 2%. Does it matter?</div>
+        <div class="a" data-step="2">Yes. FPR and FNR do not depend on prevalence, but cost does. The eval-tuned threshold cost <b>66% more</b> in production: <b>$3.10 vs $1.86</b> per case. Re-derive the threshold at production prevalence, and re-derive it when costs change.
+          <div class="tags"><span class="tag t-risk">π 0.10 → 0.02</span><span class="tag t-human">best t 0.152 → 0.340</span></div>
+        </div>
+      </div>
+      <div class="qa">
+        <div class="q">IT tickets: when should the router defer to a human?</div>
+        <div class="a" data-step="3">When the expected cost of acting is higher than the review cost. With costs (correct 0, triage 1, wrong 5), route only if <b>P(correct) &gt; 0.80</b>. Freeze the threshold on calibration data, then test once: cost <b>0.763 → 0.472 (−38.1%)</b>, wrong routes 15.3% → 3.5%.
+          <div class="tags"><span class="tag t-human">break-even 0.80</span><a class="cite paper" href="https://arxiv.org/abs/2610.31657" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.31657</a></div>
+        </div>
+      </div>
+    </div>
+    <div class="right">
+      <div class="plot-row">
+        <svg id="cit-cost-svg" viewBox="0 0 404 236" aria-label="Expected cost against threshold"></svg>
+        <div class="cap">
+          <div class="small" data-until="1">The cost matrix, not 0.5, sets the threshold.</div>
+          <div class="stat" data-step="1" data-until="2"><span class="n" data-to="31" data-pre="−" data-suf="%">0</span><span class="l">$10.72 → $7.38 per case after the cost-tuned threshold</span></div>
+          <div class="stat" data-step="2" data-until="3"><span class="n" data-to="66" data-pre="+" data-suf="%">0</span><span class="l">cost of the eval-set threshold in production: $3.10 vs $1.86</span></div>
+          <div class="stat" data-step="3"><span class="n" data-to="38.1" data-dec="1" data-pre="−" data-suf="%">0</span><span class="l">ticket cost 0.763 → 0.472; wrong routes 15.3% → 3.5%</span></div>
+        </div>
+      </div>
+      <div class="code-wrap">
+        <div class="code-head">thresholds.py</div>
+        <pre class="code xs" data-lang="python" data-focus="1:2-3, 2:4-8, 3:9-10"><code>from sklearn.metrics import confusion_matrix_at_thresholds
+C_FP, C_FN, PI_PROD = 15.0, 120.0, 0.02  # $ hold, $ miss
+t_bayes = C_FP / (C_FP + C_FN)  # 0.111 if p is calibrated
+def best_t(y, p, pi):  # $ per case at prevalence pi
+    tns, fps, fns, tps, thr = confusion_matrix_at_thresholds(y, p)
+    fpr, fnr = fps / fps[-1], fns / tps[-1]
+    ec = pi * fnr * C_FN + (1 - pi) * fpr * C_FP
+    return thr[ec.argmin()], ec.min()  # 0.152 eval, 0.340 prod
+C_OK, C_TRIAGE, C_WRONG = 0.0, 1.0, 5.0  # ticket router costs
+t_break_even = (C_WRONG - C_TRIAGE) / (C_WRONG - C_OK)  # 0.80</code></pre>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">This slide tests decision thinking, not modelling. Q1: the candidate should say "calibrate first", then derive the threshold from the cost matrix; 0.5 is only right when both errors cost the same and the classes are balanced. Analogy: a smoke alarm is set very sensitive because a missed fire costs far more than a false alarm. Q2 is the trap most candidates miss: an enriched eval set changes the cost curve, so the threshold you tuned there is wrong in production; in the lab the best threshold moved from 0.152 to 0.340. Q3 extends the same idea to deferral: route when (1 − p) × 5 is below the review cost of 1, select the threshold on a calibration split, freeze it, and report the test once. Likely follow-up: "Your LLM gives one confidence value for every ticket. Now what?" Then the correctness AUROC is 0.500, no threshold can help, and you must report always-route and always-defer baselines. Hand-off: the whiteboard puts paired statistics, a calibrated judge and a gate threshold into one weekly release gate for an HR-policy assistant.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-interview-c05-thresholds-cost";
+  let tweens = [], shown = -1;
+  const X0 = 46, X1 = 390, YT = 18, YB = 196;           // plot box
+  const X = (t) => X0 + t * (X1 - X0);
+
+  function el(p, tag, attrs, style) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (style) Object.assign(e.style, style);
+    p.appendChild(e);
+    return e;
+  }
+  function text(p, x, y, s, o = {}) {
+    const t = el(p, "text", { x, y, "text-anchor": o.anchor || "middle" },
+      { fill: o.fill || "var(--ink-2)", fontFamily: "var(--f-mono)", fontSize: (o.size || 12) + "px", fontWeight: o.w || 500 });
+    t.textContent = s;
+    return t;
+  }
+  const F = (target, from, to) => { const t = gsap.fromTo(target, from, to); tweens.push(t); return t; };
+  function kill() { tweens.forEach((t) => t.kill()); tweens = []; }
+
+  // Monotone cubic (Fritsch-Carlson) through known points, so the minimum stays on its knot.
+  function curve(xs, ys) {
+    const n = xs.length, d = [], m = [];
+    for (let i = 0; i < n - 1; i++) d.push((ys[i + 1] - ys[i]) / (xs[i + 1] - xs[i]));
+    m[0] = d[0]; m[n - 1] = d[n - 2];
+    for (let i = 1; i < n - 1; i++) m[i] = d[i - 1] * d[i] <= 0 ? 0 : (d[i - 1] + d[i]) / 2;
+    for (let i = 0; i < n - 1; i++) {
+      if (d[i] === 0) { m[i] = m[i + 1] = 0; continue; }
+      const a = m[i] / d[i], b = m[i + 1] / d[i], s = a * a + b * b;
+      if (s > 9) { const r = 3 / Math.sqrt(s); m[i] = r * a * d[i]; m[i + 1] = r * b * d[i]; }
+    }
+    return (x) => {
+      let i = 0; while (i < n - 2 && x > xs[i + 1]) i++;
+      const h = xs[i + 1] - xs[i], t = (x - xs[i]) / h, t2 = t * t, t3 = t2 * t;
+      return (2 * t3 - 3 * t2 + 1) * ys[i] + (t3 - 2 * t2 + t) * h * m[i] + (-2 * t3 + 3 * t2) * ys[i + 1] + (t3 - t2) * h * m[i + 1];
+    };
+  }
+  // Known points from the Lab 6 run. Ends are exact: t=0 holds all ((1-pi)*15), t=1 holds none (pi*120).
+  const EVAL = curve([0, 0.152, 0.5, 1], [13.5, 7.07, 10.72, 12.0]);
+  const PROD = curve([0, 0.152, 0.34, 1], [14.7, 3.10, 1.86, 2.40]);
+  const Yc = (c) => YB - (c / 15) * (YB - YT);
+
+  function path(svg, f, style) {
+    let d = "";
+    for (let i = 0; i <= 120; i++) { const t = i / 120; d += (i ? " L " : "M ") + X(t).toFixed(1) + " " + Yc(f(t)).toFixed(1); }
+    return el(svg, "path", { d }, Object.assign({ fill: "none", strokeWidth: 3, strokeLinecap: "round" }, style));
+  }
+  function drawIn(p, delay) {
+    const L = p.getTotalLength();
+    F(p, { strokeDasharray: L, strokeDashoffset: L }, { strokeDashoffset: 0, duration: 1.1, delay, ease: "power2.inOut" });
+  }
+  function dot(svg, x, y, c) { return el(svg, "circle", { cx: x, cy: y, r: 6 }, { fill: c, stroke: "var(--surface)", strokeWidth: 2 }); }
+  function axes(svg, xlab, ticks) {
+    el(svg, "line", { x1: X0, y1: YB, x2: X1, y2: YB }, { stroke: "var(--line-2)", strokeWidth: 2 });
+    el(svg, "line", { x1: X0, y1: YT, x2: X0, y2: YB }, { stroke: "var(--line-2)", strokeWidth: 2 });
+    ticks.forEach(([v, lab]) => text(svg, X0 - 6, v + 4, lab, { anchor: "end", size: 11, fill: "var(--muted)" }));
+    text(svg, X1, 230, xlab, { anchor: "end", size: 11, fill: "var(--muted)" });
+  }
+  const costTicks = () => [[Yc(0), "$0"], [Yc(5), "$5"], [Yc(10), "$10"], [Yc(15), "$15"]];
+  const xTicks = (svg) => [[0, "0"], [0.5, "0.5"], [1, "1"]].forEach(([t, s]) => text(svg, X(t), 212, s, { size: 11, fill: "var(--muted)" }));
+
+  function scene0(svg) {
+    axes(svg, "threshold t", costTicks()); xTicks(svg);
+    text(svg, 218, 110, "expected $ per case", { size: 13, fill: "var(--muted)" });
+  }
+  function scene1(svg, animate) {
+    axes(svg, "threshold t", costTicks()); xTicks(svg);
+    const tb = el(svg, "line", { x1: X(0.111), y1: YT + 8, x2: X(0.111), y2: YB }, { stroke: "var(--muted)", strokeWidth: 1.5, strokeDasharray: "4 4" });
+    const tbl = text(svg, X(0.111) + 4, YT + 4, "t* 0.111", { anchor: "start", size: 11, fill: "var(--muted)" });
+    const p = path(svg, EVAL, { stroke: "var(--agent)" });
+    const lab = text(svg, X1 - 2, Yc(12) - 10, "π = 0.10 (eval)", { anchor: "end", size: 11, fill: "var(--agent)", w: 700 });
+    const m1 = dot(svg, X(0.152), Yc(7.07), "var(--state)");
+    const l1 = text(svg, X(0.152) + 8, Yc(7.07) + 20, "min 0.152 · $7.07", { anchor: "start", size: 11, fill: "var(--state)", w: 700 });
+    const m2 = dot(svg, X(0.5), Yc(10.72), "var(--risk)");
+    const l2 = text(svg, X(0.5) + 10, Yc(10.72) + 20, "0.5 · $10.72", { anchor: "start", size: 11, fill: "var(--risk)", w: 700 });
+    if (animate) { drawIn(p, 0.1); F([tb, tbl, m1, l1, m2, l2, lab], { opacity: 0 }, { opacity: 1, duration: 0.4, delay: 1.1, stagger: 0.08 }); }
+  }
+  function scene2(svg, animate) {
+    axes(svg, "threshold t", costTicks()); xTicks(svg);
+    path(svg, EVAL, { stroke: "var(--agent)", opacity: 0.3, strokeDasharray: "6 5" });
+    const p = path(svg, PROD, { stroke: "var(--human)" });
+    const lab = text(svg, X1 - 2, Yc(2.4) - 12, "π = 0.02 (prod)", { anchor: "end", size: 11, fill: "var(--human)", w: 700 });
+    const m1 = dot(svg, X(0.152), Yc(3.10), "var(--risk)");
+    const l1 = text(svg, X(0.152) - 8, Yc(3.10) + 22, "$3.10", { anchor: "end", size: 11, fill: "var(--risk)", w: 700 });
+    const m2 = dot(svg, X(0.34), Yc(1.86), "var(--state)");
+    const l2 = text(svg, X(0.34) + 8, Yc(1.86) + 18, "min 0.340 · $1.86", { anchor: "start", size: 11, fill: "var(--state)", w: 700 });
+    const ar = el(svg, "path", { d: `M ${X(0.17)} 142 L ${X(0.33)} 142 M ${X(0.33) - 7} 136 L ${X(0.33)} 142 L ${X(0.33) - 7} 148` },
+      { fill: "none", stroke: "var(--human)", strokeWidth: 2.5, strokeLinecap: "round" });
+    const art = text(svg, X(0.185), 133, "min moves right", { anchor: "start", size: 11, fill: "var(--human)" });
+    if (animate) { drawIn(p, 0.1); F([m1, l1, m2, l2, ar, art, lab], { opacity: 0 }, { opacity: 1, duration: 0.4, delay: 1.1, stagger: 0.1 }); }
+  }
+  function scene3(svg, animate) {
+    const Yr = (c) => YB - (c / 5) * (YB - YT - 8);
+    axes(svg, "P(correct)", [[Yr(0), "0"], [Yr(1), "1"], [Yr(5), "5"]]);
+    const route = el(svg, "line", { x1: X(0), y1: Yr(5), x2: X(1), y2: Yr(0) }, { stroke: "var(--agent)", strokeWidth: 3 });
+    const defer = el(svg, "line", { x1: X(0), y1: Yr(1), x2: X(1), y2: Yr(1) }, { stroke: "var(--human)", strokeWidth: 3 });
+    const rl = text(svg, X(0.12), Yr(4.6) + 2, "route: (1 − p) · 5", { anchor: "start", size: 11, fill: "var(--agent)", w: 700 });
+    const dl = text(svg, X(0.03), Yr(1) - 8, "defer: 1", { anchor: "start", size: 11, fill: "var(--human)", w: 700 });
+    const vl = el(svg, "line", { x1: X(0.8), y1: Yr(1), x2: X(0.8), y2: YB }, { stroke: "var(--state)", strokeWidth: 1.5, strokeDasharray: "4 4" });
+    const m = dot(svg, X(0.8), Yr(1), "var(--state)");
+    const ml = text(svg, X(0.8), Yr(1) - 14, "0.80", { size: 12, fill: "var(--state)", w: 700 });
+    const b1 = el(svg, "rect", { x: X(0), y: 201, width: X(0.8) - X(0) - 2, height: 18, rx: 5 }, { fill: "var(--human-soft)", stroke: "var(--human)", strokeWidth: 1 });
+    const b2 = el(svg, "rect", { x: X(0.8) + 2, y: 201, width: X(1) - X(0.8) - 2, height: 18, rx: 5 }, { fill: "var(--agent-soft)", stroke: "var(--agent)", strokeWidth: 1 });
+    const t1 = text(svg, (X(0) + X(0.8)) / 2, 214, "defer to a human", { size: 11, fill: "var(--human)", w: 700 });
+    const t2 = text(svg, (X(0.8) + X(1)) / 2, 214, "route", { size: 11, fill: "var(--agent)", w: 700 });
+    if (animate) {
+      F([route, defer], { opacity: 0 }, { opacity: 1, duration: 0.5, stagger: 0.2 });
+      F([rl, dl, vl, m, ml], { opacity: 0 }, { opacity: 1, duration: 0.4, delay: 0.6, stagger: 0.08 });
+      F([b1, t1, b2, t2], { opacity: 0, y: 8 }, { opacity: 1, y: 0, duration: 0.45, delay: 1.1, stagger: 0.1 });
+    }
+  }
+
+  function render(slide, n, animate) {
+    const svg = slide.querySelector("#cit-cost-svg");
+    if (!svg) return;
+    kill();
+    svg.innerHTML = "";
+    shown = n;
+    const s = Math.min(n, 3);
+    [scene0, scene1, scene2, scene3][s](svg, animate);
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { if (shown !== step) render(slide, step, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { kill(); shown = -1; }
+  });
+})();
+</script>

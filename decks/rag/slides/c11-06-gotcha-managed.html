@@ -1,0 +1,255 @@
+<section class="slide tight" id="rag-c11-gotcha-managed" data-tone="tool" data-title="Gotcha: managed RAG fails quietly">
+  <style>
+    #rag-c11-gotcha-managed .gm-main { display: grid; grid-template-columns: 762px 1fr; gap: 24px; align-items: start; }
+    #rag-c11-gotcha-managed .gm-left, #rag-c11-gotcha-managed .gm-right { gap: 10px; min-width: 0; }
+    #rag-c11-gotcha-managed .code-wrap .code-head { padding: 6px 14px; font-size: 13px; }
+    #rag-c11-gotcha-managed pre.code.gm-c { font-size: 11.8px; line-height: 1.36; padding: 9px 14px 11px; }
+    #rag-c11-gotcha-managed .gotcha { font-size: 14px; line-height: 1.36; padding: 10px 14px; grid-template-columns: 70px 1fr; gap: 3px 10px; }
+    #rag-c11-gotcha-managed .gotcha > b { font-size: 11.5px; }
+    #rag-c11-gotcha-managed .gotcha .gh { grid-column: 1 / -1; font: 700 12.8px/1.3 var(--f-mono); color: var(--ink); letter-spacing: .03em; margin-bottom: 2px; }
+    #rag-c11-gotcha-managed .gotcha code { font-size: .84em; }
+    #rag-c11-gotcha-managed .gotcha .er { display: block; font: 600 11.2px/1.35 var(--f-mono); color: var(--risk); margin-top: 2px; }
+    #rag-c11-gotcha-managed .gm-cites { display: flex; flex-wrap: wrap; gap: 8px; }
+    #rag-c11-gotcha-managed .gm-cites .cite { font-size: 12px; padding: 3px 9px 3px 7px; }
+    #rag-c11-gotcha-managed .gm-svg { display: block; overflow: visible; }
+    #rag-c11-gotcha-managed .gm-svg text { font-family: var(--f-mono); }
+    #rag-c11-gotcha-managed .gm-svg .pn { fill: var(--surface); stroke: var(--line-2); stroke-width: 1; }
+    #rag-c11-gotcha-managed .gm-svg .hd { font-size: 11px; font-weight: 700; fill: var(--muted); letter-spacing: .04em; }
+    #rag-c11-gotcha-managed .gm-svg .sm { font-size: 10.5px; fill: var(--muted); }
+    #rag-c11-gotcha-managed .gm-svg .lb { font-size: 11px; font-weight: 700; fill: var(--ink); }
+    #rag-c11-gotcha-managed .gm-svg .bad { font-size: 10.8px; font-weight: 700; fill: var(--risk); }
+    #rag-c11-gotcha-managed .gm-svg .good { font-size: 10.8px; font-weight: 700; fill: var(--state); }
+    #rag-c11-gotcha-managed .gm-svg .ring-bg { fill: none; stroke: var(--line-2); stroke-width: 7; }
+    #rag-c11-gotcha-managed .gm-svg .ring { fill: none; stroke: var(--state); stroke-width: 7; stroke-linecap: round; }
+    #rag-c11-gotcha-managed .gm-svg .pc { font-size: 15px; font-weight: 800; fill: var(--ink); }
+    #rag-c11-gotcha-managed .gm-svg .qp rect { fill: var(--human-soft); stroke: var(--human); stroke-width: 1.3; }
+    #rag-c11-gotcha-managed .gm-svg .qp text { font-size: 10.5px; font-weight: 700; fill: var(--human); }
+    #rag-c11-gotcha-managed .gm-svg .arr { stroke: var(--human); stroke-width: 1.8; fill: none; }
+    #rag-c11-gotcha-managed .gm-svg .card { fill: var(--surface-2); stroke: var(--line-2); stroke-width: 1.4; }
+    #rag-c11-gotcha-managed .gm-svg .card.ok { fill: var(--state-soft); stroke: var(--state); }
+    #rag-c11-gotcha-managed .gm-svg .ct { font-size: 10.5px; fill: var(--ink-2); }
+    #rag-c11-gotcha-managed .gm-svg .file rect { fill: var(--surface-2); stroke: var(--line-2); stroke-width: 1.2; }
+    #rag-c11-gotcha-managed .gm-svg .file path { fill: none; stroke: #fff; stroke-width: 1.8; }
+    #rag-c11-gotcha-managed .gm-svg .file.in rect { fill: var(--state); stroke: var(--state); }
+    #rag-c11-gotcha-managed .gm-svg .file.lost rect { fill: none; stroke: var(--faint); stroke-dasharray: 3 3; }
+    #rag-c11-gotcha-managed .gm-svg .cnt { font-size: 13px; font-weight: 800; fill: var(--ink); }
+    #rag-c11-gotcha-managed .gm-svg .lamp { fill: var(--line-2); stroke: var(--faint); stroke-width: 1.2; }
+    #rag-c11-gotcha-managed .gm-svg .lamp.on { fill: var(--risk); stroke: var(--risk); }
+    #rag-c11-gotcha-managed .gm-svg .row rect { fill: var(--surface-2); stroke: var(--line-2); stroke-width: 1.3; }
+    #rag-c11-gotcha-managed .gm-svg .row.worst rect { fill: var(--risk-soft); stroke: var(--risk); }
+    #rag-c11-gotcha-managed .gm-svg .row.best rect { fill: var(--state-soft); stroke: var(--state); }
+    #rag-c11-gotcha-managed .gm-svg .row .d { font-size: 11px; font-weight: 800; fill: var(--ink); }
+    #rag-c11-gotcha-managed .gm-svg .row .f { font-size: 10px; fill: var(--ink-2); }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> managed RAG · google-genai 2.33.0 · google-cloud-agentplatform 2.6.0</div>
+  <h2 class="title">Managed RAG fails quietly: early queries, partial imports, distances</h2>
+  <div class="gm-main fill">
+    <div class="stack gm-left">
+      <div class="code-wrap good">
+        <div class="code-head">globalcorp_people/managed_guards.py · fixes for Lab 10 steps 1-3</div>
+        <pre class="code gm-c" data-lang="python" data-focus="1:3-11, 2:13-17, 3:19-20"><code>import sys, time
+
+def wait_indexed(client, op):                 # File Search: never query before indexing ends
+    while not op.done:
+        time.sleep(5)
+        op = client.operations.get(op)
+    return op
+
+def cited_span(block, a) -&gt; str:              # FileCitation offsets are BYTES
+    raw = block.text.encode("utf-8")
+    return raw[(a.start_index or 0):(a.end_index or 0)].decode("utf-8", "ignore")
+
+EXPECTED_FILES = 14
+def check_import(imp) -&gt; None:                # partial failures do not raise
+    done = imp.imported_rag_files_count + imp.skipped_rag_files_count
+    if imp.failed_rag_files_count or done != EXPECTED_FILES:
+        sys.exit(f"import incomplete, see {imp.partial_failures_gcs_path}")
+
+def best_first(ctx) -&gt; list:                  # score is a distance: lower is better
+    return sorted(ctx.contexts.contexts, key=lambda c: c.score)</code></pre>
+      </div>
+      <svg class="gm-svg" id="gm-svg" viewBox="0 0 762 206" width="762" height="206" aria-label="Three panels. One: a File Search upload ring stops at 60 percent while a query already returns an empty card with no error; after op.done the ring is full and the answer has a citation. Two: 14 PDF slots fill green, one stays empty, the counter says imported 13 of expected 14 and the lamp stays grey until the check turns it red with sys.exit. Three: three contexts sorted by score descending put distance 0.471 on top in red; sorted ascending, 0.212 moves to the top in green."></svg>
+      <div class="gm-cites">
+        <a class="cite doc" href="https://ai.google.dev/gemini-api/docs/file-search" target="_blank" rel="noopener"><b>Doc</b>&nbsp;File Search (Gemini API)</a>
+        <a class="cite doc" href="https://docs.cloud.google.com/vertex-ai/generative-ai/docs/rag-engine/rag-quotas" target="_blank" rel="noopener"><b>Doc</b>&nbsp;RAG Engine quotas</a>
+        <a class="cite doc" href="https://docs.cloud.google.com/vertex-ai/generative-ai/docs/rag-engine/use-data-ingestion" target="_blank" rel="noopener"><b>Doc</b>&nbsp;RAG Engine data ingestion</a>
+      </div>
+    </div>
+    <div class="stack gm-right">
+      <div class="gotcha" data-step="1">
+        <span class="gh">1 · Gemini File Search</span>
+        <b>Symptom</b><span>Right after upload the answer is empty or has no citations. No error. Citations land in the wrong place on "€" or "ü". Or: <span class="er">ValueError: This method is only supported in Gemini Developer API mode, not in Gemini Enterprise Agent Platform mode.</span></span>
+        <b class="why">Cause</b><span>Indexing is async. <code>start_index</code> counts bytes. File Search is Developer API only.</span>
+        <b class="fix">Fix</b><span>Poll the operation. Slice UTF-8 bytes. Use an API-key client; on GCP use RAG Engine. A store is about 3x the input: 400 MB needs ~1.2 GB, over the 1 GB Free tier.</span>
+      </div>
+      <div class="gotcha" data-step="2">
+        <span class="gh">2 · RAG Engine imports</span>
+        <b>Symptom</b><span>13 of 14 handbook PDFs import and nothing raises. A Google Drive import ends with an empty corpus and no error.</span>
+        <b class="why">Cause</b><span>Partial failures do not raise. The service account has no permission on the Drive folder.</span>
+        <b class="fix">Fix</b><span>Check <code>failed_rag_files_count</code> and imported == expected. Pass <code>import_result_sink</code>. Queue imports: 3 concurrent per region, 10,000 files per request, 60 RPM data-management APIs.</span>
+      </div>
+      <div class="gotcha" data-step="3">
+        <span class="gh">3 · RAG Engine scores</span>
+        <b>Symptom</b><span>The worst chunk is shown first.</span>
+        <b class="why">Cause</b><span><code>RagContextsContext.score</code> is a distance: lower is more relevant, [0, 2] for cosine. A descending sort inverts the ranking.</span>
+        <b class="fix">Fix</b><span>Sort ascending. <code>RetrieveContexts</code> allows 600 RPM per project and region, so cache hot queries.</span>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    Managed RAG removes the index work, but each of these three failures is silent, so the guards must live in your code. File Search indexes asynchronously: a query sent before the operation is done gets no grounding and no error, citation offsets are bytes so a Python string slice drifts on the euro sign or an umlaut, and the store is Developer API only, so an enterprise client raises the ValueError shown. RAG Engine returns success when 13 of 14 handbook PDFs import, and a Drive import without folder permission imports nothing at all, so count every file you expect and keep a result sink. Its context score is a distance, so lower is better and a descending sort puts the worst chunk on top. Analogy: a courier who leaves the parcel at the wrong door still marks it delivered. Likely question: "Why not just retry the import?" Retry is fine, but only the count tells you that you need one, and the quota allows only 3 concurrent imports per region. Next: three recent papers on latency and composition budgets.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const PW = 244, PG = 15, PX = [0, PW + PG, 2 * (PW + PG)];
+  const CTX = [["0.212", "parental-leave-DE.pdf"], ["0.348", "parental-leave-global.pdf"], ["0.471", "benefits-overview.pdf"]];
+  const R = 30, C = 2 * Math.PI * R;
+  let B = null, tl = null, tweens = [];
+  const mk = (p, tag, attrs, cls) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (cls) e.setAttribute("class", cls);
+    p.appendChild(e); return e;
+  };
+  const tx = (p, x, y, t, cls, anchor) => { const e = mk(p, "text", { x, y }, cls); if (anchor) e.setAttribute("text-anchor", anchor); e.textContent = t; return e; };
+  function build(slide) {
+    const svg = slide.querySelector("#gm-svg");
+    svg.innerHTML = "";
+    const o = {};
+    // panel 1: File Search, query before op.done
+    let x = PX[0];
+    o.p1 = mk(svg, "g", {});
+    mk(o.p1, "rect", { x, y: 0, width: PW, height: 206, rx: 12 }, "pn");
+    tx(o.p1, x + 12, 20, "1 · FILE SEARCH", "hd");
+    mk(o.p1, "circle", { cx: x + 52, cy: 82, r: R }, "ring-bg");
+    o.ring = mk(o.p1, "circle", { cx: x + 52, cy: 82, r: R, transform: `rotate(-90 ${x + 52} 82)`, "stroke-dasharray": C, "stroke-dashoffset": C }, "ring");
+    o.pc = tx(o.p1, x + 52, 87, "0%", "pc", "middle");
+    tx(o.p1, x + 52, 128, "indexing", "sm", "middle");
+    const qp = mk(o.p1, "g", {}, "qp");
+    mk(qp, "rect", { x: x + 102, y: 40, width: 128, height: 20, rx: 10 });
+    tx(qp, x + 166, 54, "q: gym subsidy?", "", "middle");
+    o.arr1 = mk(o.p1, "path", { d: `M${x + 166},62 L${x + 166},76` }, "arr");
+    o.card = mk(o.p1, "rect", { x: x + 102, y: 80, width: 128, height: 52, rx: 8 }, "card");
+    o.c1 = tx(o.p1, x + 110, 98, "answer: ''", "ct");
+    o.c2 = tx(o.p1, x + 110, 114, "0 citations", "ct");
+    o.c3 = tx(o.p1, x + 110, 127, "no error", "sm");
+    o.b1 = tx(o.p1, x + 12, 156, "text[a.start_index:]", "bad");
+    o.b1b = tx(o.p1, x + 12, 172, "✕ shifts on € and ü", "bad");
+    o.g1 = tx(o.p1, x + 12, 156, "raw = text.encode('utf-8')", "good");
+    o.g1b = tx(o.p1, x + 12, 172, "✓ byte offsets line up", "good");
+    o.s1 = tx(o.p1, x + 12, 196, "poll client.operations.get(op)", "sm");
+    // panel 2: RAG Engine import, 13 of 14
+    x = PX[1];
+    o.p2 = mk(svg, "g", {});
+    mk(o.p2, "rect", { x, y: 0, width: PW, height: 206, rx: 12 }, "pn");
+    tx(o.p2, x + 12, 20, "2 · RAG ENGINE IMPORT", "hd");
+    tx(o.p2, x + 12, 40, "gs://globalcorp-hr-docs/handbook/", "sm");
+    o.files = [];
+    for (let i = 0; i < 14; i++) {
+      const fx = x + 14 + (i % 7) * 31, fy = 52 + Math.floor(i / 7) * 40;
+      const g = mk(o.p2, "g", {}, "file");
+      mk(g, "rect", { x: fx, y: fy, width: 24, height: 30, rx: 4 });
+      mk(g, "path", { d: `M${fx + 6},${fy + 15} l4,4 l8,-8` });
+      o.files.push(g);
+    }
+    o.cnt = tx(o.p2, x + 12, 146, "imported 0 / expected 14", "cnt");
+    o.lamp = mk(o.p2, "circle", { cx: x + 22, cy: 168, r: 8 }, "lamp");
+    o.l1 = tx(o.p2, x + 38, 172, "no exception raised", "sm");
+    o.l2 = tx(o.p2, x + 38, 172, "check_import(): sys.exit", "bad");
+    o.s2 = tx(o.p2, x + 12, 196, "3 imports in flight per region", "sm");
+    // panel 3: score is a distance
+    x = PX[2];
+    o.p3 = mk(svg, "g", {});
+    mk(o.p3, "rect", { x, y: 0, width: PW, height: 206, rx: 12 }, "pn");
+    tx(o.p3, x + 12, 20, "3 · SCORE = DISTANCE", "hd");
+    o.rows = CTX.map((c, i) => {
+      const g = mk(o.p3, "g", {}, "row");
+      mk(g, "rect", { x: x + 12, y: 0, width: PW - 24, height: 34, rx: 8 });
+      tx(g, x + 22, 21, "dist " + c[0], "d");
+      tx(g, x + 100, 21, c[1].replace(".pdf", ""), "f");
+      return g;
+    });
+    o.b3 = tx(o.p3, x + 12, 172, "sorted(..., reverse=True) ✕", "bad");
+    o.g3 = tx(o.p3, x + 12, 172, "key=lambda c: c.score ✓", "good");
+    o.s3 = tx(o.p3, x + 12, 196, "range [0, 2] for cosine", "sm");
+    B = o;
+  }
+  const rowY = (rank) => 32 + rank * 40;
+  // panel states -----------------------------------------------------------
+  function p1(state) {
+    const fixed = state === "fix";
+    const p = fixed ? 1 : 0.6;
+    gsap.set(B.ring, { attr: { "stroke-dashoffset": C * (1 - p) } });
+    B.pc.textContent = fixed ? "100%" : "60%";
+    B.card.classList.toggle("ok", fixed);
+    B.c1.textContent = fixed ? "50%, up to EUR 40" : "answer: ''";
+    B.c2.textContent = fixed ? "[Benefits EU 2026]" : "0 citations";
+    B.c3.textContent = fixed ? "op.done = True" : "no error";
+    gsap.set([B.b1, B.b1b], { opacity: fixed ? 0 : 1 });
+    gsap.set([B.g1, B.g1b], { opacity: fixed ? 1 : 0 });
+  }
+  function p2(state, k) {
+    const fixed = state === "fix", n = k === undefined ? 13 : k;
+    B.files.forEach((f, i) => { f.classList.toggle("in", i < n && i < 13); f.classList.toggle("lost", i === 13); });
+    B.cnt.textContent = `imported ${n} / expected 14`;
+    B.lamp.classList.toggle("on", fixed);
+    gsap.set(B.l1, { opacity: fixed ? 0 : 1 });
+    gsap.set(B.l2, { opacity: fixed ? 1 : 0 });
+  }
+  function p3(state, animate) {
+    const fixed = state === "fix";
+    // bug: descending (0.471 on top); fix: ascending (0.212 on top)
+    B.rows.forEach((g, i) => {
+      const rank = fixed ? i : 2 - i;
+      g.classList.toggle("worst", !fixed && i === 2);
+      g.classList.toggle("best", fixed && i === 0);
+      if (animate) tweens.push(gsap.to(g, { y: rowY(rank), duration: 0.7, ease: "back.inOut(1.4)" }));
+      else gsap.set(g, { y: rowY(rank) });
+    });
+    gsap.set(B.b3, { opacity: fixed ? 0 : 1 });
+    gsap.set(B.g3, { opacity: fixed ? 1 : 0 });
+  }
+  function stop() { if (tl) { tl.kill(); tl = null; } tweens.forEach((t) => t.kill()); tweens = []; }
+  function render(slide, n, animate) {
+    if (!B) build(slide);
+    stop();
+    // a panel before its step shows the quiet bug, dimmed; after its step, the fixed state
+    p1(n > 1 ? "fix" : "bug"); p2(n > 2 ? "fix" : "bug"); p3(n > 3 ? "fix" : "bug", false);
+    gsap.set(B.p1, { opacity: n >= 1 ? 1 : 0.3 });
+    gsap.set(B.p2, { opacity: n >= 2 ? 1 : 0.3 });
+    gsap.set(B.p3, { opacity: n >= 3 ? 1 : 0.3 });
+    if (n < 1) return;
+    if (!animate) { if (n === 1) p1("fix"); if (n === 2) p2("fix"); if (n === 3) p3("fix", false); return; }
+    // the active panel loops: quiet bug, then the guard
+    tl = gsap.timeline({ repeat: -1, repeatDelay: 1.6 });
+    if (n === 1) {
+      const pr = { v: 0 };
+      tl.call(() => p1("bug"));
+      tl.fromTo(pr, { v: 0 }, { v: 0.6, duration: 1.1, ease: "none", onUpdate: () => { gsap.set(B.ring, { attr: { "stroke-dashoffset": C * (1 - pr.v) } }); B.pc.textContent = Math.round(pr.v * 100) + "%"; } });
+      tl.fromTo(B.arr1, { opacity: 0 }, { opacity: 1, duration: 0.3 });
+      tl.to({}, { duration: 1.4 });
+      tl.to(pr, { v: 1, duration: 0.8, ease: "power1.out", onUpdate: () => { gsap.set(B.ring, { attr: { "stroke-dashoffset": C * (1 - pr.v) } }); B.pc.textContent = Math.round(pr.v * 100) + "%"; } });
+      tl.call(() => p1("fix"));
+      tl.to({}, { duration: 1.8 });
+    } else if (n === 2) {
+      tl.call(() => p2("bug", 0));
+      for (let k = 1; k <= 13; k++) { tl.call(() => p2("bug", k)); tl.to({}, { duration: 0.12 }); }
+      tl.to({}, { duration: 1.2 });
+      tl.call(() => p2("fix"));
+      tl.to({}, { duration: 1.8 });
+    } else if (n === 3) {
+      tl.call(() => p3("bug", false));
+      tl.to({}, { duration: 1.6 });
+      tl.call(() => p3("fix", true));
+      tl.to({}, { duration: 2.2 });
+    }
+  }
+  Deck.register("rag-c11-gotcha-managed", {
+    enter(slide, step) { B = null; render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { stop(); }
+  });
+})();
+</script>

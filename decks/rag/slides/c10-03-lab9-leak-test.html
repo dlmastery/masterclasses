@@ -1,0 +1,206 @@
+<section class="slide tight" id="rag-c10-lab9-leak-test" data-tone="risk" data-title="Post-filter starvation and the leak test">
+  <style>
+    #rag-c10-lab9-leak-test .lt-main { display: grid; grid-template-columns: 780px 1fr; gap: 28px; }
+    #rag-c10-lab9-leak-test .lt-left, #rag-c10-lab9-leak-test .lt-right { gap: 14px; min-width: 0; }
+    #rag-c10-lab9-leak-test .lab-head { font-size: 15px; gap: 12px; }
+    #rag-c10-lab9-leak-test .lab-head .run { font-size: 14px; }
+    #rag-c10-lab9-leak-test .code-wrap .code-head { padding: 8px 14px; font-size: 13.5px; }
+    #rag-c10-lab9-leak-test pre.code { font-size: 13px; line-height: 1.5; padding: 12px 16px 14px; }
+    #rag-c10-lab9-leak-test .code-wrap.out pre.code { font-size: 13.5px; line-height: 1.55; padding: 10px 16px 12px; }
+    #rag-c10-lab9-leak-test .viz { border: 1px solid var(--line-2); border-radius: 16px; background: var(--surface); padding: 12px 14px 10px; }
+    #rag-c10-lab9-leak-test .viz svg { display: block; overflow: visible; }
+    #rag-c10-lab9-leak-test .steps-rail { gap: 8px; }
+    #rag-c10-lab9-leak-test .steps-rail > * { font-size: 16px; line-height: 1.35; grid-template-columns: 30px 1fr; gap: 10px; }
+    #rag-c10-lab9-leak-test .steps-rail > *::before { width: 26px; height: 26px; font-size: 13px; }
+    #rag-c10-lab9-leak-test .steps-rail code { font-size: 14px; }
+    #rag-c10-lab9-leak-test .tv { border: 1px solid var(--line-2); border-radius: 14px; background: var(--surface); padding: 12px 16px; display: grid; grid-template-columns: 210px 1fr 96px; gap: 8px 14px; align-items: center; }
+    #rag-c10-lab9-leak-test .tv-h { grid-column: 1 / -1; font: 600 13px/1.2 var(--f-mono); letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+    #rag-c10-lab9-leak-test .tv-l { font: 600 14px/1.2 var(--f-mono); color: var(--ink-2); }
+    #rag-c10-lab9-leak-test .tv .bar { height: 14px; }
+    #rag-c10-lab9-leak-test .tv .bar.b-risk > i { background: var(--risk); }
+    #rag-c10-lab9-leak-test .tv .bar.b-ok > i { background: var(--state); }
+    #rag-c10-lab9-leak-test .tv-v { font: 700 15px/1 var(--f-mono); text-align: right; }
+    #rag-c10-lab9-leak-test .src { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    #rag-c10-lab9-leak-test .cite { font-size: 13.5px; padding: 5px 10px 5px 8px; }
+    #rag-c10-lab9-leak-test a.cite.paper { display: inline-flex; flex-direction: row; align-items: center; gap: 10px; border-radius: 10px; border: 1px solid var(--line); }
+    #rag-c10-lab9-leak-test .tv-h { display: flex; justify-content: space-between; align-items: center; }
+    #rag-c10-lab9-leak-test .tv-h .cite { text-transform: none; letter-spacing: 0; font-size: 13px; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 9</span> Harbor Mutual claims desk · step 2 of 3</div>
+  <h2 class="title">Post-filtering starves Maria; a leak test turns ACLs into CI</h2>
+  <div class="lt-main fill">
+    <div class="lt-left stack">
+      <div class="lab-head"><span class="run">python lab9_acl_chroma.py</span><span>chromadb==1.5.9 · same file as step 1</span></div>
+      <div class="code-wrap">
+        <div class="code-head">harbor_claims/lab9_acl_chroma.py · part 2 of 2</div>
+        <pre class="code" data-lang="python" data-focus="1:2-5, 2:7, 3:9-14"><code># part 1 (step 1) defines DOCS, USERS, col, acl_where(), search() and q
+def post_filter_search(user: str, query: str, k: int = 3):   # the WRONG pattern
+    res = col.query(query_texts=[query], n_results=k)
+    return [(i, d) for i, d, m in zip(res["ids"][0], res["distances"][0], res["metadatas"][0])
+            if set(m["allowed_groups"]) &amp; set(USERS[user])]
+
+print("post-filter maria:", post_filter_search("maria_callcenter", q))
+
+# leak test: the assertion your CI runs for every user x every golden query
+for u, groups in USERS.items():
+    for doc_id, _ in search(u, q, k=5):
+        allowed = next(d[2] for d in DOCS if d[0] == doc_id)
+        assert set(allowed) &amp; set(groups), f"LEAK: {u} got {doc_id}"
+print("ACL leak test passed")</code></pre>
+      </div>
+      <div class="code-wrap out" data-step="2">
+        <div class="code-head">output · illustrative</div>
+        <pre class="code" data-lang="none"><code><span class="err">post-filter maria: []</span>        <span class="dim"># faq-01 is allowed, but it is rank 4</span>
+<span class="ok" data-step="4">ACL leak test passed</span></code></pre>
+      </div>
+      <div class="tv" data-step="4">
+        <div class="tv-h"><span>Recall@10 · multi-tenant ANN · Jul 2026</span><a class="cite paper" href="https://arxiv.org/abs/2607.16973" target="_blank" rel="noopener"><b>Paper</b>&nbsp;arXiv 2607.16973 TurboVec</a></div>
+        <span class="tv-l">post-filter top-k</span><div class="bar b-risk" data-fx="bar" style="--v:19%"><i></i></div><span class="tv-v c-risk">0.09–0.19</span>
+        <span class="tv-l">in-kernel allowlist</span><div class="bar b-ok" data-fx="bar" style="--v:93%"><i></i></div><span class="tv-v c-state">0.86–0.93</span>
+      </div>
+      <div class="src">
+        <a class="cite doc" href="https://genai.owasp.org/llmrisk/llm082025-vector-and-embedding-weaknesses/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;OWASP LLM08:2025 Vector and Embedding Weaknesses</a>
+        <a class="cite repo" href="https://github.com/chroma-core/chroma/tree/1.5.9" target="_blank" rel="noopener"><b>Repo</b>&nbsp;chroma-core/chroma 1.5.9</a>
+      </div>
+    </div>
+    <div class="lt-right stack">
+      <div class="viz"><svg id="c10lt-svg" viewBox="0 0 560 402" width="556" height="399" aria-label="Global top-3 ranking, Maria's post-filter leaves nothing, the pre-filter finds faq-01, and the leak test grid fills with ticks"></svg></div>
+      <div class="steps-rail">
+        <div data-step="1"><span>Ranks the global top-3, then filters.</span></div>
+        <div data-step="2"><span>Maria gets <code>[]</code>. <code>faq-01</code> is allowed but ranked 4th: starvation.</span></div>
+        <div data-step="3"><span>Assert: each returned doc shares a group with the user.</span></div>
+        <div data-step="4"><span>CI: every user × golden query, beside the Lab 8 gate. Filter dense, BM25, rerank input and cache too.</span></div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    This is the second half of the same script. First, the wrong pattern: post_filter_search asks Chroma for the global top-3 and only then removes what Maria may not see. For the fraud question the top-3 are siu-02, adj-07 and siu-05, so Maria gets an empty list, although faq-01 is allowed and sits at rank 4; that is starvation, and at real scale TurboVec measured post-filter Recall@10 of only 0.09 to 0.19. Analogy: a librarian who picks three books from the locked room and then tells you that you may not have them. The leak test below uses the correct search() and asserts, for every user and every returned document, that the user shares a group with the document; run it for every golden query in CI next to the Lab 8 quality gate. A likely question is "do I need this if Chroma already filters?": yes, because the filter must also cover BM25, the reranker input and the semantic cache, and the test proves every path. The ACL gate is now tested; step 3 adds the content gate: TicketBot and the injection suite.
+  </aside>
+</section>
+<script>
+(() => {
+  const ID = "rag-c10-lab9-leak-test";
+  const NS = "http://www.w3.org/2000/svg";
+  const mono = "font-family:var(--f-mono)";
+  // global ranking for q (distances as in step 1); faq-01 is rank 4, outside k=3
+  const CARDS = [["siu-02", "0.31", "siu"], ["adj-07", "0.52", "adjusters"], ["siu-05", "0.55", "siu"], ["faq-01", "0.71", "all-staff"]];
+  const CX = [0, 142, 284, 426], CW = 124;
+  // leak-test rows: search(u, q, k=5) results (pre-filter), one assertion per returned doc
+  const ROWS = [["maria", "all-staff", ["faq-01"]], ["omar", "+adjusters", ["adj-07", "faq-01", "adj-09"]], ["lee", "+siu", ["siu-02", "siu-05", "faq-01"]]];
+  const mk = (tag, attrs, parent, text) => {
+    const el = document.createElementNS(NS, tag);
+    for (const k in attrs) el.setAttribute(k, attrs[k]);
+    if (text !== undefined) el.textContent = text;
+    parent.appendChild(el);
+    return el;
+  };
+  let R = null, flash = null;
+
+  function build(slide) {
+    const svg = slide.querySelector("#c10lt-svg");
+    if (!svg) return;
+    if (svg._R) { R = svg._R; return; }
+    svg.innerHTML = "";
+    R = { cards: [], xs: [], ticks: [], chips: [] };
+    mk("text", { x: 0, y: 13, style: mono + ";font-size:13px;font-weight:600;fill:var(--muted)" }, svg, "col.query(q, n_results=3) · no filter");
+    CARDS.forEach((c, i) => {
+      const g = mk("g", {}, svg);
+      const out = i === 3;
+      const box = mk("rect", { x: CX[i], y: 26, width: CW, height: 74, rx: 12, style: `fill:var(--surface-2);stroke:${out ? "var(--line-2)" : "var(--state)"};stroke-width:2${out ? ";stroke-dasharray:5 4" : ""}` }, g);
+      mk("text", { x: CX[i] + 12, y: 48, style: mono + ";font-size:12px;fill:var(--muted)" }, g, "#" + (i + 1) + "  d " + c[1]);
+      mk("text", { x: CX[i] + 12, y: 70, style: mono + ";font-size:17px;font-weight:700;fill:var(--ink)" }, g, c[0]);
+      const badge = mk("rect", { x: CX[i] + 12, y: 78, width: c[2].length * 7.4 + 12, height: 16, rx: 8, style: "fill:var(--human-soft)" }, g);
+      mk("text", { x: CX[i] + 18, y: 90, style: mono + ";font-size:11.5px;font-weight:700;fill:var(--human)" }, g, c[2]);
+      R.cards.push({ g, box, badge });
+      if (!out) {
+        const x = mk("path", { d: `M${CX[i] + 30} 38 L${CX[i] + CW - 30} 90 M${CX[i] + CW - 30} 38 L${CX[i] + 30} 90`, style: "fill:none;stroke:var(--risk);stroke-width:5;stroke-linecap:round" }, svg);
+        R.xs.push(x);
+      }
+    });
+    // k=3 cutoff
+    R.cut = mk("g", {}, svg);
+    mk("path", { d: "M413 22 L413 106", style: "fill:none;stroke:var(--ink-2);stroke-width:2;stroke-dasharray:4 4" }, R.cut);
+    mk("text", { x: 413, y: 13, "text-anchor": "middle", style: mono + ";font-size:13px;font-weight:700;fill:var(--ink-2)" }, R.cut, "k=3");
+    // Maria's post-filter bar under the top-3
+    R.filt = mk("g", {}, svg);
+    mk("rect", { x: 0, y: 122, width: 384, height: 32, rx: 16, style: "fill:var(--human-soft);stroke:var(--human);stroke-width:1.5" }, R.filt);
+    mk("text", { x: 192, y: 143, "text-anchor": "middle", style: mono + ";font-size:13px;font-weight:700;fill:var(--human)" }, R.filt, "then filter: maria_callcenter · [all-staff]");
+    mk("path", { d: "M136 156 L136 176", style: "fill:none;stroke:var(--risk);stroke-width:3" }, R.filt);
+    mk("path", { d: "M129 172 L136 184 L143 172 Z", style: "fill:var(--risk)" }, R.filt);
+    // result box: post-filter (left)
+    R.post = mk("g", {}, svg);
+    R.postBox = mk("rect", { x: 0, y: 188, width: 272, height: 66, rx: 12, style: "fill:var(--risk-soft);stroke:var(--risk);stroke-width:2" }, R.post);
+    mk("text", { x: 14, y: 210, style: mono + ";font-size:12.5px;font-weight:600;fill:var(--ink-2)" }, R.post, "post_filter_search(maria)");
+    mk("text", { x: 14, y: 240, style: mono + ";font-size:20px;font-weight:700;fill:var(--risk)" }, R.post, "[ ]");
+    R.starved = mk("text", { x: 258, y: 240, "text-anchor": "end", style: mono + ";font-size:16px;font-weight:800;fill:var(--risk);letter-spacing:.08em" }, R.post, "STARVED");
+    // pre-filter path from faq-01 down to the right box
+    R.pre = mk("g", {}, svg);
+    R.preLine = mk("path", { d: "M488 102 L488 176", style: "fill:none;stroke:var(--state);stroke-width:3" }, R.pre);
+    mk("path", { d: "M481 172 L488 184 L495 172 Z", style: "fill:var(--state)" }, R.pre);
+    mk("text", { x: 480, y: 116, "text-anchor": "end", style: mono + ";font-size:12px;font-weight:700;fill:var(--state)" }, R.pre, "where= in ANN");
+    mk("rect", { x: 292, y: 188, width: 268, height: 66, rx: 12, style: "fill:var(--state-soft);stroke:var(--state);stroke-width:2" }, R.pre);
+    mk("text", { x: 306, y: 210, style: mono + ";font-size:12.5px;font-weight:600;fill:var(--ink-2)" }, R.pre, "search(maria) · pre-filter");
+    mk("text", { x: 306, y: 240, style: mono + ";font-size:18px;font-weight:700;fill:var(--state)" }, R.pre, "[('faq-01', 0.71)]");
+    // CI grid
+    R.grid = mk("g", {}, svg);
+    mk("text", { x: 0, y: 290, style: mono + ";font-size:13px;font-weight:600;fill:var(--muted)" }, R.grid, "leak test · search(u, q, k=5) · 1 assert per doc");
+    R.total = mk("text", { x: 560, y: 290, "text-anchor": "end", style: mono + ";font-size:13px;font-weight:800;fill:var(--state)" }, svg, "7 / 7 pass");
+    ROWS.forEach((r, i) => {
+      const y = 302 + i * 34;
+      mk("text", { x: 0, y: y + 20, style: mono + ";font-size:14px;font-weight:700;fill:var(--ink-2)" }, R.grid, r[0]);
+      mk("text", { x: 62, y: y + 20, style: mono + ";font-size:11.5px;fill:var(--human)" }, R.grid, r[1]);
+      r[2].forEach((d, j) => {
+        const x = 160 + j * 134;
+        const box = mk("rect", { x, y, width: 122, height: 28, rx: 8, style: "fill:var(--surface-2);stroke:var(--line-2);stroke-width:1.5" }, R.grid);
+        mk("text", { x: x + 12, y: y + 19, style: mono + ";font-size:13px;font-weight:600;fill:var(--ink-2)" }, R.grid, d);
+        const t = mk("text", { x: x + 108, y: y + 20, "text-anchor": "end", style: "font-size:16px;font-weight:800;fill:var(--state)" }, R.grid, "✓");
+        R.chips.push(box); R.ticks.push(t);
+      });
+    });
+    svg._R = R;
+  }
+
+  function render(slide, n, animate) {
+    build(slide);
+    if (!R) return;
+    const d = animate ? 0.45 : 0;
+    const vis = (el, on, delay) => gsap.to(el, { autoAlpha: on ? 1 : 0, duration: d, delay: on && animate ? (delay || 0) : 0, overwrite: true });
+    // step 1: the global top-3 appear, faq-01 waits outside k=3
+    R.cards.forEach((c, i) => {
+      const on = n >= 1;
+      const dim = n >= 2 && i < 3;
+      gsap.to(c.g, { autoAlpha: on ? (i === 3 ? (n >= 3 ? 1 : 0.55) : (dim ? 0.35 : 1)) : 0, duration: d, delay: on && animate && n === 1 ? i * 0.18 : 0, overwrite: true });
+      if (animate && n === 1) gsap.fromTo(c.g, { y: -14 }, { y: 0, duration: 0.45, delay: i * 0.18, ease: "back.out(2)" });
+    });
+    R.cards[3].box.style.stroke = n >= 3 ? "var(--state)" : "var(--line-2)";
+    vis(R.cut, n >= 1, 0.6);
+    // step 2: the filter removes all three, the result box is empty
+    vis(R.filt, n >= 2, 0.1);
+    R.xs.forEach((x, i) => vis(x, n >= 2, 0.35 + i * 0.15));
+    vis(R.post, n >= 2, 0.85);
+    if (flash) { flash.kill(); flash = null; }
+    gsap.set(R.starved, { opacity: 1 });
+    if (animate && n === 2) flash = gsap.fromTo(R.starved, { opacity: 1 }, { opacity: 0.15, duration: 0.25, repeat: 7, yoyo: true, delay: 1.1, ease: "power1.inOut" });
+    // step 3: the pre-filter searches inside Maria's allowed set; the leak-test grid appears
+    vis(R.pre, n >= 3, 0.1);
+    vis(R.grid, n >= 3, 0.5);
+    // step 4: every assertion passes, one tick per returned doc
+    R.ticks.forEach((t, i) => {
+      gsap.to(t, { autoAlpha: n >= 4 ? 1 : 0, duration: d, delay: n >= 4 && animate ? 0.2 + i * 0.16 : 0, overwrite: true });
+      R.chips[i].style.stroke = n >= 4 ? "var(--state)" : "var(--line-2)";
+      R.chips[i].style.strokeWidth = n >= 4 ? "2" : "1.5";
+    });
+    vis(R.total, n >= 4, 0.2 + R.ticks.length * 0.16);
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() {
+      if (flash) { flash.kill(); flash = null; }
+      if (!R) return;
+      gsap.killTweensOf([...R.cards.map((c) => c.g), ...R.xs, ...R.ticks, R.cut, R.filt, R.post, R.pre, R.grid, R.total, R.starved]);
+    }
+  });
+})();
+</script>

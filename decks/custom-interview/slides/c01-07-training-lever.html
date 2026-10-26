@@ -1,0 +1,128 @@
+<section class="slide" id="custom-interview-c01-training-lever" data-tone="agent" data-title="Interview: SFT, RFT or distillation">
+  <style>
+    #custom-interview-c01-training-lever .qa .a { font-size: 19px; line-height: 1.42; }
+    #custom-interview-c01-training-lever .qa .a .def { display: block; margin-top: 8px; font-size: 16px; color: var(--ink-2); }
+    #custom-interview-c01-training-lever svg.viz { display: block; width: 100%; height: 330px; }
+    #custom-interview-c01-training-lever .quote { font-size: 19px; line-height: 1.38; margin: 0; }
+    #custom-interview-c01-training-lever .cb-row { display: grid; grid-template-columns: 220px 1fr; gap: 14px; align-items: center; font-size: 17px; }
+    #custom-interview-c01-training-lever .cb { position: relative; }
+    #custom-interview-c01-training-lever .cb .bar { height: 30px; border-radius: 8px; }
+    #custom-interview-c01-training-lever .cb b { position: absolute; top: 50%; transform: translateY(-50%); font: 700 17px/1 var(--f-mono); white-space: nowrap; }
+    #custom-interview-c01-training-lever .cite.paper { flex-direction: row; gap: 10px; border-radius: 10px; padding: 6px 12px; }
+    #custom-interview-c01-training-lever .cites { flex-wrap: wrap; gap: 8px; }
+  </style>
+  <div class="kicker">Interview · Training method · 1 of 2</div>
+  <h2 class="title">The base model's pass rate picks SFT, RFT or distillation</h2>
+  <div class="grid fill" style="grid-template-columns: 560px 1fr; gap: 36px">
+    <div class="stack" style="gap:22px">
+      <div class="qa">
+        <div class="q">SFT or reinforcement fine-tuning (RFT) for claim payouts?</div>
+        <div class="a" data-step="1">Probe the base model first. RFT learns only from rollouts that pass, so it needs pass@8 &gt; 0. Start with 100-200 examples.
+          <span class="def">Reward = the grader's score in [0, 1]. pass@k uses the same grader. GRPO is the RL algorithm Bedrock RFT uses.</span></div>
+      </div>
+      <div class="qa">
+        <div class="q">A strong teacher model exists. RL or distillation?</div>
+        <div class="a" data-step="2">Try on-policy distillation first: the student writes, the teacher scores each student token. It costs about 10x less compute.
+          <span class="def">Needs the teacher's per-token logprobs: an open-weight teacher with the same tokenizer.</span></div>
+      </div>
+      <div class="cites push">
+        <a class="cite doc" data-step="1" href="https://docs.aws.amazon.com/bedrock/latest/userguide/reinforcement-fine-tuning.html" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Amazon Bedrock: Reinforcement fine-tuning</a>
+        <a class="cite doc" data-step="2" href="https://thinkingmachines.ai/blog/on-policy-distillation/" target="_blank" rel="noopener"><b>Blog</b>&nbsp;Thinking Machines: On-Policy Distillation</a>
+      </div>
+    </div>
+
+    <div class="stack" style="gap:14px">
+      <svg class="viz" id="citl-svg" viewBox="0 0 796 330" aria-label="Probe the base model, then pick SFT, RFT, skip, or on-policy distillation"></svg>
+      <div class="panel k-tool tight" data-step="1" style="gap:8px">
+        <p class="quote">"If rewards are consistently 0 percent, use supervised fine-tuning first… If rewards are greater than 95 percent, reinforcement fine-tuning might be unnecessary."</p>
+        <span class="small">Red flag in training: mean reward stuck below 0.15.</span>
+      </div>
+      <div class="stack" data-step="2" style="gap:10px">
+        <div class="cb-row"><span>On-policy distill · <b class="c-state">74.4%</b></span>
+          <div class="cb"><div class="bar"><i data-fx="bar" style="--v:10%;--aurora:var(--state)"></i></div><b class="c-state" style="left:calc(10% + 12px)">1,800 GPU-h</b></div></div>
+        <div class="cb-row"><span>RL · <b class="c-tool">67.6%</b></span>
+          <div class="cb"><div class="bar"><i data-fx="bar" style="--v:100%;--aurora:var(--tool)"></i></div><b style="right:12px;color:#fff">17,920 GPU-h</b></div></div>
+        <span class="small">AIME'24 accuracy and compute. Qwen3 report figures, quoted by Thinking Machines.</span>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    Ask each question and wait before you reveal the answer. First the words: the reward is the grader's score between 0 and 1, and pass@k is the share of prompts where at least 1 of k sampled answers gets full marks from the same grader. Click 1: RFT learns only from contrast between rollouts. If the base model never gets a payout right, pass@8 is 0, every reward is 0 and there is nothing to reinforce, so SFT comes first. Between 0 and 95%, RFT with GRPO has signal. Above 95% pass@1, AWS says RFT might be unnecessary, so ship or move on. During training, a mean reward that plateaus below 0.15 is the AWS red flag. Click 2: when a strong teacher exists, try on-policy distillation. The student generates, and the teacher scores every token of the student's text, so the signal is dense. The Qwen3 report figures, quoted in the Thinking Machines post, are 74.4% on AIME'24, a math contest benchmark, at 1,800 GPU hours against 67.6% at 17,920 for RL. The catch: you need the teacher's per-token logprobs on the student's tokens, which in practice means an open-weight teacher with a compatible tokenizer, not a closed API. A recent paper, arXiv 2610.18011, adds that distillation on failure-only prompts declined in all 8 configurations, so keep prompts where the student is sometimes right. Analogy: RL is a coach who says only "win" or "lose"; distillation is a coach who comments on every move. Likely follow-up: "Can I distill from a closed model?" Only off-policy, through its text, which is plain SFT on its outputs. Next: what survives when the vendor retires your tuned model.
+  </aside>
+</section>
+<script>
+(() => {
+  const ID = "custom-interview-c01-training-lever";
+  const NS = "http://www.w3.org/2000/svg";
+  let loops = [], S = null;
+  const mk = (p, tag, a = {}, st = {}) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); Object.assign(e.style, st); p.appendChild(e); return e; };
+  const txt = (p, x, y, s, st = {}, anchor = "middle") => { const t = mk(p, "text", { x, y, "text-anchor": anchor }, Object.assign({ font: "600 19px var(--f-display)", fill: "var(--ink)" }, st)); t.textContent = s; return t; };
+
+  /* colour means the method: SFT grey, RFT amber, skip muted, distillation green */
+  const RUNGS = [
+    { cond: "pass@8 = 0", sub: "the base never passes", method: "SFT first", tone: "ink-2" },
+    { cond: "0 < pass@1 < 95%", sub: "some rollouts pass", method: "RFT (GRPO)", tone: "tool" },
+    { cond: "pass@1 > 95%", sub: "already solved", method: "skip RFT", tone: "muted" },
+    { cond: "a strong teacher exists", sub: "open weights, same tokenizer", method: "On-policy distill", tone: "state" }
+  ];
+  const RY = [6, 88, 170, 252], RH = 70, PY = 160;
+
+  function build(svg) {
+    svg.innerHTML = "";
+    const defs = mk(svg, "defs");
+    RUNGS.forEach((r) => {
+      const m = mk(defs, "marker", { id: `${ID}-arr-${r.tone}`, viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto-start-reverse" });
+      mk(m, "path", { d: "M0 0 L10 5 L0 10 z" }, { fill: `var(--${r.tone})` });
+    });
+    const s = {};
+    const pg = mk(svg, "g");
+    mk(pg, "rect", { x: 0, y: PY - 38, width: 150, height: 76, rx: 14 }, { fill: "color-mix(in oklab, var(--tool) 10%, var(--bg))", stroke: "var(--tool)", strokeWidth: 2 });
+    txt(pg, 75, PY - 4, "Probe base");
+    txt(pg, 75, PY + 22, "pass@k", { font: "500 16px var(--f-mono)", fill: "var(--muted)" });
+    s.w = RY.map((y, i) => mk(svg, "path", { d: `M150 ${PY} C 200 ${PY}, 200 ${y + RH / 2}, 246 ${y + RH / 2}`, fill: "none" },
+      { stroke: `var(--${RUNGS[i].tone})`, strokeWidth: 2.6, markerEnd: `url(#${ID}-arr-${RUNGS[i].tone})` }));
+    s.rungs = RUNGS.map((r, i) => {
+      const g = mk(svg, "g"), y = RY[i];
+      g._r = mk(g, "rect", { x: 250, y, width: 546, height: RH, rx: 14 }, { fill: "var(--bg)", stroke: `var(--${r.tone})`, strokeWidth: 2 });
+      txt(g, 272, y + 30, r.cond, { font: "600 19px var(--f-mono)" }, "start");
+      txt(g, 272, y + 55, r.sub, { font: "500 16px var(--f-mono)", fill: "var(--muted)" }, "start");
+      mk(g, "rect", { x: 586, y: y + 13, width: 198, height: RH - 26, rx: 22 }, { fill: `var(--${r.tone})` });
+      txt(g, 685, y + 42, r.method, { font: "700 17px var(--f-mono)", fill: "#fff" });
+      return g;
+    });
+    s.tok = mk(svg, "circle", { r: 9, cx: 150, cy: PY }, { fill: "var(--tool)", stroke: "var(--bg)", strokeWidth: 3, opacity: 0 });
+    return s;
+  }
+
+  const kill = () => { loops.forEach((t) => t.kill()); loops = []; if (S) gsap.killTweensOf([S.tok, ...S.rungs, ...S.w]); };
+
+  function render(n, animate) {
+    if (!S) return;
+    kill();
+    const D = animate ? 0.45 : 0;
+    const to = (el, v) => (D ? gsap.to(el, Object.assign({ duration: D, ease: "power2.out" }, v)) : gsap.set(el, v));
+    /* hidden means opacity 0; the current question's branches are full, earlier ones dim to 40% */
+    const op = n <= 0 ? [0, 0, 0, 0] : n === 1 ? [1, 1, 1, 0] : [0.4, 0.4, 0.4, 1];
+    S.rungs.forEach((g, i) => to(g, { opacity: op[i] }));
+    S.w.forEach((w, i) => to(w, { opacity: op[i] }));
+    if (n < 1) { gsap.set(S.tok, { opacity: 0 }); return; }
+    /* the probe token travels along the live branches, one after another */
+    const live = n === 1 ? [0, 1, 2] : [3];
+    const tl = gsap.timeline({ repeat: -1, repeatDelay: 0.4, delay: D });
+    live.forEach((i) => {
+      const path = S.w[i], L = path.getTotalLength(), o = { t: 0 };
+      tl.set(S.tok, { opacity: 1, attr: { fill: `var(--${RUNGS[i].tone})` } });
+      tl.to(o, { t: 1, duration: 0.9, ease: "power1.inOut", onUpdate: () => { const p = path.getPointAtLength(o.t * L * 0.92); S.tok.setAttribute("cx", p.x); S.tok.setAttribute("cy", p.y); } });
+      tl.to(S.tok, { opacity: 0, duration: 0.2 });
+      tl.call(() => { o.t = 0; });
+    });
+    loops.push(tl);
+  }
+
+  Deck.register(ID, {
+    enter(slide, n) { S = build(slide.querySelector("#citl-svg")); render(n || 0, false); },
+    step(slide, n, animate) { render(n, animate); },
+    leave() { kill(); }
+  });
+})();
+</script>

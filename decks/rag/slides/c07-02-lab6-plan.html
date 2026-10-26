@@ -1,0 +1,236 @@
+<section class="slide tight" id="rag-c07-lab6-plan" data-tone="tool" data-title="Lab 6: plan the hops">
+  <style>
+    #rag-c07-lab6-plan .lp-grid { display: grid; grid-template-columns: 830px 1fr; gap: 24px; align-items: start; }
+    #rag-c07-lab6-plan .lp-left, #rag-c07-lab6-plan .lp-right { gap: 10px; min-width: 0; }
+    #rag-c07-lab6-plan .code-wrap .code-head { padding: 7px 14px; font-size: 14px; }
+    #rag-c07-lab6-plan pre.code.lp-c { font-size: 13.2px; line-height: 1.4; padding: 10px 16px 12px; }
+    #rag-c07-lab6-plan pre.code.lp-t { font-size: 12.2px; line-height: 1.4; padding: 7px 12px 9px; }
+    #rag-c07-lab6-plan .lab-head { gap: 10px; flex-wrap: nowrap; }
+    #rag-c07-lab6-plan .lab-head .run { font-size: 14px; flex: none; }
+    #rag-c07-lab6-plan .cite { white-space: nowrap; font-size: 13px; padding: 5px 10px 5px 8px; }
+    #rag-c07-lab6-plan .lp-rail { position: relative; height: 46px; }
+    #rag-c07-lab6-plan .lp-rail > p { position: absolute; left: 0; right: 0; top: 0; margin: 0; font-size: 15.5px; line-height: 1.36; }
+    #rag-c07-lab6-plan .lp-rail code { font-size: .88em; }
+    #rag-c07-lab6-plan .lp-svg { display: block; overflow: visible; }
+    #rag-c07-lab6-plan .lp-svg text { font-family: var(--f-mono); }
+    #rag-c07-lab6-plan .lp-svg .lbl { font-size: 12px; font-weight: 700; letter-spacing: .06em; }
+    #rag-c07-lab6-plan .lp-svg .lbl.st { fill: var(--state); }
+    #rag-c07-lab6-plan .lp-svg .lbl.ag { fill: var(--agent); }
+    #rag-c07-lab6-plan .lp-svg .pp rect { fill: var(--surface); stroke: var(--line-2); stroke-width: 1.4; }
+    #rag-c07-lab6-plan .lp-svg .pp text { font-size: 13px; font-weight: 700; fill: var(--muted); }
+    #rag-c07-lab6-plan .lp-svg .pp.need rect { fill: var(--state-soft); stroke: var(--state); stroke-width: 1.8; }
+    #rag-c07-lab6-plan .lp-svg .pp.need text { fill: var(--state); }
+    #rag-c07-lab6-plan .lp-svg .qc rect { fill: var(--human-soft); stroke: var(--human); stroke-width: 1.8; }
+    #rag-c07-lab6-plan .lp-svg .qc .k { font-size: 12px; font-weight: 700; fill: var(--human); letter-spacing: .06em; }
+    #rag-c07-lab6-plan .lp-svg .qc .t { font-size: 13.5px; font-weight: 600; fill: var(--ink); }
+    #rag-c07-lab6-plan .lp-svg .ch rect.bx { fill: var(--agent-soft); stroke: var(--agent); stroke-width: 1.6; }
+    #rag-c07-lab6-plan .lp-svg .ch circle { fill: var(--agent); }
+    #rag-c07-lab6-plan .lp-svg .ch .nn { font-size: 12px; font-weight: 700; fill: #fff; }
+    #rag-c07-lab6-plan .lp-svg .ch .t { font-size: 12.5px; font-weight: 600; fill: var(--ink); }
+    #rag-c07-lab6-plan .lp-svg .ch rect.slot { fill: var(--surface); stroke: var(--agent); stroke-width: 1.6; stroke-dasharray: 4 3; }
+    #rag-c07-lab6-plan .lp-svg .ph { fill: var(--agent); font-weight: 700; }
+    #rag-c07-lab6-plan .lp-svg .tb .frame { fill: var(--surface); stroke: var(--state); stroke-width: 1.6; }
+    #rag-c07-lab6-plan .lp-svg .tb .hd { font-size: 11.5px; font-weight: 700; fill: var(--muted); letter-spacing: .05em; }
+    #rag-c07-lab6-plan .lp-svg .tb .sep { stroke: var(--line); stroke-width: 1; }
+    #rag-c07-lab6-plan .lp-svg .tb .cell { font-size: 12px; font-weight: 600; fill: var(--ink); }
+    #rag-c07-lab6-plan .lp-svg .tb .cell.em { fill: var(--risk); }
+    #rag-c07-lab6-plan .lp-svg .bdg rect { fill: var(--state); }
+    #rag-c07-lab6-plan .lp-svg .bdg text { font-size: 12px; font-weight: 700; fill: #fff; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 6</span> Acme Outfitters compliance desk · step 1 of 3</div>
+  <h2 class="title">Plan the hops: sub-questions that reference earlier answers as #1</h2>
+  <div class="lp-grid fill">
+    <div class="stack lp-left">
+      <div class="code-wrap">
+        <div class="code-head">lab6/lab6_multihop_register.py · part 1 of 3</div>
+        <pre class="code lp-c" data-lang="python" data-focus="1:8-17, 2:18-25, 3:26-30"><code>import os
+from typing import TypedDict
+from pydantic import BaseModel, Field
+from langchain_core.documents import Document
+from langchain_core.vectorstores import InMemoryVectorStore
+from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
+from langgraph.graph import StateGraph, START, END
+llm = ChatGoogleGenerativeAI(model=os.getenv("MODEL", "gemini-3.8-flash"))
+PASSAGES = [
+    ("AUD-1", "Kestrel Textiles failed the March 2026 audit and is on audit hold."),
+    ("AUD-2", "Bluefin Gear passed the March 2026 audit with no findings."),
+    ("SUP-4", "Kestrel Textiles manufactures the TrailLite rain jacket."),
+    ("SUP-5", "Bluefin Gear manufactures the Summit fleece."),
+    ("RET-2", "Returns from a supplier on audit hold need the Quality Lead, Priya Natarajan."),
+    ("RET-1", "Standard returns are approved automatically by the returns portal.")]
+store = InMemoryVectorStore(GoogleGenerativeAIEmbeddings(model="gemini-embedding-001"))
+store.add_documents([Document(t, metadata={"id": i}) for i, t in PASSAGES])
+class Plan(BaseModel):
+    subquestions: list[str] = Field(description=
+        "2-4 single-fact sub-questions in order; refer to earlier answers as #1, #2")
+class Hop(BaseModel):
+    answer: str = Field(description="Short answer, or UNKNOWN if the passages do not state it")
+    source_id: str = Field(description="Id of the passage that states the answer, or ''")
+class State(TypedDict, total=False):       # total=False: a key may be missing
+    question: str; register: list[dict]; hops: int; answer: str   # row: {q, a, src, tries}
+def plan(s: State):
+    p = llm.with_structured_output(Plan).invoke(
+        f"Decompose into single-fact sub-questions: {s['question']}")
+    return {"register": [{"q": q, "a": None, "src": None, "tries": 0}
+                         for q in p.subquestions], "hops": 0}</code></pre>
+      </div>
+    </div>
+    <div class="stack lp-right">
+      <div class="lab-head">
+        <span class="run">python lab6_multihop_register.py</span>
+        <a class="cite repo" href="https://github.com/langchain-ai/langgraph/tree/1.2.17/libs/langgraph/langgraph" target="_blank" rel="noopener"><b>Repo</b>&nbsp;langgraph @ 1.2.17</a>
+      </div>
+      <div class="code-wrap term">
+        <div class="code-head">run it Monday · Python 3.12</div>
+        <pre class="code lp-t" data-lang="bash"><code>$ mkdir lab6 &amp;&amp; cd lab6 &amp;&amp; python3.12 -m venv .venv
+$ source .venv/bin/activate
+$ pip install "langgraph==1.2.17" "langchain-core==1.7.0" \
+      "langchain-google-genai==4.4.2" "langchain==1.4.7"
+$ export GOOGLE_API_KEY=... MODEL=gemini-3.8-flash
+# GOOGLE_API_KEY: a Gemini API key from Google AI Studio
+lab6/  lab6_multihop_register.py (parts 1-3) · lab6_guards.py</code></pre>
+      </div>
+      <svg class="lp-svg" id="lp-svg" viewBox="0 0 538 360" width="538" height="360" aria-label="The analyst question stays pinned at the top. The store shows six passage ids, three of them needed. plan() returns three sub-question chips with #1 and #2 placeholders. A register with columns q, a, src and tries appears with three open rows and hops = 0."></svg>
+      <div class="steps-rail lp-rail">
+        <p data-step="1" data-until="2"><span>Six passages, one fact each. No single passage answers the question.</span></p>
+        <p data-step="2" data-until="3"><span><code>Hop.answer</code> is UNKNOWN on a miss. <code>Hop.source_id</code> is the passage id, or empty.</span></p>
+        <p data-step="3"><span><code>plan()</code> writes the register: every row open, <code>hops = 0</code>. The chain is fixed up front.</span></p>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    This is the run-it-Monday slide of Lab 6. Make a lab6 folder and a Python 3.12 venv, pin langgraph 1.2.17, langchain-core 1.7.0 and langchain-google-genai 4.4.2, plus langchain 1.4.7 for the guard file on the gotcha slide; pydantic comes with langchain-core. GOOGLE_API_KEY is a Gemini API key from Google AI Studio, and MODEL defaults to gemini-3.8-flash. Copy parts 1 to 3 from the three lab slides into one file, lab6_multihop_register.py. Walk the three bands: six one-fact passages, where the answer needs AUD-1, SUP-4 and RET-2 together; the Plan and Hop schemas, where the Field description shows the model the #1 placeholder format, and the State TypedDict with total=False, which means a key may be missing until a node writes it; and plan(), which writes a register of open rows and sets hops to 0. Your model may word the sub-questions differently from the chips on the slide; if it drops the #1 placeholder, the substitution on the next slide silently does nothing, so print the plan first. This is my own implementation of the training-free requirement register from arXiv 2610.21184, not the paper's code. Analogy: a detective writes every open question on the case board before the first interview, and leaves a blank for each name that is not known yet. Likely question: "Why plan up front instead of letting the agent search freely?" Because free search drifts away from the open sub-question. Next: hop() resolves the rows one at a time.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const PASS = [["AUD-1", 1], ["AUD-2", 0], ["SUP-4", 1], ["SUP-5", 0], ["RET-2", 1], ["RET-1", 0]];
+  const CHIPS = [
+    ["Which supplier failed the March 2026 audit?"],
+    ["Which jacket does", "#1", "make?"],
+    ["Who approves returns from a supplier on audit hold for", "#2", "?"],
+  ];
+  const CY = [162, 198, 234];
+  const REG = [["Which supplier failed…"], ["Which jacket does ", "#1", " make?"], ["Who approves … for ", "#2", "?"]];
+  let B = null, prev = -1, tweens = [];
+  const mk = (p, tag, attrs, cls) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (cls) e.setAttribute("class", cls);
+    p.appendChild(e); return e;
+  };
+  const tsp = (t, s, cls, dx) => { const e = mk(t, "tspan", dx ? { dx } : {}, cls); e.textContent = s; return e; };
+  function build(slide) {
+    const svg = slide.querySelector("#lp-svg");
+    svg.innerHTML = "";
+    // pinned question
+    const qc = mk(svg, "g", {}, "qc");
+    mk(qc, "rect", { x: 0, y: 0, width: 538, height: 62, rx: 12 });
+    mk(qc, "text", { x: 14, y: 18 }, "k").textContent = "ANALYST QUESTION";
+    mk(qc, "text", { x: 14, y: 37 }, "t").textContent = "Who must approve a return of the jacket made by the supplier";
+    mk(qc, "text", { x: 14, y: 54 }, "t").textContent = "that failed the March 2026 audit?";
+    // store strip
+    const store = mk(svg, "g", {});
+    mk(store, "text", { x: 0, y: 84 }, "lbl st").textContent = "STORE · 6 PASSAGES · 3 NEEDED";
+    const pills = PASS.map(([id, need], i) => {
+      const g = mk(store, "g", {}, "pp" + (need ? " need" : ""));
+      mk(g, "rect", { x: i * 90, y: 92, width: 84, height: 28, rx: 14 });
+      mk(g, "text", { x: i * 90 + 42, y: 111, "text-anchor": "middle" }).textContent = id;
+      return g;
+    });
+    // plan() output chips
+    const plab = mk(svg, "text", { x: 0, y: 140 }, "lbl ag"); plab.textContent = "plan() OUTPUT · ILLUSTRATIVE · WORDING MAY DIFFER";
+    const slots = [];
+    const chips = CHIPS.map((c, i) => {
+      const g = mk(svg, "g", {}, "ch");
+      const cy = CY[i];
+      mk(g, "rect", { x: 0, y: cy - 15, width: 538, height: 30, rx: 9 }, "bx");
+      mk(g, "circle", { cx: 17, cy, r: 10 });
+      mk(g, "text", { x: 17, y: cy + 4, "text-anchor": "middle" }, "nn").textContent = String(i + 1);
+      let sl = null;
+      if (c.length > 1) sl = mk(g, "rect", { x: 0, y: cy - 11, width: 0, height: 22, rx: 5 }, "slot");
+      const t = mk(g, "text", { x: 36, y: cy + 4.5 }, "t");
+      tsp(t, c[0]);
+      if (c.length > 1) {
+        const ph = tsp(t, c[1], "ph", 12);           // extra room around the placeholder
+        tsp(t, c[2], null, c[2] === "?" ? 6 : 12);
+        slots.push({ sl, ph, cy });
+      }
+      return g;
+    });
+    // register table
+    const tb = mk(svg, "g", {}, "tb");
+    mk(tb, "text", { x: 0, y: 274 }, "lbl st").textContent = "REQUIREMENT REGISTER";
+    const bdg = mk(tb, "g", {}, "bdg");
+    mk(bdg, "rect", { x: 446, y: 260, width: 92, height: 20, rx: 10 });
+    mk(bdg, "text", { x: 492, y: 274, "text-anchor": "middle" }).textContent = "hops = 0";
+    mk(tb, "rect", { x: 0, y: 282, width: 538, height: 78, rx: 10 }, "frame");
+    [[12, "q"], [276, "a"], [360, "src"], [452, "tries"]].forEach(([x, h]) => { mk(tb, "text", { x, y: 298 }, "hd").textContent = h; });
+    const rows = REG.map((r, i) => {
+      const y = 316 + i * 17;
+      mk(tb, "line", { x1: 10, x2: 528, y1: y - 13, y2: y - 13 }, "sep");
+      const g = mk(tb, "g", {});
+      const t = mk(g, "text", { x: 12, y }, "cell");
+      tsp(t, r[0]); if (r[1]) { tsp(t, r[1], "ph"); tsp(t, r[2]); }
+      mk(g, "text", { x: 276, y }, "cell em").textContent = "None";
+      mk(g, "text", { x: 360, y }, "cell em").textContent = "None";
+      mk(g, "text", { x: 470, y }, "cell").textContent = "0";
+      return g;
+    });
+    B = { qc, pills, store, plab, chips, tb, bdg, rows, slots };
+  }
+  // fit each dashed slot around its placeholder, with 4px of padding
+  function fitSlots() {
+    B.slots.forEach(({ sl, ph }) => {
+      try {
+        const bb = ph.getBBox();
+        if (bb.width > 0) { sl.setAttribute("x", bb.x - 4); sl.setAttribute("width", bb.width + 8); }
+      } catch (e) { /* hidden: keep the last size */ }
+    });
+  }
+  function render(slide, n, animate) {
+    if (!B) build(slide);
+    tweens.forEach((t) => t.kill()); tweens = [];
+    const fwd = animate && n === prev + 1;
+    gsap.set(B.qc, { opacity: 1 });
+    // step 1: the store
+    if (fwd && n === 1) {
+      gsap.set(B.store, { opacity: 1 });
+      tweens.push(gsap.fromTo(B.pills, { opacity: 0, scale: 0.4, transformOrigin: "50% 50%" }, { opacity: 1, scale: 1, duration: 0.4, stagger: 0.08, ease: "back.out(2)" }));
+    } else {
+      gsap.set(B.store, { opacity: n >= 1 ? 1 : 0 });
+      gsap.set(B.pills, { opacity: 1, scale: 1 });
+    }
+    // step 2: three sub-question chips drop out of the question card
+    if (fwd && n === 2) {
+      gsap.set(B.plab, { opacity: 0 });
+      const tl = gsap.timeline();
+      tl.fromTo(B.chips, { opacity: 0, y: (i) => -(CY[i] - 31) }, { opacity: 1, y: 0, duration: 0.55, stagger: 0.12, ease: "power3.out" }, 0);
+      tl.to(B.plab, { opacity: 1, duration: 0.3 }, 0.4);
+      tl.call(fitSlots, null, 0.05);
+      tweens.push(tl);
+    } else {
+      gsap.set(B.chips, { opacity: n >= 2 ? 1 : 0, y: 0 });
+      gsap.set(B.plab, { opacity: n >= 2 ? 1 : 0 });
+    }
+    fitSlots();
+    // step 3: the register appears with three open rows
+    if (fwd && n === 3) {
+      gsap.set(B.tb, { opacity: 1 });
+      tweens.push(gsap.fromTo(B.rows, { opacity: 0, y: -24 }, { opacity: 1, y: 0, duration: 0.45, stagger: 0.15, delay: 0.15, ease: "power3.out" }));
+      tweens.push(gsap.fromTo(B.bdg, { opacity: 0, scale: 0.4, transformOrigin: "492px 270px" }, { opacity: 1, scale: 1, duration: 0.4, delay: 0.7, ease: "back.out(2.2)" }));
+    } else {
+      gsap.set(B.tb, { opacity: n >= 3 ? 1 : 0 });
+      gsap.set(B.rows, { opacity: 1, y: 0 });
+      gsap.set(B.bdg, { opacity: 1, scale: 1 });
+    }
+    prev = n;
+  }
+  Deck.register("rag-c07-lab6-plan", {
+    enter(slide, step) { prev = -1; B = null; render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { tweens.forEach((t) => t.kill()); tweens = []; if (B) gsap.killTweensOf([B.qc, B.plab, B.tb, B.bdg, ...B.chips, ...B.pills, ...B.rows]); prev = -1; }
+  });
+})();
+</script>

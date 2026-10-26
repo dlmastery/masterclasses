@@ -1,0 +1,40 @@
+<section class="slide" id="adk-c06-gotcha-loud" data-tone="risk" data-title="Gotcha: missing extra, renamed SDK">
+  <style>
+    #adk-c06-gotcha-loud .gl-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; align-items: stretch; }
+    #adk-c06-gotcha-loud .gotcha { font-size: 18px; line-height: 1.45; align-content: start; }
+    #adk-c06-gotcha-loud .gotcha code { font-size: 16px; }
+    #adk-c06-gotcha-loud .gotcha .gn { grid-column: 1 / -1; font: 700 16px/1 var(--f-mono); color: var(--risk); letter-spacing: .05em; text-transform: uppercase; margin-bottom: 4px; }
+    #adk-c06-gotcha-loud .err { font: 600 16px/1.45 var(--f-mono); color: var(--risk); }
+    #adk-c06-gotcha-loud .gl-bot { display: grid; grid-template-columns: 1fr auto; gap: 32px; align-items: end; }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> MCP install</div>
+  <h2 class="title">Two loud MCP failures: a missing extra and a renamed SDK</h2>
+  <div class="gl-cards">
+    <div class="gotcha" data-step="1">
+      <span class="gn">1 · the import fails</span>
+      <b>Symptom</b><span class="err">ImportError: cannot import name 'McpToolset' from 'google.adk.tools.mcp_tool'</span>
+      <b class="why">Cause</b><span><code>mcp</code> is not installed. ADK logs the real error only at debug level.</span>
+      <b class="fix">Fix</b><span><code>pip install "google-adk[mcp]==2.13.0"</code></span>
+    </div>
+    <div class="gotcha" data-step="2">
+      <span class="gn">2 · v1 server code on mcp 2.3.0</span>
+      <b>Symptom</b><span class="err">No module named 'mcp.server.fastmcp'. This is mcp 2.x, where FastMCP was renamed to MCPServer ...</span>
+      <b class="why">Cause</b><span><code>FastMCP</code> is now <code>MCPServer</code>. <code>host</code> and <code>port</code> moved to <code>run()</code>.</span>
+      <b class="fix">Fix</b><span>The diff below, or pin <code>mcp&lt;2</code>.</span>
+    </div>
+  </div>
+  <div class="gl-bot fill">
+    <div class="code-wrap" data-step="3">
+      <div class="code-head">claims_agent/handbook_server.py · mcp 1.x → 2.x</div>
+      <pre class="code" data-lang="python" data-focus="4:5-7"><code># mcp 1.x: fails on mcp 2.3.0
+from mcp.server.fastmcp import FastMCP
+mcp = FastMCP("claims-handbook-server", port=3000)
+# mcp 2.x: the name changed, and host and port go to run()
+from mcp.server.mcpserver import MCPServer
+mcp = MCPServer("claims-handbook-server")
+mcp.run(transport="streamable-http", host="127.0.0.1", port=3000)</code></pre>
+    </div>
+    <div class="cites" data-step="3"><a class="cite doc" href="https://py.sdk.modelcontextprotocol.io/v2/migration/#fastmcp-renamed-to-mcpserver" target="_blank" rel="noopener"><b>Docs</b>&nbsp;MCP SDK v2 migration</a></div>
+  </div>
+  <aside class="notes">These two failures are loud, but their messages point the wrong way. Step 1: in google-adk 2.13.0, mcp is an optional extra. Without it, importing McpToolset fails with an ImportError that names McpToolset, because tools/mcp_tool/__init__.py catches the real ImportError and logs it only at debug level. Install google-adk with the mcp extra. Step 2: old tutorials use FastMCP. The mcp 2.x SDK renamed it to MCPServer, and mcp 2.3.0 raises a ModuleNotFoundError whose text tells you so; if you pass port to the constructor, you get a TypeError about an unexpected keyword argument. Step 3: the fix is a three-line diff. Step 4: in 2.x, the constructor takes only the name, and host and port go to run(). If you cannot migrate yet, pin mcp below 2. Think of a shop that moved to a new address: the old sign says "closed", but the shop is open around the corner. A likely question: "Does ADK need mcp 2.x?" No, ADK accepts mcp from 1.24 up to 3, so the server code decides the version you pin.</aside>
+</section>

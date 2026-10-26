@@ -1,0 +1,150 @@
+<section class="slide chapter" id="rag-interview-c05-chapter" data-tone="risk" data-title="Ch 5: Evaluation, security and production">
+  <style>
+    #rag-interview-c05-chapter svg text { font-family: var(--f-mono); }
+    #rag-interview-c05-chapter .tags { gap: 12px; align-items: center; }
+    #rag-interview-c05-chapter .tags .tag { font-size: 18px; padding: 7px 14px 7px 12px; }
+    #rag-interview-c05-chapter .tags .sep { width: 2px; height: 26px; background: var(--line-2); margin: 0 6px; }
+    #rag-interview-c05-chapter .gloss { font: 500 16px/1.4 var(--f-mono); color: var(--muted); margin: 0; }
+  </style>
+  <div class="ch-num" data-fx="blur">05</div>
+  <svg id="ri-c05-ch-svg" viewBox="0 0 1100 290" width="1100" height="290" aria-label="A request passes the ACL and injection gate and the p95 latency budget. The eval gate runs in CI once per release. A request that carries a poisoned chunk stops at the ACL and injection gate."></svg>
+  <h2 class="display">Evaluation,<br>security and production</h2>
+  <p class="lede" data-fx="up">Every request passes a security gate and a latency budget. Every release passes an eval gate in CI.</p>
+  <p class="gloss" data-fx="up">judge = an LLM that grades answers · span = one traced step · p95 = the latency that 95% of requests stay under</p>
+  <p class="gloss" data-fx="up">You will calibrate a judge, gate a release in CI, and cache safely per tenant · lab3_judge_calibrate.py · eval_gate.py · lab5_cache_latency.py</p>
+  <div class="tags" data-fx="stagger">
+    <span class="tag t-risk">Injection</span><span class="tag t-risk">ACLs</span><span class="sep"></span><span class="tag t-state">Judges</span><span class="tag t-state">Canaries</span><span class="tag t-state">Eval gates</span><span class="sep"></span><span class="tag t-tool">Caching</span>
+  </div>
+  <aside class="notes">Senior interviews end here: how do you know it works, and how do you keep it safe and fast? The animation shows two gates on the request path: the ACL and injection shield, and the p95 latency budget. The eval gate sits above the path with a dashed border, because it runs in CI once per release, not on every request. Watch the request that carries a poisoned chunk: it stops at the shield and never reaches the model. An analogy: an airport checks the passport and the boarding time of every passenger, and inspects the aircraft once before each flight. A likely question: "Which gate do teams forget?" Usually the eval gate, because the judge itself is never calibrated. The tag colours match the gates: red for security, green for evaluation, amber for latency. Three systems run through the chapter: the HelpDesk triage RAG that ships weekly behind an eval gate in CI, the Acme claims KB with per-group ACLs, and a 50M-document enterprise deployment.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "rag-interview-c05-chapter";
+  // request-path gates sit on the track; the eval gate is off the path (CI, per release)
+  const GATES = [
+    { cx: 330, tone: "risk", label: "ACL + injection", kind: "shield" },
+    { cx: 590, tone: "state", label: "eval gate (CI)", kind: "gauge", offPath: true },
+    { cx: 850, tone: "tool", label: "p95 budget", kind: "watch" },
+  ];
+  const TRACK_Y = 236, X0 = 128, X1 = 972, CY = 10, CH = 160;
+  let tl = null, P = null;
+
+  const mk = (parent, tag, attrs, style) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (style) Object.assign(e.style, style);
+    parent.appendChild(e);
+    return e;
+  };
+
+  function build(svg) {
+    svg.innerHTML = "";
+    mk(svg, "line", { x1: X0 - 16, y1: TRACK_Y, x2: X1 + 16, y2: TRACK_Y }, { stroke: "var(--line-2)", strokeWidth: 3, strokeDasharray: "8 8" });
+    mk(svg, "rect", { x: 0, y: TRACK_Y - 24, width: 112, height: 48, rx: 24 }, { fill: "var(--human-soft)", stroke: "var(--human)", strokeWidth: 2 });
+    mk(svg, "text", { x: 56, y: TRACK_Y + 6, "text-anchor": "middle" }, { font: "600 17px var(--f-mono)", fill: "var(--human)" }).textContent = "query";
+    const endR = mk(svg, "rect", { x: 988, y: TRACK_Y - 24, width: 112, height: 48, rx: 24 }, { fill: "var(--state-soft)", stroke: "var(--state)", strokeWidth: 2 });
+    mk(svg, "text", { x: 1044, y: TRACK_Y + 6, "text-anchor": "middle" }, { font: "600 17px var(--f-mono)", fill: "var(--state)" }).textContent = "answer";
+
+    const gates = GATES.map((g) => {
+      const cx = g.cx, c = `var(--${g.tone})`;
+      const grp = mk(svg, "g", {});
+      mk(grp, "rect", { x: cx - 84, y: CY, width: 168, height: CH, rx: 22 }, { fill: "var(--surface-2)", stroke: c, strokeWidth: 2.5, strokeDasharray: g.offPath ? "9 6" : "none" });
+      const ok = mk(grp, "rect", { x: cx - 84, y: CY, width: 168, height: CH, rx: 22 }, { fill: "var(--state-soft)", stroke: "var(--state)", strokeWidth: 4, opacity: 0 });
+      const bad = mk(grp, "rect", { x: cx - 84, y: CY, width: 168, height: CH, rx: 22 }, { fill: "var(--risk-soft)", stroke: "var(--risk)", strokeWidth: 5, opacity: 0 });
+      let moving = null;
+      if (g.kind === "shield") {
+        mk(grp, "path", { d: `M ${cx} 32 L ${cx + 40} 47 V 78 C ${cx + 40} 106 ${cx + 22} 122 ${cx} 132 C ${cx - 22} 122 ${cx - 40} 106 ${cx - 40} 78 V 47 Z` }, { fill: "var(--risk-soft)", stroke: c, strokeWidth: 3 });
+        moving = mk(grp, "path", { d: `M ${cx - 17} 81 L ${cx - 4} 94 L ${cx + 19} 68` }, { fill: "none", stroke: c, strokeWidth: 4, strokeLinecap: "round", strokeLinejoin: "round" });
+      } else if (g.kind === "gauge") {
+        mk(grp, "path", { d: `M ${cx - 46} 116 A 46 46 0 0 1 ${cx + 46} 116` }, { fill: "none", stroke: "var(--line-2)", strokeWidth: 10, strokeLinecap: "round" });
+        mk(grp, "path", { d: `M ${cx - 46} 116 A 46 46 0 0 1 ${cx + 33} 83` }, { fill: "none", stroke: c, strokeWidth: 10, strokeLinecap: "round" });
+        moving = mk(grp, "line", { x1: cx, y1: 116, x2: cx, y2: 78 }, { stroke: "var(--ink)", strokeWidth: 4, strokeLinecap: "round" });
+        mk(grp, "circle", { cx, cy: 116, r: 7 }, { fill: "var(--ink)" });
+      } else {
+        mk(grp, "rect", { x: cx - 9, y: 28, width: 18, height: 12, rx: 3 }, { fill: c });
+        mk(grp, "circle", { cx, cy: 84, r: 42 }, { fill: "var(--tool-soft)", stroke: c, strokeWidth: 3.5 });
+        moving = mk(grp, "line", { x1: cx, y1: 84, x2: cx, y2: 52 }, { stroke: c, strokeWidth: 4, strokeLinecap: "round" });
+        mk(grp, "circle", { cx, cy: 84, r: 5 }, { fill: c });
+      }
+      mk(grp, "text", { x: cx, y: 156, "text-anchor": "middle" }, { font: "600 15px var(--f-mono)", fill: "var(--ink-2)" }).textContent = g.label;
+      let bar = null;
+      if (g.offPath) {
+        // dashed arrow: the eval gate approves the pipeline once per release
+        mk(svg, "line", { x1: cx, y1: CY + CH, x2: cx, y2: TRACK_Y - 16 }, { stroke: c, strokeWidth: 2.5, strokeDasharray: "5 5" });
+        mk(svg, "path", { d: `M ${cx - 7} ${TRACK_Y - 26} L ${cx} ${TRACK_Y - 14} L ${cx + 7} ${TRACK_Y - 26}` }, { fill: "none", stroke: c, strokeWidth: 2.5, strokeLinecap: "round" });
+        mk(svg, "text", { x: cx + 14, y: CY + CH + 34, "text-anchor": "start" }, { font: "600 14px var(--f-mono)", fill: c }).textContent = "once per release";
+      } else {
+        bar = mk(svg, "line", { x1: cx, y1: TRACK_Y - 30, x2: cx, y2: TRACK_Y + 30 }, { stroke: c, strokeWidth: 5, strokeLinecap: "round" });
+        mk(svg, "line", { x1: cx, y1: CY + CH, x2: cx, y2: TRACK_Y - 30 }, { stroke: c, strokeWidth: 2, strokeDasharray: "4 5", opacity: 0.6 });
+      }
+      return { ...g, ok, bad, moving, bar };
+    });
+
+    const blocked = mk(svg, "text", { x: GATES[0].cx + 14, y: TRACK_Y + 32, "text-anchor": "start" }, { font: "700 17px var(--f-mono)", fill: "var(--risk)", opacity: 0 });
+    blocked.textContent = "blocked: poisoned";
+    const token = mk(svg, "circle", { cx: X0, cy: TRACK_Y, r: 14, fill: "var(--agent)", opacity: 0 });
+    const tag = mk(svg, "text", { x: X0, y: TRACK_Y - 26, "text-anchor": "middle" }, { font: "700 15px var(--f-mono)", fill: "var(--risk)", opacity: 0 });
+    tag.textContent = "poisoned";
+    P = { gates, token, tag, blocked, endR };
+  }
+
+  // the eval gate checks the release once: the needle sweeps, the card flashes green
+  function release() {
+    const g = P.gates[1];
+    const t = gsap.timeline();
+    t.fromTo(g.moving, { rotation: -60, svgOrigin: `${g.cx} 116` }, { rotation: 48, svgOrigin: `${g.cx} 116`, duration: 0.7, ease: "back.out(2)" })
+      .to(g.ok, { opacity: 1, duration: 0.15 }, "<0.3").to(g.ok, { opacity: 0, duration: 0.5 });
+    return t;
+  }
+
+  // one request; poisoned = true -> the shield stops it and the packet stays parked at the gate
+  function pass(poisoned) {
+    const { gates, token, tag, blocked, endR } = P;
+    const t = gsap.timeline();
+    const move = (x, d) => t.to([token, tag], { attr: { cx: x, x: x }, duration: d, ease: "none" });
+    t.set(token, { attr: { cx: X0, fill: poisoned ? "var(--risk)" : "var(--agent)" }, opacity: 1 })
+      .set(tag, { attr: { x: X0 }, opacity: poisoned ? 1 : 0 })
+      .set(blocked, { opacity: 0 });
+    if (poisoned) {
+      move(gates[0].cx - 22, 1.1);
+      t.set(tag, { opacity: 0 })
+        .to(gates[0].bad, { opacity: 1, duration: 0.2 })
+        .to(blocked, { opacity: 1, duration: 0.2 }, "<")
+        .to({}, { duration: 1.6 })
+        .to([token, blocked, gates[0].bad], { opacity: 0, duration: 0.25 });
+      return t;
+    }
+    let x = X0;
+    gates.filter((g) => !g.offPath).forEach((g, i) => {
+      move(g.cx, ((g.cx - x) / (X1 - X0)) * 3.0);
+      x = g.cx;
+      const at = "hit" + i;
+      t.addLabel(at);
+      t.to(g.ok, { opacity: 1, duration: 0.15 }, at).to(g.ok, { opacity: 0, duration: 0.45 });
+      if (g.kind === "watch") t.fromTo(g.moving, { rotation: 0, svgOrigin: `${g.cx} 84` }, { rotation: 300, svgOrigin: `${g.cx} 84`, duration: 0.6, ease: "power2.out" }, at);
+      if (g.kind === "shield") t.fromTo(g.moving, { opacity: 0.25 }, { opacity: 1, duration: 0.4 }, at);
+    });
+    move(X1, ((X1 - x) / (X1 - X0)) * 3.0);
+    t.to(endR, { strokeWidth: 5, duration: 0.15, yoyo: true, repeat: 1 })
+      .to(token, { opacity: 0, duration: 0.2 }, "<");
+    return t;
+  }
+
+  Deck.register(ID, {
+    enter(slide) {
+      if (tl) tl.kill();
+      build(slide.querySelector("#ri-c05-ch-svg"));
+      if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      tl = gsap.timeline({ repeat: -1, delay: 0.4 });
+      tl.add(pass(true)).add(release(), "+=0.3").add(pass(false), "+=0.2").add(pass(false), "+=0.3").add(() => {}, "+=0.4");
+    },
+    step() {},
+    leave() {
+      if (tl) tl.kill();
+      tl = null;
+      if (P) gsap.killTweensOf([P.token, P.tag, P.blocked, P.endR, ...P.gates.flatMap((g) => [g.ok, g.bad, g.moving])]);
+    },
+  });
+})();
+</script>

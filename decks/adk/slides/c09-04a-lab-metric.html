@@ -1,0 +1,111 @@
+<section class="slide" id="adk-c09-lab-metric" data-tone="model" data-title="Lab 9.7: Custom $500 metric">
+  <style>
+    #adk-c09-lab-metric .c9-split { --c9l: 820px; }
+    #adk-c09-lab-metric .c9-cap { min-height: 100px; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 9</span> Acme refund eval gate · step 7 of 15</div>
+  <h2 class="title">A code metric scores 0 when issue_refund exceeds $500</h2>
+  <div class="c9-split fill">
+    <div class="code-wrap">
+      <div class="code-head">labs/adk/lab9-refund-eval/refund_policy.py · excerpt</div>
+      <pre class="code" data-lang="python" data-focus="1:4-5, 2:6-8, 3:11-16"><code>LIMIT_USD = 500.0
+PASSED, FAILED = EvalStatus.PASSED, EvalStatus.FAILED
+
+def _ok(inv: Invocation) -&gt; bool:
+    for call in get_all_tool_calls(inv.intermediate_data):
+        amount = float((call.args or {}).get("amount", 0))
+        if call.name == "issue_refund" and amount &gt; LIMIT_USD:
+            return False
+    return True
+
+def refund_policy_score(
+    eval_metric: EvalMetric,
+    actual_invocations: list[Invocation],
+    expected_invocations: Optional[list[Invocation]],
+    conversation_scenario: Optional[ConversationScenario],
+) -&gt; EvaluationResult:</code></pre>
+    </div>
+    <div class="c9-col">
+      <svg class="c9-svg" id="c9m-svg" viewBox="0 0 520 420" aria-label="The tool calls of one invocation, lookup_order for A-2040 and issue_refund of 820 dollars, drop one by one into the _ok check. lookup_order passes. issue_refund with 820 is above 500, so _ok returns False and the score is 0.0."></svg>
+      <div class="c9-cap">
+        <p data-step="1" data-until="2">Walk every tool call in the invocation.</p>
+        <p data-step="2" data-until="3">One <code>issue_refund</code> above 500 gives <b>score 0.0</b>. No opinions.</p>
+        <p data-step="3">Keep these four keyword arguments. ADK calls the metric by name.</p>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Step seven: the business rule becomes plain Python. _ok walks every tool call in one invocation with get_all_tool_calls and returns False the moment issue_refund has an amount above 500; a circuit breaker that has no opinions. The animation uses the broken agent we will make on the config slide: it calls lookup_order, then issue_refund for 820 dollars, and the score is 0.0. The metric function must keep these four keyword arguments: eval_metric, actual_invocations, expected_invocations and conversation_scenario, because ADK calls it with exactly these names. The pattern comes from the official custom_metric sample, temperature_safety.py. A likely question: "Why not put the rule in a judge rubric?" Judges plateau at 77 to 82 percent on hard tool-calling cases, and a business rule needs the same answer every time.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c09-lab-metric";
+  const NS = "http://www.w3.org/2000/svg";
+  const CALLS = [
+    { t: "lookup_order(A-2040)", ok: true, tone: "tool" },
+    { t: "issue_refund(amount=820.0)", ok: false, tone: "risk" },
+  ];
+  let R = null, tw = [];
+  function mk(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const [a, v] of Object.entries(attrs)) e.setAttribute(a, v);
+    if (text !== undefined) e.textContent = text;
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function build(svg) {
+    svg.innerHTML = "";
+    R = { svg, chips: [], marks: [] };
+    mk("text", { x: 0, y: 22, "font-size": 18, "font-weight": 700, fill: "var(--ink-2)" }, svg, "invocation · tool calls");
+    CALLS.forEach((c, i) => {
+      const g = mk("g", {}, svg);
+      mk("rect", { x: 0, y: 0, width: 322, height: 48, rx: 10, fill: `var(--${c.tone}-soft)`, stroke: `var(--${c.tone})`, "stroke-width": 2 }, g);
+      mk("text", { x: 16, y: 31, "font-size": 19, "font-weight": 700, fill: "var(--ink)" }, g, c.t);
+      R.chips.push(g);
+      R.marks.push(mk("text", { x: 338, y: 0, "font-size": 18, "font-weight": 800, fill: c.ok ? "var(--state)" : "var(--risk)" }, svg, c.ok ? "✓ not a refund" : "✕ 820 > 500"));
+    });
+    R.gate = mk("g", {}, svg);
+    mk("rect", { x: 0, y: 196, width: 520, height: 70, rx: 14, fill: "var(--model-soft)", stroke: "var(--model)", "stroke-width": 2.4 }, R.gate);
+    mk("text", { x: 260, y: 230, "text-anchor": "middle", "font-size": 21, "font-weight": 800, fill: "var(--ink)" }, R.gate, "_ok(inv)");
+    mk("text", { x: 260, y: 256, "text-anchor": "middle", "font-size": 17, "font-weight": 600, fill: "var(--ink-2)" }, R.gate, "issue_refund and amount > 500 ?");
+    R.out = mk("g", {}, svg);
+    mk("rect", { x: 0, y: 306, width: 520, height: 104, rx: 16, fill: "var(--risk-soft)", stroke: "var(--risk)", "stroke-width": 2.4 }, R.out);
+    mk("text", { x: 24, y: 348, "font-size": 20, "font-weight": 700, fill: "var(--risk)" }, R.out, "return False");
+    mk("text", { x: 24, y: 390, "font-size": 30, "font-weight": 800, fill: "var(--risk)" }, R.out, "score 0.0 · FAILED");
+  }
+  const SLOT = (i) => 40 + i * 62;   // waiting slot y of chip i
+  function clear() { tw.forEach((t) => t.kill()); tw = []; }
+  function place(i, y) { gsap.set(R.chips[i], { x: 0, y }); R.marks[i].setAttribute("y", y + 32); }
+  function render(slide, n, animate) {
+    const svg = slide.querySelector("#c9m-svg");
+    if (!svg) return;
+    if (!R || R.svg !== svg || !svg.childElementCount) build(svg);
+    clear();
+    gsap.killTweensOf([...R.chips, ...R.marks, R.out, R.gate]);
+    CALLS.forEach((_, i) => place(i, SLOT(i)));
+    gsap.set(R.gate, { opacity: n >= 1 ? 1 : 0.35 });
+    // step 1: lookup_order is checked and passes
+    gsap.set(R.marks[0], { opacity: n >= 1 ? 1 : 0 });
+    gsap.set(R.marks[1], { opacity: n >= 2 ? 1 : 0 });
+    gsap.set(R.out, { opacity: n >= 2 ? 1 : 0 });
+    if (animate && n === 1) {
+      gsap.set(R.marks[0], { opacity: 0 });
+      tw.push(gsap.fromTo(R.chips[0], { y: SLOT(0) }, { y: 150, duration: 0.5, yoyo: true, repeat: 1, ease: "power2.inOut", delay: 0.2 }));
+      tw.push(gsap.to(R.marks[0], { opacity: 1, duration: 0.3, delay: 1.2 }));
+    }
+    if (animate && n === 2) {
+      gsap.set([R.marks[1], R.out], { opacity: 0 });
+      tw.push(gsap.fromTo(R.chips[1], { y: SLOT(1) }, { y: 150, duration: 0.5, ease: "power2.in", delay: 0.2 }));
+      tw.push(gsap.to(R.chips[1], { x: -8, duration: 0.07, yoyo: true, repeat: 5, delay: 0.75 }));
+      tw.push(gsap.to(R.chips[1], { y: SLOT(1), x: 0, duration: 0.4, delay: 1.25 }));
+      tw.push(gsap.to(R.marks[1], { opacity: 1, duration: 0.3, delay: 1.5 }));
+      tw.push(gsap.fromTo(R.out, { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.4, delay: 0.9 }));
+    }
+    gsap.set(svg, { opacity: n >= 3 ? 0.55 : 1 });
+  }
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { clear(); },
+  });
+})();
+</script>

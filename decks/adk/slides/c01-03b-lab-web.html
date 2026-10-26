@@ -1,0 +1,77 @@
+<section class="slide" id="adk-c01-lab-web" data-tone="tool" data-title="Lab 1: adk web and tool errors">
+  <style>
+    #adk-c01-lab-web pre.code, #adk-c01-lab-web pre.code * { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #adk-c01-lab-web a.cite.paper { flex-direction: row; padding: 8px 14px 8px 10px; gap: 10px; border-radius: 10px; border: 1px solid var(--line); background: color-mix(in oklab, var(--surface) 60%, transparent); }
+    #adk-c01-lab-web .gotcha code { white-space: normal; overflow-wrap: anywhere; }
+    #adk-c01-lab-web .gotcha > span { min-width: 0; }
+    #adk-c01-lab-web .lw-main { display: grid; grid-template-columns: 860px 1fr; gap: 36px; align-items: start; }
+    #adk-c01-lab-web .lw-right { gap: 22px; min-width: 0; }
+    #adk-c01-lab-web .web { border: 1px solid var(--line-2); border-radius: 18px; background: var(--surface); overflow: hidden; }
+    #adk-c01-lab-web .web-bar { display: flex; gap: 14px; align-items: center; padding: 12px 18px; border-bottom: 1px solid var(--line); font: 500 16px/1 var(--f-mono); color: var(--muted); }
+    #adk-c01-lab-web .web-bar i { width: 12px; height: 12px; border-radius: 50%; background: var(--line-2); }
+    #adk-c01-lab-web .web-bar b { margin-left: auto; color: var(--agent); font-weight: 700; }
+    #adk-c01-lab-web .evs { display: grid; gap: 14px; padding: 18px 20px 22px; }
+    #adk-c01-lab-web .er { display: grid; grid-template-columns: 34px 1fr; gap: 12px; align-items: start; padding: 12px 14px; border-radius: 12px; border: 1.5px solid var(--line); background: var(--surface-2); transition: border-color .4s, box-shadow .4s; }
+    #adk-c01-lab-web .er .ic { font: 700 18px/1.3 var(--f-mono); color: var(--tool); }
+    #adk-c01-lab-web .er .tx { font: 500 18px/1.4 var(--f-mono); color: var(--ink); min-width: 0; }
+    #adk-c01-lab-web .er .tx small { display: block; font-size: 15px; color: var(--muted); font-weight: 600; letter-spacing: .04em; text-transform: uppercase; margin-bottom: 4px; }
+    #adk-c01-lab-web .er.bad { border-color: var(--risk); background: color-mix(in oklab, var(--risk) 6%, var(--surface-2)); }
+    #adk-c01-lab-web .er.bad .tx { color: var(--risk); }
+    #adk-c01-lab-web .er.good { border-color: var(--state); }
+    #adk-c01-lab-web .er .rt { display: inline-block; margin-left: 10px; font: 700 14px/1 var(--f-mono); color: #fff; background: var(--state); padding: 5px 8px; border-radius: 6px; vertical-align: 2px; }
+    #adk-c01-lab-web .lw-cap { font-size: 21px; line-height: 1.45; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 1</span> Acme refund desk · step 5 of 8</div>
+  <h2 class="title">Tool errors come back to the model as data, so it can retry</h2>
+  <div class="lw-main fill">
+    <div class="web">
+      <div class="web-bar"><i></i><i></i><i></i>127.0.0.1:8000 · refund_agent · illustrative<b>Events</b></div>
+      <div class="evs">
+        <div class="er" data-step="1"><span class="ic">→</span><span class="tx"><small>function_call</small>check_refund_eligibility(reason="changed_mind")</span></div>
+        <div class="er bad" data-step="2"><span class="ic">←</span><span class="tx"><small>function_response</small>"Invoking `check_refund_eligibility()` failed as the following mandatory input parameters are not present: ..."</span></div>
+        <div class="er" data-step="3"><span class="ic">→</span><span class="tx"><small>function_call <span class="rt">retry</span></small>check_refund_eligibility(order_id="A-1002", reason="changed_mind")</span></div>
+        <div class="er good" data-step="3"><span class="ic">←</span><span class="tx"><small>function_response</small>{"eligible": false, "window_days": 30}</span></div>
+      </div>
+    </div>
+    <div class="lw-right stack">
+      <div class="code-wrap term">
+        <div class="code-head">terminal</div>
+        <pre class="code" data-lang="bash"><code>$ adk web --port 8000
+# open http://127.0.0.1:8000
+# pick refund_agent, then Events</code></pre>
+      </div>
+      <p class="lw-cap" data-step="2">A missing mandatory argument does not raise. ADK sends the error text to the model.</p>
+      <div class="gotcha" data-step="4">
+        <b>Symptom</b><span>Edits do not reload on Windows.</span>
+        <b class="why">Cause</b><span><code>--reload is not supported on Windows ... Forcing --no-reload.</code></span>
+        <b class="fix">Fix</b><span>Expected. Restart <code>adk web</code> after each edit.</span>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    adk web serves the dev UI on 127.0.0.1:8000 by default; pick refund_agent and open the Events tab to see every call and response of a turn. Step 1: suppose the model forgets order_id. Step 2: ADK does not raise; it returns the text "Invoking `check_refund_eligibility()` failed as the following mandatory input parameters are not present: ..." to the model as the tool result. Step 3: the model reads it and retries with the missing argument. These rows are illustrative: the error text is exact, the sequence is an example. Step 4: on Windows adk web prints "WARNING: The --reload flag is not supported on Windows because it forces Uvicorn to use SelectorEventLoop, which does not support subprocesses (needed for executing tools). Forcing --no-reload." So restart the server after each edit. Analogy: a form with a missing field comes back to the clerk with a sticky note, not to the shredder. Likely question: "Should my own tools raise?" No: return {"status": "error", "error_message": ...} so the model can explain or retry. Next: drive the agent from Python.
+  </aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c01-lab-web";
+  let tl = null;
+  Deck.register(ID, {
+    enter() {},
+    step(slide, n, animate) {
+      if (tl) { tl.kill(); tl = null; }
+      const rows = [...slide.querySelectorAll(".er")];
+      const badge = slide.querySelector(".rt");
+      gsap.killTweensOf([...rows, badge]);
+      gsap.set(rows, { boxShadow: "none" });
+      gsap.set(badge, { scale: 1 });
+      if (!animate) return;
+      tl = gsap.timeline({ delay: 0.3 });
+      if (n === 2) tl.fromTo(rows[1], { boxShadow: "0 0 0 0 rgba(0,0,0,0)" }, { boxShadow: "0 0 0 6px color-mix(in oklab, var(--risk) 25%, transparent)", duration: 0.3, yoyo: true, repeat: 3 });
+      if (n === 3) tl.fromTo(badge, { scale: 0.2 }, { scale: 1, duration: 0.45, ease: "back.out(3)" })
+        .fromTo(rows[3], { boxShadow: "0 0 0 0 rgba(0,0,0,0)" }, { boxShadow: "0 0 0 6px color-mix(in oklab, var(--state) 25%, transparent)", duration: 0.3, yoyo: true, repeat: 1 });
+    },
+    leave() { if (tl) { tl.kill(); tl = null; } }
+  });
+})();
+</script>

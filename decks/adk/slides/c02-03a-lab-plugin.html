@@ -1,0 +1,58 @@
+<section class="slide tight" id="adk-c02-lab-plugin" data-tone="state" data-title="Lab 2.2: an audit plugin">
+  <style>
+    #adk-c02-lab-plugin .c02p-grid { display: grid; grid-template-columns: 790px 1fr; gap: 30px; align-items: start; }
+    #adk-c02-lab-plugin .c02p-left { display: flex; flex-direction: column; gap: 18px; }
+    #adk-c02-lab-plugin .swap { display: grid; }
+    #adk-c02-lab-plugin .swap > * { grid-area: 1 / 1; }
+    #adk-c02-lab-plugin .node .ns.c-state { color: var(--state); font-weight: 700; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 2</span> Acme claims API · step 2 of 3</div>
+  <h2 class="title">A plugin hook sees every tool call before the tool runs</h2>
+  <div class="lab-head"><span class="run">adk run agents/claims_api</span></div>
+  <div class="c02p-grid fill">
+    <div class="c02p-left">
+      <div class="code-wrap">
+        <div class="code-head">labs/adk/lab2-claims-api/agents/claims_api/agent.py · excerpt</div>
+        <pre class="code c17" data-lang="python" data-focus="1:1-5, 2:10-15, 3:16"><code>def lookup_policy(policy_number: str) -&gt; dict:
+    """Return coverage for a policy number like POL-448120."""
+    return {"status": "success", "policy_number": policy_number,
+            "collision_deductible_usd": 500,
+            "coverage": ["collision", "glass", "liability"]}
+
+class AuditPlugin(BasePlugin):
+    def __init__(self) -&gt; None:
+        super().__init__(name="audit")
+    async def before_tool_callback(
+            self, *, tool: BaseTool, tool_args: dict[str, Any],
+            tool_context: ToolContext) -&gt; Optional[dict]:
+        log = tool_context.state.get("audit_log", [])
+        entry = f"{tool.name}({tool_args})"
+        tool_context.state["audit_log"] = log + [entry]
+        return None                     # None: the tool runs</code></pre>
+      </div>
+      <div class="c02-cap">
+        <p data-until="1">A plugin is a class with hooks. The App registers it once for every agent.</p>
+        <p data-step="1" data-until="2"><code>lookup_policy</code> returns a dict. The model reads the deductible: 500.</p>
+        <p data-step="2" data-until="3">Plugin hooks are keyword-only. This hook appends one <code>audit_log</code> entry.</p>
+        <p data-step="3">Return <code>None</code>: the tool runs. Return a dict: it replaces the tool result.</p>
+      </div>
+    </div>
+    <div class="diagram" style="width:572px;height:540px"
+         data-wires="c02p-agent>c02p-plug@1:bt [tool call]; c02p-plug>c02p-state@2:rl [+1 entry]; c02p-plug>c02p-tool@3:bt [None: run]">
+      <div class="node n-agent" id="c02p-agent" style="left:0;top:10px;width:240px" data-on="1:hot"><span class="nt">claims_assistant</span><span class="ns">gemini-3.5-flash</span></div>
+      <div class="node n-tool ghost" id="c02p-plug" style="left:0;top:228px;width:240px" data-on="2:hot"><span class="nt">AuditPlugin</span><span class="ns">before_tool_callback</span></div>
+      <div class="node n-state" id="c02p-state" style="left:362px;top:228px;width:210px"><span class="nt">session.state</span><span class="swap"><span class="ns" data-until="2">audit_log: []</span><span class="ns c-state" data-step="2" data-fx="fade">audit_log: 1 entry</span></span></div>
+      <div class="node n-tool" id="c02p-tool" style="left:0;top:446px;width:240px" data-on="3:hot"><span class="nt">lookup_policy</span><span class="ns">deductible 500</span></div>
+    </div>
+  </div>
+  <aside class="notes">Step 1 extracted the claim. Now a second agent, claims_assistant, answers coverage questions, and the App in agents/claims_api/agent.py adds an audit plugin. The two agents are joined in a later chapter, so for now the user types the policy number. Click 1: the tool returns a plain dict; the model reads collision_deductible_usd 500. Click 2: the plugin hook is keyword-only, and it uses tool_args, not args as an agent callback does; it appends one audit entry to state before every tool call, in every agent of the App. Click 3: returning None lets the tool run; returning a dict would skip the tool and use that dict as the result. Analogy: the plugin is the security desk in the lobby: every visitor signs the book, whichever floor they go to. A likely question: "Plugin or agent callback?" Use a plugin for rules that must cover every agent; plugins run before agent callbacks, and the first non-None result wins.</aside>
+</section>
+<script>
+(() => {
+  Deck.register("adk-c02-lab-plugin", {
+    enter(slide, n) { if (window.c02Focus) window.c02Focus(slide, n || 0); },
+    step(slide, n) { if (window.c02Focus) window.c02Focus(slide, n); },
+    leave() {},
+  });
+})();
+</script>

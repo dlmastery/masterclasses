@@ -1,0 +1,271 @@
+<section class="slide" id="custom-c11-lab10-slices" data-tone="tool" data-title="Lab 10: slice table with Wilson CIs">
+  <style>
+    #custom-c11-lab10-slices { gap: 18px; }
+    #custom-c11-lab10-slices .s-grid { display: grid; grid-template-columns: 636px 1fr; gap: 24px; min-height: 0; }
+    #custom-c11-lab10-slices .s-left, #custom-c11-lab10-slices .s-right { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+    #custom-c11-lab10-slices .lab-head { font-size: 14px; gap: 10px; flex-wrap: nowrap; }
+    #custom-c11-lab10-slices .lab-head .run { font-size: 15px; padding: 7px 11px; white-space: nowrap; }
+    #custom-c11-lab10-slices .s-railcol { display: flex; flex-direction: column; gap: 12px; }
+    #custom-c11-lab10-slices .s-cites { display: flex; flex-wrap: wrap; gap: 8px; }
+    #custom-c11-lab10-slices .cite { font-size: 13px; white-space: nowrap; padding: 6px 12px 6px 8px; }
+    #custom-c11-lab10-slices .cite.paper { display: inline-flex; flex-direction: row; gap: 10px; border-radius: 10px; border-color: var(--line); background: color-mix(in oklab, var(--surface) 60%, transparent); }
+    #custom-c11-lab10-slices .lab-head .small { font-size: 13px; white-space: nowrap; }
+    #custom-c11-lab10-slices .code-head { padding: 6px 14px; font-size: 13px; }
+    #custom-c11-lab10-slices .s-code pre.code { font-size: 10.2px; line-height: 1.34; padding: 8px 12px 9px; }
+    #custom-c11-lab10-slices .s-swap { display: grid; }
+    #custom-c11-lab10-slices .s-swap > * { grid-area: 1 / 1; align-self: start; }
+    #custom-c11-lab10-slices .s-swap pre.code { font-size: 10.2px; line-height: 1.34; padding: 7px 14px 9px; }
+    #custom-c11-lab10-slices .s-row { display: grid; grid-template-columns: 440px 1fr; gap: 16px; align-items: start; }
+    #custom-c11-lab10-slices .steps-rail { gap: 8px; }
+    #custom-c11-lab10-slices .steps-rail > * { font-size: 14.5px; line-height: 1.34; grid-template-columns: 26px 1fr; gap: 9px; }
+    #custom-c11-lab10-slices .steps-rail > *::before { width: 23px; height: 23px; font-size: 12.5px; }
+    #custom-c11-lab10-slices .steps-rail code, #custom-c11-lab10-slices .gotcha code { font-size: .86em; }
+    #custom-c11-lab10-slices .gotcha { padding: 9px 16px; gap: 2px 12px; grid-template-columns: 84px 1fr; font-size: 14.5px; line-height: 1.4; }
+    #custom-c11-lab10-slices .gotcha > b { font-size: 12.5px; }
+    #custom-c11-lab10-slices pre.code, #custom-c11-lab10-slices pre.code *, #custom-c11-lab10-slices code, #custom-c11-lab10-slices .code-head, #custom-c11-lab10-slices svg text { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #c11s-svg text { font-family: var(--f-mono); }
+  </style>
+  <div class="kicker"><span class="pill">Lab 10</span> Acme claims-agent release · step 1 of 4</div>
+  <h2 class="title">An 84% headline hides a Spanish health-claims slice at 56%</h2>
+  <div class="s-grid fill">
+    <div class="s-left">
+      <div class="lab-head"><span class="run">python slices.py</span><span class="small">offline · seed 7</span><a class="cite paper" href="https://arxiv.org/abs/2411.00640" target="_blank" rel="noopener" title="Adding Error Bars to Evals: A Statistical Approach to Language Model Evaluations"><b>arXiv</b>&nbsp;2411.00640 Error bars for evals</a></div>
+      <div class="code-wrap s-code">
+        <div class="code-head">release_eval/slices.py</div>
+        <pre class="code" data-lang="python" data-focus="1:24, 2:22-23, 3:27-32, 4:38-40"><code>import numpy as np
+import pandas as pd
+from statsmodels.stats.proportion import proportion_confint
+
+rng = np.random.default_rng(7)
+# 1) Simulated eval log: 60 claim files (clusters), 3-8 questions per file.
+rows = []
+for claim_id in range(60):
+    line = rng.choice(["auto", "home", "health", "travel"], p=[0.4, 0.3, 0.2, 0.1])
+    lang = rng.choice(["en", "es"], p=[0.8, 0.2])
+    base = {"auto": 0.90, "home": 0.85, "health": 0.75, "travel": 0.80}[line]
+    base -= 0.12 if lang == "es" else 0.0
+    claim_effect = rng.normal(0, 0.10)          # some claim files are just harder
+    for q in range(rng.integers(3, 9)):
+        p = np.clip(base + claim_effect, 0, 1)
+        rows.append({"claim_id": claim_id, "line": line, "lang": lang,
+                     "passed": int(rng.random() &lt; p)})
+df = pd.DataFrame(rows)
+df.to_json("claims_eval.jsonl", orient="records", lines=True)
+
+def wilson_table(d: pd.DataFrame, by: list[str]) -> pd.DataFrame:
+    g = d.groupby(by)["passed"].agg(k="sum", n="count")
+    g["rate"] = g["k"] / g["n"]
+    g["lo"], g["hi"] = proportion_confint(g["k"], g["n"], alpha=0.05, method="wilson")
+    return g.sort_values("rate")
+
+def cluster_bootstrap_ci(d: pd.DataFrame, B: int = 5000) -> np.ndarray:
+    per_claim = d.groupby("claim_id")["passed"].agg(["sum", "count"]).to_numpy()
+    idx = rng.integers(0, len(per_claim), size=(B, len(per_claim)))
+    s = per_claim[idx]                            # shape (B, n_claims, 2)
+    rates = s[..., 0].sum(axis=1) / s[..., 1].sum(axis=1)
+    return np.percentile(rates, [2.5, 97.5])
+
+k, n = df["passed"].sum(), len(df)
+print(f"overall pass rate {k / n:.3f}  (n={n} items, {df.claim_id.nunique()} claim files)")
+print("naive Wilson 95% CI      :", np.round(proportion_confint(k, n, method="wilson"), 3))
+print("cluster bootstrap 95% CI :", np.round(cluster_bootstrap_ci(df), 3))
+table = wilson_table(df, ["line", "lang"])
+print(table.round(3).to_string())
+print("slices with n &lt; 30:", [f"{a}/{b}" for a, b in table.query("n &lt; 30").index])</code></pre>
+      </div>
+    </div>
+    <div class="s-right">
+      <div class="s-swap">
+        <div class="code-wrap term" data-until="1">
+          <div class="code-head">run it Monday · Python 3.12+ · CPU only · no API keys</div>
+          <pre class="code" data-lang="bash"><code>$ python --version        # 3.12+: numpy 2.5.4 and scipy 1.18.1 refuse older
+$ pip install "numpy==2.5.4" "pandas==3.1.0" "statsmodels==0.15.0" "scipy==1.18.1"
+release_eval/
+  slices.py          # step 1: slice table, writes claims_eval.jsonl
+  paired.py          # step 2: v1 vs v2 on the same 400 golden cases
+  quality_card.py    # steps 3-4: quality card + release gate in CI</code></pre>
+        </div>
+        <div class="code-wrap out" data-step="1">
+          <div class="code-head">output · captured run (seed 7)</div>
+          <pre class="code" data-lang="none" data-focus="1:1-2, 2:6-13, 3:3, 4:14"><code>overall pass rate 0.839  (n=353 items, 60 claim files)
+naive Wilson 95% CI      : [0.797 0.873]
+<span class="ok">cluster bootstrap 95% CI : [0.791 0.882]</span>
+<span class="dim">               k    n   rate     lo     hi</span>
+<span class="dim">line   lang</span>
+<span class="err">health es      9   16  0.562  0.332  0.769</span>
+home   es     20   29  0.690  0.508  0.827
+travel es      9   13  0.692  0.424  0.873
+home   en     61   74  0.824  0.722  0.894
+health en     20   24  0.833  0.641  0.933
+auto   es      7    8  0.875  0.529  0.978
+       en    140  156  0.897  0.840  0.936
+travel en     30   33  0.909  0.764  0.969
+<span class="err">slices with n &lt; 30: ['health/es', 'home/es', 'travel/es', 'health/en', 'auto/es']</span></code></pre>
+        </div>
+      </div>
+      <div class="s-row">
+        <svg id="c11s-svg" viewBox="0 0 440 282" width="440" height="282" role="img" aria-label="Two linked charts. Top: a zoomed axis for the overall 95 percent interval. Step 1 draws the naive Wilson interval 0.797 to 0.873, width 0.076. Step 3 drops a sketch histogram of resampled pass rates and widens a second interval to the cluster bootstrap 0.791 to 0.882, width 0.091. Bottom: step 1 shows one bar at 0.839 for all 353 items. Step 2 splits it into 8 slice bars sorted by rate, each with a Wilson whisker and its n; health/es at 0.562 with n 16 is red. Step 4 hatches the 5 slices with n under 30."></svg>
+        <div class="s-railcol">
+        <div class="steps-rail">
+          <div data-step="1"><span><code>proportion_confint</code> defaults to <code>method="normal"</code>. Pass <code>"wilson"</code>.</span></div>
+          <div data-step="2"><span>Carry <b>n</b> next to every rate. health/es is 9 of 16.</span></div>
+          <div data-step="3"><span>Resample claim files, not questions. The naive CI (0.076) is ~17% too narrow vs the cluster bootstrap (0.091).</span></div>
+          <div data-step="4"><span>Pre-register slices and a minimum n (30) before you look.</span></div>
+        </div>
+        <div class="s-cites">
+          <a class="cite doc" href="https://www.statsmodels.org/stable/generated/statsmodels.stats.proportion.proportion_confint.html" target="_blank" rel="noopener"><b>Docs</b>&nbsp;proportion_confint</a>
+        </div>
+        </div>
+      </div>
+      <div class="gotcha" data-step="4">
+        <b>Symptom</b><span><code>(nan, nan)</code> + <code>RuntimeWarning: invalid value encountered in sqrt</code></span>
+        <b class="why">Cause</b><span>count &gt; nobs: a join duplicated eval rows.</span>
+        <b class="fix">Fix</b><span><code>assert (g.k &lt;= g.n).all()</code>, then dedup on <code>item_id</code>.</span>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Lab 10 starts with the slice table for the v2 release candidate of the Acme claims-extraction agent: 353 eval questions from 60 claim files, split by line of business and language. Step 1: the headline is 0.839, and we pass method="wilson" because the statsmodels default is the normal approximation, which breaks for small n. Step 2: the same run split into 8 slices shows Spanish health claims at 9 of 16, 0.562, with a Wilson interval from 0.33 to 0.77. Step 3: questions from one claim file are correlated, so we resample whole claim files; the cluster bootstrap interval is 0.091 wide, and the naive one is about 17% too narrow. Step 4: we pre-register the slices and a minimum n of 30, and the five thin slices go on the quality card as known gaps, not as conclusions. Analogy: polling 8 people from one household is not 8 independent votes. Likely question: "Why not just collect more Spanish health items?" Yes, do that, but until you do, the card must show the slice as thin instead of hiding it in the 84%. Next step: is v2 really better than v1?</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c11-lab10-slices";
+  // Real output of slices.py, sorted by rate: [line, lang, k, n, rate, lo, hi]
+  const S = [
+    ["health", "es", 9, 16, 0.562, 0.332, 0.769], ["home", "es", 20, 29, 0.690, 0.508, 0.827],
+    ["travel", "es", 9, 13, 0.692, 0.424, 0.873], ["home", "en", 61, 74, 0.824, 0.722, 0.894],
+    ["health", "en", 20, 24, 0.833, 0.641, 0.933], ["auto", "es", 7, 8, 0.875, 0.529, 0.978],
+    ["auto", "en", 140, 156, 0.897, 0.840, 0.936], ["travel", "en", 30, 33, 0.909, 0.764, 0.969],
+  ];
+  const ALL = 0.839, NAIVE = [0.797, 0.873], CLUS = [0.791, 0.882];
+  // top strip: zoomed axis 0.78..0.89
+  const ZX = (v) => 30 + (v - 0.78) / 0.11 * 400;
+  // bottom chart
+  const BASE = 252, SC = 118, X0 = 34, STEP = 51, BW = 34, MW = (428 - X0) / 8;
+  const Y = (v) => BASE - v * SC;
+  const bx = (i) => X0 + i * STEP, cx = (i) => bx(i) + BW / 2;
+  const wpath = (x, lo, hi) => `M${x - 6} ${Y(hi)} H${x + 6} M${x} ${Y(hi)} V${Y(lo)} M${x - 6} ${Y(lo)} H${x + 6}`;
+  // sketch of resampled rates: 100 normal quantiles with the cluster CI as 2.5/97.5 percentiles
+  const zq = (p) => {
+    const q = p < 0.5 ? p : 1 - p, t = Math.sqrt(-2 * Math.log(q));
+    const z = t - (2.515517 + 0.802853 * t + 0.010328 * t * t) / (1 + 1.432788 * t + 0.189269 * t * t + 0.001308 * t * t * t);
+    return p < 0.5 ? -z : z;
+  };
+  const MU = (CLUS[0] + CLUS[1]) / 2, SD = (CLUS[1] - CLUS[0]) / 3.92, BIN = 0.005;
+  const DOTS = (() => {
+    const cnt = {};
+    return Array.from({ length: 100 }, (_, i) => {
+      const v = Math.min(0.8895, Math.max(0.7805, MU + SD * zq((i + 0.5) / 100)));
+      const b = Math.floor((v - 0.78) / BIN);
+      cnt[b] = (cnt[b] || 0) + 1;
+      return { x: ZX(0.78 + (b + 0.5) * BIN), y: 76 - (cnt[b] - 1) * 4.4 };
+    });
+  })();
+  let P = null;
+
+  function mk(tag, attrs, parent, style, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (style) Object.assign(e.style, style);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  }
+  const f = (w, s, c) => ({ fontWeight: w, fontSize: s + "px", fill: c || "var(--ink-2)" });
+
+  function build(svg) {
+    if (svg._P) return svg._P;
+    svg.innerHTML = "";
+    const defs = mk("defs", {}, svg);
+    const pat = mk("pattern", { id: "c11s-hatch", width: 7, height: 7, patternUnits: "userSpaceOnUse", patternTransform: "rotate(45)" }, defs);
+    mk("line", { x1: 0, y1: 0, x2: 0, y2: 7 }, pat, { stroke: "var(--ink-2)", strokeWidth: 1.6, opacity: 0.55 });
+
+    const p = {};
+    // --- top strip: overall 95% CI, zoomed ---
+    mk("text", { x: 0, y: 11 }, svg, f(700, 11.5, "var(--muted)"), "overall 95% CI · zoom 0.78–0.89");
+    p.naive = mk("g", {}, svg, { opacity: 0 });
+    mk("path", { d: `M${ZX(NAIVE[0])} 22 V34 M${ZX(NAIVE[0])} 28 H${ZX(NAIVE[1])} M${ZX(NAIVE[1])} 22 V34` }, p.naive, { fill: "none", stroke: "var(--agent)", strokeWidth: 2.4 });
+    mk("circle", { cx: ZX(ALL), cy: 28, r: 4 }, p.naive, { fill: "var(--agent)" });
+    mk("text", { x: 440, y: 11, "text-anchor": "end" }, p.naive, f(700, 11, "var(--agent)"), "naive Wilson · width 0.076");
+    p.clus = mk("g", {}, svg, { opacity: 0 });
+    p.dots = DOTS.map((d) => mk("circle", { cx: d.x, cy: d.y, r: 2 }, p.clus, { fill: "var(--tool)", opacity: 0.7 }));
+    p.cl = mk("line", { x1: ZX(CLUS[0]), y1: 88, x2: ZX(CLUS[1]), y2: 88 }, p.clus, { stroke: "var(--tool)", strokeWidth: 2.6 });
+    p.ca = mk("line", { x1: ZX(CLUS[0]), y1: 82, x2: ZX(CLUS[0]), y2: 94 }, p.clus, { stroke: "var(--tool)", strokeWidth: 2.6 });
+    p.cb = mk("line", { x1: ZX(CLUS[1]), y1: 82, x2: ZX(CLUS[1]), y2: 94 }, p.clus, { stroke: "var(--tool)", strokeWidth: 2.6 });
+    p.ctext = mk("text", { x: 30, y: 108 }, p.clus, f(700, 11, "var(--tool)"), "cluster bootstrap · B=5000 claim-file resamples · width 0.091");
+
+    // --- bottom chart: slices ---
+    mk("line", { x1: X0 - 4, y1: BASE, x2: 432, y2: BASE }, svg, { stroke: "var(--line-2)", strokeWidth: 1.6 });
+    [[1, "1.0"], [0.5, "0.5"]].forEach(([v, t]) => {
+      mk("text", { x: 26, y: Y(v) + 4, "text-anchor": "end" }, svg, f(500, 10, "var(--muted)"), t);
+      mk("line", { x1: X0 - 4, y1: Y(v), x2: 432, y2: Y(v) }, svg, { stroke: "var(--line)", strokeWidth: 1, strokeDasharray: "2 4" });
+    });
+    p.bars = S.map((s, i) => mk("rect", { x: X0 + i * MW, y: BASE, width: MW, height: 0 }, svg, { fill: "var(--tool-soft)", stroke: "var(--tool)", strokeWidth: 1.6 }));
+    p.hatch = S.map((s, i) => mk("rect", { x: bx(i), y: Y(s[4]), width: BW, height: s[4] * SC }, svg, { fill: "url(#c11s-hatch)", opacity: 0 }));
+    p.whisk = S.map((s, i) => mk("path", { d: wpath(cx(i), s[5], s[6]) }, svg, { fill: "none", stroke: "var(--ink-2)", strokeWidth: 1.8, opacity: 0 }));
+    p.labs = S.map((s, i) => {
+      const g = mk("g", {}, svg, { opacity: 0 });
+      mk("text", { x: cx(i), y: 265, "text-anchor": "middle" }, g, f(700, 10.5, i === 0 ? "var(--risk)" : "var(--ink)"), s[0]);
+      mk("text", { x: cx(i), y: 278, "text-anchor": "middle" }, g, f(500, 10, s[3] < 30 ? "var(--risk)" : "var(--muted)"), `${s[1]} n${s[3]}`);
+      return g;
+    });
+    p.all = mk("g", {}, svg, { opacity: 0 });
+    mk("text", { x: X0 + 4 * MW, y: Y(ALL) + 26, "text-anchor": "middle" }, p.all, f(700, 15, "var(--tool)"), "all slices · 0.839 · n=353");
+    p.ref = mk("g", {}, svg, { opacity: 0 });
+    mk("line", { x1: X0 - 4, y1: Y(ALL), x2: 432, y2: Y(ALL) }, p.ref, { stroke: "var(--tool)", strokeWidth: 1.4, strokeDasharray: "5 4" });
+    mk("text", { x: X0 - 4, y: 124 }, p.ref, f(700, 10.5, "var(--tool)"), "- - headline 0.839");
+    p.thin = mk("text", { x: 432, y: 124, "text-anchor": "end" }, svg, f(700, 10.5, "var(--risk)"), "hatched: n < 30 · known gap");
+    gsap.set(p.thin, { opacity: 0 });
+    svg._P = p;
+    return p;
+  }
+
+  function apply(n, animate) {
+    const d = animate ? 0.6 : 0;
+    const vis = (els, on, dur) => gsap.to(els, { opacity: on ? 1 : 0, duration: dur === undefined ? d * 0.6 : dur, overwrite: "auto" });
+    // bars: 0 = empty, 1 = one merged headline bar, >= 2 = 8 slice bars
+    if (n <= 0) gsap.to(P.bars, { attr: { x: (i) => X0 + i * MW, width: MW, y: BASE, height: 0 }, duration: d, overwrite: "auto" });
+    else if (n === 1) gsap.to(P.bars, { attr: { x: (i) => X0 + i * MW, width: MW, y: Y(ALL), height: ALL * SC }, duration: d, ease: "power2.out", overwrite: "auto" });
+    else gsap.to(P.bars, { attr: { x: (i) => bx(i), width: BW, y: (i) => Y(S[i][4]), height: (i) => S[i][4] * SC }, duration: d * 1.4, stagger: animate ? 0.05 : 0, ease: "power3.inOut", overwrite: "auto" });
+    gsap.to(P.bars[0], { fill: n >= 2 ? "var(--risk-soft)" : "var(--tool-soft)", stroke: n >= 2 ? "var(--risk)" : "var(--tool)", duration: d, delay: animate && n === 2 ? 0.8 : 0 });
+    P.bars.forEach((b, i) => { if (i) gsap.set(b, { fill: "var(--tool-soft)", stroke: "var(--tool)" }); });
+    P.bars.forEach((b) => { b.style.strokeWidth = n === 1 ? 0 : 1.6; });
+    vis(P.naive, n >= 1);
+    vis(P.all, n === 1);
+    vis(P.ref, n >= 2);
+    vis(P.labs, n >= 2);
+    gsap.to(P.whisk, { opacity: n >= 2 ? 1 : 0, duration: d * 0.6, delay: animate && n === 2 ? 0.7 : 0, stagger: animate && n === 2 ? 0.04 : 0, overwrite: "auto" });
+    // cluster bootstrap: dots drop in, the interval widens from naive to cluster
+    if (n >= 3) {
+      gsap.set(P.clus, { opacity: 1 });
+      if (animate && n === 3) {
+        gsap.fromTo(P.dots, { attr: { cy: 14 }, opacity: 0 }, { attr: { cy: (i) => DOTS[i].y }, opacity: 0.7, duration: 0.35, stagger: 0.012, ease: "power2.in", overwrite: "auto" });
+        gsap.fromTo(P.cl, { attr: { x1: ZX(NAIVE[0]), x2: ZX(NAIVE[1]) } }, { attr: { x1: ZX(CLUS[0]), x2: ZX(CLUS[1]) }, duration: 0.8, delay: 1.1, ease: "power2.out", overwrite: "auto" });
+        gsap.fromTo(P.ca, { attr: { x1: ZX(NAIVE[0]), x2: ZX(NAIVE[0]) } }, { attr: { x1: ZX(CLUS[0]), x2: ZX(CLUS[0]) }, duration: 0.8, delay: 1.1, ease: "power2.out", overwrite: "auto" });
+        gsap.fromTo(P.cb, { attr: { x1: ZX(NAIVE[1]), x2: ZX(NAIVE[1]) } }, { attr: { x1: ZX(CLUS[1]), x2: ZX(CLUS[1]) }, duration: 0.8, delay: 1.1, ease: "power2.out", overwrite: "auto" });
+        gsap.fromTo(P.ctext, { opacity: 0 }, { opacity: 1, duration: 0.4, delay: 1.6, overwrite: "auto" });
+      } else {
+        P.dots.forEach((c, i) => gsap.set(c, { attr: { cy: DOTS[i].y }, opacity: 0.7, overwrite: "auto" }));
+        gsap.set(P.cl, { attr: { x1: ZX(CLUS[0]), x2: ZX(CLUS[1]) }, overwrite: "auto" });
+        gsap.set(P.ca, { attr: { x1: ZX(CLUS[0]), x2: ZX(CLUS[0]) }, overwrite: "auto" });
+        gsap.set(P.cb, { attr: { x1: ZX(CLUS[1]), x2: ZX(CLUS[1]) }, overwrite: "auto" });
+        gsap.set(P.ctext, { opacity: 1, overwrite: "auto" });
+      }
+    } else {
+      gsap.killTweensOf([...P.dots, P.cl, P.ca, P.cb, P.ctext]);
+      gsap.to(P.clus, { opacity: 0, duration: d * 0.5, overwrite: "auto" });
+    }
+    // thin slices (n < 30) hatched
+    P.hatch.forEach((h, i) => gsap.to(h, { opacity: n >= 4 && S[i][3] < 30 ? 1 : 0, duration: d, delay: animate && n === 4 ? i * 0.05 : 0, overwrite: "auto" }));
+    vis(P.thin, n >= 4);
+  }
+
+  function all() { return P ? [...P.bars, ...P.hatch, ...P.whisk, ...P.labs, ...P.dots, P.naive, P.clus, P.cl, P.ca, P.cb, P.ctext, P.all, P.ref, P.thin] : []; }
+
+  Deck.register(ID, {
+    enter(slide, step) { P = build(slide.querySelector("#c11s-svg")); gsap.killTweensOf(all()); apply(step || 0, false); },
+    step(slide, n, animate) { if (!P) P = build(slide.querySelector("#c11s-svg")); apply(n, animate); },
+    leave() { gsap.killTweensOf(all()); },
+  });
+})();
+</script>

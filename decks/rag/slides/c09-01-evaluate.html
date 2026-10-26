@@ -1,0 +1,172 @@
+<section class="slide chapter" id="rag-c09-evaluate" data-tone="human" data-title="Ch 9: Evaluate it like you ship it">
+  <style>
+    #rag-c09-evaluate .display { font-size: 68px; max-width: 1340px; }
+    #rag-c09-evaluate .lede { max-width: 1160px; font-size: 26px; }
+    #rag-c09-evaluate .tags .tag { font-size: 16px; }
+    #rag-c09-evaluate .ev-cites { display: flex; gap: 12px; flex-wrap: wrap; }
+    #rag-c09-evaluate .ev-cites .cite.paper { flex-direction: row; gap: 10px; padding: 8px 14px 8px 10px; border-radius: 10px; border-color: var(--line); }
+    #rag-c09-evaluate .ch-num { z-index: 0; }
+    #rag-c09-evaluate .ev-svg { position: relative; z-index: 1; }
+    #rag-c09-evaluate .ev-svg { display: block; overflow: visible; }
+    #rag-c09-evaluate .ev-svg text { font-family: var(--f-mono); }
+    #rag-c09-evaluate .ev-svg .gl { font-size: 14px; font-weight: 700; letter-spacing: .06em; }
+    #rag-c09-evaluate .ev-svg .gs { font-size: 12px; font-weight: 600; fill: var(--muted); }
+    #rag-c09-evaluate .ev-svg .trk { fill: none; stroke: var(--line); stroke-width: 18; stroke-linecap: round; }
+    #rag-c09-evaluate .ev-svg .val { fill: none; stroke-width: 18; stroke-linecap: round; transition: stroke .3s; }
+    #rag-c09-evaluate .ev-svg .val.low { stroke: var(--risk) !important; }
+    #rag-c09-evaluate .ev-svg .tick { stroke: var(--ink); stroke-width: 3; stroke-linecap: round; }
+    #rag-c09-evaluate .ev-svg .vt { font-size: 34px; font-weight: 700; fill: var(--ink); }
+    #rag-c09-evaluate .ev-svg .vt.low { fill: var(--risk); }
+    #rag-c09-evaluate .ev-svg .bt { font-size: 13px; font-weight: 600; fill: var(--ink-2); }
+    #rag-c09-evaluate .ev-svg .sc { font-size: 11px; fill: var(--muted); }
+    #rag-c09-evaluate .ev-svg .bus { fill: none; stroke: var(--line-2); stroke-width: 2; }
+    #rag-c09-evaluate .ev-svg .dot { stroke: #fff; stroke-width: 2; }
+    #rag-c09-evaluate .ev-svg .card { fill: var(--surface); stroke: var(--human); stroke-width: 2; }
+    #rag-c09-evaluate .ev-svg .card.fail { stroke: var(--risk); }
+    #rag-c09-evaluate .ev-svg .ct { font-size: 17px; font-weight: 700; fill: var(--ink); }
+    #rag-c09-evaluate .ev-svg .cs { font-size: 12px; font-weight: 600; fill: var(--muted); }
+    #rag-c09-evaluate .ev-svg .row text { font-size: 14px; font-weight: 600; fill: var(--ink-2); }
+    #rag-c09-evaluate .ev-svg .row .ok { fill: var(--state); font-weight: 700; }
+    #rag-c09-evaluate .ev-svg .row .bad { fill: var(--risk); font-weight: 700; }
+    #rag-c09-evaluate .ev-svg .row rect { fill: var(--risk-soft); }
+    #rag-c09-evaluate .ev-svg .pend { fill: none; stroke: var(--tool); stroke-width: 3.5; stroke-dasharray: 44 44; stroke-linecap: round; }
+    #rag-c09-evaluate .ev-svg .failic circle { fill: var(--risk); }
+    #rag-c09-evaluate .ev-svg .failic path { stroke: #fff; stroke-width: 3.2; stroke-linecap: round; }
+    #rag-c09-evaluate .ev-svg .ft rect { fill: var(--risk); }
+    #rag-c09-evaluate .ev-svg .ft text { font-size: 13.5px; font-weight: 700; fill: #fff; }
+    #rag-c09-evaluate .ev-svg .ill { font-size: 11px; fill: var(--muted); }
+  </style>
+  <div class="ch-num" data-fx="blur">09</div>
+  <svg class="ev-svg" id="ev-svg" viewBox="0 0 1392 300" width="1392" height="300" aria-label="Three gauges: retrieval recall at 5, grounding faithfulness and canary abstention, each with a baseline tick. The recall gauge dips below its tick and turns red. Each gauge sends a pulse to a pull-request check card, which turns red with exit 1 and merge blocked."></svg>
+  <h2 class="display">Evaluate it like you ship it: split the metrics, gate the release</h2>
+  <p class="lede" data-fx="up">One aggregate RAG score hides which team should fix what.</p>
+  <div class="tags" data-fx="up">
+    <span class="tag t-model">ragas 0.4.3 · F / CP / CR</span>
+    <span class="tag t-tool">gemini-3.8-flash judge</span>
+    <span class="tag t-agent">eval_gate.py + GitHub Actions</span>
+    <span class="tag t-human">calibrated claim judge</span>
+    <span class="tag">Lab 8 · ShopCo release gate</span>
+  </div>
+  <div class="ev-cites" data-fx="up">
+    <a class="cite repo" href="https://github.com/vibrantlabsai/ragas/tree/v0.4.3" target="_blank" rel="noopener"><b>Repo</b>&nbsp;vibrantlabsai/ragas @ v0.4.3</a>
+    <a class="cite paper" href="https://arxiv.org/abs/2608.26385" target="_blank" rel="noopener"><b>Paper</b>&nbsp;Why RAGs Hallucinate, arXiv 2608.26385</a>
+    <a class="cite paper" href="https://arxiv.org/abs/2610.01218" target="_blank" rel="noopener"><b>Paper</b>&nbsp;AGO AI Quality Gate, arXiv 2610.01218</a>
+  </div>
+  <aside class="notes">
+    Chapter 9 is Lab 8: the ShopCo refund assistant gets a release gate, so that no pull request can quietly make it worse. The animation is the whole chapter in one loop: three separate gauges for retrieval recall, grounding and canary abstention, each with its own baseline tick, feed one CI check, and when recall dips below its tick the check turns red and the merge is blocked. The lede is the design rule: one blended "RAG score" cannot tell you whether the retriever team, the prompt team or the model choice caused a drop, so we keep the metrics split. Analogy: a car dashboard has a fuel gauge and an oil light, not one "car health" number. Likely question: "Why not just trust ragas numbers?" Because the judge is itself a model you ship, so right after the CI step we calibrate it against human labels before it gates anything. Next: set up ragas with a Gemini judge for the two ShopCo rows.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const R = 92, CY = 190, LO = 0.5, HI = 1.0;
+  const G = [
+    { cx: 110, k: "RECALL@5", s: "retriever · deterministic", tone: "--agent", base: 0.860, cur: 0.812, row: "recall_at_5" },
+    { cx: 410, k: "FAITHFULNESS", s: "grounding · judge", tone: "--model", base: 0.910, cur: 0.917, row: "faithfulness" },
+    { cx: 710, k: "CANARY ABSTAIN", s: "knowledge gaps · tol 0.00", tone: "--human", base: 0.900, cur: 0.900, row: "canary_abstain" },
+  ];
+  let tl = null, all = [];
+  const mk = (p, tag, attrs, cls) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (cls) e.setAttribute("class", cls);
+    p.appendChild(e); return e;
+  };
+  const frac = (v) => (v - LO) / (HI - LO);
+  const pos = (cx, f, r) => [cx - r * Math.cos(Math.PI * f), CY - r * Math.sin(Math.PI * f)];
+  function kill() { if (tl) { tl.kill(); tl = null; } gsap.killTweensOf(all); }
+  function build(slide) {
+    kill();
+    const svg = slide.querySelector("#ev-svg");
+    svg.innerHTML = "";
+    const L = Math.PI * R;
+    const gauges = G.map((g) => {
+      const t1 = mk(svg, "text", { x: g.cx, y: 40, "text-anchor": "middle", fill: `var(${g.tone})` }, "gl"); t1.textContent = g.k;
+      mk(svg, "text", { x: g.cx, y: 60, "text-anchor": "middle" }, "gs").textContent = g.s;
+      const d = `M${g.cx - R},${CY} A${R},${R} 0 0 1 ${g.cx + R},${CY}`;
+      mk(svg, "path", { d }, "trk");
+      const val = mk(svg, "path", { d, stroke: `var(${g.tone})` }, "val");
+      gsap.set(val, { strokeDasharray: L, strokeDashoffset: L });
+      const [x1, y1] = pos(g.cx, frac(g.base), R - 18), [x2, y2] = pos(g.cx, frac(g.base), R + 18);
+      const tick = mk(svg, "line", { x1, y1, x2, y2 }, "tick");
+      mk(svg, "text", { x: g.cx - R, y: CY + 26, "text-anchor": "middle" }, "sc").textContent = "0.5";
+      mk(svg, "text", { x: g.cx + R, y: CY + 26, "text-anchor": "middle" }, "sc").textContent = "1.0";
+      const vt = mk(svg, "text", { x: g.cx, y: CY - 14, "text-anchor": "middle" }, "vt"); vt.textContent = "0.500";
+      mk(svg, "text", { x: g.cx, y: CY + 20, "text-anchor": "middle" }, "bt").textContent = `base ${g.base.toFixed(3)}`;
+      const path = mk(svg, "path", { d: `M${g.cx},${CY + 34} L${g.cx},262 Q${g.cx},276 ${g.cx + 14},276 L952,276 Q966,276 966,262 L966,165 Q966,151 980,151 L1000,151` }, "bus");
+      const dot = mk(svg, "circle", { cx: g.cx, cy: CY + 34, r: 7, fill: `var(${g.tone})` }, "dot");
+      return { g, val, tick, vt, path, dot, L };
+    });
+    // CI check card
+    const card = mk(svg, "rect", { x: 1000, y: 30, width: 392, height: 236, rx: 16 }, "card");
+    const pend = mk(svg, "circle", { cx: 1034, cy: 72, r: 14 }, "pend");
+    const failic = mk(svg, "g", {}, "failic");
+    mk(failic, "circle", { cx: 1034, cy: 72, r: 15 });
+    mk(failic, "path", { d: "M1028,66 L1040,78 M1040,66 L1028,78" });
+    mk(svg, "text", { x: 1060, y: 69 }, "ct").textContent = "rag-eval / gate";
+    mk(svg, "text", { x: 1060, y: 90 }, "cs").textContent = "pull_request · python eval_gate.py";
+    const rows = gauges.map((o, i) => {
+      const y = 132 + i * 34, fail = o.g.cur < o.g.base;
+      const r = mk(svg, "g", {}, "row");
+      if (fail) mk(r, "rect", { x: 1016, y: y - 21, width: 360, height: 30, rx: 8 });
+      mk(r, "text", { x: 1028, y }).textContent = o.g.row;
+      mk(r, "text", { x: 1210, y }).textContent = o.g.cur.toFixed(3);
+      mk(r, "text", { x: 1362, y, "text-anchor": "end" }, fail ? "bad" : "ok").textContent = fail ? "FAIL" : "ok";
+      return r;
+    });
+    const ft = mk(svg, "g", {}, "ft");
+    mk(ft, "rect", { x: 1016, y: 222, width: 250, height: 30, rx: 15 });
+    mk(ft, "text", { x: 1141, y: 242, "text-anchor": "middle" }).textContent = "exit=1 · merge blocked";
+    mk(svg, "text", { x: 1392, y: 296, "text-anchor": "end" }, "ill").textContent = "Lab 8 sample run · illustrative numbers";
+
+    all = [...gauges.flatMap((o) => [o.val, o.tick, o.dot]), card, pend, failic, ft, ...rows];
+    const setVal = (o, v) => {
+      o.vt.textContent = v.toFixed(3);
+      gsap.set(o.val, { strokeDashoffset: o.L * (1 - frac(v)) });
+    };
+    const reset = () => {
+      gauges.forEach((o) => { o.val.classList.remove("low"); o.vt.classList.remove("low"); setVal(o, LO); gsap.set(o.dot, { opacity: 0 }); });
+      gsap.set(rows, { opacity: 0, x: 0 });
+      gsap.set([failic, ft], { opacity: 0 });
+      gsap.set(pend, { opacity: 1, rotation: 0, svgOrigin: "1034 72" });
+      card.classList.remove("fail");
+    };
+
+    tl = gsap.timeline({ repeat: -1, delay: 0.3 });
+    tl.call(reset);
+    tl.addLabel("run");
+    tl.to(pend, { rotation: 1080, svgOrigin: "1034 72", duration: 5.6, ease: "none" }, "run");
+    // 1. each gauge fills; recall first reaches its baseline
+    gauges.forEach((o, i) => {
+      const p = { v: LO }, target = o.g.cur < o.g.base ? o.g.base : o.g.cur;
+      tl.to(p, { v: target, duration: 1.0, ease: "power2.out", onUpdate: () => setVal(o, p.v) }, `run+=${0.2 + i * 0.25}`);
+    });
+    // 2. recall dips below its tick and turns red
+    const rec = gauges[0], pr = { v: rec.g.base };
+    tl.call(() => { rec.val.classList.add("low"); rec.vt.classList.add("low"); }, null, "run+=2.1");
+    tl.to(pr, { v: rec.g.cur, duration: 0.7, ease: "power2.inOut", onUpdate: () => setVal(rec, pr.v) }, "<");
+    tl.fromTo(rec.tick, { scale: 1 }, { scale: 1.25, svgOrigin: `${pos(rec.g.cx, frac(rec.g.base), R)[0]} ${pos(rec.g.cx, frac(rec.g.base), R)[1]}`, duration: 0.2, yoyo: true, repeat: 3 }, "<");
+    // 3. a pulse from each gauge reaches the check; its row appears
+    gauges.forEach((o, i) => {
+      const len = o.path.getTotalLength(), p = { t: 0 };
+      const at = 3.3 + i * 0.45;
+      tl.to(p, { t: 1, duration: 1.1, ease: "power1.inOut",
+        onStart: () => gsap.set(o.dot, { opacity: 1 }),
+        onUpdate: () => { const pt = o.path.getPointAtLength(p.t * len); o.dot.setAttribute("cx", pt.x); o.dot.setAttribute("cy", pt.y); },
+        onComplete: () => gsap.set(o.dot, { opacity: 0 }) }, `run+=${at}`);
+      tl.fromTo(rows[i], { opacity: 0, x: -14 }, { opacity: 1, x: 0, duration: 0.3 }, `run+=${at + 1.1}`);
+    });
+    // 4. the check turns red; the merge is blocked
+    tl.to(pend, { opacity: 0, duration: 0.2 }, "run+=5.6");
+    tl.call(() => card.classList.add("fail"), null, "<");
+    tl.fromTo(failic, { opacity: 0, scale: 0.3, svgOrigin: "1034 72" }, { opacity: 1, scale: 1, duration: 0.4, ease: "back.out(2.5)" }, "<");
+    tl.fromTo(ft, { opacity: 0, y: 8 }, { opacity: 1, y: 0, duration: 0.35 }, "<0.15");
+    tl.to({}, { duration: 2.8 });
+    tl.to([...rows, failic, ft], { opacity: 0, duration: 0.4 });
+  }
+  Deck.register("rag-c09-evaluate", {
+    enter(slide) { build(slide); },
+    leave() { kill(); }
+  });
+})();
+</script>

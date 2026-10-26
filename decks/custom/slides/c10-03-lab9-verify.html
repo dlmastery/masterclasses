@@ -1,0 +1,197 @@
+<section class="slide" id="custom-c10-lab9-verify" data-tone="state" data-title="Lab 9: verify the eval set">
+  <style>
+    #custom-c10-lab9-verify { gap: 20px; }
+    #custom-c10-lab9-verify .v-grid { display: grid; grid-template-columns: 760px 1fr; gap: 24px; min-height: 0; }
+    #custom-c10-lab9-verify .v-left, #custom-c10-lab9-verify .v-right { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+    #custom-c10-lab9-verify .lab-head { font-size: 14px; gap: 10px; }
+    #custom-c10-lab9-verify .lab-head .run { font-size: 15px; padding: 7px 11px; }
+    #custom-c10-lab9-verify .code-head { padding: 7px 14px; font-size: 13px; }
+    #custom-c10-lab9-verify .v-code pre.code { font-size: 11.5px; line-height: 1.4; padding: 9px 14px 10px; }
+    #custom-c10-lab9-verify .out pre.code, #custom-c10-lab9-verify .out pre.code code { font-size: 11.5px; line-height: 1.38; padding: 8px 14px 10px; white-space: pre-wrap; }
+    #custom-c10-lab9-verify .out pre.code code { padding: 0; }
+    #custom-c10-lab9-verify .steps-rail { gap: 7px; }
+    #custom-c10-lab9-verify .steps-rail > * { font-size: 15px; line-height: 1.34; grid-template-columns: 28px 1fr; gap: 10px; }
+    #custom-c10-lab9-verify .steps-rail > *::before { width: 24px; height: 24px; font-size: 13px; }
+    #custom-c10-lab9-verify .steps-rail code, #custom-c10-lab9-verify .callout code { font-size: .86em; }
+    #custom-c10-lab9-verify .callout { padding: 8px 14px; font-size: 15px; line-height: 1.36; gap: 10px; }
+    #custom-c10-lab9-verify .callout::before { width: 22px; height: 22px; font-size: 13px; }
+    #custom-c10-lab9-verify .cites { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    #custom-c10-lab9-verify .cite { font-size: 13px; padding: 5px 10px 5px 8px; gap: 8px; white-space: nowrap; flex-direction: row; }
+    #custom-c10-lab9-verify pre.code, #custom-c10-lab9-verify pre.code *, #custom-c10-lab9-verify code, #custom-c10-lab9-verify .code-head, #custom-c10-lab9-verify svg text { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #c10v-svg text { font-family: var(--f-mono); }
+  </style>
+  <div class="kicker"><span class="pill">Lab 9</span> Acme HR policy assistant · step 2 of 4</div>
+  <h2 class="title sm">Reject ungrounded, closed-book and duplicate items, then hash the set</h2>
+  <div class="v-grid fill">
+    <div class="v-left">
+      <div class="lab-head"><span class="run">python lab9_testset.py</span><span class="small">ragas==0.4.3 · openai==3.37.0</span></div>
+      <div class="code-wrap v-code">
+        <div class="code-head">hr_eval/lab9_testset.py · lines 21-49 (part 2 of 2)</div>
+        <pre class="code" data-lang="python" data-focus="1:2-6, 2:10-13, 3:14-18, 4:19-22, 5:24-30"><code># lines 1-20 (step 1): import collections, difflib, hashlib, json; client, JUDGE, rows
+def ask_judge(prompt: str) -> str:
+    out = client.chat.completions.create(model=JUDGE, temperature=0, messages=[
+        {"role": "user", "content": prompt + '\nReply as JSON: {"verdict": "YES" or "NO"}'}],
+        response_format={"type": "json_object"})
+    return json.loads(out.choices[0].message.content)["verdict"]
+
+kept, dropped = [], collections.Counter()
+for r in rows:
+    ctx = "\n---\n".join(r["reference_contexts"])
+    if ask_judge(f"Context:\n{ctx}\n\nIs every fact in this answer stated in the context?\n"
+                 f"Answer: {r['reference']}") != "YES":
+        dropped["reference not grounded"] += 1; continue
+    closed_book = client.chat.completions.create(model=JUDGE, temperature=0, messages=[
+        {"role": "user", "content": r["user_input"]}]).choices[0].message.content
+    if ask_judge(f"Reference: {r['reference']}\nCandidate: {closed_book}\n"
+                 "Does the candidate state the same specific facts as the reference?") == "YES":
+        dropped["answerable without retrieval"] += 1; continue
+    if any(difflib.SequenceMatcher(None, r["user_input"].lower(), k["user_input"].lower()).ratio() > 0.9
+           for k in kept):
+        dropped["near-duplicate question"] += 1; continue
+    kept.append(r)
+
+blob = "\n".join(json.dumps(r, sort_keys=True) for r in kept)
+version = hashlib.sha256(blob.encode()).hexdigest()[:12]
+with open(f"hr_rag_eval_{version}.jsonl", "w", encoding="utf-8") as f:
+    f.write(blob + "\n")
+print(f"generated={len(rows)} kept={len(kept)} dropped={dict(dropped)}")
+print("synthesizer mix:", collections.Counter(r["synthesizer_name"] for r in kept))
+print(f"wrote hr_rag_eval_{version}.jsonl  -> send 10% to an HR reviewer before first use")</code></pre>
+      </div>
+      <div class="cites" data-step="2">
+        <a class="cite doc" href="https://docs.ragas.io/en/stable/getstarted/rag_testset_generation/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;ragas: Testset Generation for RAG</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2610.26951" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.26951 The Bottleneck Is Retrieval, Not Reading</a>
+      </div>
+    </div>
+    <div class="v-right">
+      <svg id="c10v-svg" viewBox="0 0 584 252" width="584" height="252" role="img" aria-label="Funnel of 40 synthetic question cards moving left to right through three gates. Gate 1, grounded, drops 3 cards into a bin. Gate 2, closed-book, drops 6 cards. Gate 3, near-duplicate, drops 2 cards. The 29 surviving cards compress into a JSONL file that gets a sha256 stamp 3f9c0a1b2d4e. Counts are illustrative."></svg>
+      <div class="steps-rail">
+        <div data-step="1"><span><code>temperature=0</code> and <code>json_object</code>: each check returns one parseable YES or NO.</span></div>
+        <div data-step="2"><span>Gate 1: every fact in the reference must be in its contexts. Keep <code>reference_contexts</code> and score retrieval recall on its own.</span></div>
+        <div data-step="3"><span>Gate 2: the judge answers with no contexts. The same facts mean parametric memory, not RAG. Drop the item or tag its own slice.</span></div>
+        <div data-step="4"><span>Gate 3: a <code>difflib</code> ratio above 0.9 against a kept question drops the twin.</span></div>
+        <div data-step="5"><span>The sha256 of the sorted JSON names the file: the set is immutable, and the C11 quality card cites the hash. Next, add an "unanswerable" slice (right answer: "contact HR").</span></div>
+      </div>
+      <div class="code-wrap out" data-step="5">
+        <div class="code-head">output · illustrative (LLM calls, not run)</div>
+        <pre class="code" data-lang="none"><code><span class="ok">generated=40 kept=29</span> dropped={<span class="err">'answerable without retrieval': 6, 'reference not grounded': 3, 'near-duplicate question': 2</span>}
+synthesizer mix: Counter({'single_hop_specific_query_synthesizer': 16, 'multi_hop_specific_query_synthesizer': 7, 'multi_hop_abstract_query_synthesizer': 6})
+<span class="ok">wrote hr_rag_eval_3f9c0a1b2d4e.jsonl</span>  -> send 10% to an HR reviewer before first use</code></pre>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Step 1 of the lab gave us 40 synthetic question, answer and context rows from ragas; this step treats them as a draft and lets only verified rows into the eval set. First the judge helper: temperature zero and JSON mode, so every check returns one YES or NO that the code can parse. Gate 1 drops rows whose reference answer states facts that are not in its own contexts; gate 2 asks the judge the question with no contexts at all, and if it already knows the answer, the row tests the model's memory, not our retrieval; gate 3 drops near-identical questions with a difflib ratio above 0.9. The 29 survivors are written as sorted JSON and named by their sha256, so nobody can change the set without changing its name, and the quality card in chapter 11 cites that hash. Analogy: an exam board that throws out questions a student could answer without the textbook. Likely question: "Is the judge itself trustworthy here?" Not yet: that is why 10% goes to an HR reviewer, and step 4 of the lab measures the judge against human labels. Next, step 3 protects this frozen set from the other side: no training text may copy it.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c10-lab9-verify";
+  // illustrative counts from the lab output: 40 generated, 3 + 6 + 2 dropped, 29 kept
+  const DROP = {};
+  [4, 17, 30].forEach((i) => (DROP[i] = 1));                 // reference not grounded
+  [2, 9, 14, 23, 28, 36].forEach((i) => (DROP[i] = 2));      // answerable without retrieval
+  [11, 33].forEach((i) => (DROP[i] = 3));                    // near-duplicate question
+  const N = 40, CW = 10, CH = 13;
+  const ZX = [6, 146, 286, 426], ZY = 46, COLS = 6, DX = 16, DY = 18;
+  const GX = [128, 268, 408];
+  const GL = ["grounded?", "closed-book?", "near-dup?"];
+  const GS = ["judge", "judge, no ctx", "difflib > 0.9"];
+  const BL = ["not grounded", "closed-book", "near-dup"];
+  const BN = [3, 6, 2];
+  const FX = 538, FY = 70;
+  let S = null;
+
+  function mk(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  }
+
+  function build(slide) {
+    const svg = slide.querySelector("#c10v-svg");
+    if (svg._S) return svg._S;
+    svg.innerHTML = "";
+    const s = { prev: 0, tweens: [], cards: [], gates: [], subs: [], bins: [], cnt: [], binOf: {} };
+    mk("text", { x: 584, y: 12, "text-anchor": "end", "font-size": 11, fill: "var(--muted)" }, svg, "illustrative counts");
+    mk("text", { x: ZX[0], y: 30, "font-size": 12, "font-weight": 700, fill: "var(--state)" }, svg, "40 rows");
+    GX.forEach((gx, g) => {
+      const G = mk("g", { opacity: 0.3 }, svg);
+      mk("line", { x1: gx, y1: 38, x2: gx, y2: 178, stroke: "var(--risk)", "stroke-width": 3, "stroke-dasharray": "6 5", "stroke-linecap": "round" }, G);
+      mk("text", { x: gx, y: 14, "text-anchor": "middle", "font-size": 12.5, "font-weight": 700, fill: "var(--ink)" }, G, GL[g]);
+      s.gates.push(G);
+      s.subs.push(mk("text", { x: gx, y: 30, "text-anchor": "middle", "font-size": 10.5, fill: g < 2 ? "var(--model)" : "var(--tool)", opacity: 0 }, svg, GS[g]));
+      const B = mk("g", { opacity: 0 }, svg);
+      mk("rect", { x: gx - 50, y: 192, width: 100, height: 30, rx: 8, fill: "var(--risk-soft)", stroke: "var(--risk)", "stroke-width": 1.4 }, B);
+      s.cnt.push(mk("text", { x: gx, y: 242, "text-anchor": "middle", "font-size": 12.5, "font-weight": 700, fill: "var(--risk)" }, B, ""));
+      s.bins.push(B);
+    });
+    // file icon and stamp
+    s.file = mk("g", { opacity: 0 }, svg);
+    mk("path", { d: `M${FX} ${FY} h30 l14 14 v56 h-44 z`, fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 2 }, s.file);
+    mk("path", { d: `M${FX + 30} ${FY} v14 h14`, fill: "none", stroke: "var(--state)", "stroke-width": 2 }, s.file);
+    mk("text", { x: FX + 22, y: FY + 50, "text-anchor": "middle", "font-size": 18, "font-weight": 700, fill: "var(--state)" }, s.file, "29");
+    mk("text", { x: FX + 22, y: FY + 100, "text-anchor": "middle", "font-size": 11, fill: "var(--ink-2)" }, s.file, ".jsonl");
+    s.stamp = mk("g", { opacity: 0 }, svg);
+    mk("rect", { x: 470, y: 192, width: 112, height: 50, rx: 8, fill: "none", stroke: "var(--state)", "stroke-width": 2, "stroke-dasharray": "4 3" }, s.stamp);
+    mk("text", { x: 526, y: 211, "text-anchor": "middle", "font-size": 11, "font-weight": 700, fill: "var(--state)" }, s.stamp, "sha256[:12]");
+    mk("text", { x: 526, y: 230, "text-anchor": "middle", "font-size": 12, "font-weight": 700, fill: "var(--ink)" }, s.stamp, "3f9c0a1b2d4e");
+    // bin slots
+    const seen = [0, 0, 0, 0];
+    for (let i = 0; i < N; i++) if (DROP[i]) s.binOf[i] = seen[DROP[i]]++;
+    for (let i = 0; i < N; i++) s.cards.push(mk("rect", { x: 0, y: 0, width: CW, height: CH, rx: 2, fill: "var(--state)", opacity: 0.85 }, svg));
+    svg._S = s;
+    return s;
+  }
+
+  // where card i sits at step n (correct for any n)
+  function target(s, i, n) {
+    const k = Math.max(0, Math.min(n - 1, 3));       // gates passed
+    const g = DROP[i] || 0;
+    if (g && g <= k) {
+      const gx = GX[g - 1];
+      return { x: gx - 47 + s.binOf[i] * 16, y: 200, o: 1, fill: "var(--risk)" };
+    }
+    if (n >= 5) return { x: FX + 17, y: FY + 30, o: 0, fill: "var(--state)" };
+    let rank = 0;
+    for (let j = 0; j < i; j++) { const gj = DROP[j] || 0; if (!(gj && gj <= k)) rank++; }
+    return { x: ZX[k] + (rank % COLS) * DX, y: ZY + Math.floor(rank / COLS) * DY, o: 0.85, fill: "var(--state)" };
+  }
+
+  function render(s, n, animate) {
+    s.tweens.forEach((t) => t.kill()); s.tweens = [];
+    const T = (tw) => s.tweens.push(tw);
+    const fwd = animate && n > s.prev;
+    s.cards.forEach((c, i) => {
+      const t = target(s, i, n);
+      c.setAttribute("fill", t.fill);
+      if (fwd) T(gsap.to(c, { attr: { x: t.x, y: t.y }, opacity: t.o, duration: .7, delay: (i % 12) * .025, ease: "power2.inOut" }));
+      else gsap.set(c, { attr: { x: t.x, y: t.y }, opacity: t.o });
+    });
+    const op = (e, v, d) => (fwd ? T(gsap.to(e, { opacity: v, duration: .4, delay: d || 0 })) : gsap.set(e, { opacity: v }));
+    s.gates.forEach((G, g) => op(G, n >= 1 ? 1 : 0.3));
+    s.subs.forEach((e) => op(e, n >= 1 ? 1 : 0));
+    s.bins.forEach((B, g) => {
+      const on = n >= g + 2;
+      op(B, on ? 1 : 0);
+      const lab = (v) => (s.cnt[g].textContent = `${v} ${BL[g]}`);
+      if (on && fwd && s.prev < g + 2) { const o = { v: 0 }; lab(0); T(gsap.to(o, { v: BN[g], duration: .7, delay: .3, ease: "none", onUpdate: () => lab(Math.round(o.v)) })); }
+      else lab(on ? BN[g] : 0);
+    });
+    op(s.file, n >= 5 ? 1 : 0, fwd ? .5 : 0);
+    op(s.stamp, n >= 5 ? 1 : 0, fwd ? .9 : 0);
+    s.prev = n;
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { S = build(slide); S.prev = step || 0; render(S, step || 0, false); },
+    step(slide, n, animate) { S = build(slide); render(S, n, animate); },
+    leave(slide) {
+      const svg = slide.querySelector("#c10v-svg");
+      if (svg && svg._S) { svg._S.tweens.forEach((t) => t.kill()); svg._S.tweens = []; }
+      if (svg) gsap.killTweensOf(svg.querySelectorAll("*"));
+    }
+  });
+})();
+</script>

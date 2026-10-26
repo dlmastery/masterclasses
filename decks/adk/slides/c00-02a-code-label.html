@@ -1,0 +1,86 @@
+<section class="slide tight" id="adk-c00-code-label" data-tone="model" data-title="Opening graph: the model labels">
+  <style>
+    #adk-c00-code-label .cg { display: grid; grid-template-columns: 950px minmax(0, 1fr); gap: 46px; align-items: start; margin-top: 8px; }
+    #adk-c00-code-label pre.code { font-size: 22px; line-height: 1.6; padding: 18px 22px 20px; }
+    #adk-c00-code-label .rcol { display: flex; flex-direction: column; gap: 30px; }
+    #adk-c00-code-label .node { padding: 14px 16px; transition: opacity .4s, box-shadow .45s, transform .45s; }
+    #adk-c00-code-label .node .nt { font-size: 24px; }
+    #adk-c00-code-label .node .ns { font-size: 18px; color: var(--ink-2); }
+    #adk-c00-code-label .node.fade { opacity: .4; }
+    #adk-c00-code-label .wires path.w { stroke-width: 2.6; stroke: color-mix(in oklab, var(--ink-2) 55%, transparent); }
+    #adk-c00-code-label .wires path.w.hot { stroke: var(--wc, var(--agent)); stroke-width: 3.2; }
+    #adk-c00-code-label .wires .arrow { transform-box: fill-box; transform-origin: center; transform: scale(1.4); }
+    #adk-c00-code-label .capbox { position: relative; height: 120px; }
+    #adk-c00-code-label .capbox p { position: absolute; inset: 0; margin: 0; font-size: 23px; line-height: 1.38; color: var(--ink-2); }
+    #adk-c00-code-label .capbox b, #adk-c00-code-label .capbox code { color: var(--ink); }
+  </style>
+  <div class="kicker"><span class="pill">Preview</span> Lab 3 · Acme support desk · step 1 of 3</div>
+  <h2 class="title">The model labels the ticket into a closed set of two routes</h2>
+  <div class="cg fill">
+    <div class="code-wrap">
+      <div class="code-head">labs/adk/c00-acme-desk/acme_desk/agent.py · excerpt 1 of 3</div>
+      <pre class="code" data-lang="python" data-focus="1:5-7, 2:9-10, 3:12-14"><code>from typing import Literal
+from google.adk import Agent, Event, Workflow
+from pydantic import BaseModel
+
+class Ticket(BaseModel):
+  route: Literal["refund", "question"]
+  order_id: str = ""
+
+def intake(node_input: str):
+  yield Event(state={"ticket": node_input})
+
+classify = Agent(
+    name="classify", output_schema=Ticket,
+    instruction="Label refund or question; copy order id: {ticket}")</code></pre>
+    </div>
+    <div class="rcol">
+      <div class="diagram" style="width:396px;height:500px"
+           data-wires="c00l-intake>c00l-state:bt; c00l-state>c00l-classify:bt; c00l-classify>c00l-out:bt">
+        <div class="node n-tool" id="c00l-intake" style="left:48px;top:0;width:300px"><span class="nt">intake</span><span class="ns">gets the raw text</span></div>
+        <div class="node n-state" id="c00l-state" style="left:0;top:140px;width:396px"><span class="nt">session.state</span><span class="ns" data-until="2">(empty)</span><span class="ns" data-step="2" data-fx="fade" style="position:absolute;left:16px;bottom:14px">ticket = "Refund A-1001, ..."</span></div>
+        <div class="node n-model" id="c00l-classify" style="left:48px;top:280px;width:300px"><span class="nt">classify</span><span class="ns">one model call</span></div>
+        <div class="node n-model ghost" id="c00l-out" style="left:48px;top:420px;width:300px"><span class="nt">Ticket</span><span class="ns">route="refund"</span></div>
+      </div>
+      <div class="capbox">
+        <p data-step="1" data-until="2" data-fx="fade"><code>route</code> is a <code>Literal</code>: the reply can only be refund or question.</p>
+        <p data-step="2" data-until="3" data-fx="fade">A plain <b>def</b> is a node. <b>intake</b> writes the text to session.state.</p>
+        <p data-step="3" data-fx="fade">ADK fills <code>{ticket}</code> from state before the call. No <code>model=</code>: the default is <code style="white-space:nowrap">gemini-3.5-flash</code>.</p>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    The opening graph as real code, in three excerpts; Lab 3 builds it step by step. The imports are at the top: Agent, Event and Workflow come from google.adk, and Agent is a type alias of LlmAgent. Press once: Ticket is a Pydantic model whose route field is a Literal with two values, and output_schema=Ticket on classify makes the reply validated JSON, so the model cannot invent a third route. Press again: intake is a plain function; ADK wraps it as a FunctionNode. It gets the user's text as node_input and yields an Event with state=, which writes the ticket key into session.state, the dict that every node of this run shares. Press again: classify is the only model call; ADK replaces {ticket} in the instruction with session.state["ticket"] before the call, and a missing key raises a KeyError. There is no model= argument, so the agent uses the 2.13.0 default, gemini-3.5-flash; set model= to pin another id. Analogy: classify fills in a form with two boxes. Likely question: "Where does classify's input come from?" From state through {ticket}; the next slide shows where its output goes.
+  </aside>
+</section>
+<script>
+(() => {
+  // Each code focus lights the matching nodes; the other nodes fade to 40%.
+  const LIT = { 1: ["c00l-out"], 2: ["c00l-intake", "c00l-state"], 3: ["c00l-state", "c00l-classify", "c00l-out"] };
+  const WIRE = { 1: [], 2: [0], 3: [1, 2] };
+  const IDS = ["c00l-intake", "c00l-state", "c00l-classify", "c00l-out"];
+  const paint = (slide, n) => {
+    const d = slide.querySelector(".diagram");
+    const we = (d && d._wireEls) || [];
+    const lit = LIT[n] || [], wl = WIRE[n] || [];
+    if (n >= 1) we.forEach((w) => gsap.set(w.g, { autoAlpha: 1 }));
+    IDS.forEach((id) => {
+      const el = slide.querySelector("#" + id);
+      if (!el) return;
+      el.classList.toggle("lit", lit.includes(id));
+      el.classList.toggle("fade", lit.length > 0 && !lit.includes(id));
+    });
+    we.forEach((w, i) => {
+      const on = wl.includes(i);
+      w.p.classList.toggle("hot", on);
+      w.g.querySelectorAll(".arrow").forEach((a) => a.classList.toggle("hot", on));
+      if (on) w.g.style.setProperty("--wc", "var(--model)"); else w.g.style.removeProperty("--wc");
+    });
+  };
+  Deck.register("adk-c00-code-label", {
+    enter(slide, step) { paint(slide, step); },
+    step(slide, n) { paint(slide, n); },
+    leave(slide) { paint(slide, 0); }
+  });
+})();
+</script>

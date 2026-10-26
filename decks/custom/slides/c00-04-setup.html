@@ -1,0 +1,63 @@
+<section class="slide" id="custom-c00-setup" data-tone="tool" data-title="Setup: one pinned environment">
+  <style>
+    #custom-c00-setup .kicker { font-size: 18px; }
+    #custom-c00-setup .su-grid { display: grid; grid-template-columns: 790px 1fr; gap: 30px; min-height: 0; }
+    #custom-c00-setup pre.code { font-size: 20px; line-height: 1.5; }
+    #custom-c00-setup .code-head { font-size: 17px; }
+    #custom-c00-setup pre.code, #custom-c00-setup pre.code *, #custom-c00-setup code { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #custom-c00-setup table.t { font-size: 18px; width: 100%; }
+    #custom-c00-setup table.t th { font-size: 16px; }
+    #custom-c00-setup table.t td { padding: 9px 12px; line-height: 1.35; }
+    #custom-c00-setup table.t code { font-size: 15px; white-space: normal; overflow-wrap: anywhere; }
+    #custom-c00-setup table.t td:first-child { white-space: nowrap; }
+    #custom-c00-setup .callout { font-size: 18px; line-height: 1.4; padding: 12px 16px; }
+    #custom-c00-setup .callout code { font-size: 16px; }
+  </style>
+  <div class="kicker"><span class="pill">Setup</span> Run it Monday · every lab</div>
+  <h2 class="title">One pinned environment for every lab, then prove the GPU works</h2>
+  <div class="su-grid fill">
+    <div class="stack" style="gap:16px">
+      <div class="code-wrap term">
+        <div class="code-head">setup · Python 3.12 · Linux, WSL2 or Colab</div>
+        <pre class="code" data-lang="bash" data-focus="1:1-6, 2:7-8"><code>$ python3.12 -m venv .venv &amp;&amp; . .venv/bin/activate
+$ pip install torch==2.14.1 transformers==5.20.2
+$ pip install trl==1.16.0 peft==0.21.2 datasets==5.1.0
+$ pip install accelerate==1.15.0 bitsandbytes==0.50.2
+$ pip install cleanlab==2.9.0 evidently==0.7.23
+$ pip install "pandera[pandas]==0.34.1" scikit-learn==1.9.1
+$ python -c "import torch; print(torch.cuda.is_available())"
+$ python -c "import trl; print(trl.__version__)"</code></pre>
+      </div>
+      <div class="code-wrap out" data-step="2" data-fx="up">
+        <div class="code-head">output · expected on a GPU machine</div>
+        <pre class="code" data-lang="bash"><code><span class="ok">True</span>      <span class="dim"># False: CPU-only torch wheel.</span>
+<span class="ok">1.16.0</span>    <span class="dim"># Reinstall torch from pytorch.org.</span></code></pre>
+      </div>
+    </div>
+    <div class="stack" style="gap:16px">
+      <table class="t" data-step="3" data-fx="up">
+        <thead><tr><th>Labs</th><th>Hardware</th></tr></thead>
+        <tbody>
+          <tr><td>1–2</td><td>one GPU, 12–16 GB. A T4 works: set <code>fp16=True</code> (a T4 has no bf16)</td></tr>
+          <tr><td>4–5</td><td>one GPU, 16–24 GB (L4, A10G)</td></tr>
+          <tr><td>3, 6–10</td><td>CPU only</td></tr>
+        </tbody>
+      </table>
+      <table class="t" data-step="4" data-fx="up">
+        <thead><tr><th>Key</th><th>Used by</th></tr></thead>
+        <tbody>
+          <tr><td><code>OPENAI_API_KEY</code></td><td>Lab 3 grader API, Lab 9 question generator and judge</td></tr>
+          <tr><td><code>GOOGLE_CLOUD_PROJECT</code></td><td>Lab 3 Vertex RFT, after <code>gcloud auth application-default login</code></td></tr>
+        </tbody>
+      </table>
+      <div class="callout tip" data-step="4" data-fx="up"><span>Native Windows: use <code>.venv\Scripts\activate</code> for the CPU labs. Run the GPU and RL labs in WSL2 or Colab.</span></div>
+    </div>
+  </div>
+  <aside class="notes">Analogy: this is the kitchen before the first recipe; every lab cooks with the same pinned tools, so the outputs on the slides match yours.
+Click 1: one virtual environment with the pinned versions that every lab uses. On Linux, WSL2 or Colab the activate command is ". .venv/bin/activate".
+Click 2: prove the GPU works before Lab 1. A plain pip install can give a CPU-only torch wheel; then the first line prints False and training is very slow. Reinstall torch from the pytorch.org selector for your CUDA version. The second line must print the trl version that the labs use, 1.16.0.
+Click 3, hardware. Lab 1 (Qwen3-0.6B LoRA) needs about 12 GB; Lab 2 (Qwen3-4B in 4-bit QLoRA) fits 16 GB with batch size 2. A T4 runs both, but it has no bf16, so set bf16=False and fp16=True. Labs 4 and 5 (GRPO and DPO) need a 16–24 GB card such as an L4 or A10G. Labs 3 and 6–10 run on a CPU.
+Click 4, keys. Lab 3 tests its reward functions offline first; only its last two steps call the OpenAI grader API and Vertex AI RFT. Lab 9 calls an OpenAI model to generate and judge HR questions. Vertex AI also needs "gcloud auth application-default login". On native Windows, the RL labs run slowly (math-verify falls back to multiprocessing timeouts), so use WSL2 or Colab.
+Data: Lab 1 downloads the Bitext customer-support dataset from Hugging Face (bitext/Bitext-customer-support-llm-chatbot-training-dataset, 2,992 REFUND rows). Each lab's first slide lists its own files and data.
+Likely question: "Can I use free Colab?" Yes for Labs 1–2 on a T4 with fp16. Labs 4–5 need a 16–24 GB card.</aside>
+</section>

@@ -1,0 +1,207 @@
+<section class="slide" id="custom-c09-annotation-routing" data-tone="human" data-title="Industry: route labels by value">
+  <style>
+    #custom-c09-annotation-routing { gap: 16px; }
+    #custom-c09-annotation-routing .ar-wrap { display: flex; flex-direction: column; gap: 14px; min-height: 0; }
+    #custom-c09-annotation-routing .ar-row { display: grid; grid-template-columns: repeat(3, 1fr) 1.25fr; gap: 16px; }
+    #custom-c09-annotation-routing .ar-card { padding: 12px 16px; border-radius: 14px; border: 1px solid var(--line-2); background: var(--surface); display: flex; flex-direction: column; gap: 4px; }
+    #custom-c09-annotation-routing .ar-card h4 { font-size: 14px; font-family: var(--f-mono); color: var(--human); margin: 0; }
+    #custom-c09-annotation-routing .ar-card .stat .n { font-size: 40px; }
+    #custom-c09-annotation-routing .ar-card .stat .l { font-size: 15px; }
+    #custom-c09-annotation-routing .ar-card .tiny { font-size: 12.5px; color: var(--muted); line-height: 1.3; }
+    #custom-c09-annotation-routing .ar-card .cite { font-size: 11.5px; align-self: flex-start; margin-top: auto; }
+    #custom-c09-annotation-routing .ar-lesson { padding: 12px 16px; border-radius: 14px; border: 1px solid color-mix(in oklab, var(--state) 35%, transparent); background: color-mix(in oklab, var(--state) 5%, transparent); }
+    #custom-c09-annotation-routing .ar-lesson h4 { font-size: 15px; margin: 0 0 8px; }
+    #custom-c09-annotation-routing .ar-lesson ul.checks { gap: 6px; }
+    #custom-c09-annotation-routing .ar-lesson ul.checks li { font-size: 15px; line-height: 1.32; }
+    #c09ar-svg text { font-family: var(--f-mono); font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+  </style>
+  <div class="kicker"><span class="pill">In production</span> Wayfair · Amazon · Mastercard · annotation routing</div>
+  <h2 class="title">Wayfair, Amazon, Mastercard route labels to the cheapest good rater</h2>
+  <div class="ar-wrap fill">
+    <svg id="c09ar-svg" viewBox="0 0 1392 430" width="1392" height="430" role="img" aria-label="Schematic routing diagram. Amber label requests enter a router that predicts which rater will be right. Three lanes leave the router: Direct LLM (fast and cheap), Reasoning LLM (used only when its expected gain is positive) and a long lane to Human for items where both models likely fail. Tokens move through the lanes at different speeds and end in a green training-labels store. From step 2, a Mastercard-style two-judge gate sits after the two LLM lanes: two dials, Judge A and Judge B, show each judge's verdict; a token passes to training labels only when both judges agree, otherwise it drops to the Human node."></svg>
+    <div class="ar-row">
+      <div class="ar-card" data-step="3">
+        <h4>Wayfair · DRR</h4>
+        <div class="stat"><div class="n" data-to="60" data-pre="&gt; " data-suf="%">0</div><div class="l">fewer reasoning tokens</div></div>
+        <div class="tiny">same accuracy as the best confidence router</div>
+        <a class="cite paper" href="https://arxiv.org/abs/2608.30224" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2608.30224 · 31 Aug 2026</a>
+      </div>
+      <div class="ar-card" data-step="3">
+        <h4>Amazon · QUORUM</h4>
+        <div class="stat"><div class="n" data-to="34.4" data-dec="1" data-pre="+" data-suf="%">0</div><div class="l">quality at −8.8% cost</div></div>
+        <div class="tiny">routes on difficulty features, not LLM self-confidence</div>
+        <a class="cite paper" href="https://arxiv.org/abs/2608.27974" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2608.27974 · 28 Aug 2026</a>
+      </div>
+      <div class="ar-card" data-step="3">
+        <h4>Mastercard · 2 judges</h4>
+        <div class="stat"><div class="n" data-to="96.88" data-dec="2" data-suf="%">0</div><div class="l">purity at 81.7% coverage</div></div>
+        <div class="tiny">more reasoning effort: no F0.5 gain, 1.8–5× latency</div>
+        <a class="cite paper" href="https://arxiv.org/abs/2609.33878" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2609.33878 · 27 Sep 2026</a>
+      </div>
+      <div class="ar-lesson" data-step="4">
+        <h4>Lesson for the Acme review queue</h4>
+        <ul class="checks" data-fx="stagger">
+          <li>Route by predicted value: direct, reasoning or human.</li>
+          <li>Keep a label only when two cheap judges agree.</li>
+          <li>Send the rest to people.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Three industry papers from August and September show the same pattern for labelling: do not send every item to the most expensive rater. Wayfair's Differential Reasoning Router predicts, per item, whether the direct model, the reasoning model or neither will be right; it calls the reasoning model only when it adds value and sends likely double failures to humans, which saves more than 60% of reasoning tokens. Amazon's QUORUM routes between human and LLM annotators from difficulty features and reports up to 34.4% better quality at 8.8% lower cost. Step 2 adds Mastercard's gate: two local LLM judges must agree, with separate thresholds for positives and negatives, which gave 96.88% purity at 81.7% coverage, while extra reasoning effort added latency and no F0.5 gain. Analogy: a clinic sends routine cases to a nurse, hard cases to a specialist, and asks two nurses to agree before they skip the doctor. Likely question: which signal should the Acme router use? Use cheap, observable difficulty features and model agreement, not the LLM's own stated confidence, which the previous slide showed can be flat. For Lab 8 this means: send the 200-ticket cleanlab queue first to two cheap judges, and give only their disagreements to the team lead.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c09-annotation-routing";
+  // d = direct LLM, r = reasoning LLM, h = human; agree = the two judges agree (gate, step >= 2)
+  const SEQ = [["d", 1], ["d", 1], ["r", 1], ["d", 1], ["h", 1], ["d", 0], ["r", 1], ["d", 1], ["h", 1], ["r", 0]];
+  const LY = { d: 72, r: 222, h: 372 };
+  const GX = 1066, GA = 78, GB = 182, LX = 1312, LYC = 222;
+  let S = null;
+  const mk = (tag, a, p, t) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); if (t !== undefined) e.textContent = t; p.appendChild(e); return e; };
+
+  const DC = GX + 26; // dial centre x
+  function dial(svg, cy, name, sub) {
+    const g = mk("g", {}, svg);
+    mk("path", { d: `M${DC - 34} ${cy} A34 34 0 0 1 ${DC + 34} ${cy}`, fill: "none", stroke: "var(--line-2)", "stroke-width": 7 }, g);
+    mk("path", { d: `M${DC + 17} ${cy - 29.44} A34 34 0 0 1 ${DC + 34} ${cy}`, fill: "none", stroke: "var(--state)", "stroke-width": 7 }, g);
+    const needle = mk("line", { x1: DC, y1: cy, x2: DC, y2: cy - 30, stroke: "var(--ink)", "stroke-width": 3, "stroke-linecap": "round", transform: `rotate(0 ${DC} ${cy})` }, g);
+    mk("circle", { cx: DC, cy, r: 4, fill: "var(--ink)" }, g);
+    mk("text", { x: 978, y: cy - 8, "font-size": 12.5, "font-weight": 700, fill: "var(--ink)" }, g, name);
+    mk("text", { x: 978, y: cy + 8, "font-size": 10.5, fill: "var(--muted)" }, g, sub);
+    return needle;
+  }
+
+  function build(slide) {
+    const svg = slide.querySelector("#c09ar-svg");
+    if (svg._S) return svg._S;
+    svg.innerHTML = "";
+    const s = { tl: null, prev: -1 };
+    // group A
+    mk("rect", { x: 212, y: 4, width: 690, height: 420, rx: 18, fill: "none", stroke: "color-mix(in oklab, var(--agent) 45%, transparent)", "stroke-width": 1.8, "stroke-dasharray": "7 6" }, svg);
+    mk("text", { x: 230, y: 26, "font-size": 12.5, "font-weight": 700, fill: "var(--agent)" }, svg, "Wayfair DRR · Amazon QUORUM: route per item");
+    // wires
+    const W = (d, c, extra) => mk("path", Object.assign({ d, fill: "none", stroke: c, "stroke-width": 2.6 }, extra || {}), svg);
+    W(`M160 ${LYC} H250`, "var(--line-2)");
+    W(`M440 ${LYC} C 495 ${LYC}, 495 ${LY.d}, 545 ${LY.d}`, "color-mix(in oklab, var(--model) 55%, transparent)");
+    W(`M440 ${LYC} H545`, "color-mix(in oklab, var(--model) 55%, transparent)");
+    W(`M440 ${LYC} C 495 ${LYC}, 495 ${LY.h}, 545 ${LY.h} H960`, "color-mix(in oklab, var(--human) 60%, transparent)");
+    mk("text", { x: 600, y: LY.h - 16, "font-size": 12.5, "font-weight": 700, fill: "var(--human)" }, svg, "both likely fail");
+    W(`M1172 ${LY.h} C 1250 ${LY.h}, ${LX} 330, ${LX} 274`, "color-mix(in oklab, var(--human) 60%, transparent)");
+    s.pre = mk("g", {}, svg);
+    mk("path", { d: `M875 ${LY.d} C 1150 ${LY.d}, 1180 ${LYC - 14}, 1232 ${LYC - 14}`, fill: "none", stroke: "color-mix(in oklab, var(--model) 45%, transparent)", "stroke-width": 2.6 }, s.pre);
+    mk("path", { d: `M875 ${LY.r} H1232`, fill: "none", stroke: "color-mix(in oklab, var(--model) 45%, transparent)", "stroke-width": 2.6 }, s.pre);
+    s.post = mk("g", { opacity: 0 }, svg);
+    mk("path", { d: `M875 ${LY.d} C 920 ${LY.d}, 930 130, 966 130`, fill: "none", stroke: "color-mix(in oklab, var(--model) 55%, transparent)", "stroke-width": 2.6 }, s.post);
+    mk("path", { d: `M875 ${LY.r} C 920 ${LY.r}, 930 130, 966 130`, fill: "none", stroke: "color-mix(in oklab, var(--model) 55%, transparent)", "stroke-width": 2.6 }, s.post);
+    mk("path", { d: `M1166 130 C 1210 130, 1200 ${LYC}, 1232 ${LYC}`, fill: "none", stroke: "color-mix(in oklab, var(--state) 70%, transparent)", "stroke-width": 2.6 }, s.post);
+    mk("path", { d: `M${GX} 254 V336`, fill: "none", stroke: "var(--human)", "stroke-width": 2.6, "stroke-dasharray": "6 5" }, s.post);
+    mk("text", { x: GX + 10, y: 302, "font-size": 12.5, "font-weight": 700, fill: "var(--human)" }, s.post, "disagree");
+    // inbox
+    mk("rect", { x: 0, y: LYC - 50, width: 160, height: 100, rx: 14, fill: "var(--tool-soft)", stroke: "var(--tool)", "stroke-width": 2.2 }, svg);
+    mk("text", { x: 80, y: LYC - 22, "text-anchor": "middle", "font-size": 14, "font-weight": 700, fill: "var(--ink)" }, svg, "label requests");
+    mk("text", { x: 80, y: LYC - 4, "text-anchor": "middle", "font-size": 11.5, fill: "var(--muted)" }, svg, "tickets · items");
+    // router
+    mk("rect", { x: 250, y: LYC - 50, width: 190, height: 100, rx: 14, fill: "var(--agent-soft)", stroke: "var(--agent)", "stroke-width": 2.4 }, svg);
+    mk("text", { x: 345, y: LYC - 22, "text-anchor": "middle", "font-size": 15, "font-weight": 700, fill: "var(--ink)" }, svg, "Router");
+    mk("text", { x: 345, y: LYC + 24, "text-anchor": "middle", "font-size": 11.5, fill: "var(--muted)" }, svg, "who will be right?");
+    mk("text", { x: 345, y: LYC + 39, "text-anchor": "middle", "font-size": 11.5, fill: "var(--muted)" }, svg, "difficulty features");
+    // lanes
+    [["d", "Direct LLM", "fast · cheap"], ["r", "Reasoning LLM", "only if gain > 0"]].forEach(([k, a, b]) => {
+      mk("rect", { x: 545, y: LY[k] - 36, width: 330, height: 72, rx: 14, fill: "var(--model-soft)", stroke: "var(--model)", "stroke-width": 2.2 }, svg);
+      mk("text", { x: 562, y: LY[k] - 13, "font-size": 15, "font-weight": 700, fill: "var(--ink)" }, svg, a);
+      mk("text", { x: 562, y: LY[k] + 4, "font-size": 11.5, fill: "var(--muted)" }, svg, b);
+    });
+    // human
+    mk("rect", { x: 960, y: LY.h - 36, width: 212, height: 72, rx: 36, fill: "var(--human-soft)", stroke: "var(--human)", "stroke-width": 2.4 }, svg);
+    mk("text", { x: GX, y: LY.h - 14, "text-anchor": "middle", "font-size": 15, "font-weight": 700, fill: "var(--ink)" }, svg, "Human");
+    mk("text", { x: GX, y: LY.h + 3, "text-anchor": "middle", "font-size": 11.5, fill: "var(--muted)" }, svg, "slow · best labels");
+    // labels store
+    mk("rect", { x: 1232, y: LYC - 52, width: 160, height: 104, rx: 14, fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 2.4 }, svg);
+    mk("text", { x: LX, y: LYC - 26, "text-anchor": "middle", "font-size": 14, "font-weight": 700, fill: "var(--ink)" }, svg, "training");
+    mk("text", { x: LX, y: LYC - 8, "text-anchor": "middle", "font-size": 14, "font-weight": 700, fill: "var(--ink)" }, svg, "labels");
+    // gate (group B)
+    s.gate = mk("g", { opacity: 0 }, svg);
+    mk("rect", { x: 966, y: 6, width: 200, height: 248, rx: 16, fill: "var(--surface)", stroke: "var(--human)", "stroke-width": 2, "stroke-dasharray": "7 5" }, s.gate);
+    mk("text", { x: GX, y: 28, "text-anchor": "middle", "font-size": 12, "font-weight": 700, fill: "var(--human)" }, s.gate, "Mastercard gate");
+    s.nA = dial(s.gate, GA + 30, "Judge A", "30B");
+    s.nB = dial(s.gate, GB + 30, "Judge B", "31B");
+    s.verdict = mk("text", { x: GX, y: 242, "text-anchor": "middle", "font-size": 12.5, "font-weight": 700, fill: "var(--muted)" }, s.gate, "both agree?");
+    // tokens
+    s.tok = SEQ.map(() => mk("rect", { x: -13, y: -9, width: 26, height: 18, rx: 4, fill: "var(--tool)", stroke: "var(--surface)", "stroke-width": 1.5, opacity: 0 }, svg));
+    svg._S = s;
+    return s;
+  }
+
+  function setDials(s, a, b, txt, col) {
+    s.nA.setAttribute("transform", `rotate(${a} ${DC} ${GA + 30})`);
+    s.nB.setAttribute("transform", `rotate(${b} ${DC} ${GB + 30})`);
+    s.verdict.textContent = txt; s.verdict.setAttribute("fill", col);
+  }
+
+  function stop(s) { if (s.tl) { s.tl.kill(); s.tl = null; } gsap.killTweensOf(s.tok); }
+
+  function play(s, gated) {
+    stop(s);
+    s.tok.forEach((t) => gsap.set(t, { x: 80, y: LYC + 24, opacity: 0, attr: { fill: "var(--tool)" } }));
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const tl = s.tl = gsap.timeline({ repeat: -1, repeatDelay: 0.6 });
+    tl.call(() => setDials(s, 0, 0, "both agree?", "var(--muted)"), null, 0);
+    SEQ.forEach(([k, agree], i) => {
+      const t = s.tok[i], t0 = 0.2 + i * 0.75;
+      const laneDur = k === "d" ? 0.45 : k === "r" ? 1.25 : 1.1;
+      tl.set(t, { x: 80, y: LYC + 24, opacity: 0, attr: { fill: "var(--tool)" } }, t0)
+        .to(t, { opacity: 1, duration: 0.15 }, t0)
+        .to(t, { x: 345, y: LYC, duration: 0.35, ease: "power1.inOut" }, t0)
+        .to(t, { x: 560, y: k === "h" ? LY.h : LY[k] + 20, duration: 0.35, ease: "power1.inOut" }, t0 + 0.4);
+      let tt = t0 + 0.75;
+      if (k === "h") {
+        tl.to(t, { x: 960, duration: laneDur, ease: "none" }, tt).to(t, { x: GX + 40, y: LY.h + 20, duration: 0.2 }, tt + laneDur).set(t, { attr: { fill: "var(--human)" } }, tt + laneDur + 0.25);
+        tt += laneDur + 0.45;
+        tl.to(t, { x: LX, y: LYC + 24, duration: 0.6, ease: "power1.inOut" }, tt).to(t, { opacity: 0, duration: 0.2 }, tt + 0.6);
+        return;
+      }
+      tl.to(t, { x: 860, duration: laneDur, ease: "none" }, tt);
+      tt += laneDur;
+      if (!gated) {
+        tl.to(t, { x: LX, y: LYC + 24, duration: 0.7, ease: "power1.inOut" }, tt).to(t, { opacity: 0, duration: 0.2 }, tt + 0.7);
+        return;
+      }
+      tl.to(t, { x: GX, y: 130, duration: 0.45, ease: "power1.inOut" }, tt);
+      tt += 0.45;
+      tl.call(() => agree ? setDials(s, 52, 48, "agree → keep", "var(--state)") : setDials(s, 50, -46, "disagree → human", "var(--human)"), null, tt);
+      tt += 0.45;
+      if (agree) {
+        tl.to(t, { x: LX, y: LYC + 24, duration: 0.55, ease: "power1.inOut", attr: { fill: "var(--state)" } }, tt).to(t, { opacity: 0, duration: 0.2 }, tt + 0.55);
+      } else {
+        tl.to(t, { x: GX + 40, y: LY.h + 20, duration: 0.55, ease: "power1.in" }, tt).set(t, { attr: { fill: "var(--human)" } }, tt + 0.8);
+        tl.to(t, { x: LX, y: LYC + 24, duration: 0.6, ease: "power1.inOut" }, tt + 1.0).to(t, { opacity: 0, duration: 0.2 }, tt + 1.6);
+      }
+    });
+  }
+
+  function render(s, n, animate) {
+    const gated = n >= 2;
+    gsap.set(s.pre, { opacity: gated ? 0 : 1 });
+    if (animate && gated && s.prev < 2) gsap.fromTo([s.gate, s.post], { opacity: 0 }, { opacity: 1, duration: 0.5 });
+    else gsap.set([s.gate, s.post], { opacity: gated ? 1 : 0 });
+    const mode = n < 1 ? 0 : gated ? 2 : 1;
+    if (mode !== s.mode) {
+      s.mode = mode;
+      if (mode === 0) { stop(s); s.tok.forEach((t) => gsap.set(t, { opacity: 0 })); setDials(s, 0, 0, "both agree?", "var(--muted)"); }
+      else play(s, mode === 2);
+    }
+    s.prev = n;
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { S = build(slide); S.mode = -1; S.prev = step; render(S, step, false); },
+    step(slide, n, animate) { S = build(slide); render(S, n, animate); },
+    leave(slide) {
+      const svg = slide.querySelector("#c09ar-svg");
+      if (svg && svg._S) { stop(svg._S); svg._S.mode = -1; }
+    }
+  });
+})();
+</script>

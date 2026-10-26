@@ -1,0 +1,105 @@
+<section class="slide" id="adk-c08-industry-uber" data-tone="state" data-title="Industry: Uber cost equation">
+  <style>
+    #adk-c08-industry-uber #ub-svg { display: block; width: 1392px; height: 520px; overflow: visible; }
+    #adk-c08-industry-uber #ub-svg text { font-family: var(--f-mono); }
+    #adk-c08-industry-uber .caps { display: grid; }
+    #adk-c08-industry-uber .caps > p { grid-area: 1 / 1; font-size: 23px; }
+  </style>
+  <div class="kicker"><span class="pill">In production</span> Uber</div>
+  <h2 class="title">Uber writes AI spend as six terms and pulls levers on two</h2>
+  <svg id="ub-svg" viewBox="0 0 1392 520" aria-label="Uber's cost equation: total spend equals users times sessions per user times turns per session times requests per turn times tokens per request times price per token. The first four terms are greyed out because they grew on purpose. Two levers drop from tokens per request: medium reasoning effort and auto-compaction at 400K tokens. Two levers drop from price per token: cheaper subagent models and a one-hour cache TTL. A budget band spans all terms."></svg>
+  <div class="caps">
+    <p data-step="1" data-until="2">Tokens per request: less reasoning, earlier compaction.</p>
+    <p data-step="2" data-until="3">Price per token: cheaper subagents and longer cache hits.</p>
+    <p data-step="3">Budgets nudge people; they do not block the work.</p>
+  </div>
+  <div class="cites"><a class="cite doc" href="https://uber.com/us/en/blog/efficient-software-factory" target="_blank" rel="noopener"><b>Post</b>&nbsp;Running a Software Factory Efficiently at Uber Scale</a></div>
+  <aside class="notes">Uber writes its AI bill as six terms multiplied together, and every cost lever attacks one term. Users, sessions, turns and requests grew on purpose, so they are greyed out. Press once: two levers cut tokens per request: reasoning effort defaults to Medium, and auto-compaction runs at 400K tokens even on 1M-context models. Press again: two levers cut the price per token: subagents default to a cheaper model, which Uber calls the most impactful lever, and the interactive cache TTL went from 5 minutes to 1 hour, because idle gaps kept invalidating the cache, exactly the TTL build-up from this chapter. Press again: budgets without hard caps run across every term: a live cost counter, Slack nudges at 50, 80 and 100 percent, and a dashboard that flags 16 anti-patterns. Think of a phone bill: you cannot stop people calling, but you can change the tariff and the length of each call. A likely question: "Why no hard caps?" Hard caps block real work, so Uber makes the cost visible instead.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c08-industry-uber";
+  const NS = "http://www.w3.org/2000/svg";
+  const T1 = ["users", "sessions", "turns", "requests", "tokens", "price"];
+  const T2 = ["", "/ user", "/ session", "/ turn", "/ request", "/ token"];
+  const TW = [150, 150, 150, 150, 236, 236];
+  const TX = [130, 316, 502, 688, 874, 1146];
+  const CH = [
+    ["reasoning effort", "default: Medium", 4, 0, 1],
+    ["auto-compaction", "at 400K tokens", 4, 1, 1],
+    ["cheaper subagents", "\"most impactful\"", 5, 0, 2],
+    ["cache TTL", "5 min → 1 h", 5, 1, 2],
+  ];
+  const CY = [170, 262], CHH = 72;
+  let R = null, tw = [];
+  function mk(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text !== undefined) e.textContent = text;
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function build(svg) {
+    svg.innerHTML = "";
+    R = { terms: [], chips: [], links: [] };
+    mk("text", { x: 0, y: 82, "font-size": 24, "font-weight": 800, fill: "var(--ink)" }, svg, "spend =");
+    T1.forEach((t, i) => {
+      const g = mk("g", {}, svg);
+      const r = mk("rect", { x: TX[i], y: 30, width: TW[i], height: 90, rx: 14, fill: "var(--surface-2)", stroke: "var(--line-2)", "stroke-width": 2 }, g);
+      mk("text", { x: TX[i] + TW[i] / 2, y: T2[i] ? 70 : 82, "text-anchor": "middle", "font-size": 21, "font-weight": 800, fill: "var(--ink)" }, g, t);
+      if (T2[i]) mk("text", { x: TX[i] + TW[i] / 2, y: 98, "text-anchor": "middle", "font-size": 16, fill: "var(--muted)" }, g, T2[i]);
+      if (i < 5) mk("text", { x: TX[i] + TW[i] + 18, y: 84, "text-anchor": "middle", "font-size": 24, "font-weight": 700, fill: "var(--muted)" }, svg, "×");
+      R.terms.push({ g, r });
+    });
+    CH.forEach((c) => {
+      const x = TX[c[2]], y = CY[c[3]], cx = x + TW[c[2]] / 2;
+      const y0 = c[3] === 0 ? 124 : CY[0] + CHH + 4, y1 = y - 4;
+      const l = mk("path", { d: `M${cx} ${y0} V ${y1}`, fill: "none", stroke: "var(--state)", "stroke-width": 3 }, svg);
+      const g = mk("g", {}, svg);
+      mk("rect", { x, y, width: TW[c[2]], height: CHH, rx: 12, fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 2.2 }, g);
+      mk("text", { x: x + 16, y: y + 30, "font-size": 18, "font-weight": 800, fill: "var(--ink)" }, g, c[0]);
+      mk("text", { x: x + 16, y: y + 56, "font-size": 16, "font-weight": 600, fill: "var(--state)" }, g, c[1]);
+      R.links.push({ l, L: y1 - y0, step: c[4] });
+      R.chips.push({ g, step: c[4] });
+    });
+    R.grew = mk("text", { x: 484, y: 170, "text-anchor": "middle", "font-size": 18, "font-weight": 700, fill: "var(--muted)" }, svg, "these grew on purpose");
+    R.band = mk("g", {}, svg);
+    mk("rect", { x: 130, y: 380, width: 1262, height: 110, rx: 16, fill: "var(--human-soft)", stroke: "var(--human)", "stroke-width": 2.2 }, R.band);
+    mk("text", { x: 156, y: 422, "font-size": 21, "font-weight": 800, fill: "var(--ink)" }, R.band, "budgets without hard caps, on every term");
+    mk("text", { x: 156, y: 458, "font-size": 17, fill: "var(--ink-2)" }, R.band, "live cost counter · Slack nudges at 50/80/100% · 16 anti-patterns flagged");
+  }
+  function clear() { tw.forEach((t) => t.kill()); tw = []; }
+  function render(slide, n, animate) {
+    const svg = slide.querySelector("#ub-svg");
+    if (!R || !svg.childElementCount) build(svg);
+    clear();
+    R.terms.forEach((t, i) => {
+      gsap.set(t.g, { opacity: i < 4 ? 0.45 : 1 });
+      const hot = (i === 4 && n >= 1) || (i === 5 && n >= 2);
+      t.r.setAttribute("fill", hot ? "var(--state-soft)" : "var(--surface-2)");
+      t.r.setAttribute("stroke", hot ? "var(--state)" : "var(--line-2)");
+      t.r.setAttribute("stroke-width", hot ? 3 : 2);
+    });
+    R.links.forEach((o) => {
+      gsap.killTweensOf(o.l);
+      const on = n >= o.step;
+      o.l.setAttribute("stroke-dasharray", `${o.L} ${o.L}`);
+      if (animate && n === o.step) { gsap.set(o.l, { attr: { "stroke-dashoffset": o.L }, opacity: 1 }); tw.push(gsap.to(o.l, { attr: { "stroke-dashoffset": 0 }, duration: 0.5 })); }
+      else gsap.set(o.l, { attr: { "stroke-dashoffset": on ? 0 : o.L }, opacity: on ? 1 : 0 });
+    });
+    R.chips.forEach((o, j) => {
+      gsap.killTweensOf(o.g);
+      const on = n >= o.step;
+      if (animate && n === o.step) tw.push(gsap.fromTo(o.g, { opacity: 0, y: -14 }, { opacity: 1, y: 0, duration: 0.45, delay: 0.35 + (j % 2) * 0.35 }));
+      else gsap.set(o.g, { opacity: on ? 1 : 0, y: 0 });
+    });
+    gsap.set(R.band, { opacity: n >= 3 ? 1 : 0 });
+    if (animate && n === 3) tw.push(gsap.fromTo(R.band, { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.5 }));
+  }
+  Deck.register(ID, {
+    enter(slide, step) { R = null; render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { clear(); },
+  });
+})();
+</script>

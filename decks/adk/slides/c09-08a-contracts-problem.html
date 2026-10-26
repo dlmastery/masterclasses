@@ -1,0 +1,121 @@
+<section class="slide" id="adk-c09-contracts-problem" data-tone="model" data-title="Build: quiet wrong values">
+  <style>
+    #adk-c09-contracts-problem .c9-cap { min-height: 34px; }
+    #adk-c09-contracts-problem .c9-row { display: flex; justify-content: space-between; align-items: center; gap: 24px; }
+  </style>
+  <div class="kicker">Build · Lab 9 add-on · google-adk 2.13.0</div>
+  <h2 class="title">Agents catch loud tool errors, but miss quiet wrong values</h2>
+  <div class="code-wrap bad">
+    <div class="code-head">trace · A-1001 · lookup_order returns a plausible wrong value</div>
+    <pre class="code" data-lang="python"><code>lookup_order(order_id="A-1001")
+# -&gt; {"status": "success", "order_id": "A-1001", "amount": -79.0}
+issue_refund(order_id="A-1001", amount=-79.0, reason="damaged")
+# a negative refund charges the customer; refund_policy_score passes</code></pre>
+  </div>
+  <svg class="c9-svg" id="oc-svg" viewBox="0 0 1392 320" aria-label="Two pipes feed the agent: an HTTP 503 error from the payments API and a well-formed amount of minus 79 from lookup_order. A bar chart shows the agent flags the loud fault 91.3 percent of the time and the quiet one 58.8 percent, against a 26.8 percent false-alarm rate."></svg>
+  <div class="c9-row">
+    <div class="c9-cap">
+      <p data-step="1" data-until="2">A 503 is loud. A well-formed <b>−79.0</b> is quiet.</p>
+      <p data-step="2" data-until="3">Agents flag the loud fault 91.3% of the time, the quiet one 58.8%.</p>
+      <p data-step="3">With nothing wrong, they still raise a false alarm 26.8% of the time.</p>
+    </div>
+    <div class="cites"><a class="cite paper" href="https://arxiv.org/abs/2610.10062" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.10062</a></div>
+  </div>
+  <aside class="notes">This add-on starts with a failure our eval gate cannot see. When a tool says HTTP 503, agents notice; when lookup_order returns a well-formed negative amount, they often do not. The paper arXiv 2610.10062 measured it: agents flag the loud fault 91.3 percent of the time, the quiet wrong value only 58.8 percent, and with nothing wrong they still raise a false alarm 26.8 percent of the time, so the quiet case is barely above guessing. Here the harm is real: a refund of minus 79 dollars charges the customer, and our 500 dollar metric still passes it, because minus 79 is below 500. The paper also found that a prompt line telling the model to check each result did not change detection, so the next slide puts the check in code. Analogy: a gas leak has no sound; you need a detector, not a sharper ear. A likely question: "Would the trajectory metric catch this?" No: the tools and their order are correct, only a value is wrong.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c09-contracts-problem";
+  const NS = "http://www.w3.org/2000/svg";
+  const BASE = 280, K = 2.4;
+  const BARS = [{ x: 980, v: 91.3, tone: "risk", lab: "loud" }, { x: 1090, v: 58.8, tone: "muted", lab: "quiet" }];
+  let tw = [], loops = [], R = null;
+  function mk(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const [a, v] of Object.entries(attrs)) e.setAttribute(a, v);
+    if (text !== undefined) e.textContent = text;
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function box(p, x, y, w, h, tone, label, sub) {
+    const g = mk("g", {}, p);
+    mk("rect", { x, y, width: w, height: h, rx: 12, fill: `var(--${tone}-soft)`, stroke: `var(--${tone})`, "stroke-width": 2 }, g);
+    mk("text", { x: x + w / 2, y: y + h / 2 - 4, "font-size": 20, "font-weight": 700, "text-anchor": "middle", fill: "var(--ink)" }, g, label);
+    mk("text", { x: x + w / 2, y: y + h / 2 + 22, "font-size": 16, "text-anchor": "middle", fill: "var(--ink-2)" }, g, sub);
+    return g;
+  }
+  function build(svg) {
+    svg.innerHTML = "";
+    R = { svg };
+    const defs = mk("defs", {}, svg);
+    [["oc-ar", "var(--risk)"], ["oc-ag", "var(--line-2)"]].forEach(([id, c]) => {
+      const m = mk("marker", { id, viewBox: "0 0 10 10", refX: 8, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto" }, defs);
+      mk("path", { d: "M0,0 L10,5 L0,10 z", fill: c }, m);
+    });
+    box(svg, 0, 20, 220, 84, "tool", "payments API", "times out");
+    box(svg, 0, 200, 220, 84, "tool", "lookup_order", "well formed");
+    box(svg, 620, 102, 240, 100, "agent", "refund_agent", "notices it?");
+    R.pL = mk("path", { d: "M220,62 H540 C590,62 590,132 612,132", fill: "none", stroke: "var(--risk)", "stroke-width": 4, "marker-end": "url(#oc-ar)" }, svg);
+    R.pQ = mk("path", { d: "M220,242 H540 C590,242 590,172 612,172", fill: "none", stroke: "var(--line-2)", "stroke-width": 4, "marker-end": "url(#oc-ag)" }, svg);
+    mk("text", { x: 250, y: 48, "font-size": 19, "font-weight": 700, fill: "var(--risk)" }, svg, "HTTP 503");
+    mk("text", { x: 250, y: 228, "font-size": 19, "font-weight": 700, fill: "var(--ink-2)" }, svg, "amount −79.0");
+    R.tokL = mk("circle", { r: 8, fill: "var(--risk)", opacity: 0 }, svg);
+    R.tokQ = mk("circle", { r: 8, fill: "var(--line-2)", opacity: 0 }, svg);
+    R.chart = mk("g", {}, svg);
+    mk("text", { x: 960, y: 22, "font-size": 18, "font-weight": 700, fill: "var(--ink-2)" }, R.chart, "agent flags the fault");
+    mk("line", { x1: 960, y1: BASE, x2: 1200, y2: BASE, stroke: "var(--line-2)", "stroke-width": 1.6 }, R.chart);
+    R.bars = BARS.map((b) => {
+      const r = mk("rect", { x: b.x, y: BASE, width: 80, height: 0, rx: 5, fill: `var(--${b.tone})` }, R.chart);
+      const v = mk("text", { x: b.x + 40, y: BASE - 8, "font-size": 19, "font-weight": 800, "text-anchor": "middle", fill: b.tone === "risk" ? "var(--risk)" : "var(--ink-2)" }, R.chart, "");
+      mk("text", { x: b.x + 40, y: BASE + 26, "font-size": 17, "font-weight": 700, "text-anchor": "middle", fill: "var(--ink-2)" }, R.chart, b.lab);
+      return { r, v, b };
+    });
+    const by = BASE - 26.8 * K;
+    R.base = mk("g", {}, svg);
+    mk("line", { x1: 960, y1: by, x2: 1190, y2: by, stroke: "var(--model)", "stroke-width": 2.5, "stroke-dasharray": "7 5" }, R.base);
+    mk("text", { x: 1204, y: by - 2, "font-size": 19, "font-weight": 800, fill: "var(--model)" }, R.base, "26.8%");
+    mk("text", { x: 1204, y: by + 20, "font-size": 16, "font-weight": 700, fill: "var(--model)" }, R.base, "false alarms");
+  }
+  function clear() { tw.forEach((t) => t.kill()); tw = []; loops.forEach((l) => l.kill()); loops = []; }
+  function setBar(o, on, animate, delay) {
+    const h = on ? o.b.v * K : 0;
+    const st = { h: on && animate ? 0 : h };
+    const paint = () => {
+      o.r.setAttribute("y", BASE - st.h); o.r.setAttribute("height", st.h);
+      o.v.setAttribute("y", BASE - st.h - 8);
+      o.v.textContent = st.h > 0 ? (st.h / K).toFixed(1) + "%" : "";
+    };
+    paint();
+    if (on && animate) tw.push(gsap.to(st, { h, duration: 1.0, delay: delay || 0, ease: "power2.out", onUpdate: paint, onComplete: () => { st.h = h; paint(); } }));
+  }
+  function run(tok, path, dur, offset) {
+    const len = path.getTotalLength(), st = { t: 0 };
+    const p0 = path.getPointAtLength(0);
+    tok.setAttribute("cx", p0.x); tok.setAttribute("cy", p0.y);
+    gsap.set(tok, { opacity: 1 });
+    loops.push(gsap.to(st, { t: 1, duration: dur, delay: offset, repeat: -1, ease: "none", onUpdate: () => {
+      const pt = path.getPointAtLength(st.t * len);
+      tok.setAttribute("cx", pt.x); tok.setAttribute("cy", pt.y);
+    } }));
+  }
+  function render(slide, n, animate) {
+    const svg = slide.querySelector("#oc-svg");
+    if (!svg) return;
+    if (!R || R.svg !== svg || !svg.childElementCount) build(svg);
+    clear();
+    if (n >= 1) { run(R.tokL, R.pL, 2.2, 0); run(R.tokQ, R.pQ, 2.2, 1.1); }
+    else gsap.set([R.tokL, R.tokQ], { opacity: 0 });
+    gsap.killTweensOf([R.chart, R.base]);
+    gsap.set(R.chart, { opacity: n >= 2 ? 1 : 0 });
+    setBar(R.bars[0], n >= 2, animate && n === 2, 0.2);
+    setBar(R.bars[1], n >= 2, animate && n === 2, 0.45);
+    if (animate && n === 3) tw.push(gsap.fromTo(R.base, { opacity: 0 }, { opacity: 1, duration: 0.5, delay: 0.2 }));
+    else gsap.set(R.base, { opacity: n >= 3 ? 1 : 0 });
+  }
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { clear(); },
+  });
+})();
+</script>

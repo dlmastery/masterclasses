@@ -1,0 +1,130 @@
+<section class="slide" id="adk-c01-gotcha" data-tone="tool" data-title="Gotcha: first-run errors">
+  <style>
+    #adk-c01-gotcha .gx-main { display: grid; grid-template-columns: 828px 1fr; gap: 32px; }
+    #adk-c01-gotcha .gx-left, #adk-c01-gotcha .gx-right { gap: 14px; min-width: 0; }
+    #adk-c01-gotcha .gotcha { font-size: 17px; line-height: 1.38; padding: 12px 18px; grid-template-columns: 92px 1fr; gap: 5px 12px; }
+    #adk-c01-gotcha .gotcha > b { font-size: 13px; }
+    #adk-c01-gotcha .gotcha .em { font: 500 14px/1.45 var(--f-mono); color: var(--risk); background: color-mix(in oklab, var(--risk) 7%, transparent); padding: 1px 5px; border-radius: 5px; }
+    #adk-c01-gotcha .gotcha .em + .em { display: inline-block; margin-top: 4px; }
+    #adk-c01-gotcha .gx-n { font: 700 13px/1 var(--f-mono); color: var(--muted); letter-spacing: .05em; text-transform: uppercase; margin-bottom: -8px; }
+    #adk-c01-gotcha .code-wrap .code-head { padding: 8px 14px; font-size: 13.5px; }
+    #adk-c01-gotcha pre.code { font-size: 13.5px; line-height: 1.5; padding: 10px 16px 12px; }
+    #adk-c01-gotcha .gx-meter { padding: 14px 16px; gap: 12px; display: grid; }
+    #adk-c01-gotcha .gx-row { display: grid; grid-template-columns: 150px 78px 1fr; gap: 12px; align-items: center; }
+    #adk-c01-gotcha .gx-row .l { font: 600 13px/1.3 var(--f-mono); color: var(--ink-2); }
+    #adk-c01-gotcha .gx-row .v { font: 700 30px/1 var(--f-mono); color: var(--ink); text-align: right; }
+    #adk-c01-gotcha .gx-track { position: relative; height: 14px; border-radius: 7px; background: var(--line); overflow: hidden; }
+    #adk-c01-gotcha .gx-track i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; border-radius: 7px; background: var(--tool); }
+    #adk-c01-gotcha .gx-st { grid-column: 2 / 4; font: 600 13px/1.3 var(--f-mono); color: var(--muted); min-height: 17px; }
+    #adk-c01-gotcha .gx-row.red .v, #adk-c01-gotcha .gx-st.red { color: var(--risk); }
+    #adk-c01-gotcha .gx-row.green .v, #adk-c01-gotcha .gx-st.green { color: var(--state); }
+    #adk-c01-gotcha .callout { font-size: 16.5px; line-height: 1.4; padding: 12px 16px; }
+    #adk-c01-gotcha .callout code { font-size: .86em; }
+    #adk-c01-gotcha .gx-right .code-wrap { align-self: stretch; }
+    #adk-c01-gotcha .gx-meter { padding: 10px 16px; gap: 6px; }
+    #adk-c01-gotcha .gx-foot { display: grid; grid-template-columns: 1fr auto; gap: 18px; align-items: center; }
+    #adk-c01-gotcha .gx-cites { display: grid; gap: 8px; }
+    #adk-c01-gotcha .gx-cites .cite { font-size: 14px; padding: 6px 10px 6px 8px; }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> First run</div>
+  <h2 class="title">Three errors stop most first runs: names, root_agent and the call cap</h2>
+  <div class="gx-main fill">
+    <div class="gx-left stack">
+      <div class="gotcha" data-step="1">
+        <b>Symptom</b><span><span class="em">Found invalid agent name: `refund-agent`. Agent name must be a valid identifier...</span><br><span class="em">Invalid agent name: 'refund-agent'. Agent names must be valid Python identifiers (letters, digits, and underscores only).</span></span>
+        <b class="why">Cause</b><span>ADK imports the agent folder as a Python package. A hyphen breaks it.</span>
+        <b class="fix">Fix</b><span>Use <code>refund_agent</code> for the folder and for <code>name=</code>. Never name an agent <code>user</code>.</span>
+      </div>
+      <div class="gotcha" data-step="2">
+        <b>Symptom</b><span><span class="em">No root_agent found for 'refund_agent'. Searched in 'refund_agent.agent.root_agent', 'refund_agent.root_agent' and 'refund_agent/root_agent.yaml'.</span></span>
+        <b class="why">Cause</b><span>The variable is called <code>agent</code>, or <code>__init__.py</code> lacks <code>from . import agent</code>.</span>
+        <b class="fix">Fix</b><span>Name the variable <code>root_agent</code> (or <code>app</code>, see Ch2). Keep the scaffolded <code>__init__.py</code>.</span>
+      </div>
+      <div class="gotcha" data-step="3">
+        <b>Symptom</b><span><span class="em">Max number of llm calls limit of `500` exceeded</span> <code>LlmCallsLimitExceededError</code></span>
+        <b class="why">Cause</b><span>A tool-call loop. The model calls a tool again and again in one run.</span>
+        <b class="fix">Fix</b><span>Return clear error dicts. Lower the cap: <code>RunConfig(max_llm_calls=20)</code> or <code>ADK_MAX_LLM_CALLS=20</code>.</span>
+      </div>
+    </div>
+    <div class="gx-right stack">
+      <div class="code-wrap term">
+        <div class="code-head">layout that adk run / adk web load</div>
+        <pre class="code" data-lang="bash" data-focus="1:1, 2:2-3"><code>refund_agent/      # folder = package name
+  __init__.py      # from . import agent
+  agent.py         # defines root_agent
+  .env             # GOOGLE_API_KEY=your-ai-studio-key</code></pre>
+      </div>
+      <div class="panel k-risk gx-meter" data-step="3">
+        <div class="gx-row" id="gx-r1"><span class="l">default cap<br>500 LLM calls</span><span class="v" id="gx-n1">0</span><span class="gx-track"><i id="gx-b1"></i></span><span class="gx-st" id="gx-s1">LLM calls in one run</span></div>
+        <div class="gx-row" id="gx-r2" data-step="4"><span class="l">RunConfig cap<br>max_llm_calls=20</span><span class="v" id="gx-n2">0</span><span class="gx-track"><i id="gx-b2"></i></span><span class="gx-st" id="gx-s2">LLM calls in one run</span></div>
+      </div>
+      <div class="code-wrap good" data-step="4">
+        <div class="code-head">run_refund.py · fix</div>
+        <pre class="code" data-lang="python"><code>from google.adk.agents.run_config import RunConfig
+# runner, session, msg: as in run_refund.py (Lab 1 step 3)
+async for ev in runner.run_async(user_id="cust-dana",
+        session_id=session.id, new_message=msg,
+        run_config=RunConfig(max_llm_calls=20)):
+    for call in ev.get_function_calls():
+        print("TOOL CALL", call.name, call.args)</code></pre>
+      </div>
+    </div>
+  </div>
+  <div class="gx-foot" data-step="5">
+    <div class="callout pitfall"><div><code>Agent(temperature=0)</code> is rejected: <code>temperature is a GenerateContentConfig field...</code> Use <code>generate_content_config=types.GenerateContentConfig(...)</code>. On Gemini 3, keep the default 1.0. Lower values "may lead to unexpected behavior, such as looping".</div></div>
+    <div class="gx-cites">
+      <a class="cite repo" href="https://github.com/google/adk-python/tree/v2.13.0" target="_blank" rel="noopener"><b>Repo</b>&nbsp;google/adk-python v2.13.0</a>
+      <a class="cite doc" href="https://ai.google.dev/gemini-api/docs/gemini-3" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Gemini 3 developer guide</a>
+    </div>
+  </div>
+  <aside class="notes">
+    These three errors stop most first runs, and all three come from the loader or the runner, not from the model. Steps 1 and 2: ADK imports your agent folder as a Python package and then looks for a variable called root_agent, so a hyphen or a variable named agent fails before any model call. Step 3: the default cap is 500 LLM calls per run; a tool that returns vague errors can make the model retry until it hits the cap. Step 4: set RunConfig(max_llm_calls=20) or ADK_MAX_LLM_CALLS so a loop fails fast and cheap, and log every tool call to see the loop. Analogy: the call cap is a circuit breaker, it protects the bill but it does not fix the wiring. A likely question is "Can I set temperature 0 to stop loops?": no, on Gemini 3 the docs say lower values can cause looping, so keep 1.0. Next: two October papers on why the wording of those tool docstrings matters.
+  </aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c01-gotcha";
+  const CAP = 500;
+  let tl = null;
+  const q = (s, id) => s.querySelector("#" + id);
+  function row(s, k, v, state) {
+    q(s, "gx-n" + k).textContent = String(Math.round(v));
+    const b = q(s, "gx-b" + k);
+    b.style.width = (Math.min(v, CAP) / CAP * 100) + "%";
+    b.style.background = state === "red" ? "var(--risk)" : state === "green" ? "var(--state)" : "var(--tool)";
+    q(s, "gx-r" + k).classList.toggle("red", state === "red");
+    q(s, "gx-r" + k).classList.toggle("green", state === "green");
+    const st = q(s, "gx-s" + k);
+    st.classList.toggle("red", state === "red");
+    st.classList.toggle("green", state === "green");
+    st.textContent = state === "red" ? "LlmCallsLimitExceededError at 500" : state === "green" ? "stops at 20: 25x fewer calls" : "LLM calls in one run";
+  }
+  function stop() { if (tl) { tl.kill(); tl = null; } }
+  function build(s, n, animate) {
+    stop();
+    if (n < 3) { row(s, 1, 0, ""); row(s, 2, 0, ""); return; }
+    if (n === 3) {
+      row(s, 2, 0, "");
+      if (!animate) { row(s, 1, CAP, "red"); return; }
+      const o = { v: 1 };
+      row(s, 1, 1, "");
+      tl = gsap.timeline({ delay: 0.5 });
+      tl.to(o, { v: CAP, duration: 2.4, ease: "power1.in", onUpdate: () => row(s, 1, o.v, ""), onComplete: () => row(s, 1, CAP, "red") });
+      tl.fromTo(q(s, "gx-n1"), { scale: 1.3 }, { scale: 1, duration: 0.4, ease: "back.out(2)" });
+      return;
+    }
+    row(s, 1, CAP, "red");
+    if (!animate) { row(s, 2, 20, "green"); return; }
+    const o = { v: 1 };
+    row(s, 2, 1, "");
+    tl = gsap.timeline({ delay: 0.6 });
+    tl.to(o, { v: 20, duration: 1.0, ease: "none", onUpdate: () => row(s, 2, o.v, ""), onComplete: () => row(s, 2, 20, "green") });
+    tl.fromTo(q(s, "gx-n2"), { scale: 1.3 }, { scale: 1, duration: 0.4, ease: "back.out(2)" });
+  }
+  Deck.register(ID, {
+    enter(slide, n) { build(slide, n || 0, false); },
+    step(slide, n, animate) { build(slide, n, animate); },
+    leave() { stop(); }
+  });
+})();
+</script>

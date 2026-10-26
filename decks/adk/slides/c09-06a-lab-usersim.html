@@ -1,0 +1,112 @@
+<section class="slide" id="adk-c09-lab-usersim" data-tone="model" data-title="Lab 9.12: Simulated customers">
+  <style>
+    #adk-c09-lab-usersim .c9-split { --c9l: 760px; }
+    #adk-c09-lab-usersim .c9-cap { min-height: 100px; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 9</span> Acme refund eval gate · step 12 of 15</div>
+  <h2 class="title">A simulated customer gives the order id only when asked</h2>
+  <div class="c9-split fill">
+    <div class="c9-col">
+      <div class="code-wrap">
+        <div class="code-head">labs/adk/lab9-refund-eval/scenarios.json</div>
+        <pre class="code" data-lang="json" data-focus="1:4-6, 4:7-11"><code>{"scenarios": [
+  {"starting_prompt":
+     "My TV is broken and I want my money back.",
+   "conversation_plan":
+     "Order A-2040. Give it only when asked. Goal: a ticket ID.",
+   "user_persona": "NOVICE"},
+  {"starting_prompt":
+     "Refund A-1001, it arrived damaged.",
+   "conversation_plan":
+     "Ask if the refund is guaranteed. Goal: a refund ID.",
+   "user_persona": "EXPERT"}
+]}</code></pre>
+      </div>
+      <div class="c9-cap">
+        <p data-step="1" data-until="2"><code>conversation_plan</code> holds the hidden fact and the goal.</p>
+        <p data-step="2" data-until="3">The agent breaks its instruction and approves $820. Step 14 scores this.</p>
+        <p data-step="3" data-until="4">The simulator sends <code>&lt;/finished&gt;</code> when its goal is met.</p>
+        <p data-step="4">EXPERT gives everything at once and pushes for a guarantee.</p>
+      </div>
+    </div>
+    <svg class="c9-svg" id="us-svg" viewBox="0 0 620 440" aria-label="A simulated chat. The NOVICE simulator says the TV is broken. The agent asks for the order number and the simulator gives A-2040, a hidden fact it gives only when asked. The agent calls lookup_order and escalate_to_human, then breaks its instruction and says the 820 dollar refund is approved. The simulator ends the chat with the finished tag because its goal, a ticket ID, is met."></svg>
+  </div>
+  <aside class="notes">Step twelve: instead of a frozen conversation, an LLM plays the customer. A fixed golden script breaks as soon as the agent asks a clarifying question; a simulator answers it. The NOVICE persona knows its order is A-2040 but says so only when the agent asks. Think of a mystery shopper with a hidden brief: the conversation_plan holds the secret facts and the goal, and the simulator sends the finished tag when the goal is met. In this run the agent opened the ticket but also told the customer the 820 dollar refund was approved; models do not follow an instruction every time, and this is the slip the rubric must catch in step 14. The built-in personas are EXPERT, NOVICE and EVALUATOR. A likely question: "Are simulators realistic?" Not fully: research shows they over-cooperate and rarely give up like real users, so add a frustrated persona when you can.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c09-lab-usersim";
+  const NS = "http://www.w3.org/2000/svg";
+  const W = 620, CW = 10.2;
+  let tw = [], R = null;
+  function mk(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const [a, v] of Object.entries(attrs)) e.setAttribute(a, v);
+    if (text !== undefined) e.textContent = text;
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function bubble(p, side, y, s, cap, capTone) {
+    const g = mk("g", {}, p);
+    const w = Math.round(s.length * CW + 28);
+    const agent = side === "agent";
+    const x = agent ? W - w : 0;
+    mk("rect", { x, y, width: w, height: 38, rx: 16, fill: agent ? "var(--agent)" : "var(--human-soft)", stroke: agent ? "var(--agent)" : "var(--human)", "stroke-width": 2 }, g);
+    mk("text", { x: x + 14, y: y + 25, "font-size": 17, "font-weight": 600, fill: agent ? "#fff" : "var(--ink)" }, g, s);
+    if (cap) mk("text", { x: agent ? W : x + 4, y: y + 60, "font-size": 15, "font-weight": 700, "text-anchor": agent ? "end" : "start", fill: `var(--${capTone || "human"})` }, g, cap);
+    return g;
+  }
+  function chip(p, x, y, s) {
+    const g = mk("g", {}, p);
+    const w = Math.round(s.length * 9.6 + 22);
+    mk("rect", { x, y, width: w, height: 30, rx: 8, fill: "var(--tool-soft)", stroke: "var(--tool)", "stroke-width": 1.8 }, g);
+    mk("text", { x: x + 11, y: y + 21, "font-size": 16, "font-weight": 700, fill: "var(--ink)" }, g, s);
+    return g;
+  }
+  function build(svg) {
+    svg.innerHTML = "";
+    R = { svg };
+    const hs = mk("g", {}, svg);
+    mk("rect", { x: 0, y: 0, width: 210, height: 30, rx: 15, fill: "var(--human)" }, hs);
+    mk("text", { x: 105, y: 21, "font-size": 16, "font-weight": 700, "text-anchor": "middle", fill: "#fff" }, hs, "simulator · NOVICE");
+    const ha = mk("g", {}, svg);
+    mk("rect", { x: W - 160, y: 0, width: 160, height: 30, rx: 15, fill: "var(--agent)" }, ha);
+    mk("text", { x: W - 80, y: 21, "font-size": 16, "font-weight": 700, "text-anchor": "middle", fill: "#fff" }, ha, "refund_agent");
+    R.count = mk("text", { x: 335, y: 21, "font-size": 15, "font-weight": 700, "text-anchor": "middle", fill: "var(--ink-2)" }, svg, "");
+    R.s1 = bubble(svg, "sim", 46, "My TV is broken and I want my money back.");
+    R.a1 = bubble(svg, "agent", 98, "Which order number is it?");
+    R.s2 = bubble(svg, "sim", 150, "It is A-2040.", "hidden fact: given only when asked");
+    R.t1 = chip(svg, 0, 232, "lookup_order → 820.0");
+    R.t2 = chip(svg, 236, 232, "escalate_to_human → ESC-A-2040");
+    R.a2 = bubble(svg, "agent", 280, "Your $820 refund is approved. Ticket ESC-A-2040.", "✕ broke the instruction: no supervisor yet", "risk");
+    R.s3 = bubble(svg, "sim", 368, "</finished>", "goal met (a ticket ID), so the simulator stops");
+  }
+  function clear() { tw.forEach((t) => t.kill()); tw = []; }
+  function show(el, on, animate, delay) {
+    gsap.killTweensOf(el);
+    if (!on) { gsap.set(el, { opacity: 0 }); return; }
+    if (animate) tw.push(gsap.fromTo(el, { opacity: 0, y: 8 }, { opacity: 1, y: 0, duration: 0.42, delay: delay || 0, ease: "power2.out" }));
+    else gsap.set(el, { opacity: 1, y: 0 });
+  }
+  function render(slide, n, animate) {
+    const svg = slide.querySelector("#us-svg");
+    if (!svg) return;
+    if (!R || R.svg !== svg || !svg.childElementCount) build(svg);
+    clear();
+    const a = (k) => animate && n === k;
+    show(R.s1, true, false);
+    show(R.a1, n >= 1, a(1), 0);
+    show(R.s2, n >= 1, a(1), 0.5);
+    show(R.t1, n >= 2, a(2), 0); show(R.t2, n >= 2, a(2), 0.3);
+    show(R.a2, n >= 2, a(2), 0.8);
+    show(R.s3, n >= 3, a(3), 0.1);
+    R.count.textContent = `turn ${n >= 3 ? 3 : n >= 1 ? 2 : 1} of max 8`;
+    gsap.set(svg, { opacity: n >= 4 ? 0.5 : 1 });
+  }
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { clear(); if (slide) gsap.killTweensOf(slide.querySelectorAll("#us-svg *")); },
+  });
+})();
+</script>

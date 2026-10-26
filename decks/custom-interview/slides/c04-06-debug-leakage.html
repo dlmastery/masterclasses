@@ -1,0 +1,151 @@
+<section class="slide" id="custom-interview-c04-debug-leakage" data-tone="risk" data-title="Debug: KFold leakage">
+  <div class="kicker"><span class="pill">Debug this</span> Leakage · refund-fraud splits</div>
+  <h2 class="title">KFold scored 0.886 because customers sat in both folds</h2>
+
+  <div class="grid" style="grid-template-columns: 700px 1fr; gap: 28px; align-items: start">
+    <div class="stack" style="gap:14px">
+      <div class="lab-head"><span class="run">LOKY_MAX_CPU_COUNT=4 python lab7_leakage_splits.py</span><span>scikit-learn==1.9.1</span></div>
+      <div class="code-wrap bad">
+        <div class="code-head">lab7_leakage_splits.py · 400 customers × 15 events</div>
+        <pre class="code xs" style="font-size:13.5px" data-lang="python" data-focus="1:22-23, 2:16, 3:17"><code>import numpy as np
+import pandas as pd
+from sklearn.ensemble import HistGradientBoostingClassifier
+from sklearn.model_selection import KFold, cross_val_score
+
+rng = np.random.default_rng(0)
+n_customers, per_customer = 400, 15
+customer = np.repeat(np.arange(n_customers), per_customer)
+fraudster = rng.random(n_customers) &lt; 0.15
+profile = rng.normal(size=(n_customers, 5))
+profile[fraudster, 0] += 0.8                    # weak, real signal
+fingerprint, is_fraudster = profile[customer], fraudster[customer]
+noise = rng.normal(size=(len(customer), 5))
+df = pd.DataFrame(np.hstack([fingerprint + 0.3 * noise, noise[:, :2]]),
+                  columns=[f"f{i}" for i in range(7)])
+df["customer_id"] = customer
+df["event_day"] = rng.integers(0, 365, len(df))
+y = (is_fraudster &amp; (rng.random(len(df)) &lt; 0.8)).astype(int)
+
+X = df.drop(columns=["customer_id", "event_day"])
+model = HistGradientBoostingClassifier(max_iter=200, random_state=0)
+auc = cross_val_score(model, X, y, cv=KFold(5, shuffle=True, random_state=0),
+                      scoring="roc_auc")
+print(f"ROC-AUC {auc.mean():.3f} +/- {auc.std():.3f}")</code></pre>
+      </div>
+    </div>
+
+    <div class="stack" style="gap:12px">
+      <div class="code-wrap out" style="width:100%">
+        <div class="code-head">output · captured run</div>
+        <pre class="code xs" data-lang="out" style="font-size:14px"><code><span class="err">ROC-AUC 0.886 +/- 0.025</span>   <span style="color:#8d96c4"># KFold (rows shuffled, customers leak)</span>
+<span data-step="2" data-fx="fade"><span class="ok">ROC-AUC 0.602 +/- 0.075</span>   <span style="color:#8d96c4"># GroupKFold (customer never in both)</span></span></code></pre>
+      </div>
+
+      <div style="position:relative">
+        <svg id="c04dbg-folds" viewBox="0 0 664 162" width="664" height="162" style="display:block;overflow:visible"></svg>
+        <span class="delta down" data-step="2" data-fx="pop" style="position:absolute;right:0;top:-4px">−0.284 AUC: memorization</span>
+      </div>
+
+      <div style="display:grid">
+        <div class="gotcha" data-step="1" data-until="2" style="grid-area:1/1;font-size:16px;padding:12px 16px;grid-template-columns:90px 1fr">
+          <b>Symptom</b><span>CV says 0.886. Production results disappoint.</span>
+          <b class="why">Cause</b><span><code>KFold</code> shuffles rows. The same customer's fingerprint sits in train and test, so the model memorizes customers.</span>
+          <b class="fix">Fix</b><span>Split by the unit the model meets for the first time: the customer.</span>
+        </div>
+        <div class="code-wrap good" data-step="2" style="grid-area:1/1">
+          <div class="code-head">lab7_leakage_splits.py · fix</div>
+          <pre class="code xs" style="font-size:13.5px" data-lang="python"><code>from sklearn.model_selection import GroupKFold
+auc = cross_val_score(
+    model, X, y, groups=df["customer_id"], scoring="roc_auc",
+    cv=GroupKFold(n_splits=5, shuffle=True, random_state=0))</code></pre>
+        </div>
+      </div>
+
+      <div class="gotcha" data-step="3" style="font-size:16px;padding:12px 16px;grid-template-columns:90px 1fr">
+        <b>Symptom</b><span>A random split lets late chargebacks train on the future.</span>
+        <b class="why">Cause</b><span>The group key is a business decision: customer, device or policy.</span>
+        <b class="fix">Fix</b><span>Write it into the data contract. Assert the time cut-off in CI. <a class="cite doc" style="padding:1px 8px;font-size:13px;white-space:nowrap;vertical-align:middle" href="https://scikit-learn.org/stable/modules/cross_validation.html" target="_blank" rel="noopener"><b>Doc</b>&nbsp;scikit-learn CV guide</a></span>
+      </div>
+    </div>
+  </div>
+
+  <aside class="notes">Show the code and the 0.886 first, and ask the candidate why production disappoints. The bug is on the cross_val_score line: KFold shuffles rows, and each of the 400 customers has 15 events with a stable fingerprint, so the same customer sits in train and test and the model memorizes customers instead of fraud. Pass groups equal to customer_id and use GroupKFold with shuffle: the captured run drops to 0.602 plus or minus 0.075, and only that number generalizes to new customers. Analogy: a teacher who grades a student on questions the student has already seen measures memory, not skill. The group key is a business decision, so write it into the data contract, and add the time-split assert from the lab to CI because chargebacks arrive late. Likely follow-up: "When do you combine group and time splits?" When the model will meet new customers in the future, use a time cut-off with a label-delay gap and exclude the training customers.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-interview-c04-debug-leakage";
+  const HUES = [210, 25, 140, 280, 350, 180, 50, 310];   // 8 customers shown
+  const BW = 120, GAP = 16, BY = 28, BH = 110;
+  const bx = (f) => f * (BW + GAP);
+  // KFold: event j of customer c goes to fold (j + 2c) % 5 -> every customer in every fold
+  // GroupKFold: customer c goes to fold c % 5 -> one customer, one fold
+  const cells = [];
+  for (let c = 0; c < 8; c++) for (let j = 0; j < 5; j++)
+    cells.push({ c, j, kf: (j + 2 * c) % 5, ks: c, gf: c % 5, gs: (c >= 5 ? 5 : 0) + j });
+  const pos = (f, s) => [bx(f) + 11 + (s % 4) * 26, BY + 30 + Math.floor(s / 4) * 26];
+  let rects = [], pulse = null, cap = null;
+
+  function build(slide) {
+    const svg = slide.querySelector("#c04dbg-folds");
+    if (svg._built) { rects = svg._rects; cap = svg._cap; return; }
+    svg.innerHTML = "";
+    cap = document.createElementNS(NS, "text");
+    cap.setAttribute("x", 0); cap.setAttribute("y", 16);
+    cap.setAttribute("style", "font:600 15px var(--f-mono);fill:var(--ink-2)");
+    svg.appendChild(cap);
+    for (let f = 0; f < 5; f++) {
+      const r = document.createElementNS(NS, "rect");
+      r.setAttribute("x", bx(f)); r.setAttribute("y", BY); r.setAttribute("width", BW); r.setAttribute("height", BH);
+      r.setAttribute("rx", 10); r.setAttribute("fill", f === 0 ? "var(--risk-soft)" : "var(--surface-2)");
+      r.setAttribute("stroke", f === 0 ? "var(--risk)" : "var(--line-2)"); r.setAttribute("stroke-dasharray", f === 0 ? "5 4" : "");
+      svg.appendChild(r);
+      const t = document.createElementNS(NS, "text");
+      t.setAttribute("x", bx(f) + 11); t.setAttribute("y", BY + 19);
+      t.setAttribute("style", "font:600 13px var(--f-mono);fill:var(--muted)");
+      t.textContent = f === 0 ? "test fold" : `train ${f}`;
+      svg.appendChild(t);
+    }
+    rects = cells.map((d) => {
+      const r = document.createElementNS(NS, "rect");
+      const [x, y] = pos(d.kf, d.ks);
+      r.setAttribute("x", x); r.setAttribute("y", y); r.setAttribute("width", 20); r.setAttribute("height", 20); r.setAttribute("rx", 4);
+      r.setAttribute("fill", `hsl(${HUES[d.c]} 62% 52%)`); r.setAttribute("stroke-width", 3); r.setAttribute("stroke", "none");
+      svg.appendChild(r); return r;
+    });
+    const foot = document.createElementNS(NS, "text");
+    foot.setAttribute("x", 0); foot.setAttribute("y", 158);
+    foot.setAttribute("style", "font:500 13px var(--f-mono);fill:var(--muted)");
+    foot.textContent = "colour = customer · 8 of 400 customers, 5 of 15 events each";
+    svg.appendChild(foot);
+    svg._built = true; svg._rects = rects; svg._cap = cap;
+  }
+
+  function render(slide, n, animate) {
+    build(slide);
+    if (pulse) { pulse.kill(); pulse = null; }
+    const group = n >= 2;
+    cap.textContent = group ? "GroupKFold: each customer stays in one fold" : "KFold: each customer lands in every fold";
+    rects.forEach((r, i) => {
+      const d = cells[i];
+      const [x, y] = group ? pos(d.gf, d.gs) : pos(d.kf, d.ks);
+      const inTest = (group ? d.gf : d.kf) === 0;
+      gsap.killTweensOf(r);
+      if (animate) gsap.to(r, { attr: { x, y }, duration: 0.9, ease: "power3.inOut", delay: (i % 8) * 0.03 });
+      else gsap.set(r, { attr: { x, y } });
+      r.setAttribute("stroke", n >= 1 && inTest ? (group ? "var(--state)" : "var(--risk)") : "none");
+      r.setAttribute("stroke-opacity", 1);
+    });
+    if (n === 1) {
+      const test = rects.filter((r, i) => cells[i].kf === 0);
+      pulse = gsap.to(test, { attr: { "stroke-opacity": 0.15 }, duration: 0.6, repeat: -1, yoyo: true, ease: "sine.inOut" });
+    }
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { if (pulse) { pulse.kill(); pulse = null; } gsap.killTweensOf(rects); }
+  });
+})();
+</script>

@@ -1,0 +1,125 @@
+<section class="slide tight" id="adk-c07-plugin-guard" data-tone="agent" data-title="Lab 7.6b: RefundGuardPlugin">
+  <style>
+    #adk-c07-plugin-guard .pgg-grid { display: grid; grid-template-columns: 850px 1fr; gap: 28px; align-items: start; }
+    #adk-c07-plugin-guard .pgg-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+    #adk-c07-plugin-guard .pgg-cap { position: relative; height: 64px; }
+    #adk-c07-plugin-guard .pgg-cap > p { position: absolute; inset: 0 0 auto 0; font-size: 21px; line-height: 1.4; }
+    #adk-c07-plugin-guard .pa { position: relative; width: 514px; height: 474px; }
+    #adk-c07-plugin-guard .pa svg { position: absolute; inset: 0; overflow: visible; pointer-events: none; }
+    #adk-c07-plugin-guard .pa .e { fill: none; stroke: var(--line-2); stroke-width: 3; }
+    #adk-c07-plugin-guard .pa .e.bad { stroke: var(--risk); }
+    #adk-c07-plugin-guard .pa .e.ok { stroke: var(--state); stroke-width: 4; }
+    #adk-c07-plugin-guard .ring { position: absolute; left: 0; top: 0; width: 514px; height: 330px; border-radius: 26px; border: 2px dashed var(--line-2); }
+    #adk-c07-plugin-guard .ring.on { border: 4px solid var(--agent); box-shadow: 0 0 0 6px color-mix(in oklab, var(--agent) 12%, transparent); }
+    #adk-c07-plugin-guard .ring.hit { border-color: var(--risk); }
+    #adk-c07-plugin-guard .ring span { position: absolute; left: 16px; top: -14px; padding: 4px 10px; border-radius: 7px; background: var(--bg);
+      font: 700 16px/1 var(--f-mono); color: var(--muted); white-space: nowrap; }
+    #adk-c07-plugin-guard .ring.on span { color: var(--agent); }
+    #adk-c07-plugin-guard .nd { position: absolute; height: 76px; border-radius: 14px; border: 2px solid var(--agent); background: var(--agent-soft);
+      display: flex; flex-direction: column; justify-content: center; gap: 4px; padding: 0 14px; z-index: 2; }
+    #adk-c07-plugin-guard .nd b { font: 700 18px/1.15 var(--f-mono); color: var(--ink); white-space: nowrap; }
+    #adk-c07-plugin-guard .nd i { font: 600 15px/1.15 var(--f-mono); font-style: normal; white-space: nowrap; color: var(--muted); }
+    #adk-c07-plugin-guard .nd.cov i { color: var(--state); }
+    #adk-c07-plugin-guard .nd.tool { border-color: var(--tool); background: var(--tool-soft); }
+    #adk-c07-plugin-guard .nd.tool.ok { border-color: var(--state); background: var(--state-soft); }
+    #adk-c07-plugin-guard .tk { position: absolute; left: 0; top: 0; padding: 6px 12px; border-radius: 999px; font: 700 16px/1 var(--f-mono); color: #fff; z-index: 4; opacity: 0; white-space: nowrap; }
+    #adk-c07-plugin-guard .tk.r { background: var(--risk); }
+    #adk-c07-plugin-guard .tk.g { background: var(--state); }
+    #adk-c07-plugin-guard .stop { position: absolute; left: 68px; top: 318px; width: 64px; height: 10px; border-radius: 4px; background: var(--risk); z-index: 5; opacity: 0; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 7</span> Acme refund team · step 6 of 6 · plugin</div>
+  <h2 class="title">RefundGuardPlugin blocks any refund over $500 before the tool runs</h2>
+  <div class="pgg-grid fill">
+    <div class="pgg-col">
+      <div class="code-wrap good">
+        <div class="code-head">labs/adk/lab7-acme-refunds/refund_guard.py · excerpt</div>
+        <pre class="code" data-lang="python" data-focus="1:6-9, 2:10-13, 3:14"><code>class RefundGuardPlugin(BasePlugin):
+    def __init__(self, max_amount: float = 500.0):
+        super().__init__(name="refund_guard")
+        self.max_amount = max_amount
+
+    async def before_tool_callback(
+        self, *, tool: BaseTool, tool_args: dict[str, Any],
+        tool_context: ToolContext,
+    ) -&gt; Optional[dict]:
+        amount = float(tool_args.get("amount", 0) or 0)
+        if amount &gt; self.max_amount:   # a returned dict skips the tool
+            return {"status": "blocked", "reason":
+                    f"{amount} exceeds limit {self.max_amount}"}
+        return None</code></pre>
+      </div>
+      <div class="pgg-cap">
+        <p data-step="1" data-until="2">Plugin hooks take keyword-only arguments: <code>tool_args</code>, not <code>args</code>.</p>
+        <p data-step="2" data-until="3">A returned dict skips the tool and becomes its result.</p>
+        <p data-step="3"><code>None</code> lets the call through: $79 reaches the tool.</p>
+      </div>
+    </div>
+    <div class="pa" aria-label="The plugin ring wraps all three agents of the App. A 640 dollar call from partner_refunds stops at the ring. A 79 dollar call from refunds passes to issue_refund.">
+      <svg viewBox="0 0 514 474" aria-hidden="true">
+        <path class="e" d="M157 68 C 110 68, 105 110, 105 160 M357 68 C 404 68, 409 110, 409 160"/>
+        <path class="e" id="pgg-e640" d="M105 236 C 105 330, 70 432, 122 432"/>
+        <path class="e" d="M409 236 C 409 330, 444 432, 392 432"/>
+        <path class="e" id="pgg-e79" d="M257 106 L 257 394"/>
+      </svg>
+      <div class="ring" id="pgg-ring"><span id="pgg-rl">App · no plugin</span></div>
+      <div class="nd" data-k="r" style="left:137px;top:30px;width:240px"><b>refunds</b><i>root agent</i></div>
+      <div class="nd" data-k="p" style="left:0;top:160px;width:210px"><b>partner_refunds</b><i>sub-agent</i></div>
+      <div class="nd" data-k="c" style="left:304px;top:160px;width:210px"><b>chargebacks</b><i>sub-agent</i></div>
+      <div class="nd tool" id="pgg-tool" style="left:122px;top:394px;width:270px"><b>issue_refund</b><i id="pgg-ti">moves money</i></div>
+      <span class="tk r" id="pgg-t640">$640</span>
+      <span class="tk g" id="pgg-t79">$79</span>
+      <span class="stop" id="pgg-stop"></span>
+    </div>
+  </div>
+  <aside class="notes">RefundGuardPlugin is the same rule as the callback, moved up one level. Focus one: the plugin's before_tool_callback is async and takes keyword-only arguments: tool, tool_args and tool_context. Note tool_args, not args: copying an agent callback signature into a plugin is a common bug. Focus two: above 500 dollars the hook returns a blocked dict; a returned dict skips the tool and becomes its result, so partner_refunds gets "640.0 exceeds limit 500.0" and the money never moves. Focus three: returning None lets the call through, so the 79 dollar refund on A-100 reaches issue_refund. The imports, BasePlugin, BaseTool, ToolContext, Any and Optional, are in the full file in the lab folder. Think of a guard at the building door instead of a lock on one office. A likely question: "Why read amount with or 0?" The model can send null or omit the argument; float(None) would raise, and a crash in a guard is worse than a clear block.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c07-plugin-guard";
+  let tw = [];
+  const clear = () => { tw.forEach((t) => t.kill()); tw = []; };
+  // the t at which a path first reaches the App frame (y = 324)
+  const tAtFrame = (p) => { const L = p.getTotalLength(); for (let i = 0; i <= 100; i++) if (p.getPointAtLength(L * i / 100).y >= 324) return i / 100; return 0.5; };
+  function ride(el, path, t) { const L = path.getTotalLength(), pt = path.getPointAtLength(L * t); gsap.set(el, { x: pt.x, y: pt.y, xPercent: -50, yPercent: -50 }); }
+  function render(slide, n, animate) {
+    clear();
+    const q = (s) => slide.querySelector(s);
+    const ring = q("#pgg-ring"), rl = q("#pgg-rl"), tool = q("#pgg-tool"), ti = q("#pgg-ti");
+    const e640 = q("#pgg-e640"), e79 = q("#pgg-e79"), t640 = q("#pgg-t640"), t79 = q("#pgg-t79"), stop = q("#pgg-stop");
+    n = Math.max(0, Math.min(3, n | 0));
+    // step 1: the App frame becomes the plugin ring around every agent
+    ring.classList.toggle("on", n >= 1);
+    ring.classList.remove("hit");
+    rl.textContent = n >= 1 ? "App(plugins=[RefundGuardPlugin()])" : "App · no plugin";
+    slide.querySelectorAll(".pa .nd[data-k]").forEach((nd) => { nd.classList.toggle("cov", n >= 1); nd.querySelector("i").textContent = n >= 1 ? "covered by plugin" : (nd.dataset.k === "r" ? "root agent" : "sub-agent"); });
+    if (animate && n === 1) tw.push(gsap.fromTo(ring, { scale: 1.03 }, { scale: 1, duration: 0.5, ease: "back.out(1.6)" }));
+    // step 2: $640 from partner_refunds stops at the frame
+    const tf = tAtFrame(e640);
+    e640.classList.toggle("bad", n >= 2);
+    if (n >= 2) {
+      gsap.set(t640, { opacity: 1 });
+      if (animate && n === 2) {
+        const o = { t: 0 }; ride(t640, e640, 0); gsap.set(stop, { opacity: 0 });
+        tw.push(gsap.timeline({ delay: 0.3 })
+          .to(o, { t: tf * 0.8, duration: 0.8, ease: "power2.in", onUpdate: () => ride(t640, e640, o.t) })
+          .add(() => ring.classList.add("hit")).to(stop, { opacity: 1, duration: 0.15 })
+          .add(() => ring.classList.remove("hit"), "+=0.4"));
+      } else { ride(t640, e640, tf * 0.8); gsap.set(stop, { opacity: 1 }); }
+    } else { gsap.set([t640, stop], { opacity: 0 }); }
+    // step 3: $79 from refunds passes to the tool
+    e79.classList.toggle("ok", n >= 3);
+    tool.classList.toggle("ok", n >= 3);
+    ti.textContent = n >= 3 ? "ran: refunded 79.0" : "moves money";
+    if (n >= 3) {
+      gsap.set(t79, { opacity: 1 });
+      if (animate && n === 3) { const o = { t: 0 }; ride(t79, e79, 0); tw.push(gsap.to(o, { t: 0.86, duration: 1.1, ease: "power2.inOut", delay: 0.3, onUpdate: () => ride(t79, e79, o.t) })); }
+      else ride(t79, e79, 0.86);
+    } else gsap.set(t79, { opacity: 0 });
+  }
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { clear(); if (slide) gsap.killTweensOf(slide.querySelectorAll(".pa *")); },
+  });
+})();
+</script>

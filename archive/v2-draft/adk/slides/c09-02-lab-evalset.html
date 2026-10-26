@@ -1,0 +1,186 @@
+<section class="slide tight" id="adk-c09-lab-evalset" data-tone="model" data-title="Lab 9.2: Golden evalset">
+  <style>
+    #adk-c09-lab-evalset .lab-head { gap: 8px 14px; flex-wrap: nowrap; }
+    #adk-c09-lab-evalset .lab-head .run { font-size: 15px; padding: 7px 11px; white-space: nowrap; }
+    #adk-c09-lab-evalset .lab-head .pins { font: 500 14px/1.3 var(--f-mono); color: var(--ink-2); white-space: nowrap; }
+    #adk-c09-lab-evalset .ev-body { display: grid; grid-template-columns: 880px minmax(0, 1fr); gap: 20px; align-items: start; position: relative; }
+    #adk-c09-lab-evalset .ev-col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    #adk-c09-lab-evalset .code-wrap { width: 100%; }
+    #adk-c09-lab-evalset .code-head { padding: 7px 14px; font-size: 13.5px; }
+    #adk-c09-lab-evalset pre.code { font-size: 13.6px; line-height: 1.42; padding: 8px 14px 9px; }
+    #adk-c09-lab-evalset .out pre.code { font-size: 13.6px; line-height: 1.4; }
+    #adk-c09-lab-evalset pre.code .fold { color: #8d96c4; font-style: italic; }
+    #adk-c09-lab-evalset pre.code .warn { color: #f6c350; }
+    #adk-c09-lab-evalset #ev-chat { display: block; overflow: visible; }
+    #adk-c09-lab-evalset #ev-chat text { font-family: var(--f-mono); }
+    #adk-c09-lab-evalset .ev-rail { gap: 8px; }
+    #adk-c09-lab-evalset .ev-rail > * { font-size: 15px; line-height: 1.32; grid-template-columns: 28px 1fr; gap: 10px; }
+    #adk-c09-lab-evalset .ev-rail > *::before { width: 26px; height: 26px; font-size: 13px; border-radius: 7px; }
+    #adk-c09-lab-evalset .ev-rail code, #adk-c09-lab-evalset .callout code { font-size: 13.5px; }
+    #adk-c09-lab-evalset .callout { padding: 10px 14px; font-size: 15px; line-height: 1.36; gap: 10px; }
+    #adk-c09-lab-evalset .callout::before { width: 22px; height: 22px; font-size: 13px; }
+    #adk-c09-lab-evalset .ev-fly { position: absolute; inset: 0; pointer-events: none; z-index: 6; }
+    #adk-c09-lab-evalset .ev-ghost { position: absolute; left: 0; top: 0; padding: 3px 9px; border-radius: 8px; white-space: nowrap;
+      font: 700 13px/1.3 var(--f-mono); color: var(--ink); background: var(--surface); border: 2px solid var(--gc, var(--model));
+      box-shadow: 0 8px 24px -8px rgba(0,0,0,.45); opacity: 0; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 9</span> Acme refund eval gate · step 2 of 6</div>
+  <h2 class="title">Freeze two golden refund conversations into an evalset</h2>
+  <div class="lab-head">
+    <span class="run">adk eval refund_agent refund_agent/refund.evalset.json</span>
+    <span class="pins">run from labs/ · no config file yet</span>
+  </div>
+  <div class="ev-body fill">
+    <div class="ev-col">
+      <div class="code-wrap">
+        <div class="code-head">labs/refund_agent/refund.evalset.json · case 1 folded, case 2 shown</div>
+        <pre class="code" data-lang="json" data-focus="1:9-10, 2:11-12, 3:13-16, 4:18"><code>{
+  "eval_set_id": "refund_golden",
+  "name": "Refund golden set",
+  "eval_cases": [
+    {"eval_id": "small_refund", <span class="fold">▸ same keys: ORD-102 · lookup_order → issue_refund(79.0)</span>},
+    {"eval_id": "large_refund_escalates",
+     "conversation": [{
+       "invocation_id": "inv-1",
+       "user_content": {"role": "user",
+         "parts": [{"text": "Refund ORD-555 please, the TV is broken."}]},
+       "final_response": {"role": "model", "parts": [{"text":
+         "ORD-555 is above our 500 USD limit, so I opened ticket ESC-ORD-555."}]},
+       "intermediate_data": {"tool_uses": [
+         {"name": "lookup_order", "args": {"order_id": "ORD-555"}},
+         {"name": "escalate_to_human", "args": {"order_id": "ORD-555", "reason": "broken TV"}}
+       ]}
+     }],
+     "session_input": {"app_name": "refund_agent", "user_id": "eval_user", "state": {}}}
+  ]
+}</code></pre>
+      </div>
+      <div class="code-wrap out" data-step="5">
+        <div class="code-head">output · illustrative · eval id large_refund_escalates</div>
+        <pre class="code" data-lang="none"><code><span class="warn">No config file supplied or file not found. Using default criteria.</span>
+Eval Id: large_refund_escalates
+<span class="ok">Metric: tool_trajectory_avg_score, Status: PASSED, Score: 1.0, Threshold: 1.0</span>
+<span class="err">Metric: response_match_score, Status: FAILED, Score: 0.61, Threshold: 0.8</span></code></pre>
+      </div>
+    </div>
+    <div class="ev-col">
+      <svg id="ev-chat" viewBox="0 0 420 262" width="420" height="262" aria-label="The recorded chat: the customer asks for a refund of ORD-555, the agent calls lookup_order and escalate_to_human, then answers that a ticket is open. At each step one element of the chat flies into its slot in the evalset JSON on the left."></svg>
+      <div class="steps-rail ev-rail">
+        <div data-step="1"><span><code>user_content</code>: the turn the eval replays.</span></div>
+        <div data-step="2"><span><code>final_response</code>: the reference answer.</span></div>
+        <div data-step="3"><span><code>tool_uses</code>: the expected tools, in order.</span></div>
+        <div data-step="4"><span><code>session_input</code>: app, user and start state.</span></div>
+        <div data-step="5"><span>No config, so ADK uses defaults. ROUGE-1 word overlap fails a correct paraphrase. Step 3 sets our own criteria.</span></div>
+      </div>
+      <div class="callout pitfall" data-step="6"><span>Typo a key (<code>"tool_use"</code>) → <code>Extra inputs are not permitted</code>. A typo in <code>test_config.json</code> gives no error.</span></div>
+    </div>
+    <div class="ev-fly"></div>
+  </div>
+  <aside class="notes">Step two: the two recorded chats are now a golden evalset, and this is the file you keep in git. Each case stores four things: the user turn to replay, the reference answer for the judge, the expected tool calls in order, and the session the run starts from; the small_refund case for ORD-102 has the same keys with lookup_order and then issue_refund for 79 dollars. We run it with no config file, so ADK prints "Using default criteria" and scores tool_trajectory_avg_score at 1.0 and response_match_score at 0.8; response_match_score is ROUGE-1 word overlap, so a correct answer in other words can fail, which is why the next step brings our own criteria. Think of the evalset as a flight recorder: one good flight, and every new build must fly the same route. A likely question is "what if I mistype a key?": the evalset models use extra="forbid", so "tool_use" instead of "tool_uses" fails with "Extra inputs are not permitted", but the EvalConfig behind test_config.json does not forbid extra keys, so a typo there is silently dropped.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c09-lab-evalset";
+  const NS = "http://www.w3.org/2000/svg";
+  // chat elements: key, focus step, target JSON line, ghost label, tone
+  const ITEMS = [
+    { k: "user", step: 1, line: 10, label: "user_content", tone: "human" },
+    { k: "answer", step: 2, line: 12, label: "final_response", tone: "agent" },
+    { k: "t1", step: 3, line: 14, label: "tool_uses[0]", tone: "tool" },
+    { k: "t2", step: 3, line: 15, label: "tool_uses[1]", tone: "tool" },
+    { k: "sess", step: 4, line: 18, label: "session_input", tone: "state" },
+  ];
+  let R = null, tw = [];
+
+  function mk(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const [a, v] of Object.entries(attrs)) e.setAttribute(a, v);
+    if (text !== undefined) e.textContent = text;
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function bubble(p, x, y, w, h, tone, lines) {
+    const g = mk("g", {}, p);
+    const r = mk("rect", { x, y, width: w, height: h, rx: 12, fill: `var(--${tone}-soft)`, stroke: `var(--${tone})`, "stroke-width": 1.8 }, g);
+    lines.forEach((t, i) => mk("text", { x: x + 12, y: y + (lines.length === 1 ? 20 : 21 + i * 18), "font-size": 13.5, "font-weight": 600, fill: "var(--ink)" }, g, t));
+    const tick = mk("text", { x: x + w + 8, y: y + h / 2 + 6, "font-size": 17, "font-weight": 800, fill: "var(--state)" }, g, "✓");
+    g._box = { x, y, w, h }; g._rect = r; g._tick = tick;
+    return g;
+  }
+
+  function build(svg) {
+    svg.innerHTML = "";
+    R = { svg };
+    mk("rect", { x: 0, y: 0, width: 420, height: 262, rx: 14, fill: "var(--surface)", stroke: "var(--line-2)", "stroke-width": 1.5 }, svg);
+    mk("text", { x: 14, y: 24, "font-size": 14, "font-weight": 700, fill: "var(--state)" }, svg, "■ recorded chat → golden case");
+    R.user = bubble(svg, 70, 38, 316, 30, "human", ["Refund ORD-555, the TV is broken."]);
+    R.t1 = bubble(svg, 14, 78, 230, 30, "tool", ["lookup_order(ORD-555)"]);
+    R.t2 = bubble(svg, 14, 116, 270, 30, "tool", ["escalate_to_human(ORD-555)"]);
+    R.answer = bubble(svg, 14, 154, 340, 48, "agent", ["Above our 500 USD limit, so I", "opened ticket ESC-ORD-555."]);
+    R.sess = bubble(svg, 14, 214, 360, 30, "state", ["refund_agent · eval_user · state {}"]);
+  }
+
+  function clear() { tw.forEach((t) => t.kill()); tw = []; }
+
+  // offset of el relative to the container, in unscaled px
+  function off(el, box) {
+    let x = 0, y = 0, n = el;
+    while (n && n !== box) { x += n.offsetLeft; y += n.offsetTop; n = n.offsetParent; }
+    return { x, y };
+  }
+
+  function fly(slide, it, delay) {
+    const box = slide.querySelector(".ev-body");
+    const layer = box.querySelector(".ev-fly");
+    const pre = box.querySelector("pre.code[data-focus]");
+    const b = R[it.k]._box;
+    const so = off(R.svg, box);
+    const po = off(pre, box);
+    const cs = getComputedStyle(pre);
+    const lh = parseFloat(cs.lineHeight), pt = parseFloat(cs.paddingTop);
+    const g = document.createElement("div");
+    g.className = "ev-ghost";
+    g.style.setProperty("--gc", `var(--${it.tone})`);
+    g.textContent = it.label;
+    layer.appendChild(g);
+    const tx = po.x + pre.offsetWidth - 190, ty = po.y + pt + (it.line - 1) * lh - 4;
+    tw.push(gsap.fromTo(g, { x: so.x + b.x + 8, y: so.y + b.y, opacity: 0 },
+      { keyframes: [
+        { opacity: 1, duration: 0.2 },
+        { x: tx, y: ty, duration: 0.85, ease: "power3.inOut" },
+        { opacity: 0, duration: 0.5, delay: 0.5 },
+      ], delay, onComplete: () => g.remove() }));
+  }
+
+  function render(slide, n, animate) {
+    const svg = slide.querySelector("#ev-chat");
+    if (!svg) return;
+    if (!R || R.svg !== svg || !svg.childElementCount) build(svg);
+    clear();
+    slide.querySelectorAll(".ev-ghost").forEach((g) => g.remove());
+    const all = [R.user, R.t1, R.t2, R.answer, R.sess];
+    gsap.killTweensOf([...all, ...all.map((b) => b._tick)]);
+    ITEMS.forEach((it) => {
+      const b = R[it.k];
+      const done = n >= it.step;
+      b._rect.setAttribute("stroke-dasharray", done ? "5 4" : "none");
+      if (animate && n === it.step) {
+        gsap.set(b, { opacity: 1 });
+        gsap.set(b._tick, { opacity: 0 });
+        tw.push(gsap.to(b, { opacity: 0.6, duration: 0.4, delay: 1.0 }));
+        tw.push(gsap.to(b._tick, { opacity: 1, duration: 0.3, delay: 1.0 }));
+        fly(slide, it, it.k === "t2" ? 0.25 : 0);
+      } else {
+        gsap.set(b, { opacity: done ? 0.6 : 1 });
+        gsap.set(b._tick, { opacity: done ? 1 : 0 });
+      }
+    });
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { clear(); slide.querySelectorAll(".ev-ghost").forEach((g) => g.remove()); },
+  });
+})();
+</script>

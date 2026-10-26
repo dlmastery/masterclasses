@@ -1,0 +1,193 @@
+<section class="slide tight" id="rag-c09-lab8-gate" data-tone="human" data-title="Release gate: recall, canaries, judge">
+  <style>
+    #rag-c09-lab8-gate .g-main { display: grid; grid-template-columns: 790px 1fr; gap: 24px; }
+    #rag-c09-lab8-gate .g-left, #rag-c09-lab8-gate .g-right { gap: 10px; min-width: 0; }
+    #rag-c09-lab8-gate .lab-head { font-size: 15px; gap: 12px; }
+    #rag-c09-lab8-gate .lab-head .run { font-size: 13.5px; }
+    #rag-c09-lab8-gate .code-wrap .code-head { padding: 7px 14px; font-size: 13px; }
+    #rag-c09-lab8-gate pre.code { font-size: 11.5px; line-height: 1.3; padding: 8px 16px 9px; }
+    #rag-c09-lab8-gate .g-right pre.code { font-size: 11.5px; line-height: 1.4; padding: 7px 14px 8px; }
+    #rag-c09-lab8-gate .viz { border: 1px solid var(--line-2); border-radius: 16px; background: var(--surface); padding: 8px 10px 4px; display: flex; justify-content: center; }
+    #rag-c09-lab8-gate .viz svg { display: block; overflow: visible; }
+    #rag-c09-lab8-gate .swap { display: grid; }
+    #rag-c09-lab8-gate .swap > * { grid-area: 1 / 1; }
+    #rag-c09-lab8-gate .steps-rail { gap: 8px; align-content: start; }
+    #rag-c09-lab8-gate .steps-rail > * { font-size: 16px; line-height: 1.35; grid-template-columns: 30px 1fr; gap: 10px; }
+    #rag-c09-lab8-gate .steps-rail > *::before { width: 26px; height: 26px; font-size: 13px; }
+    #rag-c09-lab8-gate .steps-rail code { font-size: 14px; }
+    #rag-c09-lab8-gate .after { gap: 10px; align-content: start; }
+    #rag-c09-lab8-gate .gotcha { font-size: 14px; grid-template-columns: 54px 1fr; padding: 9px 14px; gap: 3px 10px; line-height: 1.35; }
+    #rag-c09-lab8-gate .gotcha > b { font-size: 11.5px; }
+    #rag-c09-lab8-gate .gotcha code { font-size: 12px; }
+    #rag-c09-lab8-gate .cite { font-size: 13px; padding: 5px 10px 5px 8px; flex-shrink: 0; white-space: nowrap; }
+    #rag-c09-lab8-gate .cite.paper { flex-direction: row; gap: 10px; border-radius: 10px; }
+    #rag-c09-lab8-gate .headrow { display: flex; gap: 14px; align-items: center; }
+    #rag-c09-lab8-gate pre.code { font-variant-ligatures: none; }
+    #rag-c09-lab8-gate pre.code .fn { color: #ffd38a; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 8</span> ShopCo release gate · step 3 of 4</div>
+  <h2 class="title">Gate on deterministic recall first, canaries second, the judge last</h2>
+  <div class="headrow"><div class="lab-head"><span class="run">python run_pipeline.py --golden golden.jsonl --out runs/candidate.jsonl &amp;&amp; python eval_gate.py; echo "exit=$?"</span></div>
+    <a class="cite paper" href="https://arxiv.org/abs/2608.26385" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2608.26385 Why RAGs Hallucinate</a></div>
+  <div class="g-main fill">
+    <div class="g-left stack">
+      <div class="code-wrap">
+        <div class="code-head">eval_gate.py · ragas==0.4.3 · openai==3.37.0 · diskcache==5.6.3</div>
+        <pre class="code" data-lang="python" data-focus="1:6-8, 2:15-16, 3:17-18, 4:23-30, 5:31-34, 6:12"><code>import asyncio, json, math, os, sys
+from openai import AsyncOpenAI
+from ragas.cache import DiskCacheBackend
+from ragas.llms import llm_factory
+from ragas.metrics.collections import Faithfulness
+TOL = {"recall_at_5": 0.03, "faithfulness": 0.03, "canary_abstain": 0.00}  # allowed drop
+MIN_ROWS = 50
+ABSTAIN_MARKERS = ("i don't know", "not in the knowledge base", "i can't find")
+def load(path): return {r["id"]: r for r in map(json.loads, open(path, encoding="utf-8"))}
+async def main():
+    gold, run, base = load("golden.jsonl"), load("runs/candidate.jsonl"), json.load(open("baseline.json"))
+    assert len(run) &gt;= MIN_ROWS, f"only {len(run)} rows: too few for a reliable gate"
+    normal = [g for g in gold.values() if not g["canary"]]
+    canary = [g for g in gold.values() if g["canary"]]
+    recall = sum(len(set(run[g["id"]]["retrieved_ids"][:5]) &amp; set(g["gold_ids"])) / len(g["gold_ids"])
+                 for g in normal) / len(normal)
+    abstain = sum(any(m in run[g["id"]]["response"].lower() for m in ABSTAIN_MARKERS)
+                  for g in canary) / max(len(canary), 1)
+    client = AsyncOpenAI(api_key=os.environ["GEMINI_API_KEY"],
+                         base_url="https://generativelanguage.googleapis.com/v1beta/openai/")
+    faith = Faithfulness(llm=llm_factory("gemini-3.8-flash", provider="openai", client=client,
+                                         cache=DiskCacheBackend(".ragas_cache"), max_tokens=4096))
+    answered = [run[g["id"]] for g in normal if run[g["id"]]["response"].strip()]
+    results = await asyncio.gather(*(faith.ascore(user_input=gold[r["id"]]["question"],
+        response=r["response"], retrieved_contexts=r["retrieved_contexts"]) for r in answered))
+    vals = [x.value for x in results if not math.isnan(x.value)]
+    nan_rate = 1 - len(vals) / len(results)
+    cur = {"recall_at_5": recall, "faithfulness": sum(vals) / len(vals), "canary_abstain": abstain}
+    failed = [k for k in cur if cur[k] &lt; base[k] - TOL[k]]
+    if nan_rate &gt; 0.05: failed.append(f"judge_nan_rate={nan_rate:.0%}")
+    for k in cur:
+        print(f"{k:16} base={base[k]:.3f} cur={cur[k]:.3f} {'FAIL' if k in failed else 'ok'}")
+    json.dump(cur, open("eval_report.json", "w"), indent=2)
+    sys.exit(1 if failed else 0)
+asyncio.run(main())</code></pre>
+      </div>
+    </div>
+    <div class="g-right stack">
+      <div class="code-wrap">
+        <div class="code-head">inputs · one JSON object per line</div>
+        <pre class="code" data-lang="none"><code><span class="fn">golden.jsonl</span> {id, question, gold_ids, canary}
+<span class="fn">runs/candidate.jsonl</span> {id, response, retrieved_contexts, retrieved_ids}
+<span class="fn">baseline.json</span> {recall_at_5: 0.86, faithfulness: 0.91, canary_abstain: 0.90}</code></pre>
+      </div>
+      <div class="viz"><svg id="c09g-svg" viewBox="0 0 560 238" width="526" height="224" aria-label="A PR passes three gates: recall fails at 0.812, canaries and judge pass, exit code 1"></svg></div>
+      <div class="swap">
+        <div class="steps-rail" data-until="5">
+          <div data-step="1"><span>Canary tolerance 0.00: any new canary violation fails the PR.</span></div>
+          <div data-step="2"><span>recall@5 on IDs is deterministic and free. It shows a retrieval regression before any judge.</span></div>
+          <div data-step="3"><span>Canaries ask what the KB cannot answer. Wrong costs −4, abstain 0.</span></div>
+          <div data-step="4"><span>Judge only answered, non-canary rows. NaN rate &gt; 5% = a broken judge.</span></div>
+        </div>
+        <div class="stack after" data-step="5">
+          <div class="code-wrap out">
+            <div class="code-head">output · illustrative</div>
+            <pre class="code" data-lang="none"><code><span class="err">recall_at_5      base=0.860 cur=0.812 FAIL</span>
+<span class="ok">faithfulness     base=0.910 cur=0.917 ok</span>
+<span class="ok">canary_abstain   base=0.900 cur=0.900 ok</span>
+<span class="err">exit=1</span></code></pre>
+          </div>
+          <div class="gotcha" data-step="6">
+            <b>Error</b><span><code>AssertionError: only 12 rows: too few for a reliable gate</code></span>
+            <b class="fix">Fix</b><span>Grow <code>golden.jsonl</code> to ≥ 50 rows.</span>
+            <b>Error</b><span><code>ZeroDivisionError</code>: every judge call gave NaN (bad key, 429).</span>
+            <b class="fix">Fix</b><span>Check the key secret. Cap calls with <code>asyncio.Semaphore</code>.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    This is the release gate as one script: it reads the golden set, the candidate run and the stored baseline, and exits 1 if any metric drops more than its tolerance. Order matters: recall at 5 is computed on chunk IDs, so it is free and gives the same answer every time; it catches this PR at 0.812 against a floor of 0.830 before we pay for any judge call. Canaries are questions the knowledge base cannot answer, and the tolerance is zero because answering them from model memory is the expensive failure; the canary paper scores a wrong answer as minus four. The judge runs last, only on answered non-canary rows, and a NaN rate above 5 percent fails the gate because it means the judge broke, not that the bot improved. Analogy: airport security checks your passport before it scans your bag. A likely question is "why a fixed tolerance?": it is the simple start; the research recommends paired comparisons on the same rows with an uncertainty bound next. Next: the same eval_gate.py runs as a GitHub Actions check on every pull request.
+  </aside>
+</section>
+<script>
+(() => {
+  const ID = "rag-c09-lab8-gate";
+  const NS = "http://www.w3.org/2000/svg";
+  const LO = 0.7, HI = 1.0, GY = 150, GR = 46;
+  // one gate per check, evaluated at steps 2, 3 and 4
+  const GATES = [
+    { x: 90,  name: "1 Recall@5",  sub: "deterministic", min: 0.830, cur: 0.812, at: 2 },
+    { x: 280, name: "2 Canaries",  sub: "abstain rate",  min: 0.900, cur: 0.900, at: 3 },
+    { x: 470, name: "3 Judge",     sub: "faithfulness",  min: 0.880, cur: 0.917, at: 4 }
+  ];
+  const CARD_X = [36, 36, 90, 280, 470, 470, 470];   // PR card centre for steps 0..6
+  const mk = (tag, attrs, parent, text) => {
+    const el = document.createElementNS(NS, tag);
+    for (const k in attrs) el.setAttribute(k, attrs[k]);
+    if (text !== undefined) el.textContent = text;
+    parent.appendChild(el);
+    return el;
+  };
+  const ang = (v) => Math.PI * (1 - (Math.min(HI, Math.max(LO, v)) - LO) / (HI - LO));   // radians from east, CCW
+  const rot = (v) => -(ang(v) * 180 / Math.PI);                                         // needle drawn pointing east
+  let svg = null, R = null;
+
+  function build(slide) {
+    svg = slide.querySelector("#c09g-svg");
+    if (svg._built) { R = svg._R; return; }
+    svg.innerHTML = "";
+    R = { gates: [] };
+    const mono = "font-family:var(--f-mono)";
+    mk("text", { x: 0, y: 17, style: mono + ";font-size:13px;font-weight:600;fill:var(--muted)" }, svg, "fail if cur < base - TOL");
+    R.chip = mk("rect", { x: 456, y: 0, width: 104, height: 26, rx: 13, style: "fill:var(--surface-2);stroke:var(--line-2);stroke-width:1.5" }, svg);
+    R.chipT = mk("text", { x: 508, y: 18, "text-anchor": "middle", style: mono + ";font-size:14px;font-weight:700;fill:var(--muted)" }, svg, "exit = ?");
+    GATES.forEach((g) => {
+      const G = {};
+      G.frame = mk("rect", { x: g.x - 70, y: 36, width: 140, height: 160, rx: 14, style: "fill:none;stroke:var(--line-2);stroke-width:2" }, svg);
+      mk("text", { x: g.x, y: 60, "text-anchor": "middle", style: "font-size:16px;font-weight:700;fill:var(--ink)" }, svg, g.name);
+      mk("text", { x: g.x, y: 78, "text-anchor": "middle", style: mono + ";font-size:12px;fill:var(--muted)" }, svg, g.sub);
+      mk("path", { d: `M${g.x - GR} ${GY} A${GR} ${GR} 0 0 1 ${g.x + GR} ${GY}`, style: "fill:none;stroke:var(--line-2);stroke-width:8;stroke-linecap:round" }, svg);
+      const a = ang(g.min);
+      const ix = g.x + (GR - 10) * Math.cos(a), iy = GY - (GR - 10) * Math.sin(a);
+      const ox = g.x + (GR + 10) * Math.cos(a), oy = GY - (GR + 10) * Math.sin(a);
+      G.tick = mk("line", { x1: ix, y1: iy, x2: ox, y2: oy, style: "stroke:var(--risk);stroke-width:3;stroke-linecap:round" }, svg);
+      G.needle = mk("line", { x1: g.x, y1: GY, x2: g.x + GR - 6, y2: GY, style: "stroke:var(--ink);stroke-width:3.5;stroke-linecap:round" }, svg);
+      mk("circle", { cx: g.x, cy: GY, r: 6, style: "fill:var(--ink)" }, svg);
+      G.read = mk("text", { x: g.x, y: 182, "text-anchor": "middle", style: mono + ";font-size:13px;font-weight:700;fill:var(--muted)" }, svg, "");
+      R.gates.push(G);
+    });
+    R.card = mk("g", {}, svg);
+    R.cardBox = mk("rect", { x: -34, y: 206, width: 68, height: 28, rx: 8, style: "fill:var(--human);stroke:none" }, R.card);
+    mk("text", { x: 0, y: 225, "text-anchor": "middle", style: mono + ";font-size:14px;font-weight:700;fill:#fff" }, R.card, "PR");
+    svg._R = R; svg._built = true;
+  }
+
+  function render(n, animate) {
+    if (!R) return;
+    const d = animate ? 0.5 : 0;
+    GATES.forEach((g, i) => {
+      const G = R.gates[i];
+      const done = n >= g.at, fail = g.cur < g.min;
+      gsap.to(G.tick, { autoAlpha: n >= 1 ? 1 : 0, duration: d, overwrite: true });
+      gsap.to(G.needle, { rotation: done ? rot(g.cur) : rot(LO), svgOrigin: `${g.x} ${GY}`, duration: animate ? 0.9 : 0, delay: done && animate ? 0.45 : 0, ease: done ? "elastic.out(1, 0.6)" : "power2.out", overwrite: true });
+      G.read.textContent = done ? `${g.cur.toFixed(3)} ${fail ? "<" : "≥"} ${g.min.toFixed(3)}` : (n >= 1 ? `min ${g.min.toFixed(3)}` : "");
+      G.read.style.fill = done ? (fail ? "var(--risk)" : "var(--state)") : "var(--muted)";
+      G.frame.style.stroke = done ? (fail ? "var(--risk)" : "var(--state)") : "var(--line-2)";
+      G.frame.style.fill = done && fail ? "var(--risk-soft)" : "none";
+      gsap.to(G.frame, { attr: { "stroke-width": done ? 3 : 2 }, duration: d, overwrite: true });
+    });
+    gsap.to(R.card, { x: CARD_X[Math.min(n, 6)], duration: animate ? 0.6 : 0, ease: "power2.inOut", overwrite: true });
+    R.cardBox.style.fill = n >= 5 ? "var(--risk)" : "var(--human)";
+    const exitOn = n >= 5;
+    R.chipT.textContent = exitOn ? "exit = 1" : "exit = ?";
+    R.chipT.style.fill = exitOn ? "#fff" : "var(--muted)";
+    R.chip.style.fill = exitOn ? "var(--risk)" : "var(--surface-2)";
+    R.chip.style.stroke = exitOn ? "var(--risk)" : "var(--line-2)";
+    if (animate && n === 5) gsap.fromTo([R.chip, R.chipT], { scale: 0.7, transformOrigin: "50% 50%" }, { scale: 1, duration: 0.5, ease: "back.out(3)" });
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { build(slide); render(step || 0, false); },
+    step(slide, n, animate) { build(slide); render(n, animate); },
+    leave() { if (svg) gsap.killTweensOf(svg.querySelectorAll("*")); }
+  });
+})();
+</script>

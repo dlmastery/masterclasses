@@ -1,0 +1,180 @@
+<section class="slide tight" id="adk-c03-lab-routing" data-tone="agent" data-title="Lab 3.3: classify and route">
+  <style>
+    #adk-c03-lab-routing .lab-head { gap: 12px; flex-wrap: nowrap; }
+    #adk-c03-lab-routing .lab-head .run { font-size: 14.5px; white-space: nowrap; }
+    #adk-c03-lab-routing .lab-head .pins { font: 500 14px/1 var(--f-mono); color: var(--muted); white-space: nowrap; }
+    #adk-c03-lab-routing .lab-head .cite { font-size: 13.5px; }
+    #adk-c03-lab-routing .lab-head .cite:first-of-type { margin-left: auto; }
+    #adk-c03-lab-routing .rt-main { display: grid; grid-template-columns: 748px 1fr; gap: 24px; align-items: start; }
+    #adk-c03-lab-routing .rt-left, #adk-c03-lab-routing .rt-right { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    #adk-c03-lab-routing .rt-swap { display: grid; }
+    #adk-c03-lab-routing .rt-swap > * { grid-area: 1 / 1; }
+    #adk-c03-lab-routing .rt-code .code-head { padding: 7px 14px; font-size: 13.5px; }
+    #adk-c03-lab-routing .rt-code pre.code { font-size: 14.5px; line-height: 1.45; padding: 10px 14px 12px; }
+    #adk-c03-lab-routing .rt-graph .node { padding: 10px 14px; min-width: 0; }
+    #adk-c03-lab-routing .rt-graph .node .nt { font-size: 17px; white-space: nowrap; }
+    #adk-c03-lab-routing .rt-graph .node .ns { font-size: 13px; white-space: nowrap; }
+    #adk-c03-lab-routing .rt-tok { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; z-index: 0; }
+    #adk-c03-lab-routing .rt-chip { position: absolute; z-index: 2; font: 600 13.5px/1.35 var(--f-mono); padding: 7px 11px; border-radius: 10px;
+      border: 1px dashed var(--line-2); background: var(--surface); color: var(--ink-2); }
+    #adk-c03-lab-routing .rt-chip b { color: var(--agent); }
+    #adk-c03-lab-routing .rt-rail { gap: 6px; }
+    #adk-c03-lab-routing .rt-rail > * { font-size: 15.5px; line-height: 1.35; grid-template-columns: 30px 1fr; gap: 10px; }
+    #adk-c03-lab-routing .rt-rail > *::before { width: 26px; height: 26px; font-size: 13.5px; }
+    #adk-c03-lab-routing .rt-rail code { font-size: 13.5px; }
+    #adk-c03-lab-routing .out pre.code { font-size: 13.5px; line-height: 1.45; padding: 9px 14px 11px; white-space: pre-wrap; }
+    #adk-c03-lab-routing .out pre.code code { white-space: pre-wrap; }
+    #adk-c03-lab-routing .out .code-head { padding: 7px 14px; font-size: 13.5px; }
+    #adk-c03-lab-routing .out .cmd { color: #7ee2b8; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 3</span> Acme support desk · step 3 of 4</div>
+  <h2 class="title">The LLM classifies into a Literal set and a function picks the route</h2>
+  <div class="lab-head">
+    <span class="run" id="rt-run">adk run ticket_triage "Checkout API returns 500 since 09:00 and we were double charged"</span>
+    <span class="pins">google-adk 2.13.0</span>
+    <a class="cite doc" href="https://adk.dev/graphs/routes/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Graph routes</a>
+    <a class="cite repo" href="https://github.com/google/adk-python/tree/v2.13.0/contributing/samples/workflows/route" target="_blank" rel="noopener"><b>Repo</b>&nbsp;workflows/route</a>
+  </div>
+  <div class="rt-main fill">
+    <div class="rt-left">
+      <div class="rt-swap">
+        <div class="code-wrap rt-code" data-until="3">
+          <div class="code-head">ticket_triage/agent.py · 1 of 2 · schema, classify, route</div>
+          <pre class="code" data-lang="python" data-focus="1:5-8, 2:14-18"><code>from typing import Literal
+from google.adk import Agent, Event, Workflow
+from google.adk.workflow import DEFAULT_ROUTE
+from pydantic import BaseModel, Field
+class Triage(BaseModel):
+  labels: list[Literal["billing", "outage", "how_to", "other"]] = Field(
+      description="All labels that apply to the ticket.")
+  priority: Literal["p1", "p2", "p3"]
+def intake(node_input: str):
+  yield Event(state={"ticket": node_input})
+classify = Agent(name="classify", model="gemini-3.5-flash",
+    instruction="Classify this support ticket. Ticket: {ticket}",
+    output_schema=Triage, output_key="triage")
+def route_ticket(node_input: Triage):
+  routes = list(node_input.labels)
+  if node_input.priority == "p1" and "outage" not in routes:
+    routes.append("outage")                   # p1 always pages on-call
+  yield Event(output=node_input.model_dump(), route=routes)</code></pre>
+        </div>
+        <div class="code-wrap rt-code" data-step="3">
+          <div class="code-head">ticket_triage/agent.py · 2 of 2 · branches and edges</div>
+          <pre class="code" data-lang="python" data-focus="3:9-12, 4:12"><code>billing = Agent(name="billing", model="gemini-3.5-flash",
+    instruction="Draft a billing reply for: {ticket}. Mention invoice lookup.")
+def page_oncall(node_input: dict):          # gets route_ticket's output
+  yield Event(message=f"PAGED on-call (priority={node_input['priority']}).")
+how_to = Agent(name="how_to", model="gemini-3.5-flash",
+    instruction="Answer the product question in 4 steps: {ticket}")
+def human_queue():
+  yield Event(message="Routed to the human L1 queue.")
+root_agent = Workflow(name="ticket_triage", edges=[
+    ("START", intake, classify, route_ticket),
+    (route_ticket, {"billing": billing, "outage": page_oncall,
+                    "how_to": how_to, DEFAULT_ROUTE: human_queue}),
+])</code></pre>
+        </div>
+      </div>
+      <div class="rt-swap">
+        <div class="code-wrap out" data-step="3" data-until="4">
+          <div class="code-head">output · illustrative</div>
+          <pre class="code" data-lang="none"><code><span class="cmd">$ adk run ticket_triage "Checkout API returns 500 since 09:00 and we were double charged"</span>
+[billing]: Hi — sorry about the duplicate charge. I've pulled invoice INV-… and …
+<span class="ok">[ticket_triage]: PAGED on-call (priority=p1).</span></code></pre>
+        </div>
+        <div class="code-wrap out" data-step="4">
+          <div class="code-head">output · illustrative</div>
+          <pre class="code" data-lang="none"><code><span class="cmd">$ adk run ticket_triage "I want to say thanks for the swag"</span>
+<span class="ok">[ticket_triage]: Routed to the human L1 queue.</span></code></pre>
+        </div>
+      </div>
+    </div>
+    <div class="rt-right">
+      <div class="diagram rt-graph" style="width:620px;height:376px"
+           data-wires="rt-start>rt-intake; rt-intake>rt-classify; rt-classify>rt-route:bt; rt-route>rt-billing:bt [billing]; rt-route>rt-oncall:bt [outage]; rt-route>rt-howto:bt [how_to]; rt-route>rt-human:bt [DEFAULT]">
+        <div class="node n-human pill" id="rt-start" style="left:0;top:8px;width:96px"><span class="nt">START</span></div>
+        <div class="node n-tool" id="rt-intake" style="left:166px;top:0;width:130px"><span class="nt">intake</span><span class="ns">state.ticket</span></div>
+        <div class="node n-model" id="rt-classify" style="left:360px;top:0;width:170px"><span class="nt">classify</span><span class="ns">→ Triage</span></div>
+        <div class="node n-tool" id="rt-route" style="left:210px;top:150px;width:200px"><span class="nt">route_ticket</span><span class="ns">FunctionNode</span></div>
+        <div class="node n-agent" id="rt-billing" style="left:0;top:316px;width:140px"><span class="nt">billing</span></div>
+        <div class="node n-tool" id="rt-oncall" style="left:160px;top:316px;width:140px"><span class="nt">page_oncall</span></div>
+        <div class="node n-agent" id="rt-howto" style="left:320px;top:316px;width:140px"><span class="nt">how_to</span></div>
+        <div class="node n-human" id="rt-human" style="left:480px;top:316px;width:140px"><span class="nt">human_queue</span></div>
+        <div class="rt-chip rt-ticket" style="left:430px;top:78px;width:190px"><b>ticket</b><br><span class="v">Checkout API 500, double charged</span></div>
+        <div class="rt-chip rt-routes" style="left:430px;top:158px;width:190px"><b>route=</b><br><span class="v">…</span></div>
+      </div>
+      <div class="steps-rail rt-rail">
+        <div data-step="1"><span>The LLM must answer in <code>Triage</code>: closed <code>Literal</code> labels and a priority.</span></div>
+        <div data-step="2"><span>Code decides: p1 always adds <code>outage</code>. A list route runs every matching branch.</span></div>
+        <div data-step="3"><span>billing and page_oncall both run. page_oncall yields only a message, so the graph has one terminal output.</span></div>
+        <div data-step="4"><span><code>"other"</code> has no key, so <code>DEFAULT_ROUTE</code> (<code>"__DEFAULT__"</code>) catches it. It runs only when no key matches.</span></div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Read the code with the bands while the ticket token moves through the graph. Step 1: the Triage schema. The model can only pick labels and a priority from closed Literal sets, so it cannot invent "Billing" with a capital B. Step 2: route_ticket is plain Python. It decides that p1 always pages on-call, and because the route is a list, every matching branch runs. Step 3: the double-charge outage ticket runs billing and page_oncall. That does not break the one-terminal-output rule, because page_oncall yields only a message; only billing ends with an output. Step 4: the thank-you ticket is labelled "other", which has no key in the edge map, so DEFAULT_ROUTE sends it to the human queue. DEFAULT runs only when no key matches; if the labels were ["other", "billing"], billing would run and the default would not. Import DEFAULT_ROUTE from google.adk.workflow, because the top-level package does not export it. Think of the LLM as the nurse who writes the label and the function as the hospital rule book that picks the ward. A likely question is why not let the LLM route directly: a function rule is unit-testable and costs no tokens. Next: the same router as YAML that a PM can review.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c03-lab-routing";
+  const NS = "http://www.w3.org/2000/svg";
+  const CMD = {
+    a: 'adk run ticket_triage "Checkout API returns 500 since 09:00 and we were double charged"',
+    b: 'adk run ticket_triage "I want to say thanks for the swag"'
+  };
+  // wire order in data-wires: 0 start>intake, 1 intake>classify, 2 classify>route, 3 billing, 4 oncall, 5 how_to, 6 human
+  const PLAN = {
+    0: { run: "a", first: [], then: [], lit: [], dim: [], routes: "…" },
+    1: { run: "a", first: [0, 1], then: [], lit: ["rt-classify"], dim: [], routes: "set by route_ticket" },
+    2: { run: "a", first: [2], then: [], lit: ["rt-route"], dim: [], routes: '["billing", "outage"]' },
+    3: { run: "a", first: [], then: [3, 4], lit: ["rt-billing", "rt-oncall"], dim: ["rt-howto", "rt-human"], routes: '["billing", "outage"]' },
+    4: { run: "b", first: [0, 1, 2], then: [6], lit: ["rt-human"], dim: ["rt-billing", "rt-oncall", "rt-howto"], routes: '["other"] → DEFAULT' }
+  };
+  const TICKET = { a: "Checkout API 500, double charged", b: "thanks for the swag" };
+  let tl = null, retry = null, dots = [];
+  function render(slide, n, animate) {
+    if (tl) { tl.kill(); tl = null; }
+    if (retry) { retry.kill(); retry = null; }
+    const dg = slide.querySelector(".rt-graph");
+    if (!dg) return;
+    const p = PLAN[Math.max(0, Math.min(4, n))];
+    const pill = slide.querySelector("#rt-run");
+    if (pill) pill.textContent = CMD[p.run];
+    let svg = dg.querySelector("svg.rt-tok");
+    if (!svg) { svg = document.createElementNS(NS, "svg"); svg.setAttribute("class", "rt-tok"); }
+    if (dg.firstChild !== svg) dg.insertBefore(svg, dg.firstChild);
+    svg.innerHTML = "";
+    dots = [];
+    ["rt-start", "rt-intake", "rt-classify", "rt-route", "rt-billing", "rt-oncall", "rt-howto", "rt-human"].forEach((id) => {
+      const el = dg.querySelector("#" + id); if (!el) return;
+      el.classList.toggle("lit", p.lit.includes(id)); el.classList.toggle("dim", p.dim.includes(id));
+    });
+    dg.querySelector(".rt-ticket .v").textContent = TICKET[p.run];
+    dg.querySelector(".rt-routes .v").textContent = p.routes;
+    gsap.set(dg.querySelector(".rt-routes"), { autoAlpha: n >= 2 ? 1 : 0.5 });
+    if (!p.first.length && !p.then.length) return;
+    const paths = [...dg.querySelectorAll("svg.wires path.w")];
+    if (paths.length < 7) { retry = gsap.delayedCall(0.35, () => render(slide, n, false)); return; }
+    const mk = (tone) => { const c = document.createElementNS(NS, "circle"); c.setAttribute("r", 8); c.setAttribute("fill", `var(--${tone})`); c.setAttribute("opacity", 0); c.style.filter = `drop-shadow(0 0 6px var(--${tone}))`; svg.appendChild(c); dots.push(c); return c; };
+    const ride = (c, path, dur) => {
+      const L = path.getTotalLength(), o = { t: 0 };
+      return gsap.to(o, { t: 1, duration: dur, ease: "power1.inOut", onStart: () => c.setAttribute("opacity", 1),
+        onUpdate: () => { const pt = path.getPointAtLength(o.t * L); c.setAttribute("cx", pt.x); c.setAttribute("cy", pt.y); } });
+    };
+    tl = gsap.timeline({ repeat: -1, repeatDelay: 0.7 });
+    if (p.first.length) {
+      const d0 = mk("model");
+      p.first.forEach((i) => tl.add(ride(d0, paths[i], 0.6)));
+      tl.call(() => d0.setAttribute("opacity", 0));
+    }
+    const at = tl.duration();
+    p.then.forEach((i) => { const c = mk(i === 6 ? "human" : "agent"); tl.add(ride(c, paths[i], 0.8), at); tl.call(() => c.setAttribute("opacity", 0), null, at + 1.1); });
+    if (!animate) tl.progress(0.98).play();
+  }
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { if (tl) { tl.kill(); tl = null; } if (retry) { retry.kill(); retry = null; } dots.forEach((d) => gsap.killTweensOf(d)); }
+  });
+})();
+</script>

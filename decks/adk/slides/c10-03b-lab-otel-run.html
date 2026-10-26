@@ -1,0 +1,118 @@
+<section class="slide tight" id="adk-c10-lab-otel-run" data-tone="risk" data-title="Lab 10.2: run and read the trace">
+  <style>
+    #adk-c10-lab-otel-run .or { display: grid; grid-template-columns: 750px minmax(0, 1fr); gap: 22px; align-items: start; }
+    #adk-c10-lab-otel-run .col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+    #adk-c10-lab-otel-run pre.code { font-size: 17px; line-height: 1.5; padding: 12px 16px 14px; }
+    #adk-c10-lab-otel-run svg { display: block; overflow: visible; }
+    #adk-c10-lab-otel-run svg text { font-family: var(--f-mono); }
+    #adk-c10-lab-otel-run .caps { display: grid; }
+    #adk-c10-lab-otel-run .caps > * { grid-area: 1 / 1; }
+    #adk-c10-lab-otel-run .cap { font-size: 21px; line-height: 1.4; color: var(--ink-2); margin: 0; }
+    #adk-c10-lab-otel-run .cap b { color: var(--ink); }
+  </style>
+  <div class="kicker"><span class="pill">Lab 10</span> Acme HR assistant · step 2 of 3</div>
+  <h2 class="title">Run one HR turn and read its trace: four spans, no call_llm</h2>
+  <div class="lab-head"><span class="run">python hr_traced.py</span><span class="run">TO_CLOUD=1 python hr_traced.py</span></div>
+  <div class="or fill">
+    <div class="col">
+      <div class="code-wrap">
+        <div class="code-head">labs/adk/c10-acme-hr/hr_traced.py · excerpt</div>
+        <pre class="code" data-lang="python" data-focus="1:2-8, 2:11-13"><code>async def main() -&gt; None:
+    runner = Runner(app=app, session_service=InMemorySessionService(),
+                    auto_create_session=True)
+    msg = types.Content(role="user",
+        parts=[types.Part(text="What is my salary band?")])
+    async for event in runner.run_async(
+            user_id="E-1001", session_id="s1", new_message=msg,
+            state_delta={"employee_id": "E-1001"}):  # guard input
+        if event.is_final_response():
+            print("agent&gt;", event.content.parts[0].text)
+    tp = trace.get_tracer_provider()  # BatchSpanProcessor queue
+    if hasattr(tp, "force_flush"):    # ProxyTracerProvider has none
+        tp.force_flush()
+
+asyncio.run(main())</code></pre>
+      </div>
+      <div class="caps">
+        <p class="cap" data-step="1" data-until="2"><code>state_delta</code> puts the caller's id in state. The guard checks it.</p>
+        <p class="cap" data-step="2" data-until="3">Flush before exit, or the last spans stay in the queue.</p>
+        <p class="cap" data-step="3" data-until="4">2.13 uses GenAI semconv 1.44: <b>no <code>call_llm</code> span</b>.</p>
+        <p class="cap" data-step="4">Only <code>adk deploy agent_engine --otel_to_cloud</code> turns content off for you.</p>
+      </div>
+    </div>
+    <svg id="or-svg" viewBox="0 0 620 440" width="620" height="440" aria-label="A trace waterfall for one HR turn. The root span invoke_agent hr_agent covers the whole turn. Under it: generate_content, execute_tool get_salary_band, and a second generate_content. At the last step the same waterfall shows inside a Cloud Trace frame."></svg>
+  </div>
+  <aside class="notes">Now we run one turn of the guarded app and read the trace it leaves. Press once: Runner takes the App from step one, so both guard plugins run; state_delta writes the caller's employee id into session state, which is what HrGuardPlugin compares with. Press again: spans leave through a BatchSpanProcessor, so a short script must flush before it exits; the hasattr check is there because with no exporter configured the global provider is a ProxyTracerProvider, which has no force_flush. Press again: the waterfall has four spans, invoke_agent, generate_content, execute_tool and a second generate_content; 2.13 defaults to the GenAI semantic conventions 1.44, which removed the call_llm span, so do not build a dashboard on it. Press again: with TO_CLOUD=1 the same waterfall shows in Cloud Trace. Only adk deploy agent_engine with --otel_to_cloud also turns content capture off; on Cloud Run and GKE you keep the env line from the last slide. Analogy: the waterfall is a stopwatch per lap, not a recording of the race. Likely question: "Why is call_llm missing from my old dashboard?" The schema changed in 2.13; the gotcha slides later show the fix. Durations on the slide are illustrative.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c10-lab-otel-run", NS = "http://www.w3.org/2000/svg";
+  const ROWS = [
+    { name: "invoke_agent", sub: "hr_agent", a: 0.0, b: 1.0, tone: "agent", d: 0 },
+    { name: "generate_content", sub: "gemini-3.5-flash", a: 0.03, b: 0.40, tone: "model", d: 1 },
+    { name: "execute_tool", sub: "get_salary_band", a: 0.43, b: 0.53, tone: "tool", d: 1 },
+    { name: "generate_content", sub: "gemini-3.5-flash", a: 0.56, b: 0.97, tone: "model", d: 1 },
+  ];
+  const BX = 250, BW = 350, RY = 108, RH = 74;
+  let R = null, loop = null, tw = [];
+  const mk = (tag, a, p, t) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); if (t !== undefined) e.textContent = t; if (p) p.appendChild(e); return e; };
+  function build(svg) {
+    svg.innerHTML = "";
+    R = { svg, bars: [], ghosts: [] };
+    R.frame = mk("rect", { x: 1, y: 1, width: 618, height: 438, rx: 14, fill: "var(--surface)", stroke: "var(--line-2)", "stroke-width": 2 }, svg);
+    R.hdBg = mk("rect", { x: 1, y: 1, width: 618, height: 48, rx: 14, fill: "var(--risk-soft)" }, svg);
+    R.hdL = mk("text", { x: 20, y: 32, "font-size": 17, "font-weight": 700, fill: "var(--ink)" }, svg, "");
+    R.hdR = mk("text", { x: 600, y: 32, "font-size": 15, "font-weight": 600, fill: "var(--muted)", "text-anchor": "end" }, svg, "");
+    for (let i = 0; i <= 4; i++) {
+      const x = BX + (BW * i) / 4;
+      mk("line", { x1: x, y1: 70, x2: x, y2: 382, stroke: "var(--line-2)", "stroke-width": 1, "stroke-dasharray": "2 5" }, svg);
+    }
+    mk("text", { x: BX, y: 414, "font-size": 14, fill: "var(--muted)" }, svg, "relative durations · illustrative");
+    ROWS.forEach((r, i) => {
+      const y = RY + i * RH, nx = 20 + r.d * 18;
+      if (r.d) mk("path", { d: `M${nx - 10},${y - 8} v14 h6`, fill: "none", stroke: "var(--muted)", "stroke-width": 1.6 }, svg);
+      mk("text", { x: nx, y: y + 2, "font-size": 16, "font-weight": 700, fill: "var(--ink)" }, svg, r.name);
+      mk("text", { x: nx, y: y + 24, "font-size": 14, fill: "var(--muted)" }, svg, r.sub);
+      const x = BX + r.a * BW, w = (r.b - r.a) * BW;
+      R.ghosts.push(mk("rect", { x, y: y - 12, width: w, height: 28, rx: 7, fill: "none", stroke: "var(--line-2)", "stroke-width": 1.6, "stroke-dasharray": "5 4" }, svg));
+      R.bars.push(mk("rect", { x, y: y - 12, width: w, height: 28, rx: 7, fill: `var(--${r.tone})`, opacity: 0.9 }, svg));
+    });
+    R.cursor = mk("line", { x1: BX, y1: 70, x2: BX, y2: 382, stroke: "var(--risk)", "stroke-width": 2.5, opacity: 0 }, svg);
+  }
+  function clear() {
+    tw.forEach((t) => t.kill()); tw = [];
+    if (loop) { loop.kill(); loop = null; }
+    if (R) gsap.killTweensOf([...R.bars, R.cursor]);
+  }
+  function render(slide, n, animate) {
+    const svg = slide.querySelector("#or-svg");
+    if (!R || R.svg !== svg || !svg.childElementCount) build(svg);
+    clear();
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const anim = animate && !reduce, cloud = n >= 4, spans = n >= 3;
+    R.hdL.textContent = !spans ? "● trace viewer · waiting for spans" : cloud ? "● Cloud Trace · acme-hr" : "● Jaeger · acme-hr · dev";
+    R.hdR.textContent = !spans ? "" : cloud ? "TO_CLOUD=1" : "OTLP → :4318";
+    R.frame.setAttribute("stroke", cloud ? "var(--agent)" : "var(--line-2)");
+    R.hdBg.setAttribute("fill", cloud ? "var(--agent-soft)" : "var(--risk-soft)");
+    R.hdL.setAttribute("fill", cloud ? "var(--agent)" : "var(--ink)");
+    R.ghosts.forEach((g) => gsap.set(g, { opacity: spans ? 0 : 1 }));
+    const redraw = anim && (n === 3 || n === 4);
+    R.bars.forEach((b, i) => {
+      gsap.set(b, { transformOrigin: "0% 50%" });
+      if (!spans) { gsap.set(b, { scaleX: 0, opacity: 0 }); return; }
+      if (redraw) { gsap.set(b, { scaleX: 0, opacity: 0.9 }); tw.push(gsap.to(b, { scaleX: 1, duration: 0.45, ease: "power2.out", delay: 0.15 + i * 0.32 })); }
+      else gsap.set(b, { scaleX: 1, opacity: 0.9 });
+    });
+    gsap.set(R.cursor, { attr: { x1: BX, x2: BX }, opacity: 0 });
+    if (spans && !reduce) {
+      loop = gsap.timeline({ repeat: -1, repeatDelay: 0.8, delay: redraw ? 1.6 : 0.3 });
+      loop.set(R.cursor, { opacity: 0.85 }).to(R.cursor, { attr: { x1: BX + BW, x2: BX + BW }, duration: 2.4, ease: "none" }).to(R.cursor, { opacity: 0, duration: 0.25 });
+    }
+  }
+  Deck.register(ID, {
+    enter(slide, n) { render(slide, n || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { clear(); },
+  });
+})();
+</script>

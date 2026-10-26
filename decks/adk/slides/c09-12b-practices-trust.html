@@ -1,0 +1,39 @@
+<section class="slide" id="adk-c09-practices-trust" data-tone="model" data-title="Practices: trust the gate">
+  <style>
+    #adk-c09-practices-trust .c9-split { --c9l: 560px; }
+    #adk-c09-practices-trust ul.checks { gap: 26px; }
+    #adk-c09-practices-trust ul.checks li { font-size: 25px; line-height: 1.35; grid-template-columns: 34px 1fr; gap: 14px; }
+    #adk-c09-practices-trust ul.checks li::before { width: 32px; height: 32px; font-size: 17px; }
+  </style>
+  <div class="kicker">Best practices · 2 of 2</div>
+  <h2 class="title">Run each eval three times and test the gate itself</h2>
+  <div class="c9-split fill">
+    <ul class="checks">
+      <li data-step="1">Run ≥ 3 times. Accept by paired bootstrap.</li>
+      <li class="no" data-step="1">Trust one run.</li>
+      <li data-step="2">Check the config path and the case count.</li>
+      <li data-step="3">Keep a known-bad case per gate.</li>
+      <li data-step="4">Pin agent, judge and harness. <span class="c-model">43 → 72 solved by harness alone.</span></li>
+    </ul>
+    <div class="c9-col">
+      <div class="code-wrap good">
+        <div class="code-head">labs/adk/lab9-refund-eval/test_refund.py · pytest -q</div>
+        <pre class="code sm" data-lang="python" data-focus="1:7-10"><code>import pytest
+from google.adk.evaluation.agent_evaluator import AgentEvaluator
+
+@pytest.mark.asyncio
+async def test_refund_golden():
+    await AgentEvaluator.evaluate(
+        agent_module="refund_agent",
+        eval_dataset_file_path_or_dir=
+            "refund_agent/refund.evalset.json",
+        num_runs=3)   # default is 2</code></pre>
+      </div>
+      <div class="cites" data-step="4">
+        <a class="cite paper" href="https://arxiv.org/abs/2609.32092" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2609.32092 paired bootstrap</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2608.26218" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2608.26218 harness</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">The second half of the checklist: how often to run, and how to trust the gate itself. adk eval has no repeat flag in 2.13.0, so run the golden set from pytest with AgentEvaluator and num_runs 3; the default is 2. Accept a change only by a paired bootstrap, as the production shopping-assistant paper arXiv 2609.32092 does: resample the same cases from the old and new runs many times and check that the confidence interval of the score change stays above zero. Never trust one run, because close calls flip about 40 percent of the time. Then test the gate: check the config path, count the cases, keep a known-bad case that must fail, and pin the agent model, the judge model and the harness version, because changing only the harness took the same model from 43 to 72 solved SWE-bench tasks in arXiv 2608.26218. Analogy: a smoke alarm is only useful if you test it with smoke. A likely question: "Is three runs enough?" For a gate, yes, as a floor; for a leaderboard-style comparison of close agents, you need far more.</aside>
+</section>

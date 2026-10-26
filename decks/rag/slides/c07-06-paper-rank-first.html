@@ -1,0 +1,168 @@
+<section class="slide tight" id="rag-c07-paper-rank-first" data-tone="tool" data-title="arXiv: rank first, then reason">
+  <style>
+    #rag-c07-paper-rank-first .rf-main { display: grid; grid-template-columns: 600px 768px; gap: 24px; align-items: start; }
+    #rag-c07-paper-rank-first .rf-col { gap: 10px; min-width: 0; }
+    #rag-c07-paper-rank-first .paper { padding: 11px 16px; gap: 6px; }
+    #rag-c07-paper-rank-first .paper .pid { font-size: 13px; align-items: center; }
+    #rag-c07-paper-rank-first a.cite.paper { display: inline-flex; flex-direction: row; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 9px; background: color-mix(in oklab, var(--surface) 60%, transparent); font: 500 12px/1.3 var(--f-body); padding: 3px 9px 3px 6px; }
+    #rag-c07-paper-rank-first a.cite.paper::before { width: 18px; height: 18px; -webkit-mask-size: 13px, auto; }
+    #rag-c07-paper-rank-first .paper h4 { font-size: 17px; line-height: 1.25; }
+    #rag-c07-paper-rank-first .paper .find { font-size: 15px; line-height: 1.38; }
+    #rag-c07-paper-rank-first .paper .so { font-size: 15px; line-height: 1.35; }
+    #rag-c07-paper-rank-first .code-wrap .code-head { padding: 7px 14px; font-size: 13.5px; }
+    #rag-c07-paper-rank-first pre.code.rf-c { font-size: 12.2px; line-height: 1.42; padding: 9px 14px 11px; }
+    #rag-c07-paper-rank-first .rf-also { display: grid; gap: 6px; font-size: 14px; line-height: 1.36; color: var(--ink-2); border-left: 3px solid var(--human); padding: 2px 0 2px 12px; }
+    #rag-c07-paper-rank-first .rf-also a { color: var(--human); font: 700 13px/1 var(--f-mono); text-decoration: none; margin-right: 6px; }
+    #rag-c07-paper-rank-first .rf-svg { display: block; width: 768px; height: 600px; overflow: visible; }
+    #rag-c07-paper-rank-first .rf-svg text { font-family: var(--f-mono); }
+    #rag-c07-paper-rank-first .rf-svg .pn { fill: var(--surface); stroke: var(--line-2); stroke-width: 1; }
+    #rag-c07-paper-rank-first .rf-svg .hd { font-size: 13px; font-weight: 700; fill: var(--muted); letter-spacing: .05em; }
+    #rag-c07-paper-rank-first .rf-svg .xs { font-size: 13px; fill: var(--muted); }
+    #rag-c07-paper-rank-first .rf-svg .lb { font-size: 15px; font-weight: 700; }
+    #rag-c07-paper-rank-first .rf-svg .ax { stroke: var(--ink-2); stroke-width: 1.4; }
+    #rag-c07-paper-rank-first .rf-svg .gr { stroke: var(--line-2); stroke-width: 1; }
+    #rag-c07-paper-rank-first .rf-svg .ln { fill: none; stroke-width: 4; stroke-linecap: round; }
+  </style>
+  <div class="kicker"><span class="pill">arXiv</span> Jul–Sep 2026 · ranked discovery</div>
+  <h2 class="title">Rank first, then let the agent reason over the ranked list</h2>
+  <div class="rf-main fill">
+    <div class="stack rf-col">
+      <div class="paper">
+        <div class="pid"><a class="cite paper" href="https://arxiv.org/abs/2607.26497" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2607.26497</a><span>2026-07-29</span></div>
+        <h4>BM25 Wins at Scale: A Scaling Study of RAG Paradigms</h4>
+        <div class="find">A file-system agent (an LLM that browses files with <code>ls</code> and <code>grep</code>) wins on small corpora. BM25 wins from ~10M tokens.</div>
+        <div class="so">Keep BM25 next to vectors. Hand the agent a ranked list.</div>
+      </div>
+      <div class="code-wrap good" data-step="2">
+        <div class="code-head">lab6/rank_first.py · bm25s 0.3.15 · Lab 6 store</div>
+        <pre class="code rf-c" data-lang="python"><code>import bm25s
+from lab6_multihop_register import PASSAGES, store
+IDS = [i for i, _ in PASSAGES]
+bm25 = bm25s.BM25(k1=1.2, b=0.75)
+bm25.index(bm25s.tokenize([t for _, t in PASSAGES], stopwords="en"))
+def rrf(rankings, k=60):                     # Lab 4: fuse ranks, not scores
+    fused = {}
+    for ranking in rankings:
+        for rank, doc_id in enumerate(ranking, start=1):
+            fused[doc_id] = fused.get(doc_id, 0.0) + 1 / (k + rank)
+    return sorted(fused, key=fused.get, reverse=True)
+def ranked(q: str, k: int = 4) -&gt; list[str]:   # the agent starts from this list
+    toks = bm25s.tokenize(q, stopwords="en")
+    docs, _ = bm25.retrieve(toks, corpus=IDS, k=min(k, len(IDS)))
+    dense = [d.metadata["id"] for d in store.similarity_search(q, k=k)]
+    return rrf([list(docs[0]), dense])[:k]
+print(ranked("Which jacket does Kestrel Textiles make?"))</code></pre>
+      </div>
+      <div class="rf-also" data-step="3">
+        <div><a href="https://arxiv.org/abs/2608.01913" target="_blank" rel="noopener">also 2608.01913</a>Accuracy tracks cumulative gold recall@25 (r = 0.99). 77.5-93.6% of search episodes add no new evidence.</div>
+        <div><a href="https://arxiv.org/abs/2609.14412" target="_blank" rel="noopener">also 2609.14412</a>Split the first search into clues, retrieve per clue, union, rerank: 83.1% → 90.5% on BrowseComp-Plus.</div>
+      </div>
+    </div>
+    <svg class="rf-svg" id="rk-svg" viewBox="0 0 768 600" aria-label="Log-x chart of accuracy against corpus tokens from 1.7M to 601M. The file-system agent line starts highest and falls; the BM25 line falls slowly, crosses it at about 10M tokens and ends about 20 points higher. A pill marks 39 times the query tokens for the agent at full scale."></svg>
+  </div>
+  <aside class="notes">
+    The main point comes from BM25 Wins at Scale (arXiv 2607.26497): an agent should reason over a ranked list, not replace ranking. The paper grows one enterprise corpus, EnterpriseRAG-Bench, through 28 nested tiers from 1.7 million to 601 million tokens. A file-system agent, an LLM that browses the documents with ls and grep tools, leads on the smallest tiers; at about 10 million tokens BM25 overtakes it and leads every larger tier, ending near 20 points ahead, while the agent spends 39 times the query tokens. The line shapes in the chart are schematic; the crossover, the margin and the cost ratio are the paper's numbers. The paper also measures dense retrieval, which is efficient but less accurate, and graph RAG, which hits construction-cost walls before deployment scale; I left those lines out to keep one comparison. The code applies the lesson to the Acme desk: index the Lab 6 passages with bm25s, fuse BM25 and dense ranks with the Lab 4 RRF, and let hop() start from that list. Two more papers point the same way. 2608.01913: accuracy follows cumulative gold recall@25, the share of gold passages seen in the top 25 results so far, at r = 0.99, and 77.5 to 93.6 percent of search episodes, where an episode is one search call and its results, add no new evidence; so log new evidence per step and pivot on a repeated query. 2609.14412, Question's Gambit: split the first search into clues, retrieve per clue, union and rerank; accuracy goes from 83.1 to 90.5 percent with the retriever unchanged. Analogy: a librarian hands you the ten best books first; you do not walk every shelf. Likely question: "Does this mean agents are useless at scale?" No; the agent still does the reasoning, but it starts from ranked discovery. Next: let the agent write its searches as code.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const L0 = Math.log10(1.7e6), L1 = Math.log10(601e6);
+  const X0 = 70, X1 = 640, Y0 = 520, Y1 = 80;
+  const xOf = (tok) => X0 + (X1 - X0) * (Math.log10(tok) - L0) / (L1 - L0);
+  const yOf = (acc) => Y0 - (Y0 - Y1) * (acc - 0.3) / 0.6;
+  // schematic shapes, anchored to the paper: crossover at ~10M, margin ~20 pts at 601M
+  const LINES = [
+    { name: "file-system agent", c: "var(--agent)", f: (t) => 0.7866 - 0.4066 * t, ly: -14 },
+    { name: "BM25", c: "var(--tool)", f: (t) => 0.70 - 0.12 * t, ly: 26 },
+  ];
+  let B = null, prev = -1, tweens = [];
+  const mk = (p, tag, attrs, txt) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (txt !== undefined) e.textContent = txt;
+    p.appendChild(e); return e;
+  };
+  function build(slide) {
+    const svg = slide.querySelector("#rk-svg");
+    svg.innerHTML = "";
+    mk(svg, "rect", { class: "pn", x: 0, y: 0, width: 768, height: 600, rx: 12 });
+    mk(svg, "text", { class: "hd", x: 18, y: 28 }, "ACCURACY VS CORPUS SIZE · EnterpriseRAG-Bench");
+    mk(svg, "text", { class: "xs", x: 18, y: 50 }, "line shapes schematic · crossover, margin and 39× from the paper");
+    const A = mk(svg, "g", {});
+    mk(A, "line", { class: "ax", x1: X0, x2: X1 + 10, y1: Y0, y2: Y0 });
+    mk(A, "line", { class: "ax", x1: X0, x2: X0, y1: Y0, y2: Y1 - 6 });
+    [[1.7e6, "1.7M"], [10e6, "10M"], [100e6, "100M"], [601e6, "601M"]].forEach(([v, s]) => {
+      const x = xOf(v);
+      mk(A, "line", { class: "gr", x1: x, x2: x, y1: Y0, y2: Y0 + 6 });
+      mk(A, "text", { class: "xs", x, y: Y0 + 24, "text-anchor": "middle" }, s);
+    });
+    mk(A, "text", { class: "xs", x: (X0 + X1) / 2, y: Y0 + 50, "text-anchor": "middle" }, "corpus tokens · log scale · 28 nested tiers");
+    mk(A, "text", { class: "xs", x: 30, y: (Y0 + Y1) / 2, transform: `rotate(-90 30 ${(Y0 + Y1) / 2})`, "text-anchor": "middle" }, "accuracy");
+    const paths = LINES.map((l) => {
+      const pts = [];
+      for (let i = 0; i <= 40; i++) { const t = i / 40; pts.push(`${(X0 + (X1 - X0) * t).toFixed(1)},${yOf(l.f(t)).toFixed(1)}`); }
+      return mk(A, "path", { class: "ln", d: "M" + pts.join(" L"), stroke: l.c });
+    });
+    // labels at the start of each line (no legend)
+    const labels = LINES.map((l) => mk(A, "text", { class: "lb", x: X0 + 10, y: yOf(l.f(0)) + l.ly, fill: l.c }, l.name));
+    // crossover at ~10M
+    const cx = xOf(10e6);
+    const cross = mk(A, "g", {});
+    mk(cross, "line", { x1: cx, x2: cx, y1: Y1 + 26, y2: Y0, stroke: "var(--risk)", "stroke-width": 1.8, "stroke-dasharray": "5 4" });
+    mk(cross, "rect", { x: cx - 98, y: Y1, width: 196, height: 26, rx: 13, fill: "var(--risk)" });
+    mk(cross, "text", { x: cx, y: Y1 + 18, "text-anchor": "middle", "font-size": 13.5, "font-weight": 700, fill: "#fff" }, "crossover ~10M tokens");
+    // margin bracket at 601M
+    const yb = yOf(LINES[1].f(1)), ya = yOf(LINES[0].f(1));
+    const marg = mk(A, "g", {});
+    mk(marg, "path", { d: `M${X1 + 8},${yb} L${X1 + 18},${yb} L${X1 + 18},${ya} L${X1 + 8},${ya}`, fill: "none", stroke: "var(--ink-2)", "stroke-width": 1.8 });
+    mk(marg, "text", { x: X1 + 26, y: (ya + yb) / 2 + 5, "font-size": 14, "font-weight": 700, fill: "var(--ink)" }, "≈20 pts");
+    // 39x pill below the agent line end, with a leader
+    const badge = mk(A, "g", {});
+    mk(badge, "path", { d: `M${X1 - 40},${Y0 - 36} L${X1 - 4},${ya + 4}`, stroke: "var(--agent)", "stroke-width": 1.6, fill: "none" });
+    mk(badge, "rect", { x: X1 - 214, y: Y0 - 44, width: 176, height: 26, rx: 13, fill: "var(--agent)" });
+    mk(badge, "text", { x: X1 - 126, y: Y0 - 26, "text-anchor": "middle", "font-size": 13.5, "font-weight": 700, fill: "#fff" }, "39× query tokens");
+    B = { paths, labels, cross, marg, badge };
+    B.paths.forEach((p) => { p._len = p.getTotalLength(); p.style.strokeDasharray = p._len; });
+  }
+  function render(slide, n, animate, entering) {
+    if (!B) build(slide);
+    tweens.forEach((t) => t.kill()); tweens = [];
+    const fwd = animate && n === prev + 1;
+    const marks = [B.cross, B.marg, B.badge];
+    // step 0: the two lines draw as the slide opens
+    if (entering && n === 0) {
+      B.paths.forEach((p) => gsap.set(p, { strokeDashoffset: p._len }));
+      gsap.set(B.labels, { opacity: 0 });
+      const tl = gsap.timeline({ delay: 0.3 });
+      tl.to(B.paths, { strokeDashoffset: 0, duration: 1.6, ease: "power1.inOut", stagger: 0.15 });
+      tl.to(B.labels, { opacity: 1, duration: 0.3, stagger: 0.1 }, 0.2);
+      tweens.push(tl);
+    } else {
+      B.paths.forEach((p) => gsap.set(p, { strokeDashoffset: 0 }));
+      gsap.set(B.labels, { opacity: 1 });
+    }
+    // step 1: crossover, margin and the cost badge
+    if (fwd && n === 1) {
+      gsap.set(marks, { opacity: 0 });
+      const tl = gsap.timeline();
+      tl.fromTo(B.cross, { opacity: 0, y: -40 }, { opacity: 1, y: 0, duration: 0.5, ease: "bounce.out" }, 0);
+      tl.to(B.marg, { opacity: 1, duration: 0.3 }, 0.6);
+      tl.fromTo(B.badge, { opacity: 0, scale: 0.3, transformOrigin: "50% 50%" }, { opacity: 1, scale: 1, duration: 0.4, ease: "back.out(2.4)" }, 0.9);
+      tweens.push(tl);
+    } else {
+      gsap.set(marks, { opacity: n >= 1 ? 1 : 0, y: 0, scale: 1 });
+    }
+    prev = n;
+  }
+  Deck.register("rag-c07-paper-rank-first", {
+    enter(slide, step) { prev = -1; B = null; render(slide, step || 0, false, true); },
+    step(slide, n, animate) { render(slide, n, animate, false); },
+    leave() {
+      tweens.forEach((t) => t.kill()); tweens = [];
+      if (B) gsap.killTweensOf([...B.paths, ...B.labels, B.cross, B.marg, B.badge]);
+      prev = -1;
+    }
+  });
+})();
+</script>

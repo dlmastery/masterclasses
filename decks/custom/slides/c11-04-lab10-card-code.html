@@ -1,0 +1,215 @@
+<section class="slide" id="custom-c11-lab10-card-code" data-tone="tool" data-title="Lab 10: quality card as code">
+  <style>
+    #custom-c11-lab10-card-code { gap: 20px; }
+    #custom-c11-lab10-card-code .q-grid { display: grid; grid-template-columns: 818px 1fr; gap: 24px; min-height: 0; }
+    #custom-c11-lab10-card-code .q-left, #custom-c11-lab10-card-code .q-right { display: flex; flex-direction: column; gap: 9px; min-width: 0; }
+    #custom-c11-lab10-card-code .lab-head { font-size: 13px; gap: 12px; flex-wrap: nowrap; white-space: nowrap; }
+    #custom-c11-lab10-card-code .lab-head .small { font-size: 13px; }
+    #custom-c11-lab10-card-code .lab-head .run { font-size: 15px; padding: 7px 11px; }
+    #custom-c11-lab10-card-code .code-head { padding: 7px 14px; font-size: 13px; }
+    #custom-c11-lab10-card-code .q-code pre.code { font-size: 10.5px; line-height: 1.32; padding: 8px 14px 9px; }
+    #custom-c11-lab10-card-code .out pre.code { font-size: 10.5px; line-height: 1.36; padding: 7px 14px 9px; white-space: pre-wrap; }
+    #custom-c11-lab10-card-code .out pre.code code { white-space: pre-wrap; }
+    #custom-c11-lab10-card-code .steps-rail { gap: 6px; }
+    #custom-c11-lab10-card-code .steps-rail > * { font-size: 14.5px; line-height: 1.3; grid-template-columns: 26px 1fr; gap: 9px; align-items: center; }
+    #custom-c11-lab10-card-code .steps-rail > *::before { width: 22px; height: 22px; font-size: 12px; border-radius: 7px; }
+    #custom-c11-lab10-card-code .steps-rail code, #custom-c11-lab10-card-code .callout code { font-size: .86em; }
+    #custom-c11-lab10-card-code .callout { padding: 8px 12px; font-size: 14px; line-height: 1.34; gap: 10px; }
+    #custom-c11-lab10-card-code .callout::before { width: 20px; height: 20px; font-size: 12px; }
+    #custom-c11-lab10-card-code .cites { display: flex; gap: 10px; flex-wrap: wrap; }
+    #custom-c11-lab10-card-code .cite { font-size: 13px; padding: 5px 11px 5px 8px; white-space: nowrap; flex-direction: row; }
+    #custom-c11-lab10-card-code pre.code, #custom-c11-lab10-card-code pre.code *, #custom-c11-lab10-card-code code, #custom-c11-lab10-card-code .code-head, #custom-c11-lab10-card-code svg text { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #c11q-svg text { font-family: var(--f-mono); }
+  </style>
+  <div class="kicker"><span class="pill">Lab 10</span> Acme claims-agent release · step 3 of 4</div>
+  <h2 class="title">The quality card is code: hash the eval file, gate on CI lower bounds</h2>
+  <div class="q-grid fill">
+    <div class="q-left">
+      <div class="lab-head"><span class="run">python quality_card.py</span><span class="small">pandas==3.1.0 · statsmodels==0.15.0 · reads claims_eval.jsonl from step 1</span></div>
+      <div class="code-wrap q-code">
+        <div class="code-head">release_eval/quality_card.py</div>
+        <pre class="code" data-lang="python" data-focus="1:9-11, 2:12-19, 3:22-29, 4:39"><code>import datetime as dt, hashlib, json, sys
+import pandas as pd
+from statsmodels.stats.proportion import proportion_confint
+EVAL_FILE = "claims_eval.jsonl"                       # written by step 1
+OTHER = {"ece_15_uniform": 0.0063, "calibration": "isotonic on 5,000-item cal split",  # C08 Lab 7
+         "threshold": 0.79, "cost_model": "(ok, triage, wrong) = (0, 1, 5)",           # C09 Lab 8
+         "judge_kappa": 0.580, "judge_tpr": 0.946, "judge_tnr": 0.593}                  # C10 Lab 9
+GATES = {"min_slice_ci_low": 0.50, "min_slice_n": 30, "min_judge_kappa": 0.60}
+raw = open(EVAL_FILE, "rb").read()
+df = pd.read_json(EVAL_FILE, lines=True)
+k, n = int(df.passed.sum()), len(df)
+lo, hi = proportion_confint(k, n, method="wilson")
+g = df.groupby(["line", "lang"])["passed"].agg(k="sum", n="count").reset_index()
+g["lo"], g["hi"] = proportion_confint(g.k, g.n, method="wilson")
+failures = [f"slice {r.line}/{r.lang}: CI low {r.lo:.2f} &lt; {GATES['min_slice_ci_low']}"
+            for r in g.itertuples() if r.lo &lt; GATES["min_slice_ci_low"]]
+failures += [f"judge kappa {OTHER['judge_kappa']:.2f} &lt; {GATES['min_judge_kappa']}"] \
+    if OTHER["judge_kappa"] &lt; GATES["min_judge_kappa"] else []
+thin = [f"{r.line}/{r.lang} (n={r.n})" for r in g.itertuples() if r.n &lt; GATES["min_slice_n"]]
+card = {
+    "card_version": "1.0", "created": dt.date.today().isoformat(),
+    "eval_set": {"file": EVAL_FILE, "sha256": hashlib.sha256(raw).hexdigest()[:16],
+                 "n_items": n, "n_clusters": int(df.claim_id.nunique()), "unit_of_resampling": "claim_id"},
+    "headline": {"pass_rate": round(k / n, 3), "wilson_95": [round(lo, 3), round(hi, 3)]},
+    "slices": g.round(3).to_dict(orient="records"),
+    "calibration": {k_: OTHER[k_] for k_ in ("ece_15_uniform", "calibration")},
+    "decision_policy": {k_: OTHER[k_] for k_ in ("threshold", "cost_model")},
+    "judge": {k_: OTHER[k_] for k_ in ("judge_kappa", "judge_tpr", "judge_tnr")},
+    "known_gaps": {"thin_slices_n_lt_30": thin},
+    "gate": {"passed": not failures, "failures": failures},
+}
+json.dump(card, open("quality_card.json", "w"), indent=2)
+md = [f"# Quality card - claims agent eval ({card['created']})",
+      f"**Pass rate {k / n:.1%}** (Wilson 95% {lo:.1%}-{hi:.1%})"]
+# (8 lines omitted: eval-set line, slice table, judge row, thin slices; same f-string pattern)
+md += [f"**Gate: {'PASS' if not failures else 'FAIL'}** " + "; ".join(failures)]
+open("quality_card.md", "w").write("\n".join(md) + "\n")
+print("\n".join(md))
+sys.exit(0 if not failures else 1)</code></pre>
+      </div>
+    </div>
+    <div class="q-right">
+      <svg id="c11q-svg" viewBox="0 0 550 340" width="550" height="340" role="img" aria-label="A blank quality card fills field by field. Step 1: eval_set with the sha256 d0e202a5a0b3e504 and n = 353 items from 60 claims. Step 2: headline pass rate 83.9% with Wilson 95% CI 79.7 to 87.3, and eight slice CI bars against a gate line at 0.50; health/es and travel/es have lower bounds below the gate. Step 3: unit of resampling claim_id, judge kappa 0.580, TPR 0.946, TNR 0.593, and five thin slices with n under 30. Step 4: an empty Gate field pulses."></svg>
+      <div class="steps-rail">
+        <div data-step="1"><span>Hash the file bytes, not a re-read DataFrame.</span></div>
+        <div data-step="2"><span>Gate on the CI lower bound, fixed before the run.</span></div>
+        <div data-step="3"><span>Record the resampling unit and the known gaps.</span></div>
+        <div data-step="4"><span>Exit code 1 fails the CI check.</span></div>
+      </div>
+      <div class="code-wrap out" data-step="4">
+        <div class="code-head">output · real (first 3 lines; full card in step 4 of 4)</div>
+        <pre class="code" data-lang="none"><code># Quality card - claims agent eval (2026-10-23)
+Eval set `claims_eval.jsonl` <span class="ok">sha256:d0e202a5a0b3e504</span> | n=353 items / 60 claims
+**Pass rate <span class="ok">83.9%</span>** (Wilson 95% 79.7%-87.3%)</code></pre>
+      </div>
+      <div class="cites push">
+        <a class="cite doc" href="https://www.statsmodels.org/stable/generated/statsmodels.stats.proportion.proportion_confint.html" target="_blank" rel="noopener"><b>Docs</b>&nbsp;statsmodels proportion_confint</a>
+        <a class="cite paper" href="https://arxiv.org/abs/1810.03993" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;1810.03993 Model Cards</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">This step turns the numbers from the earlier labs into one artifact that a reviewer reads in a minute and CI can enforce. First, hash the stored bytes of the eval file: if you hash a re-serialized DataFrame, key order and float formatting change the hash on every run, and numbers from two set versions get mixed silently. Second, the GATES dict is written before anyone sees results, and it tests the lower bound of each Wilson CI, so a thin slice with 8 cases cannot pass by luck on a good point estimate. Third, the card records the resampling unit, claim_id, and lists its known gaps, the five slices under n equals 30; an honest card names its blind spots. Analogy: the card is a lab report with the sample ID on it, not a slide with one big number. Likely question: "Why hard-code OTHER?" Only for clarity here; in production every lab writes a JSON fragment and the card script merges them, so nobody retypes a number. The paired v1-vs-v2 result from step 2 goes on the card the same way, as one more fragment. Next step: run the gate.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c11-lab10-card-code";
+  // real values from the slices.py table and the quality_card.py output
+  const SL = [
+    ["auto/en", 156, 0.897, 0.840, 0.936], ["auto/es", 8, 0.875, 0.529, 0.978],
+    ["health/en", 24, 0.833, 0.641, 0.933], ["health/es", 16, 0.562, 0.332, 0.769],
+    ["home/en", 74, 0.824, 0.722, 0.894], ["home/es", 29, 0.690, 0.508, 0.827],
+    ["travel/en", 33, 0.909, 0.764, 0.969], ["travel/es", 13, 0.692, 0.424, 0.873]
+  ];
+  const SX = (v) => 200 + (v - 0.3) / 0.7 * 300;           // slice scale 0.30 .. 1.00
+  const HX = (v) => 250 + (v - 0.75) / 0.15 * 280;          // headline scale 0.75 .. 0.90
+  let S = null;
+
+  function mk(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  }
+  const label = (p, y, t) => mk("text", { x: 14, y, "font-size": 10.5, fill: "var(--muted)" }, p, t);
+
+  function build(slide) {
+    const svg = slide.querySelector("#c11q-svg");
+    if (svg._S) return svg._S;
+    svg.innerHTML = "";
+    const s = { prev: 0, tweens: [], pulse: null, rows: [] };
+    mk("rect", { x: 1, y: 1, width: 548, height: 338, rx: 12, fill: "var(--surface)", stroke: "var(--line-2)", "stroke-width": 1.5 }, svg);
+    mk("rect", { x: 1, y: 1, width: 548, height: 28, rx: 12, fill: "var(--tool-soft)" }, svg);
+    mk("text", { x: 14, y: 20, "font-size": 12, "font-weight": 700, fill: "var(--tool)" }, svg, "QUALITY CARD · claims agent eval · v1.0");
+    // empty field outlines (always visible: the blank card)
+    [[34, 36], [74, 28], [106, 134], [244, 56], [304, 30]].forEach(([y, h]) =>
+      mk("rect", { x: 8, y, width: 534, height: h, rx: 6, fill: "none", stroke: "var(--line-2)", "stroke-dasharray": "3 4" }, svg));
+    // step 1: eval_set
+    s.f1 = mk("g", { opacity: 0 }, svg);
+    label(s.f1, 50, "eval_set");
+    mk("text", { x: 14, y: 63, "font-size": 10, fill: "var(--ink-2)" }, s.f1, "claims_eval.jsonl");
+    mk("rect", { x: 150, y: 41, width: 212, height: 22, rx: 11, fill: "var(--tool-soft)", stroke: "var(--tool)", "stroke-width": 1.2 }, s.f1);
+    s.hash = mk("text", { x: 256, y: 56, "text-anchor": "middle", "font-size": 11, "font-weight": 700, fill: "var(--tool)" }, s.f1, "sha256 d0e202a5a0b3e504");
+    s.nTxt = mk("text", { x: 530, y: 56, "text-anchor": "end", "font-size": 11.5, "font-weight": 700, fill: "var(--ink)" }, s.f1, "n=353 / 60 claims");
+    // step 2: headline + slices
+    s.f2 = mk("g", { opacity: 0 }, svg);
+    label(s.f2, 92, "headline");
+    s.head = mk("text", { x: 100, y: 94, "font-size": 17, "font-weight": 700, fill: "var(--ink)" }, s.f2, "83.9%");
+    mk("text", { x: 160, y: 92, "font-size": 10, fill: "var(--muted)" }, s.f2, "Wilson 95%");
+    mk("line", { x1: HX(0.75), y1: 88, x2: HX(0.90), y2: 88, stroke: "var(--line-2)", "stroke-width": 1 }, s.f2);
+    s.hw = mk("rect", { x: HX(0.839), y: 83, width: 0, height: 10, rx: 3, fill: "var(--tool)", opacity: 0.7 }, s.f2);
+    mk("circle", { cx: HX(0.839), cy: 88, r: 3.5, fill: "#fff", stroke: "var(--tool)", "stroke-width": 1.5 }, s.f2);
+    mk("text", { x: HX(0.797), y: 100, "text-anchor": "end", "font-size": 9.5, fill: "var(--muted)" }, s.f2, "79.7");
+    mk("text", { x: HX(0.873), y: 100, "font-size": 9.5, fill: "var(--muted)" }, s.f2, "87.3");
+    label(s.f2, 120, "slices");
+    mk("line", { x1: SX(0.5), y1: 110, x2: SX(0.5), y2: 236, stroke: "var(--risk)", "stroke-width": 1.5, "stroke-dasharray": "4 3" }, s.f2);
+    mk("text", { x: SX(0.5), y: 119, "text-anchor": "middle", "font-size": 9.5, "font-weight": 700, fill: "var(--risk)" }, s.f2, "gate CI low 0.50");
+    SL.forEach(([name, n, p, lo, hi], i) => {
+      const y = 134 + i * 14;
+      const bad = lo < 0.5;
+      const c = bad ? "var(--risk)" : "var(--state)";
+      mk("text", { x: 40, y: y + 4, "font-size": 11.5, fill: bad ? "var(--risk)" : "var(--ink-2)", "font-weight": bad ? 700 : 400 }, s.f2, name);
+      mk("text", { x: 186, y: y + 4, "text-anchor": "end", "font-size": 10.5, fill: "var(--muted)" }, s.f2, `n=${n}`);
+      const w = mk("line", { x1: SX(p), y1: y, x2: SX(p), y2: y, stroke: c, "stroke-width": 4, "stroke-linecap": "round" }, s.f2);
+      mk("circle", { cx: SX(p), cy: y, r: 3, fill: c }, s.f2);
+      const thin = mk("text", { x: 508, y: y + 4, "font-size": 10.5, "font-weight": 700, fill: "var(--tool)", opacity: 0 }, svg, n < 30 ? "thin" : "");
+      s.rows.push({ w, lo, hi, thin, isThin: n < 30 });
+    });
+    // step 3: resampling unit, judge, known gaps
+    s.f3 = mk("g", { opacity: 0 }, svg);
+    label(s.f3, 266, "unit");
+    mk("text", { x: 60, y: 266, "font-size": 11, "font-weight": 700, fill: "var(--ink)" }, s.f3, "claim_id");
+    mk("text", { x: 160, y: 266, "font-size": 10.5, fill: "var(--muted)" }, s.f3, "judge");
+    mk("text", { x: 205, y: 266, "font-size": 11, "font-weight": 700, fill: "var(--risk)" }, s.f3, "κ 0.580");
+    mk("text", { x: 270, y: 266, "font-size": 11, fill: "var(--ink-2)" }, s.f3, "TPR 0.946 · TNR 0.593");
+    label(s.f3, 290, "known_gaps");
+    mk("text", { x: 100, y: 290, "font-size": 10.5, fill: "var(--tool)", "font-weight": 700 }, s.f3, "5 thin slices (n < 30)");
+    mk("text", { x: 270, y: 290, "font-size": 9.5, fill: "var(--ink-2)" }, s.f3, "auto/es health/en health/es home/es travel/es");
+    // step 4: the empty gate field
+    s.f4 = mk("g", { opacity: 0 }, svg);
+    label(s.f4, 323, "gate");
+    s.gateBox = mk("rect", { x: 100, y: 310, width: 300, height: 20, rx: 5, fill: "var(--tool-soft)", stroke: "var(--tool)", "stroke-width": 1.6, "stroke-dasharray": "5 3" }, s.f4);
+    mk("text", { x: 250, y: 324, "text-anchor": "middle", "font-size": 10.5, "font-weight": 700, fill: "var(--tool)" }, s.f4, "sys.exit(0 | 1) ?");
+    svg._S = s;
+    return s;
+  }
+
+  function render(s, n, animate) {
+    s.tweens.forEach((t) => t.kill()); s.tweens = [];
+    if (s.pulse) { s.pulse.kill(); s.pulse = null; }
+    const T = (tw) => s.tweens.push(tw);
+    const fwd = animate && n > s.prev;
+    const to = (e, v, d) => (fwd ? T(gsap.to(e, Object.assign({ duration: 0.5, delay: d || 0, ease: "power2.out" }, v))) : gsap.set(e, v));
+    to(s.f1, { opacity: n >= 1 ? 1 : 0 });
+    to(s.f2, { opacity: n >= 2 ? 1 : 0 });
+    to(s.f3, { opacity: n >= 3 ? 1 : 0 });
+    to(s.f4, { opacity: n >= 4 ? 1 : 0 });
+    // headline count-up and whisker
+    const setHead = (v) => (s.head.textContent = `${v.toFixed(1)}%`);
+    if (fwd && n >= 2 && s.prev < 2) { const o = { v: 50 }; setHead(50); T(gsap.to(o, { v: 83.9, duration: 0.9, ease: "power2.out", onUpdate: () => setHead(o.v) })); }
+    else setHead(83.9);
+    to(s.hw, { attr: n >= 2 ? { x: HX(0.797), width: HX(0.873) - HX(0.797) } : { x: HX(0.839), width: 0 } }, 0.2);
+    s.rows.forEach((r, i) => {
+      to(r.w, { attr: n >= 2 ? { x1: SX(r.lo), x2: SX(r.hi) } : { x1: SX((r.lo + r.hi) / 2), x2: SX((r.lo + r.hi) / 2) } }, 0.3 + i * 0.06);
+      to(r.thin, { opacity: n >= 3 && r.isThin ? 1 : 0 }, 0.3 + i * 0.05);
+    });
+    if (n >= 4) {
+      gsap.set(s.gateBox, { opacity: 1 });
+      s.pulse = gsap.to(s.gateBox, { opacity: 0.35, duration: 0.7, repeat: -1, yoyo: true, ease: "sine.inOut", delay: fwd ? 0.5 : 0 });
+    } else gsap.set(s.gateBox, { opacity: 1 });
+    s.prev = n;
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { S = build(slide); S.prev = step || 0; render(S, step || 0, false); },
+    step(slide, n, animate) { S = build(slide); render(S, n, animate); },
+    leave(slide) {
+      const svg = slide.querySelector("#c11q-svg");
+      if (svg && svg._S) { svg._S.tweens.forEach((t) => t.kill()); svg._S.tweens = []; if (svg._S.pulse) { svg._S.pulse.kill(); svg._S.pulse = null; } }
+      if (svg) gsap.killTweensOf(svg.querySelectorAll("*"));
+    }
+  });
+})();
+</script>

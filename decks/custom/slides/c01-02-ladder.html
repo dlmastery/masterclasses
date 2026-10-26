@@ -1,0 +1,167 @@
+<section class="slide" id="custom-c01-ladder" data-tone="agent" data-title="The customization ladder">
+  <style>
+    #custom-c01-ladder .lad { grid-template-columns: 940px 1fr; gap: 36px; align-items: stretch; }
+    #custom-c01-ladder svg text { font-family: var(--f-body); }
+    #custom-c01-ladder .rail { stroke: var(--line-2); stroke-width: 8; stroke-linecap: round; fill: none; }
+    #custom-c01-ladder .rung { stroke: var(--rc); stroke-width: 6; stroke-linecap: round; opacity: .45; transition: opacity .4s, stroke-width .4s; }
+    #custom-c01-ladder .rung.on { opacity: 1; stroke-width: 10; }
+    #custom-c01-ladder .lead { stroke: var(--rc); stroke-width: 2; opacity: .7; }
+    #custom-c01-ladder .rn { font: 600 23px/1 var(--f-display); fill: var(--ink); letter-spacing: -0.01em; }
+    #custom-c01-ladder .rd { font: 500 18px/1 var(--f-body); fill: var(--muted); }
+    #custom-c01-ladder .half { fill: var(--risk); stroke: var(--bg); stroke-width: 3; transition: fill .5s; }
+    #custom-c01-ladder .half.ok { fill: var(--state); }
+    #custom-c01-ladder .tl { font: 700 16px/1 var(--f-mono); fill: var(--ink); }
+    #custom-c01-ladder .g-track { fill: var(--line); stroke: var(--line-2); stroke-width: 1.5; }
+    #custom-c01-ladder .g-fill { fill: var(--state); opacity: .85; }
+    #custom-c01-ladder .g-val { font: 700 26px/1 var(--f-mono); fill: var(--state); }
+    #custom-c01-ladder .g-lab { font: 600 16px/1 var(--f-mono); fill: var(--muted); }
+    #custom-c01-ladder .conn { stroke: var(--state); stroke-width: 2; stroke-dasharray: 5 6; fill: none; }
+    #custom-c01-ladder .br { stroke: var(--model); stroke-width: 4; fill: none; stroke-linecap: round; }
+    #custom-c01-ladder .brt { font: 700 16px/1 var(--f-mono); fill: var(--model); }
+    #custom-c01-ladder .side { justify-content: flex-start; padding-top: 40px; gap: 22px; }
+    #custom-c01-ladder .caps { position: relative; height: 200px; }
+    #custom-c01-ladder .cap { position: absolute; left: 0; right: 0; top: 0; font-size: 23px; line-height: 1.4; color: var(--ink-2); border-left: 4px solid var(--state); padding: 6px 0 6px 18px; }
+    #custom-c01-ladder .cap b { color: var(--state); font-family: var(--f-mono); }
+    #custom-c01-ladder .side .panel p { font-size: 24px; line-height: 1.4; }
+  </style>
+  <h2 class="title">Climb the ladder one rung at a time; the eval decides each step</h2>
+  <div class="grid lad fill">
+    <svg id="c01-lad-svg" viewBox="0 0 940 640" width="940" height="640" aria-label="Customization ladder with an eval gauge">
+      <line class="rail" id="c01-rl" x1="120" y1="615" x2="120" y2="40"/>
+      <line class="rail" id="c01-rr" x1="360" y1="615" x2="360" y2="40"/>
+      <g id="c01-rungs"></g>
+      <g id="c01-br" opacity="0">
+        <path class="br" d="M110,76 L100,76 L100,204 L110,204"/>
+        <text class="brt" x="92" y="124" text-anchor="end">needs a</text>
+        <text class="brt" x="92" y="146" text-anchor="end">trusted</text>
+        <text class="brt" x="92" y="168" text-anchor="end">reward</text>
+      </g>
+      <path class="conn" id="c01-conn" d="M266,590 H380 V544 H768 V590 H818" opacity="0"/>
+      <g id="c01-tok" opacity="0">
+        <path class="half" id="c01-hl" d="M0,-24 A24,24 0 0 0 0,24 Z"/>
+        <path class="half" id="c01-hr" d="M0,-24 A24,24 0 0 1 0,24 Z"/>
+        <text class="tl" x="-8" y="-34" text-anchor="end">fact</text>
+        <text class="tl" x="8" y="-34">format</text>
+      </g>
+      <rect class="g-track" x="820" y="90" width="34" height="500" rx="8"/>
+      <rect class="g-fill" id="c01-gf" x="820" y="590" width="34" height="0" rx="8"/>
+      <text class="g-lab" x="810" y="96" text-anchor="end">100</text>
+      <text class="g-lab" x="810" y="346" text-anchor="end">50</text>
+      <text class="g-lab" x="810" y="596" text-anchor="end">0</text>
+      <g id="c01-gm" transform="translate(0,590)" opacity="0">
+        <path d="M858,0 L870,-8 L870,8 Z" fill="var(--state)"/>
+        <text class="g-val" id="c01-gv" x="874" y="9">0%</text>
+      </g>
+      <text class="g-lab" x="837" y="620" text-anchor="middle">eval pass rate</text>
+      <text class="g-lab" x="837" y="638" text-anchor="middle">illustrative</text>
+      <text class="g-lab" id="c01-leg" x="20" y="638" opacity="0">Acme token: red half fails, green half passes</text>
+    </svg>
+    <div class="stack side">
+      <div class="caps">
+        <div class="cap" data-step="1" data-until="2">Prompt only: <b>41%</b>. Facts and format both fail.</div>
+        <div class="cap" data-step="2" data-until="3">Long context: <b>52%</b>. The Acme KB is over ~200k tokens, so some facts still miss.</div>
+        <div class="cap" data-step="3" data-until="4">RAG: <b>63%</b>. Retrieval finds the policy. Facts pass; format still fails.</div>
+        <div class="cap" data-step="4" data-until="5">SFT (LoRA): <b>85%</b>. Training on example answers fixes the format.</div>
+        <div class="cap" data-step="5">DPO and RL stay closed: no preference pairs and no trusted reward yet.</div>
+      </div>
+      <div class="panel k-agent" data-step="5"><p>Knowledge → RAG.<br>Behaviour → tuning.</p></div>
+      <div class="cites push" data-step="1">
+        <a class="cite doc" href="https://developers.openai.com/api/docs/guides/optimizing-llm-accuracy" target="_blank" rel="noopener"><b>Docs</b>&nbsp;OpenAI: Optimizing LLM accuracy</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    Read the ladder bottom-up: each rung needs more data and more time than the one below, so you climb only when the eval says the current rung is not enough. The Acme refunds assistant starts at prompt only and passes 41% of the refund eval; all gauge numbers are illustrative. Long context helps a little, but the Acme knowledge base is bigger than about 200k tokens, so we move to RAG, which fixes the fact half. SFT with LoRA (low-rank adapters, a cheap way to fine-tune) fixes the format half. DPO (direct preference optimization: train on chosen versus rejected answers) and RL or RFT (reinforcement fine-tuning against a grader) stay closed until you have preference pairs or a reward you trust. Analogy, as on the chapter slide: the handbook fixes missing facts, coaching fixes behaviour. One real number: in OpenAI's Icelandic grammar case, adding RAG to a fine-tuned GPT-4 dropped BLEU (overlap with reference text, higher is better) from 87 to 83, because the task was behaviour and the retrieved text added noise. Likely student question: "Why not skip to RL?" RL needs at least one correct sampled answer per prompt to learn anything; the probe slide at the end of this chapter shows how to check. Next: a production case where context alone beat the general agents.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  // rung i sits at y = 590 - i*100 (bottom-up)
+  const RUNGS = [
+    { n: "Prompt / context", d: "instructions + examples · hours", t: "agent" },
+    { n: "Long context", d: "whole KB in the prompt, < ~200k tokens", t: "agent" },
+    { n: "RAG", d: "search a corpus at query time · days", t: "agent" },
+    { n: "SFT (LoRA)", d: "supervised fine-tuning, 50-500 examples", t: "model" },
+    { n: "DPO", d: "train on chosen vs rejected answers", t: "human" },
+    { n: "RL / RFT", d: "grader reward, no reference answer", t: "model" }
+  ];
+  const Y = (i) => 590 - i * 100;
+  // per step: token rung, fact ok, format ok, gauge value, bracket
+  const S = [
+    { r: 0, f: false, m: false, g: null, b: false },
+    { r: 0, f: false, m: false, g: 41, b: false },
+    { r: 1, f: false, m: false, g: 52, b: false },
+    { r: 2, f: true, m: false, g: 63, b: false },
+    { r: 3, f: true, m: true, g: 85, b: false },
+    { r: 3, f: true, m: true, g: 85, b: true }
+  ];
+  let els = [];
+  const el = (tag, attrs, parent) => {
+    const e = document.createElementNS(NS, tag);
+    Object.entries(attrs).forEach(([k, v]) => e.setAttribute(k, v));
+    parent.appendChild(e);
+    return e;
+  };
+  const build = (slide) => {
+    const g = slide.querySelector("#c01-rungs");
+    g.innerHTML = "";
+    RUNGS.forEach((r, i) => {
+      const y = Y(i);
+      const grp = el("g", { "data-i": i, style: `--rc: var(--${r.t})` }, g);
+      el("line", { class: "rung", x1: 120, y1: y, x2: 360, y2: y }, grp);
+      el("line", { class: "lead", x1: 366, y1: y, x2: 388, y2: y }, grp);
+      el("text", { class: "rn", x: 396, y: y + 1 }, grp).textContent = r.n;
+      el("text", { class: "rd", x: 396, y: y + 25 }, grp).textContent = r.d;
+    });
+  };
+  const render = (slide, n, animate) => {
+    const s = S[Math.max(0, Math.min(n, S.length - 1))];
+    const d = animate ? 0.7 : 0;
+    const show = s.g !== null;
+    const tok = slide.querySelector("#c01-tok");
+    const ty = Y(s.r);
+    gsap.to(tok, { x: 240, y: ty, opacity: show ? 1 : 0, duration: d, ease: "power2.inOut" });
+    slide.querySelector("#c01-hl").classList.toggle("ok", s.f);
+    slide.querySelector("#c01-hr").classList.toggle("ok", s.m);
+    slide.querySelector("#c01-leg").setAttribute("opacity", show ? 1 : 0);
+    slide.querySelectorAll("#c01-rungs .rung").forEach((ln, i) => ln.classList.toggle("on", (show && i === s.r) || (s.b && i >= 4)));
+    const v = s.g || 0, gy = 590 - v * 5;
+    gsap.to(slide.querySelector("#c01-gf"), { attr: { y: gy, height: v * 5 }, duration: d, ease: "power2.out" });
+    const gm = slide.querySelector("#c01-gm");
+    gsap.to(gm, { attr: { transform: `translate(0,${gy})` }, opacity: show ? 1 : 0, duration: d, ease: "power2.out" });
+    const conn = slide.querySelector("#c01-conn");
+    gsap.to(conn, { attr: { d: `M266,${ty} H380 V${ty - 46} H768 V${gy} H818` }, opacity: show ? 1 : 0, duration: d, ease: "power2.inOut" });
+    const gv = slide.querySelector("#c01-gv");
+    if (animate && show) {
+      const o = { v: parseFloat(gv.textContent) || 0 };
+      gsap.to(o, { v, duration: d, ease: "power2.out", onUpdate: () => { gv.textContent = Math.round(o.v) + "%"; } });
+    } else gv.textContent = v + "%";
+    gsap.to(slide.querySelector("#c01-br"), { opacity: s.b ? 1 : 0, x: s.b ? 0 : -16, duration: animate ? 0.5 : 0 });
+  };
+  Deck.register("custom-c01-ladder", {
+    enter(slide, step) {
+      build(slide);
+      const tok = slide.querySelector("#c01-tok");
+      gsap.set(tok, { x: 240, y: Y(0), opacity: 0 });
+      slide.querySelector("#c01-gv").textContent = "0%";
+      gsap.set(slide.querySelector("#c01-gf"), { attr: { y: 590, height: 0 } });
+      render(slide, step, false);
+      if (step === 0) {
+        // draw rails and rungs bottom-up
+        const rails = [slide.querySelector("#c01-rl"), slide.querySelector("#c01-rr")];
+        rails.forEach((r) => { const L = 575; gsap.fromTo(r, { attr: { "stroke-dasharray": L, "stroke-dashoffset": L } }, { attr: { "stroke-dashoffset": 0 }, duration: 1.0, ease: "power2.out" }); });
+        const groups = [...slide.querySelectorAll("#c01-rungs > g")];
+        els = groups.concat(rails, [tok]);
+        gsap.from(groups, { opacity: 0, x: -24, duration: 0.45, stagger: 0.14, delay: 0.25, ease: "power2.out" });
+      }
+    },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) {
+      const all = [...slide.querySelectorAll("#c01-lad-svg *")];
+      gsap.killTweensOf(all.concat(els));
+      els = [];
+    }
+  });
+})();
+</script>

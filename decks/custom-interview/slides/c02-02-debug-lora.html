@@ -1,0 +1,164 @@
+<section class="slide" id="custom-interview-c02-debug-lora" data-tone="risk" data-title="Debug: three silent LoRA defaults">
+  <style>
+    #custom-interview-c02-debug-lora .dl-main { display: grid; grid-template-columns: 760px 1fr; gap: 28px; }
+    #custom-interview-c02-debug-lora .dl-left { gap: 12px; }
+    #custom-interview-c02-debug-lora .dl-left pre.code { font-size: 18px; line-height: 1.45; padding: 14px 20px 16px; }
+    #custom-interview-c02-debug-lora .dl-left .code-wrap .band { background: rgba(255, 110, 140, .30); border-left: 5px solid #ff8fab; }
+    #custom-interview-c02-debug-lora .dl-right { gap: 14px; min-width: 0; }
+    #custom-interview-c02-debug-lora .lab-head .run { font-size: 15.5px; }
+    #custom-interview-c02-debug-lora .code-wrap.out pre.code { font-size: 15px; line-height: 1.55; padding: 10px 14px 12px; }
+    #custom-interview-c02-debug-lora .code-wrap .code-head { padding: 8px 14px; font-size: 14px; }
+    #custom-interview-c02-debug-lora .dl-slot { display: grid; }
+    #custom-interview-c02-debug-lora .dl-slot > * { grid-area: 1 / 1; align-self: start; }
+    #custom-interview-c02-debug-lora .gotcha { font-size: 17px; padding: 12px 16px; grid-template-columns: 88px 1fr; gap: 4px 12px; }
+    #custom-interview-c02-debug-lora .gotcha > b { font-size: 13px; }
+    #custom-interview-c02-debug-lora .code-wrap.good pre.code { font-size: 15.5px; line-height: 1.5; padding: 10px 16px 12px; }
+    #custom-interview-c02-debug-lora .code-wrap.good .delta { font-size: 14px; }
+    #custom-interview-c02-debug-lora .code-wrap.out .dim { color: #a3acd6; }
+    #custom-interview-c02-debug-lora .dl-cites { display: flex; gap: 8px; flex-wrap: wrap; }
+    #custom-interview-c02-debug-lora #dl-grid text { font-family: var(--f-mono); }
+    #custom-interview-c02-debug-lora pre.code, #custom-interview-c02-debug-lora pre.code *, #custom-interview-c02-debug-lora code, #custom-interview-c02-debug-lora .run { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+  </style>
+  <div class="kicker"><span class="pill">Debug this</span> LoRA SFT · refund assistant</div>
+  <h2 class="title">Three silent defaults: two weaken this LoRA run, one wastes memory</h2>
+  <div class="dl-main fill">
+    <div class="dl-left stack">
+      <div class="lab-head"><span class="run">pip install trl==1.16.0 peft==0.21.2 transformers==5.20.2 datasets</span></div>
+      <div class="code-wrap bad">
+        <div class="code-head">sft_refund.py · trains, but quality barely moves</div>
+        <pre class="code" data-lang="python" data-focus="1:10-11, 2:8, 3:6, 4:15"><code># sft_refund.py · refund assistant · Qwen3-0.6B + LoRA
+import torch
+from peft import LoraConfig
+from trl import SFTConfig, SFTTrainer
+# (omitted) load + format 2,992 Bitext REFUND rows into ds
+args = SFTConfig(output_dir="qwen3-0.6b-refund-lora",
+    assistant_only_loss=True, max_length=1024,
+    learning_rate=2e-5,
+    num_train_epochs=2, per_device_train_batch_size=8)
+peft_config = LoraConfig(r=16, lora_alpha=32,
+    lora_dropout=0.05, task_type="CAUSAL_LM")
+trainer = SFTTrainer(model="Qwen/Qwen3-0.6B", args=args,
+    train_dataset=ds["train"], eval_dataset=ds["test"],
+    peft_config=peft_config)
+trainer.model.print_trainable_parameters()
+print(next(trainer.model.parameters()).dtype)
+trainer.train()</code></pre>
+      </div>
+      <div class="dl-cites push">
+        <a class="cite doc" href="https://huggingface.co/docs/trl/sft_trainer" target="_blank" rel="noopener"><b>Docs</b>&nbsp;TRL SFT Trainer</a>
+        <a class="cite repo" href="https://github.com/huggingface/peft/tree/v0.21.2" target="_blank" rel="noopener"><b>Repo</b>&nbsp;PEFT v0.21.2</a>
+      </div>
+    </div>
+    <div class="dl-right stack">
+      <div class="lab-head"><span class="run">python sft_refund.py</span></div>
+      <div class="code-wrap out">
+        <div class="code-head">output</div>
+        <pre class="code" data-lang="none"><code><span class="err">trainable params: 2,293,760 || all params: 598,343,680
+  || trainable%: 0.3833</span>
+<span class="err">torch.float32</span>   <span class="dim"># 596M params × 4 B = 2.4 GB of weights</span>
+<span class="ok" data-step="4">trainable params: 10,092,544 || all params: 606,142,464
+  || trainable%: 1.6650</span>
+<span class="ok" data-step="4">torch.bfloat16</span><span data-step="4">  <span class="dim"># float32 → bf16: 2.4 GB → 1.2 GB</span></span></code></pre>
+      </div>
+      <svg id="dl-grid" viewBox="0 0 604 196" width="604" height="196" aria-label="LoRA coverage: 28 layers by 7 linear modules"></svg>
+      <div class="dl-slot">
+        <div class="gotcha" data-step="1" data-until="2">
+          <b>Symptom</b><span><code>trainable%: 0.3833</code>. Only attention q and v adapt.</span>
+          <b class="why">Cause</b><span>No <code>target_modules</code>: PEFT uses the qwen3 default <code>["q_proj","v_proj"]</code>.</span>
+          <b class="fix">Fix</b><span><code>target_modules="all-linear"</code>: all 7 modules.</span>
+        </div>
+        <div class="gotcha" data-step="2" data-until="3">
+          <b>Symptom</b><span>The adapter gets the step size of a full fine-tune.</span>
+          <b class="why">Cause</b><span><code>2e-5</code> is the SFTConfig default, tuned for full FT.</span>
+          <b class="fix">Fix</b><span>Adapters need about 10×: <code>learning_rate=2e-4</code>.</span>
+        </div>
+        <div class="gotcha" data-step="3" data-until="4">
+          <b>Symptom</b><span><code>torch.float32</code>: 2× weight memory, slower steps. Quality is not the issue.</span>
+          <b class="why">Cause</b><span>A string model id loads in float32 unless you set <code>dtype</code>.</span>
+          <b class="fix">Fix</b><span><code>model_init_kwargs={"dtype": torch.bfloat16}</code>. T4 (no bf16): <code>torch.float16</code>, <code>fp16=True</code>.</span>
+        </div>
+        <div class="code-wrap good" data-step="4">
+          <div class="code-head">sft_refund.py · fixes <span class="delta up">2.29M → 10.09M trainable</span></div>
+          <pre class="code" data-lang="python"><code>model_init_kwargs={"dtype": torch.bfloat16},  # SFTConfig
+learning_rate=2e-4,                           # SFTConfig
+target_modules="all-linear",                  # LoraConfig</code></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">This is the concrete script for the whole chapter, so show it first. Show the script and the first two output lines, and ask the room why a run that trains still barely moves. Step 1: without target_modules, PEFT uses the qwen3 default of q_proj and v_proj, so only 2 of 7 linear modules in each of the 28 layers adapt: 2,293,760 parameters instead of 10,092,544. Step 2: 2e-5 is the SFTConfig default for full fine-tuning; LoRA needs about ten times that, so use 2e-4. Step 3 is different: a string model id loads in float32 unless model_init_kwargs sets the dtype. That doubles the weight memory, from 1.2 GB to 2.4 GB, and slows the steps, but it does not lower quality. On a T4, which has no bf16, use float16 and fp16=True. The output lines are deterministic: the counts come from r times in plus out per module, and the dtype line comes from the print on line 16. In the grid, q and v are trained in both runs; the five green modules are the ones all-linear adds. Analogy: you hired seven painters, sent two of them to work, and gave them a brush one tenth of the right size. A likely follow-up: how do you catch this in CI? Assert the trainable count and the per-layer adapter coverage at step 0, and log the parameter dtype. Next: the template and mask bugs in the same script.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-interview-c02-debug-lora";
+  // Qwen3-0.6B, r=16: 7 linear modules x 28 layers; true = in the qwen3 PEFT default
+  const MODS = [["q_proj", true], ["k_proj", false], ["v_proj", true], ["o_proj", false],
+                ["gate_proj", false], ["up_proj", false], ["down_proj", false]];
+  const L = 28, X0 = 104, CW = 14.5, CG = 3, Y0 = 30, RH = 14, RG = 4;
+  let cells = [], counter, pct, cnt = { v: 2293760 }, legend;
+  const fmt = (v) => Math.round(v).toLocaleString("en-US");
+  const el = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); parent.appendChild(e); return e; };
+
+  function build(svg) {
+    svg.innerHTML = "";
+    cells = [];
+    el("text", { x: 0, y: 15, "font-size": 15, fill: "var(--muted)" }, svg).textContent = "LoRA r=16: 28 layers × 7 modules";
+    counter = el("text", { x: 604, y: 15, "font-size": 16, "font-weight": 700, "text-anchor": "end", fill: "var(--risk)" }, svg);
+    MODS.forEach(([name, def], r) => {
+      const y = Y0 + r * (RH + RG);
+      el("text", { x: 0, y: y + 12, "font-size": 14, fill: "var(--ink-2)" }, svg).textContent = name;
+      for (let c = 0; c < L; c++) {
+        const rect = el("rect", { x: X0 + c * (CW + CG), y, width: CW, height: RH, rx: 3 }, svg);
+        rect._def = def; rect._c = c; rect._r = r;
+        cells.push(rect);
+      }
+    });
+    pct = el("text", { x: 0, y: 176, "font-size": 14, fill: "var(--ink-2)" }, svg);
+    legend = el("g", {}, svg);
+    el("rect", { x: 0, y: 184, width: 12, height: 12, rx: 2, fill: "var(--state)", opacity: 0.45 }, legend);
+    el("text", { x: 18, y: 195, "font-size": 14, fill: "var(--muted)" }, legend).textContent = "trained in both runs (q, v)";
+    const add = el("g", {}, legend);
+    el("rect", { x: 260, y: 184, width: 12, height: 12, rx: 2, fill: "var(--state)" }, add);
+    el("text", { x: 278, y: 195, "font-size": 14, fill: "var(--muted)" }, add).textContent = "added by all-linear";
+    const miss = el("g", {}, legend);
+    el("rect", { x: 440, y: 184, width: 12, height: 12, rx: 2, fill: "var(--surface-2)", stroke: "var(--risk)", "stroke-dasharray": "3 2" }, miss);
+    el("text", { x: 458, y: 195, "font-size": 14, fill: "var(--muted)" }, miss).textContent = "not trained";
+    legend._add = add; legend._miss = miss;
+  }
+
+  function paint(n, animate) {
+    gsap.killTweensOf(cells); gsap.killTweensOf(cnt);
+    const fixed = n >= 4;
+    cells.forEach((rc) => {
+      const on = fixed || rc._def;
+      rc.setAttribute("fill", on ? "var(--state)" : "var(--surface-2)");
+      rc.setAttribute("stroke", on ? "none" : "var(--risk)");
+      rc.setAttribute("stroke-dasharray", on ? "none" : "3 2");
+      const op = rc._def ? 0.45 : 1;
+      if (animate && fixed && !rc._def) {
+        gsap.fromTo(rc, { opacity: 0.2, scale: 0.4, transformOrigin: "50% 50%" }, { opacity: 1, scale: 1, duration: 0.35, delay: rc._c * 0.025 + rc._r * 0.04, ease: "back.out(2)" });
+      } else {
+        gsap.set(rc, { opacity: op, scale: 1, transformOrigin: "50% 50%" });
+      }
+    });
+    legend._add.style.opacity = fixed ? 1 : 0;
+    legend._miss.style.opacity = fixed ? 0 : 1;
+    const target = fixed ? 10092544 : 2293760;
+    counter.setAttribute("fill", fixed ? "var(--state)" : "var(--risk)");
+    pct.textContent = fixed ? "all 7 modules: 360,448 per layer × 28 = 10,092,544" : "q + v only: 81,920 per layer × 28 = 2,293,760";
+    if (animate && fixed && cnt.v !== target) {
+      gsap.to(cnt, { v: target, duration: 1.4, ease: "power2.out", onUpdate: () => { counter.textContent = fmt(cnt.v) + " trainable"; } });
+    } else {
+      cnt.v = target;
+      counter.textContent = fmt(target) + " trainable";
+    }
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { build(slide.querySelector("#dl-grid")); cnt.v = 2293760; paint(step || 0, false); },
+    step(slide, n, animate) { if (!cells.length) build(slide.querySelector("#dl-grid")); paint(n, animate); },
+    leave() { gsap.killTweensOf(cells); gsap.killTweensOf(cnt); }
+  });
+})();
+</script>

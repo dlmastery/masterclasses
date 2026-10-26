@@ -1,0 +1,185 @@
+<section class="slide chapter" id="rag-c03-embed-index" data-tone="state" data-title="Ch 3: Embed and index">
+  <style>
+    #rag-c03-embed-index .display { font-size: 80px; max-width: 1240px; }
+    #rag-c03-embed-index .lede { max-width: 1060px; font-size: 26px; }
+    #rag-c03-embed-index .ei-svg { display: block; overflow: visible; }
+    #rag-c03-embed-index .ei-svg text { font-family: var(--f-mono); }
+    #rag-c03-embed-index .ei-svg .hd { font-size: 15px; font-weight: 600; fill: var(--muted); letter-spacing: .05em; }
+    #rag-c03-embed-index .ei-svg .cl { font-size: 14px; font-weight: 600; fill: var(--state); }
+    #rag-c03-embed-index .ei-svg .ly { font-size: 14px; font-weight: 600; fill: var(--muted); }
+    #rag-c03-embed-index .ei-svg .plane { fill: color-mix(in oklab, var(--state) 6%, transparent); stroke: color-mix(in oklab, var(--state) 45%, transparent); stroke-width: 1.4; stroke-dasharray: 5 5; }
+    #rag-c03-embed-index .ei-svg .edge { stroke: color-mix(in oklab, var(--state) 55%, transparent); stroke-width: 1.4; }
+    #rag-c03-embed-index .ei-svg .drop { stroke: var(--line-2); stroke-width: 1.2; stroke-dasharray: 3 4; }
+    #rag-c03-embed-index .ei-svg .hop { stroke: var(--human); stroke-width: 2.6; fill: none; stroke-linecap: round; }
+    #rag-c03-embed-index .ei-svg .knn { stroke: var(--human); stroke-width: 1.6; stroke-dasharray: 4 4; }
+    #rag-c03-embed-index .ei-svg .ql { font-size: 14px; font-weight: 700; fill: var(--human); }
+    #rag-c03-embed-index .tags .tag { font-size: 17px; }
+    #rag-c03-embed-index .tags { flex-wrap: nowrap; }
+    #rag-c03-embed-index .ch-num { top: auto; bottom: 36px; right: 64px; font-size: 200px; color: color-mix(in oklab, var(--aurora) 4%, transparent); }
+    #rag-c03-embed-index .ei-svg .gl { font-size: 14px; font-weight: 600; fill: var(--ink-2); }
+    #rag-c03-embed-index .ei-svg .gl tspan.k { fill: var(--human); font-weight: 700; }
+    #rag-c03-embed-index .ei-svg .lead { stroke: var(--human); stroke-width: 1.4; }
+  </style>
+  <div class="ch-num" data-fx="blur">03</div>
+  <svg class="ei-svg" id="ei-svg" viewBox="0 0 1392 318" width="1392" height="318" aria-label="Points cluster in an embedding space; a query descends a 3-layer HNSW graph and lights its 5 nearest neighbours"></svg>
+  <h2 class="display">Embed and index: vectors you can trust, search you can tune</h2>
+  <p class="lede" data-fx="up">You embed 4 tickets, index 100k vectors and run a filtered SQL top-10. A wrong task type, norm or metric gives no error, only worse rankings.</p>
+  <div class="tags" data-fx="up">
+    <span class="tag t-model">Gemini · 768 dims</span>
+    <span class="tag t-model">Qwen3 · 256 dims (MRL)</span>
+    <span class="tag t-state">FAISS HNSW + IVF</span>
+    <span class="tag t-state">pgvector filtered top-k</span>
+  </div>
+  <aside class="notes">
+    Chapter 3 is Lab 3: we build the Northwind Mutual claims and ticket index. We embed resolved support tickets with gemini-embedding-001 at 768 dimensions, embed the Lab 2 claims chunks on-prem with Qwen3-Embedding at 256 dimensions, sweep FAISS HNSW and IVF against exact search, serve tenant-filtered top-k from pgvector, and re-ingest an edited policy without re-embedding unchanged chunks. Click 1: similar texts cluster in the embedding space. Click 2: a query enters the top layer of an HNSW graph, hops greedily, drops a layer, and ends at its 5 nearest neighbours. Define the two words the labs use all the time: M is the number of links each node keeps in the graph, and efSearch is the size of the candidate list the search keeps while it descends; a bigger list finds more true neighbours but costs latency. The task type tells the embedding model whether the text is a document or a query, so the two sides get vectors that match. Analogy: HNSW is a motorway, then main roads, then side streets; efSearch is how many side streets you are willing to check. Likely question: "Which part fails silently, the embedding or the index?" Both: a missing norm or wrong task type gives wrong vectors, and an L2 metric or efSearch=16 gives wrong neighbours, with no error in either case.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  let intro = null, loop = null, els = [];
+  const mk = (svg, tag, attrs, cls) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (cls) e.setAttribute("class", cls);
+    svg.appendChild(e); return e;
+  };
+  // HNSW planes: plane coordinate (u, v) in [0,1]^2 -> skewed parallelogram
+  const X0 = 700, W = 470, S = 150, H = 64, LY = [30, 118, 206];          // layer 2 (top), 1, 0
+  const P = (u, v, L) => ({ x: X0 + u * W + v * S, y: LY[2 - L] + v * H });
+  const N0 = 30;
+  const pts = Array.from({ length: N0 }, (_, i) => ({
+    u: 0.04 + ((i * 0.618034) % 1) * 0.92,
+    v: 0.08 + ((i * 0.7548777 + 0.31) % 1) * 0.84,
+  }));
+  const layerOf = (i) => (i % 9 === 0 ? 2 : i % 3 === 0 ? 1 : 0);   // max layer of each node
+  const inLayer = (L) => pts.map((_, i) => i).filter((i) => layerOf(i) >= L);
+  const d2 = (a, b) => ((a.u - b.u) * W + (a.v - b.v) * S) ** 2 + ((a.v - b.v) * H) ** 2;   // pixel space
+  const Q = { u: 0.74, v: 0.63 };
+  function edges(L) {
+    const ids = inLayer(L), k = L === 0 ? 3 : 2, set = new Set(), out = [];
+    ids.forEach((a) => {
+      ids.filter((b) => b !== a).sort((b, c) => d2(pts[a], pts[b]) - d2(pts[a], pts[c])).slice(0, k).forEach((b) => {
+        const key = Math.min(a, b) + "-" + Math.max(a, b);
+        if (!set.has(key)) { set.add(key); out.push([a, b]); }
+      });
+    });
+    return out;
+  }
+  function greedy() {
+    // real greedy descent: best neighbour per layer, then drop one layer
+    const path = []; let cur = 0;
+    for (let L = 2; L >= 0; L--) {
+      const E = edges(L);
+      path.push({ i: cur, L });
+      for (;;) {
+        const nb = E.filter((e) => e[0] === cur || e[1] === cur).map((e) => (e[0] === cur ? e[1] : e[0]));
+        const best = nb.reduce((m, b) => (d2(pts[b], Q) < d2(pts[m], Q) ? b : m), cur);
+        if (best === cur) break;
+        cur = best; path.push({ i: cur, L });
+      }
+    }
+    return path;
+  }
+  function kill() {
+    if (intro) { intro.kill(); intro = null; }
+    if (loop) { loop.kill(); loop = null; }
+    gsap.killTweensOf(els);
+  }
+  function build(slide) {
+    kill();
+    const svg = slide.querySelector("#ei-svg");
+    svg.innerHTML = "";
+    // left: embedding space, 3 clusters of 14 points
+    mk(svg, "text", { x: 0, y: 16 }, "hd").textContent = "EMBEDDING SPACE";
+    const C = [{ x: 120, y: 110, t: "refunds" }, { x: 390, y: 96, t: "SSO login" }, { x: 250, y: 228, t: "claim PDFs" }];
+    const dots = [], target = [];
+    for (let i = 0; i < 42; i++) {
+      const c = C[i % 3], r = 12 + ((i * 37) % 44), a = i * 2.4;
+      target.push({ cx: c.x + Math.cos(a) * r, cy: c.y + Math.sin(a) * r * 0.62 });
+      dots.push(mk(svg, "circle", { cx: 20 + ((i * 97) % 500), cy: 34 + ((i * 53) % 236), r: 6, fill: "var(--state)", opacity: 0 }));
+    }
+    const labels = C.map((c, k) => mk(svg, "text", { x: c.x, y: c.y - (k === 2 ? 46 : 50), "text-anchor": "middle", opacity: 0 }, "cl"));
+    labels.forEach((l, k) => (l.textContent = C[k].t));
+    // right: HNSW planes, edges, drops, nodes
+    mk(svg, "text", { x: X0, y: 16 }, "hd").textContent = "HNSW · 3 LAYERS";
+    const planes = [], lyl = [], edgeEls = [], nodeEls = {}, dropEls = [];
+    for (let L = 2; L >= 0; L--) {
+      const a = P(0, 0, L), b = P(1, 0, L), c = P(1, 1, L), d = P(0, 1, L);
+      planes.push(mk(svg, "path", { d: `M${a.x},${a.y} L${b.x},${b.y} L${c.x},${c.y} L${d.x},${d.y} Z`, opacity: 0 }, "plane"));
+      const t = mk(svg, "text", { x: X0 - 24, y: LY[2 - L] + 36, "text-anchor": "end", opacity: 0 }, "ly");
+      t.textContent = "layer " + L; lyl.push(t);
+    }
+    pts.forEach((p, i) => {
+      for (let L = layerOf(i); L > 0; L--) {
+        const a = P(p.u, p.v, L), b = P(p.u, p.v, L - 1);
+        dropEls.push(mk(svg, "line", { x1: a.x, y1: a.y, x2: b.x, y2: b.y, opacity: 0 }, "drop"));
+      }
+    });
+    for (let L = 2; L >= 0; L--) edges(L).forEach(([a, b]) => {
+      const A = P(pts[a].u, pts[a].v, L), B = P(pts[b].u, pts[b].v, L);
+      edgeEls.push(mk(svg, "line", { x1: A.x, y1: A.y, x2: B.x, y2: B.y, opacity: 0 }, "edge"));
+    });
+    for (let L = 2; L >= 0; L--) inLayer(L).forEach((i) => {
+      const p = P(pts[i].u, pts[i].v, L);
+      nodeEls[i + "@" + L] = mk(svg, "circle", { cx: p.x, cy: p.y, r: L === 0 ? 5 : 6, fill: "var(--state)", opacity: 0 });
+    });
+    // query marker, hop trail, kNN rays
+    const path = greedy();
+    const qp = P(Q.u, Q.v, 0);
+    const knn = inLayer(0).sort((a, b) => d2(pts[a], Q) - d2(pts[b], Q)).slice(0, 5);
+    const rays = knn.map((i) => { const p = P(pts[i].u, pts[i].v, 0); return mk(svg, "line", { x1: qp.x, y1: qp.y, x2: p.x, y2: p.y, opacity: 0 }, "knn"); });
+    const pos = path.map((s) => P(pts[s.i].u, pts[s.i].v, s.L));
+    const trail = mk(svg, "path", { d: "M" + pos.map((p) => p.x + "," + p.y).join(" L"), opacity: 0 }, "hop");
+    const qdot = mk(svg, "circle", { cx: 0, cy: 0, r: 9, fill: "var(--human)", opacity: 0 });
+    const qlab = mk(svg, "text", { x: 0, y: 0, opacity: 0 }, "ql"); qlab.textContent = "query";
+    const qmark = mk(svg, "circle", { cx: qp.x, cy: qp.y, r: 7, fill: "none", stroke: "var(--human)", "stroke-width": 2.4, opacity: 0 });
+    const done = mk(svg, "text", { x: qp.x + 18, y: qp.y + 34, opacity: 0 }, "ql"); done.textContent = "5 nearest";
+    const knnEls = knn.map((i) => nodeEls[i + "@0"]);
+    els = [...dots, ...labels, ...planes, ...lyl, ...edgeEls, ...dropEls, ...Object.values(nodeEls), ...rays, trail, qdot, qlab, qmark, done];
+    const len = trail.getTotalLength();
+    // intro: points cluster, then the graph builds layer by layer
+    intro = gsap.timeline({ delay: 0.3 });
+    intro.to(dots, { opacity: 0.75, duration: 0.4, stagger: 0.008 });
+    intro.to(dots, { attr: { cx: (k) => target[k].cx, cy: (k) => target[k].cy }, duration: 1.2, ease: "power3.inOut", stagger: 0.006 }, "+=0.1");
+    intro.to(labels, { opacity: 1, duration: 0.4, stagger: 0.1 }, "-=0.3");
+    intro.to(planes, { opacity: 1, duration: 0.5, stagger: 0.15 }, "-=0.2");
+    intro.to(lyl, { opacity: 1, duration: 0.4, stagger: 0.15 }, "<");
+    intro.to(Object.values(nodeEls), { opacity: 0.85, duration: 0.3, stagger: 0.01 }, "-=0.2");
+    intro.to(edgeEls, { opacity: 1, duration: 0.3, stagger: 0.008 }, "-=0.3");
+    intro.to(dropEls, { opacity: 1, duration: 0.3 }, "-=0.2");
+    // loop: the query descends layer by layer and lights its 5 nearest neighbours
+    intro.call(() => {
+      loop = gsap.timeline({ repeat: -1, repeatDelay: 1.2 });
+      loop.set(trail, { opacity: 1, strokeDasharray: len, strokeDashoffset: len });
+      loop.set(knnEls, { attr: { r: 5, fill: "var(--state)" } });
+      loop.set([rays, qmark, done].flat(), { opacity: 0 });
+      loop.set(qdot, { attr: { cx: pos[0].x, cy: pos[0].y - 26 }, opacity: 0 });
+      loop.set(qlab, { attr: { x: pos[0].x + 14, y: pos[0].y - 30 }, opacity: 0 });
+      loop.to([qdot, qlab], { opacity: 1, duration: 0.3 });
+      loop.to(qdot, { attr: { cy: pos[0].y }, duration: 0.4, ease: "power2.in" });
+      loop.to(qlab, { opacity: 0, duration: 0.2 }, "<");
+      let acc = 0;
+      for (let k = 1; k < pos.length; k++) {
+        const seg = Math.hypot(pos[k].x - pos[k - 1].x, pos[k].y - pos[k - 1].y);
+        acc += seg;
+        const drop = path[k].L !== path[k - 1].L;
+        loop.to(qdot, { attr: { cx: pos[k].x, cy: pos[k].y }, duration: drop ? 0.45 : 0.4, ease: "power1.inOut" });
+        loop.to(trail, { strokeDashoffset: len - acc, duration: drop ? 0.45 : 0.4, ease: "power1.inOut" }, "<");
+      }
+      loop.to(qdot, { attr: { cx: qp.x, cy: qp.y }, duration: 0.3 });
+      loop.to(qmark, { opacity: 1, duration: 0.2 });
+      loop.to(rays, { opacity: 1, duration: 0.3, stagger: 0.1 });
+      loop.to(knnEls, { attr: { r: 9, fill: "var(--human)" }, duration: 0.3, stagger: 0.1, ease: "back.out(2)" }, "<");
+      loop.to(done, { opacity: 1, duration: 0.3 });
+      loop.to({}, { duration: 1.8 });
+      loop.to([trail, qdot, qmark, done, ...rays], { opacity: 0, duration: 0.4 });
+      loop.to(knnEls, { attr: { r: 5, fill: "var(--state)" }, duration: 0.3 }, "<");
+    });
+  }
+  Deck.register("rag-c03-embed-index", {
+    enter(slide) { build(slide); },
+    leave() { kill(); }
+  });
+})();
+</script>

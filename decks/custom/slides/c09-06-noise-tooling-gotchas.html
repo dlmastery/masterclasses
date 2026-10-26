@@ -1,0 +1,236 @@
+<section class="slide" id="custom-c09-noise-tooling-gotchas" data-tone="human" data-title="Gotchas: label-noise tooling">
+  <style>
+    #custom-c09-noise-tooling-gotchas { gap: 20px; }
+    #custom-c09-noise-tooling-gotchas .ng-grid { display: grid; grid-template-columns: 690px minmax(0, 1fr); gap: 24px; min-height: 0; }
+    #custom-c09-noise-tooling-gotchas .ng-left, #custom-c09-noise-tooling-gotchas .ng-right { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    #custom-c09-noise-tooling-gotchas .gotcha { grid-template-columns: 92px minmax(0, 1fr); gap: 5px 12px; padding: 12px 16px; }
+    #custom-c09-noise-tooling-gotchas .gotcha > b { font-size: 12.5px; line-height: 1.55; }
+    #custom-c09-noise-tooling-gotchas .gotcha > span { font-size: 14.5px; line-height: 1.4; color: var(--ink-2); }
+    #custom-c09-noise-tooling-gotchas .gotcha code { font-size: .86em; overflow-wrap: anywhere; }
+    #custom-c09-noise-tooling-gotchas .gotcha .errtxt { font-family: var(--f-mono); font-size: 12.5px; color: var(--risk); }
+    #custom-c09-noise-tooling-gotchas .gotcha .ghead { grid-column: 1 / -1; font: 700 13px/1.2 var(--f-mono); color: var(--ink); letter-spacing: .02em; }
+    #custom-c09-noise-tooling-gotchas .code-head { padding: 7px 14px; font-size: 13px; }
+    #custom-c09-noise-tooling-gotchas .ng-code pre.code { font-size: 10.8px; line-height: 15.2px; padding: 10px 12px 12px; }
+    #custom-c09-noise-tooling-gotchas .ng-cites { display: flex; gap: 8px; flex-wrap: wrap; margin-top: auto; }
+    #custom-c09-noise-tooling-gotchas .ng-cites a.cite { display: inline-flex; flex-direction: row; align-items: center; gap: 8px; padding: 5px 10px 5px 8px; border-radius: 10px; border: 1px solid var(--line); background: color-mix(in oklab, var(--surface) 60%, transparent); font-size: 12.5px; }
+    #custom-c09-noise-tooling-gotchas pre.code, #custom-c09-noise-tooling-gotchas pre.code *, #custom-c09-noise-tooling-gotchas code, #custom-c09-noise-tooling-gotchas svg text { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #c09ng-svg text { font-family: var(--f-mono); white-space: pre; }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> label-noise tooling · cleanlab 2.9.0 · captured runs</div>
+  <h2 class="title">cleanlab hung 77 times on Windows; flagged labels are not delete lists</h2>
+  <div class="ng-grid fill">
+    <div class="ng-left">
+      <div class="gotcha" data-step="1">
+        <div class="ghead">1 · the run never ends</div>
+        <b>Symptom</b><span><span class="errtxt">RuntimeError: An attempt has been made to start a new process before the current process has finished its bootstrapping phase.</span> Printed 77 times, then hung. Killed after 100 s.</span>
+        <b class="why">Cause</b><span>Default <code>n_jobs=None</code> starts one process per physical core. Windows and macOS spawn re-import a script that has no <code>if __name__ == "__main__":</code> guard.</span>
+        <b class="fix">Fix</b><span><code>n_jobs=1</code> or the guard. The docstring: "Windows users may see a speed-up with n_jobs=1" (<code>filter.py:177</code>).</span>
+      </div>
+      <div class="gotcha" data-step="3">
+        <div class="ghead">2 · the input format</div>
+        <b>Symptom</b><span><span class="errtxt">ValueError: Labels cannot be strings, they must be zero-indexed integers corresponding to class indices.</span> / <span class="errtxt">Values in pred_probs must be between 0 and 1.</span></span>
+        <b class="why">Cause</b><span>The vendor CSV holds <code>"billing"</code>. The model gave raw scores, not probabilities.</span>
+        <b class="fix">Fix</b><span><code>np.searchsorted(classes, string_labels)</code> with sorted classes. Use <code>predict_proba</code> or a softmax.</span>
+      </div>
+      <div class="gotcha" data-step="4">
+        <div class="ghead">3 · cleaning made the model worse</div>
+        <b>Symptom</b><span>The team deleted every flagged row. The retrained model did not improve.</span>
+        <b class="why">Evidence</b><span>arXiv 2609.25487 (21 Sep 2026): 870,514 Google Play apps, 3 detectors agreed on 7,598. Removal did not help; loss grew with the number removed. Overlap-only model: AUC 0.2518.</span>
+        <b class="fix">Fix</b><span>Send flagged rows to review. Delete only after a human decision, especially when the label is a proxy.</span>
+      </div>
+      <div class="ng-cites">
+        <a class="cite repo" href="https://github.com/cleanlab/cleanlab/blob/master/cleanlab/filter.py" target="_blank" rel="noopener"><b>Repo</b>&nbsp;cleanlab filter.py</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2609.25487" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2609.25487</a>
+        <a class="cite doc" href="https://docs.cleanlab.ai/stable/tutorials/indepth_overview.html" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Data-centric AI workflows</a>
+      </div>
+    </div>
+    <div class="ng-right">
+      <svg id="c09ng-svg" viewBox="0 0 678 232" width="678" height="232" role="img" aria-label="Step 1: a terminal fills with the RuntimeError bootstrapping line while a counter climbs to 77, and a grid of worker-process cells flickers; the status says hung, killed after 100 s. Step 2: with n_jobs=1 only one cell stays lit and the terminal shows flipped labels 225, flagged by cleanlab 223. Step 3: the terminal shows the two ValueError messages and the searchsorted fix. Step 4: a bar of 870,514 apps with a thin sliver of 7,598 flagged apps; the sliver is cut into a delete bin and a loss curve rises as more apps are removed, with an overlap-only model at AUC 0.2518. Step 5: the same sliver goes to a human review queue with the decisions fix, keep, ambiguous and drop."></svg>
+      <div class="code-wrap good ng-code">
+        <div class="code-head">triage/review_queue.py · the fixed pattern · tickets.py from step 3</div>
+        <pre class="code" data-lang="python" data-focus="2:17-22, 3:10-12, 4:19-19, 5:19-19"><code>import numpy as np
+from cleanlab.filter import find_label_issues
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import StratifiedKFold, cross_val_predict
+from sklearn.pipeline import make_pipeline
+from tickets import make_tickets
+
+def main():
+    texts, y, classes = make_tickets(3_000, seed=1)     # classes = sorted names
+    string_labels = np.array(classes)[y]                 # what a vendor CSV holds
+    labels = np.searchsorted(classes, string_labels)     # "billing" -&gt; 0: ints 0..K-1
+    model = make_pipeline(TfidfVectorizer(ngram_range=(1, 2), min_df=2),
+                          LogisticRegression(max_iter=2_000))
+    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=0)
+    pred_probs = cross_val_predict(model, texts, labels, cv=cv, method="predict_proba")
+    ranked = find_label_issues(labels=labels, pred_probs=pred_probs,
+                               return_indices_ranked_by="self_confidence", n_jobs=1)
+    return ranked[:200]                                  # a review queue, not a delete list
+
+if __name__ == "__main__":                               # spawn re-imports this module
+    print(main())</code></pre>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Three things go wrong when you take Lab 8's cleanlab step to a real laptop and a real vendor file. First, on Windows the default n_jobs=None starts one process per physical core; without a main guard each spawned process re-imports the script, and our captured run printed the bootstrapping RuntimeError 77 times and then hung until we killed it at 100 seconds, so set n_jobs=1 or add the guard. Second, cleanlab wants integer labels 0 to K-1 in sorted class order and real probabilities, so encode the vendor's strings with searchsorted and use predict_proba, not raw scores. Third, and most important: the Google Play study 2609.25487 found that deleting the apps that three detectors agreed on did not improve the model, and loss grew as more were removed, so a flagged list is a review queue, not a delete list. Analogy: a metal detector tells you where to dig; it does not tell you to tear up the whole beach. Likely question: when is auto-delete fine? Only after a reviewed sample shows the flags are almost all real errors and the label is the true target, not a proxy like "app was removed". Next: three October papers on the route-or-defer threshold and on drift monitoring.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c09-noise-tooling-gotchas";
+  const ERR = "RuntimeError: An attempt has been made to start a new";
+  const NLINES = 11, LY = 46, LP = 14.5;
+  let S = null;
+
+  function mk(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  }
+
+  function build(slide) {
+    const svg = slide.querySelector("#c09ng-svg");
+    if (svg._S) return svg._S;
+    svg.innerHTML = "";
+    const s = { prev: -1 };
+    // ---------- scene A: terminal + worker processes (steps 1-3)
+    s.A = mk("g", {}, svg);
+    mk("rect", { x: 0, y: 0, width: 432, height: 232, rx: 12, fill: "#0f1430" }, s.A);
+    mk("text", { x: 14, y: 22, "font-size": 11.5, fill: "#7ee2b8" }, s.A, "$ python rank_labels.py");
+    s.count = mk("text", { x: 418, y: 22, "text-anchor": "end", "font-size": 15, "font-weight": 800, fill: "#ff7a7a" }, s.A, "");
+    s.lines = Array.from({ length: NLINES }, (_, i) => mk("text", { x: 14, y: LY + i * LP, "font-size": 10.5, fill: "#ff9a9a" }, s.A, ""));
+    s.status = mk("text", { x: 14, y: 220, "font-size": 11.5, "font-weight": 700, fill: "#ff7a7a" }, s.A, "");
+    // worker cells
+    mk("text", { x: 456, y: 22, "font-size": 11.5, "font-weight": 700, fill: "var(--ink)" }, s.A, "worker processes");
+    s.cells = [];
+    for (let r = 0; r < 2; r++) for (let c = 0; c < 4; c++) {
+      s.cells.push(mk("rect", { x: 456 + c * 56, y: 40 + r * 56, width: 44, height: 44, rx: 8, fill: "var(--risk)", opacity: 0.15 }, s.A));
+    }
+    s.cellCap = [
+      mk("text", { x: 456, y: 170, "font-size": 11, "font-weight": 700, fill: "var(--risk)", opacity: 0 }, s.A, "n_jobs=None:"),
+      mk("text", { x: 456, y: 170, "font-size": 11, "font-weight": 700, fill: "var(--state)", opacity: 0 }, s.A, "n_jobs=1:"),
+    ];
+    s.cellCap2 = [
+      mk("text", { x: 456, y: 186, "font-size": 11, fill: "var(--ink-2)", opacity: 0 }, s.A, "1 process per core"),
+      mk("text", { x: 456, y: 186, "font-size": 11, fill: "var(--ink-2)", opacity: 0 }, s.A, "one process, no spawn"),
+    ];
+    // ---------- scene B: flagged != delete (steps 4-5)
+    s.B = mk("g", { opacity: 0 }, svg);
+    const BW = 640, SL = Math.max(5.2, BW * 7598 / 870514);
+    mk("text", { x: 0, y: 14, "font-size": 11.5, "font-weight": 700, fill: "var(--ink)" }, s.B, "870,514 Google Play apps · 2609.25487");
+    mk("rect", { x: 0, y: 24, width: BW - SL, height: 24, rx: 5, fill: "var(--state)", opacity: 0.75 }, s.B);
+    mk("text", { x: BW, y: 14, "text-anchor": "end", "font-size": 11, "font-weight": 700, fill: "var(--tool)" }, s.B, "7,598 flagged by 3 detectors");
+    s.sliver = mk("rect", { x: BW - SL, y: 24, width: SL, height: 24, rx: 1, fill: "var(--tool)" }, s.B);
+    // loss chart
+    s.chart = mk("g", { opacity: 0 }, s.B);
+    mk("path", { d: "M30 80 V206 H330", stroke: "var(--line-2)", "stroke-width": 1.5, fill: "none" }, s.chart);
+    mk("text", { x: 330, y: 224, "text-anchor": "end", "font-size": 10.5, fill: "var(--muted)" }, s.chart, "flagged apps removed →");
+    mk("text", { x: 24, y: 74, "font-size": 10.5, fill: "var(--muted)" }, s.chart, "loss ↑");
+    s.loss = mk("path", { d: "M36 186 C 110 182, 180 160, 240 132 S 310 96, 324 90", stroke: "var(--risk)", "stroke-width": 3, fill: "none" }, s.chart);
+    s.lossLbl = mk("text", { x: 46, y: 100, "font-size": 11.5, "font-weight": 700, fill: "var(--risk)" }, s.chart, "no gain; loss grows");
+    s.auc = mk("text", { x: 46, y: 118, "font-size": 11, fill: "var(--ink-2)" }, s.chart, "overlap-only model: AUC 0.2518");
+    // delete bin
+    s.bin = mk("g", { opacity: 0 }, s.B);
+    mk("rect", { x: 420, y: 84, width: 220, height: 56, rx: 10, fill: "var(--risk-soft, var(--surface))", stroke: "var(--risk)", "stroke-width": 1.6 }, s.bin);
+    mk("text", { x: 436, y: 108, "font-size": 12, "font-weight": 700, fill: "var(--risk)" }, s.bin, "✕ delete all flagged");
+    mk("text", { x: 436, y: 126, "font-size": 10.5, fill: "var(--ink-2)" }, s.bin, "then retrain");
+    // review queue
+    s.queue = mk("g", { opacity: 0 }, s.B);
+    mk("rect", { x: 420, y: 150, width: 220, height: 78, rx: 10, fill: "none", stroke: "var(--state)", "stroke-width": 1.8, "stroke-dasharray": "5 4" }, s.queue);
+    mk("text", { x: 436, y: 172, "font-size": 12, "font-weight": 700, fill: "var(--state)" }, s.queue, "✓ human review queue");
+    let x = 436;
+    ["fix", "keep", "ambiguous", "drop"].forEach((c) => {
+      const w = c.length * 6.2 + 12;
+      mk("rect", { x, y: 186, width: w, height: 20, rx: 10, fill: "none", stroke: "var(--human)" }, s.queue);
+      mk("text", { x: x + w / 2, y: 200, "text-anchor": "middle", "font-size": 10.5, fill: "var(--human)" }, s.queue, c);
+      x += w + 5;
+    });
+    mk("text", { x: 436, y: 222, "font-size": 10.5, fill: "var(--ink-2)" }, s.queue, "log each decision");
+    s.SL = SL; s.BW = BW;
+    svg._S = s;
+    return s;
+  }
+
+  function fillTerm(s, n, k) {
+    // n = step; k = how many RuntimeError lines were printed so far (0..77)
+    const L = s.lines;
+    L.forEach((t) => { t.textContent = ""; t.setAttribute("fill", "#ff9a9a"); });
+    if (n === 1) {
+      const shown = Math.min(k, NLINES);
+      for (let i = 0; i < shown; i++) L[i].textContent = ERR + " process ...";
+      s.count.textContent = k ? "× " + k : "";
+      s.status.textContent = k >= 77 ? "hung · killed after 100 s" : "";
+      s.status.setAttribute("fill", "#ff7a7a");
+    } else if (n === 2) {
+      s.count.textContent = "";
+      const out = [["# find_label_issues(..., n_jobs=1)", "#8a93c0"], ["flipped labels: 225   flagged by cleanlab: 223", "#7ee2b8"], ["precision: 1.00   recall: 0.99", "#7ee2b8"]];
+      out.forEach(([t, c], i) => { L[i].textContent = t; L[i].setAttribute("fill", c); });
+      s.status.textContent = "exit 0 · about 7 s";
+      s.status.setAttribute("fill", "#7ee2b8");
+    } else {
+      s.count.textContent = "";
+      const out = [["ValueError: Labels cannot be strings, they must", "#ff9a9a"], ["  be zero-indexed integers corresponding to", "#ff9a9a"], ["  class indices.", "#ff9a9a"], ["", ""], ["ValueError: Values in pred_probs must be", "#ff9a9a"], ["  between 0 and 1.", "#ff9a9a"], ["", ""], ["# fix", "#8a93c0"], ["labels = np.searchsorted(classes, string_labels)", "#7ee2b8"], ["pred_probs = ...predict_proba...", "#7ee2b8"]];
+      out.forEach(([t, c], i) => { L[i].textContent = t; if (c) L[i].setAttribute("fill", c); });
+      s.status.textContent = "";
+    }
+  }
+
+  function render(s, n, animate) {
+    if (s.tl) { s.tl.kill(); s.tl = null; }
+    if (s.flick) { s.flick.kill(); s.flick = null; }
+    const els = [s.A, s.B, s.chart, s.bin, s.queue, s.sliver, s.loss, ...s.cells, ...s.cellCap, ...s.cellCap2];
+    gsap.killTweensOf(els);
+    const to = (el, v, d, dur) => (animate ? gsap.to(el, { ...v, duration: dur || 0.45, delay: d || 0 }) : gsap.set(el, v));
+    const sceneA = n <= 3;
+    to(s.A, { opacity: sceneA ? 1 : 0 });
+    to(s.B, { opacity: sceneA ? 0 : 1 }, sceneA ? 0 : 0.2);
+    // ---- scene A
+    const busy = n <= 1;
+    to(s.cellCap[0], { opacity: n === 1 ? 1 : 0 });
+    to(s.cellCap2[0], { opacity: n === 1 ? 1 : 0 });
+    to(s.cellCap[1], { opacity: n >= 2 ? 1 : 0 });
+    to(s.cellCap2[1], { opacity: n >= 2 ? 1 : 0 });
+    s.cells.forEach((c, i) => {
+      c.setAttribute("fill", busy ? "var(--risk)" : i === 0 ? "var(--state)" : "var(--line-2)");
+      gsap.set(c, { opacity: n === 0 ? 0.15 : busy ? 0.85 : i === 0 ? 0.9 : 0.25 });
+    });
+    if (n === 1 && animate) {
+      const p = { k: 0 };
+      fillTerm(s, 1, 0);
+      s.tl = gsap.timeline();
+      s.tl.to(p, { k: 77, duration: 2.6, ease: "none", onUpdate: () => fillTerm(s, 1, Math.round(p.k)) });
+      s.flick = gsap.timeline({ repeat: -1 });
+      s.cells.forEach((c, i) => s.flick.to(c, { opacity: 0.25, duration: 0.18, yoyo: true, repeat: 1, ease: "none" }, ((i * 5) % 8) * 0.07));
+      if (matchMedia("(prefers-reduced-motion: reduce)").matches) s.flick.pause(0);
+    } else if (n >= 1) fillTerm(s, Math.min(n, 3), 77);
+    else { s.lines.forEach((t) => (t.textContent = "")); s.count.textContent = ""; s.status.textContent = ""; }
+    // ---- scene B
+    const L = s.loss.getTotalLength ? s.loss.getTotalLength() : 340;
+    s.loss.style.strokeDasharray = L;
+    to(s.chart, { opacity: n === 4 ? 1 : n >= 5 ? 0.3 : 0 }, n === 4 ? 0.6 : 0);
+    if (n === 4 && animate && s.prev < 4) gsap.fromTo(s.loss, { strokeDashoffset: L }, { strokeDashoffset: 0, duration: 1.2, delay: 1.0 });
+    else gsap.set(s.loss, { strokeDashoffset: n >= 4 ? 0 : L });
+    to(s.bin, { opacity: n === 4 ? 1 : n >= 5 ? 0.25 : 0 }, n === 4 ? 0.3 : 0);
+    to(s.queue, { opacity: n >= 5 ? 1 : 0 }, n >= 5 ? 0.2 : 0);
+    const sx = s.BW - s.SL;
+    const target = n === 4 ? { x: 600, y: 102, width: 26, height: 26 } : n >= 5 ? { x: 600, y: 160, width: 26, height: 26 } : { x: sx, y: 24, width: s.SL, height: 24 };
+    to(s.sliver, { attr: target }, n >= 4 ? 0.5 : 0, 0.7);
+    s.prev = n;
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { S = build(slide); S.prev = -1; render(S, step, false); },
+    step(slide, n, animate) { S = build(slide); render(S, n, animate); },
+    leave(slide) {
+      const svg = slide.querySelector("#c09ng-svg");
+      const s = svg && svg._S;
+      if (s && s.tl) { s.tl.kill(); s.tl = null; }
+      if (s && s.flick) { s.flick.kill(); s.flick = null; }
+      if (svg) gsap.killTweensOf(svg.querySelectorAll("*"));
+    }
+  });
+})();
+</script>

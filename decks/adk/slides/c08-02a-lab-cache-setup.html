@@ -1,0 +1,111 @@
+<section class="slide" id="adk-c08-lab-cache-setup" data-tone="state" data-title="Lab 8.1a: static prefix">
+  <style>
+    #adk-c08-lab-cache-setup .cs-grid { display: grid; grid-template-columns: 790px 1fr; gap: 40px; align-items: start; }
+    #adk-c08-lab-cache-setup .cs-col { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+    #adk-c08-lab-cache-setup #cs-svg { display: block; width: 560px; height: 430px; overflow: visible; }
+    #adk-c08-lab-cache-setup #cs-svg text { font-family: var(--f-mono); }
+    #adk-c08-lab-cache-setup .caps { display: grid; }
+    #adk-c08-lab-cache-setup .caps > p { grid-area: 1 / 1; font-size: 22px; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 8</span> Acme support · cache · 1 of 2</div>
+  <h2 class="title">Put the handbook in static_instruction so the prefix never changes</h2>
+  <div class="cs-grid fill">
+    <div class="cs-col">
+      <div class="code-wrap">
+        <div class="code-head">labs/adk/c08-context-cache/handbook_app.py · excerpt</div>
+        <pre class="code" data-lang="python" data-focus="1:1, 2:4-6, 3:7-8"><code>HANDBOOK = pathlib.Path("handbook.md").read_text()
+
+agent = Agent(
+    name="handbook_agent", model="gemini-3.5-flash",
+    static_instruction=types.Content(
+        role="user", parts=[types.Part(text=HANDBOOK)]),
+    instruction="Customer: {customer_name}. "
+                "Answer only from the handbook.")
+# ...  App + Runner: next slide</code></pre>
+      </div>
+      <div class="code-wrap term">
+        <div class="code-head">run it Monday · labs/adk/c08-context-cache/</div>
+        <pre class="code" data-lang="bash"><code>$ pip install "google-adk==2.13.0"
+.env  GOOGLE_GENAI_USE_ENTERPRISE=FALSE
+      GOOGLE_API_KEY=your-key
+handbook.md   4,096+ tokens (~3,100 words)</code></pre>
+      </div>
+    </div>
+    <div class="cs-col">
+      <svg id="cs-svg" viewBox="0 0 560 430" aria-label="Request layout for three turns. Each request starts with the same green handbook prefix from static_instruction, then the instruction with the customer name, then the user question. The prefix bytes are identical on every turn, so they form one cache key."></svg>
+      <div class="caps">
+      <p data-step="1" data-until="2">The handbook is read once. It must reach 4,096 tokens on Gemini 3.</p>
+      <p data-step="2" data-until="3">Every request starts with the same prefix bytes: one cache key.</p>
+      <p data-step="3">The customer name changes per session, so it goes after the prefix.</p>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">This is step one of Lab 8: the Acme mobile support agent sends the same long handbook on every request, so we make that handbook a stable prefix that the model can cache. Before you run it, put about 3,100 words of plan terms in handbook.md and check the size with client.models.count_tokens, because Gemini 3 needs 4,096 tokens before it caches and Gemini 2.5 needs 2,048. Walk the three focus steps: read the handbook once; pass it as static_instruction, which ADK sends first and never templates; and keep the {customer_name} placeholder in instruction, which ADK then sends as user content after the prefix, so you do not move anything by hand. The diagram shows three requests: the green prefix is byte-for-byte the same, and only the parts after it change. Think of the prefix as a binder that stays open on the desk in the same place every time. A likely question: "Why not put the customer name in the system prompt?" Because any changed byte in the prefix changes the cache key, and every turn misses. The full file is in labs/adk/c08-context-cache.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c08-lab-cache-setup";
+  const NS = "http://www.w3.org/2000/svg";
+  const ROWS = [{ y: 60, q: "plan?" }, { y: 170, q: "roaming?" }, { y: 280, q: "dispute?" }];
+  const X0 = 84, PW = 228, IW = 124, UW = 112, H = 62, G = 6;
+  let R = null, tw = [];
+  function mk(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text !== undefined) e.textContent = text;
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function block(p, x, y, w, tone, solid, l1, l2) {
+    const g = mk("g", {}, p);
+    mk("rect", { x, y, width: w, height: H, rx: 10, fill: solid ? `var(--${tone})` : `var(--${tone}-soft)`, stroke: `var(--${tone})`, "stroke-width": 2 }, g);
+    mk("text", { x: x + w / 2, y: y + (l2 ? 27 : 37), "text-anchor": "middle", "font-size": 16, "font-weight": 700, fill: solid ? "#fff" : "var(--ink)" }, g, l1);
+    if (l2) mk("text", { x: x + w / 2, y: y + 48, "text-anchor": "middle", "font-size": 14, fill: solid ? "#fff" : "var(--muted)" }, g, l2);
+    return g;
+  }
+  function build(svg) {
+    svg.innerHTML = "";
+    R = { rows: [] };
+    mk("text", { x: 0, y: 22, "font-size": 16, "font-weight": 700, fill: "var(--muted)" }, svg, "one request per turn · what the model gets");
+    ROWS.forEach((r, i) => {
+      const g = mk("g", {}, svg);
+      mk("text", { x: 0, y: r.y + 38, "font-size": 16, "font-weight": 700, fill: "var(--ink-2)" }, g, `turn ${i + 1}`);
+      const pre = block(g, X0, r.y, PW, "state", true, "handbook", "static_instruction");
+      const ins = block(g, X0 + PW + G, r.y, IW, "tool", false, "Priya", "instruction");
+      const usr = block(g, X0 + PW + IW + 2 * G, r.y, UW, "human", false, r.q, "user");
+      R.rows.push({ g, pre, ins, usr });
+    });
+    R.brace = mk("g", {}, svg);
+    mk("path", { d: `M${X0 + 4},360 V372 H${X0 + PW - 4} V360`, fill: "none", stroke: "var(--state)", "stroke-width": 2.5 }, R.brace);
+    mk("text", { x: X0 + PW / 2, y: 400, "text-anchor": "middle", "font-size": 17, "font-weight": 800, fill: "var(--state)" }, R.brace, "same bytes = one cache key");
+    R.chg = mk("g", {}, svg);
+    const cx = X0 + PW + G + IW / 2;
+    mk("path", { d: `M${cx - 48},360 V372 H${X0 + PW + IW + 2 * G + UW - 4} V360`, fill: "none", stroke: "var(--tool)", "stroke-width": 2.5 }, R.chg);
+    mk("text", { x: cx + 56, y: 400, "text-anchor": "middle", "font-size": 17, "font-weight": 800, fill: "var(--tool)" }, R.chg, "changes");
+  }
+  function clear() { tw.forEach((t) => t.kill()); tw = []; }
+  function render(slide, n, animate) {
+    const svg = slide.querySelector("#cs-svg");
+    if (!R || !svg.childElementCount) build(svg);
+    clear();
+    R.rows.forEach((r, i) => {
+      const on = i === 0 ? n >= 1 : n >= 2;
+      gsap.set(r.g, { opacity: on ? 1 : (i === 0 ? 0.25 : 0.12) });
+      if (animate && ((i === 0 && n === 1) || (i > 0 && n === 2))) {
+        tw.push(gsap.fromTo(r.pre, { x: -30, opacity: 0 }, { x: 0, opacity: 1, duration: 0.5, delay: i * 0.25, ease: "power2.out" }));
+      } else gsap.set(r.pre, { x: 0, opacity: 1 });
+      [r.ins, r.usr].forEach((b) => gsap.set(b, { opacity: n >= 3 || n < 1 ? 1 : 0.55 }));
+      if (animate && n === 3) tw.push(gsap.fromTo(r.ins, { y: -8 }, { y: 0, duration: 0.4, delay: i * 0.15, ease: "back.out(2)" }));
+    });
+    gsap.set(R.brace, { opacity: n >= 2 ? 1 : 0 });
+    if (animate && n === 2) tw.push(gsap.fromTo(R.brace, { opacity: 0 }, { opacity: 1, duration: 0.4, delay: 0.7 }));
+    gsap.set(R.chg, { opacity: n >= 3 ? 1 : 0 });
+    if (animate && n === 3) tw.push(gsap.fromTo(R.chg, { opacity: 0 }, { opacity: 1, duration: 0.4, delay: 0.4 }));
+  }
+  Deck.register(ID, {
+    enter(slide, step) { R = null; render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { clear(); if (slide) gsap.killTweensOf(slide.querySelectorAll("#cs-svg *")); },
+  });
+})();
+</script>

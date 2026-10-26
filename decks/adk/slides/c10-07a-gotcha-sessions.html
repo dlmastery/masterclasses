@@ -1,0 +1,37 @@
+<section class="slide tight" id="adk-c10-gotcha-sessions" data-tone="risk" data-title="Gotcha: Cloud Run loses sessions">
+  <style>
+    #adk-c10-gotcha-sessions .gs { display: grid; grid-template-columns: 690px minmax(0, 1fr); gap: 40px; align-items: start; }
+    #adk-c10-gotcha-sessions .col { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
+    #adk-c10-gotcha-sessions .gotcha { font-size: 20px; grid-template-columns: 110px 1fr; padding: 20px 22px; }
+    #adk-c10-gotcha-sessions .gotcha code { font-size: 16px; }
+    #adk-c10-gotcha-sessions pre.code { font-size: 18px; line-height: 1.55; padding: 14px 18px 16px; }
+    #adk-c10-gotcha-sessions .diagram .nt { font-size: 19px; }
+    #adk-c10-gotcha-sessions .diagram .ns { font-size: 15px; }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> Deployment · 1 of 3</div>
+  <h2 class="title">Cloud Run forgets the HR conversation without a session service</h2>
+  <div class="gs fill">
+    <div class="col">
+      <div class="gotcha" data-step="2">
+        <b>Symptom</b><span>An employee loses the conversation after a scale event.</span>
+        <b class="why">Cause</b><span>No <code>--session_service_uri</code>: the container "falls back to the in-memory session and artifact services".</span>
+        <b class="fix">Fix</b><span>Point sessions at Agent Runtime, or at a SQLAlchemy URL.</span>
+      </div>
+      <div class="code-wrap good" data-step="3">
+        <div class="code-head">labs/adk/c10-acme-hr/ship.sh · excerpt</div>
+        <pre class="code" data-lang="bash" data-focus="3:3"><code>adk deploy cloud_run --project=$PROJECT --region=$REGION \
+  --service_name=acme-hr \
+  --session_service_uri="agentengine://$AGENT_ENGINE_ID" \
+  hr_agent -- --no-allow-unauthenticated</code></pre>
+      </div>
+    </div>
+    <div class="diagram" style="width:660px;height:470px" data-wires="user>inst1 [turn 1]; user>inst2@1 [turn 2]; inst1>store@3:flow{state}; inst2>store@3:flow{state}">
+      <div class="node n-human pill" id="user" style="left:0;top:198px;width:170px"><span class="nt">E-1001</span><span class="ns">same session</span></div>
+      <div class="node n-tool" id="inst1" style="left:250px;top:30px;width:200px" data-on="2:dim"><span class="nt">instance A</span><span class="ns">s1 in memory</span></div>
+      <div class="node n-tool" id="inst2" style="left:250px;top:366px;width:200px" data-step="1" data-fx="pop"><span class="nt">instance B</span><span class="ns">empty memory</span></div>
+      <div class="node n-risk" id="lost" style="left:510px;top:366px;width:150px" data-step="2" data-until="3" data-fx="pop"><span class="nt">s1 lost</span><span class="ns">A recycled</span></div>
+      <div class="node n-state" id="store" style="left:490px;top:198px;width:170px" data-step="3" data-fx="pop"><span class="nt">sessions</span><span class="ns">Agent Runtime</span></div>
+    </div>
+  </div>
+  <aside class="notes">This is the first of three deploy defaults that bite the Acme HR assistant in its first production week. Press once: turn 1 of the conversation lands on instance A, and turn 2 lands on a new instance B after a scale event. Press again: Cloud Run recycled instance A, and without a session service URI the container keeps sessions in memory, so session s1 is gone; the ADK docs say the container "falls back to the in-memory session and artifact services" and loses them when an instance is recycled. Press again: the fix is one flag: --session_service_uri with agentengine:// and the Agent Runtime id, or a SQLAlchemy URL for your own database; now both instances read and write the same store. Analogy: a waiter who keeps the order in his head goes home at the end of the shift; write the order on the ticket. Likely question: "Does min-instances=1 fix it?" No: a warm instance still restarts and scales out, so keep the state outside the container. The same logic applies to --artifact_service_uri for files.</aside>
+</section>

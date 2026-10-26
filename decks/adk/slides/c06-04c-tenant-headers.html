@@ -1,0 +1,101 @@
+<section class="slide" id="adk-c06-tenant-headers" data-tone="tool" data-title="Lab 6.4a: tenant identity in headers">
+  <style>
+    #adk-c06-tenant-headers .th-grid { display: grid; grid-template-columns: 820px 1fr; gap: 36px; align-items: start; }
+    #adk-c06-tenant-headers .th-right { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+    #adk-c06-tenant-headers .lab-head .pins { font: 500 18px/1.3 var(--f-mono); color: var(--muted); }
+    #adk-c06-tenant-headers .sc { position: relative; width: 536px; height: 400px; }
+    #adk-c06-tenant-headers .sc svg { position: absolute; inset: 0; overflow: visible; }
+    #adk-c06-tenant-headers .ten { position: absolute; top: 0; width: 160px; height: 50px; border-radius: 999px; border: 2.5px solid var(--human);
+      background: var(--human-soft); display: grid; place-items: center; font: 700 17px/1 var(--f-mono); color: var(--human); }
+    #adk-c06-tenant-headers .ten.none { border-color: var(--risk); background: var(--risk-soft); color: var(--risk); border-style: dashed; }
+    #adk-c06-tenant-headers .raise { position: absolute; left: 188px; top: 60px; width: 160px; text-align: center; font: 700 17px/1.3 var(--f-mono); color: var(--risk); opacity: 0; }
+    #adk-c06-tenant-headers .chip { position: absolute; left: 0; top: 0; padding: 7px 10px; border-radius: 8px; font: 700 15px/1 var(--f-mono);
+      color: #fff; background: var(--human); white-space: nowrap; opacity: 0; z-index: 4; }
+    #adk-c06-tenant-headers .tube { position: absolute; top: 160px; width: 248px; height: 64px; border-radius: 32px; border: 2.5px solid var(--state);
+      background: var(--state-soft); display: grid; place-items: center; font: 700 16px/1.3 var(--f-mono); color: var(--state); text-align: center; }
+    #adk-c06-tenant-headers .srv { position: absolute; left: 0; top: 296px; width: 536px; height: 104px; border-radius: 14px; border: 2.5px solid var(--tool);
+      background: var(--tool-soft); }
+    #adk-c06-tenant-headers .srv .bl { position: absolute; left: 16px; top: 14px; font: 700 18px/1.2 var(--f-mono); color: var(--tool); }
+    #adk-c06-tenant-headers .srv .sl { position: absolute; left: 16px; top: 50px; font: 600 16px/1.3 var(--f-mono); color: var(--ink-2); }
+    #adk-c06-tenant-headers .wire { fill: none; stroke: var(--state); stroke-width: 3; stroke-dasharray: 8 7; }
+    #adk-c06-tenant-headers .cap { font-size: 22px; line-height: 1.4; color: var(--ink-2); margin: 0; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 6</span> Acme claims desk · step 4 of 4 · tenants</div>
+  <h2 class="title">header_provider sends each broker's identity, not the prompt</h2>
+  <div class="lab-head"><span class="run">adk api_server --with_ui .</span><span class="pins">broker = an agency that uses the desk (a tenant)</span></div>
+  <div class="th-grid fill">
+    <div class="code-wrap">
+      <div class="code-head">labs/adk/lab6-acme-claims-desk/claims_agent/agent.py · excerpt</div>
+      <pre class="code" data-lang="python" data-focus="1:2-7, 2:12, 3:12"><code>from google.adk.agents.readonly_context import ReadonlyContext
+def tenant_headers(ctx: ReadonlyContext) -&gt; dict[str, str]:
+    # user: state is set at login, never by the model
+    tenant = ctx.state.get("user:tenant")
+    if not tenant:
+        raise ValueError("no user:tenant in state")  # fail closed
+    return {"X-Tenant-ID": tenant}
+handbook_tools = McpToolset(
+    connection_params=StreamableHTTPConnectionParams(...),  # step 3
+    tool_filter=["search_policy", "list_topics"],
+    tool_name_prefix="handbook",
+    header_provider=tenant_headers,  # one session per identity
+)</code></pre>
+    </div>
+    <div class="th-right">
+      <div class="sc" id="th-sc">
+        <svg viewBox="0 0 536 400" width="536" height="400" aria-hidden="true">
+          <path class="wire" data-k="a" d="M124 224 L 124 296"/>
+          <path class="wire" data-k="b" d="M412 224 L 412 296"/>
+        </svg>
+        <div class="ten" data-k="a" style="left:0">broker-a</div>
+        <div class="ten" data-k="b" style="left:376px">broker-b</div>
+        <div class="ten none" data-k="x" style="left:188px">no tenant</div>
+        <div class="raise">✕ ValueError</div>
+        <span class="chip" data-k="a">X-Tenant-ID: broker-a</span>
+        <span class="chip" data-k="b">X-Tenant-ID: broker-b</span>
+        <div class="tube" data-k="a" style="left:0">session · broker-a</div>
+        <div class="tube" data-k="b" style="left:288px">session · broker-b</div>
+        <div class="srv"><span class="bl">handbook :3000/mcp</span><span class="sl">reads X-Tenant-ID on every call</span></div>
+      </div>
+      <p class="cap" data-step="3">A prompt injection cannot change a header.</p>
+    </div>
+  </div>
+  <aside class="notes">This is step 4 of the Acme claims desk: several brokers share the handbook server, so each request must carry the broker's identity. A broker here is an insurance agency that uses the desk, one tenant. Step 1: tenant_headers reads user:tenant from session state. State with the user: prefix belongs to one user and lasts across that user's sessions; your login code sets it, never the model. If it is missing, raise, so a request never falls back to another tenant's data: the middle pill shows that fail-closed path. Step 2: header_provider sends the value as the X-Tenant-ID header, and ADK pools one MCP session per header identity, so two brokers never share a session. Step 3: identity travels in headers, outside the conversation, so text in a prompt or a tool result cannot switch the tenant. Think of a hotel key card: identity travels with the card, not with what the guest says at the desk. A likely question: "Can header_provider be async?" Yes, it gets a ReadonlyContext per session and may be async, for example to look up a token.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c06-tenant-headers";
+  let tw = [];
+  function clear() { tw.forEach((t) => t.kill()); tw = []; }
+  const MID = { a: 124, b: 412 }; // centre of each session tube
+  function render(slide, n, animate) {
+    clear();
+    const q = (s) => slide.querySelector(s);
+    const none = q('.ten[data-k="x"]'), raise = q(".raise");
+    gsap.set(none, { opacity: n >= 1 ? 1 : 0.3, x: 0 });
+    gsap.set(raise, { opacity: n >= 1 ? 1 : 0 });
+    if (animate && n === 1) {
+      tw.push(gsap.timeline()
+        .fromTo(none, { x: 0 }, { x: 8, duration: 0.06, yoyo: true, repeat: 5 })
+        .fromTo(raise, { opacity: 0, y: -8 }, { opacity: 1, y: 0, duration: 0.35 }));
+    }
+    ["a", "b"].forEach((k, i) => {
+      const chip = q(`.chip[data-k="${k}"]`), tube = q(`.tube[data-k="${k}"]`), wire = q(`.wire[data-k="${k}"]`);
+      gsap.set([tube, wire], { opacity: n >= 2 ? 1 : 0.25 });
+      const w = chip.offsetWidth;
+      const x = MID[k] - w / 2;
+      gsap.set(chip, { x, y: 92, opacity: n >= 2 ? 1 : 0 });
+      if (animate && n === 2) {
+        tw.push(gsap.timeline({ delay: 0.2 + i * 0.4 })
+          .fromTo(chip, { y: 14, opacity: 0 }, { y: 92, opacity: 1, duration: 0.6, ease: "power2.out" })
+          .fromTo(tube, { scale: 1.06 }, { scale: 1, duration: 0.35, ease: "back.out(3)" }));
+      }
+      if (n >= 2) tw.push(gsap.fromTo(wire, { strokeDashoffset: 0 }, { strokeDashoffset: -30, duration: 0.8, ease: "none", repeat: -1 }));
+    });
+  }
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { clear(); if (slide) gsap.killTweensOf(slide.querySelectorAll(".sc *")); },
+  });
+})();
+</script>

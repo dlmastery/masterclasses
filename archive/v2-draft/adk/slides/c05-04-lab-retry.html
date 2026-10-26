@@ -1,0 +1,199 @@
+<section class="slide tight" id="adk-c05-lab-retry" data-tone="human" data-title="Lab 5.3: RetryConfig backoff">
+  <style>
+    #adk-c05-lab-retry pre.code, #adk-c05-lab-retry code { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #adk-c05-lab-retry .lab-head { gap: 12px; flex-wrap: nowrap; font-size: 14px; }
+    #adk-c05-lab-retry .lab-head .run { font-size: 13.5px; padding: 7px 11px; white-space: nowrap; }
+    #adk-c05-lab-retry .lab-head .pins { font: 500 13px/1.3 var(--f-mono); color: var(--muted); white-space: nowrap; }
+    #adk-c05-lab-retry .lab-head .cite { font-size: 12.5px; padding: 4px 9px; white-space: nowrap; }
+    #adk-c05-lab-retry .lab-head .cite:first-of-type { margin-left: auto; }
+    #adk-c05-lab-retry .rt-body { display: grid; grid-template-columns: 690px minmax(0, 1fr); gap: 24px; align-items: start; }
+    #adk-c05-lab-retry .rt-col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+    #adk-c05-lab-retry .code-head { padding: 7px 14px; font-size: 13px; }
+    #adk-c05-lab-retry .rt-code pre.code { font-size: 12.5px; line-height: 1.4; padding: 9px 14px 10px; }
+    #adk-c05-lab-retry .out pre.code { font-size: 13px; line-height: 1.42; padding: 7px 14px 9px; }
+    #adk-c05-lab-retry #rt-svg { display: block; width: 100%; height: auto; overflow: visible; }
+    #adk-c05-lab-retry #rt-svg text { font-family: var(--f-mono); }
+    #adk-c05-lab-retry .rt-rail { gap: 7px; }
+    #adk-c05-lab-retry .rt-rail > * { font-size: 15px; line-height: 1.35; grid-template-columns: 28px 1fr; gap: 9px; }
+    #adk-c05-lab-retry .rt-rail > *::before { width: 25px; height: 25px; font-size: 13px; border-radius: 7px; }
+    #adk-c05-lab-retry .rt-rail code { font-size: 13px; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 5</span> Acme refunds and payouts · step 3 of 4</div>
+  <h2 class="title">RetryConfig retries the gateway 503 with exact 0.5 s and 1.0 s waits</h2>
+  <div class="lab-head">
+    <span class="run">python -m payouts.app start "ACME-GmbH"</span>
+    <span class="pins">google-adk 2.13.0 · no API key (no LLM node) · main() is step 4</span>
+    <a class="cite repo" href="https://github.com/google/adk-python/tree/v2.13.0/contributing/samples/workflows/retry" target="_blank" rel="noopener"><b>Repo</b>&nbsp;samples/workflows/retry</a>
+    <a class="cite doc" href="https://adk.dev/runtime/resume/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;adk.dev/runtime/resume</a>
+  </div>
+  <div class="rt-body fill">
+    <div class="code-wrap rt-code">
+      <div class="code-head">payouts/app.py · part 1 of 2 · payouts/__init__.py is empty</div>
+      <pre class="code" data-lang="python" data-focus="1:14-15, 2:19-24, 3:16-17, 4:12-13"><code># payouts/app.py   (run with: python -m payouts.app start|resume ...)
+import asyncio, json, sys
+from google.adk import Context, Event, Runner, Workflow
+from google.adk.apps import App, ResumabilityConfig
+from google.adk.events import RequestInput
+from google.adk.sessions.sqlite_session_service import SqliteSessionService
+from google.adk.workflow import RetryConfig, node
+from google.genai import types
+def kyc_lookup(node_input: str) -&gt; dict:
+  open("side_effects.log", "a").write(f"kyc_lookup {node_input}\n")  # step 4 counts it
+  return {"payee": node_input, "risk": "medium"}
+def analyst_review(node_input: dict):        # plain function: a hand-off pause
+  yield RequestInput(message=f"Pay {node_input['payee']}? yes/no")
+@node(retry_config=RetryConfig(max_attempts=4, initial_delay=0.5,
+                               backoff_factor=2.0, jitter=0.0,
+                               exceptions=[ConnectionError, "NodeTimeoutError"]),
+      timeout=2.0)
+async def pay(ctx: Context, node_input: str):  # node_input = the analyst's reply
+  yield Event(message=f"gateway attempt {ctx.attempt_count}")
+  if node_input.strip().lower() != "yes":
+    yield Event(output="CANCELLED"); return
+  if ctx.attempt_count &lt; 3:
+    raise ConnectionError("gateway 503")       # attempts 1-2 fail, 3 succeeds
+  yield Event(output="PAID idempotency_key=payout-" + ctx.invocation_id)
+root = Workflow(name="payouts", edges=[("START", kyc_lookup, analyst_review, pay)])
+app = App(name="payouts", root_agent=root,
+          resumability_config=ResumabilityConfig(is_resumable=True))
+runner = Runner(app=app, session_service=SqliteSessionService("payouts.db"))</code></pre>
+    </div>
+    <div class="rt-col">
+      <svg id="rt-svg" viewBox="0 0 660 318" aria-label="Retry and backoff timeline for the pay node: attempts 1 and 2 fail, waits of 0.5 s and 1.0 s, attempt 3 pays"></svg>
+      <div class="steps-rail rt-rail">
+        <div data-step="1"><span><code>max_attempts=4</code> counts the first try. <code>jitter=0.0</code> gives exact waits.</span></div>
+        <div data-step="2"><span>Attempts 1 and 2 raise <code>ConnectionError</code>. Attempt 3 pays.</span></div>
+        <div data-step="3"><span><code>exceptions</code> matches class names. Add <code>"NodeTimeoutError"</code> to retry a timeout.</span></div>
+        <div data-step="4"><span><code>analyst_review</code> pauses so step 4 has a run to resume. Its reply <code>"yes"</code> becomes the <code>node_input</code> of <code>pay</code>.</span></div>
+      </div>
+      <div class="code-wrap out" data-step="2">
+        <div class="code-head">output · illustrative · needs main() from step 4</div>
+        <pre class="code" data-lang="none"><code>$ python -m payouts.app start "ACME-GmbH"     <span class="dim"># PAUSED -> pending.json</span>
+$ python -m payouts.app resume yes
+<span class="err">[payouts] gateway attempt 1</span>
+<span class="err">[payouts] gateway attempt 2</span>
+[payouts] gateway attempt 3
+<span class="ok">OUTPUT: PAID idempotency_key=payout-e-9c1…</span></code></pre>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">This is the payout half of the Acme scenario, and it needs no API key because there is no LLM node. Walk the RetryConfig line first: max_attempts counts the first try, so 4 means one try and up to three retries, and with jitter at zero the waits are exactly 0.5 seconds and then 1.0 second, because the delay is initial_delay times backoff_factor to the power attempt minus one. The pay node fails twice with a gateway 503 and pays on attempt 3, which you can see in ctx.attempt_count. The trap is the exceptions list: it matches class names, and a timeout raises NodeTimeoutError, which is not a ConnectionError, so without the string a 2-second timeout is not retried at all. If you write RetryConfig() with no arguments, the defaults are max_attempts=5, initial_delay=1.0, max_delay=60, backoff_factor=2.0 and jitter=1.0, so the wait before try 2 lands anywhere between 0 and 2 seconds; keep jitter on in production to spread load and turn it off in tests. analyst_review is a plain function, so ADK wraps it as a function node with the default hand-off pattern: the reply becomes its output, and that output is the node_input of pay. The output pane needs main(), which is step 4. Think of jitter as staggering the start times of runners so they do not all hit the gateway at the same second. A likely question: "is the attempt counter saved?" No, after an interrupt or a restart the node gets its full retry budget back. Next, step 4 writes the driver that resumes this payout in a new process.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c05-lab-retry";
+  const NS = "http://www.w3.org/2000/svg";
+  const PX = 150;                                   // 1 s of wait = 150 px
+  const Y = 120;                                    // timeline row centre
+  const BW = 80, BH = 80;                           // attempt box size
+  const A = [{ x: 0, ok: false }, { x: 155, ok: false }, { x: 385, ok: true }];
+  const W = [{ x: 80, s: 0.5 }, { x: 235, s: 1.0 }];
+  const X4 = 580;
+  let tw = [], R = null;
+
+  function mk(tag, attrs, parent) {
+    const e = document.createElementNS(NS, tag);
+    for (const [a, v] of Object.entries(attrs)) e.setAttribute(a, v);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function txt(parent, x, y, s, attrs) { const t = mk("text", Object.assign({ x, y, "font-size": 16, fill: "var(--ink-2)" }, attrs || {}), parent); t.textContent = s; return t; }
+  function cross(g, cx, cy, r) { r = r || 9; mk("path", { d: `M${cx - r},${cy - r} L${cx + r},${cy + r} M${cx + r},${cy - r} L${cx - r},${cy + r}`, stroke: "var(--risk)", "stroke-width": 3.5, "stroke-linecap": "round" }, g); }
+  function check(g, cx, cy, r) { r = r || 10; mk("path", { d: `M${cx - r},${cy} L${cx - r / 4},${cy + r * 0.75} L${cx + r},${cy - r * 0.8}`, fill: "none", stroke: "var(--state)", "stroke-width": 3.5, "stroke-linecap": "round", "stroke-linejoin": "round" }, g); }
+
+  function build(svg) {
+    svg.innerHTML = "";
+    R = { plan: null, fill: [], waits: [], ex: null, hand: null };
+    txt(svg, 0, 20, "delay = initial_delay × backoff_factor^(n−1)", { "font-size": 15, fill: "var(--muted)" });
+    R.total = txt(svg, 660, 30, "waited 0.0 s", { "font-size": 28, "font-weight": 800, "text-anchor": "end", fill: "var(--ink)" });
+    // planned schedule: 4 attempt slots and 2 waits (ghosted at step 0)
+    const plan = mk("g", {}, svg); R.plan = plan;
+    [...A.map((a) => a.x), X4].forEach((x, i) => {
+      mk("rect", { x, y: Y - BH / 2, width: BW, height: BH, rx: 12, fill: "var(--surface)", stroke: "var(--line-2)", "stroke-width": 2, "stroke-dasharray": "6 4" }, plan);
+      txt(plan, x + BW / 2, Y + 8, String(i + 1), { "font-size": 24, "font-weight": 700, "text-anchor": "middle", fill: "var(--muted)" });
+    });
+    W.forEach((w) => {
+      mk("rect", { x: w.x, y: Y - 14, width: w.s * PX, height: 28, rx: 6, fill: "none", stroke: "var(--human)", "stroke-width": 1.5, "stroke-dasharray": "5 3" }, plan);
+      txt(plan, w.x + (w.s * PX) / 2, Y - 26, `${w.s.toFixed(1)} s`, { "font-size": 20, "font-weight": 700, "text-anchor": "middle", fill: "var(--human)" });
+    });
+    mk("line", { x1: 467, y1: Y, x2: X4 - 4, y2: Y, stroke: "var(--line-2)", "stroke-width": 2, "stroke-dasharray": "2 5" }, plan);
+    txt(plan, 522, Y - 26, "2.0 s", { "font-size": 16, "text-anchor": "middle", fill: "var(--muted)" });
+    txt(plan, X4 + BW / 2, Y + 64, "unused", { "font-size": 15, "text-anchor": "middle", fill: "var(--muted)" });
+    // real run: wait bars grow, attempts get an X or a check
+    W.forEach((w) => { R.waits.push(mk("rect", { x: w.x, y: Y - 14, width: 0, height: 28, rx: 6, fill: "var(--human)", opacity: 0.85 }, svg)); });
+    A.forEach((a, i) => {
+      const g = mk("g", {}, svg);
+      mk("rect", { x: a.x, y: Y - BH / 2, width: BW, height: BH, rx: 12, fill: "var(--surface)" }, g);
+      mk("rect", { x: a.x, y: Y - BH / 2, width: BW, height: BH, rx: 12, fill: a.ok ? "var(--state-soft)" : "var(--risk-soft)", stroke: a.ok ? "var(--state)" : "var(--risk)", "stroke-width": 2.5 }, g);
+      txt(g, a.x + 24, Y + 9, String(i + 1), { "font-size": 24, "font-weight": 700, "text-anchor": "middle", fill: "var(--ink)" });
+      (a.ok ? check : cross)(g, a.x + 56, Y);
+      txt(g, a.x + BW / 2, Y + 64, a.ok ? "PAID" : "503", { "font-size": 17, "font-weight": 700, "text-anchor": "middle", fill: a.ok ? "var(--state)" : "var(--risk)" });
+      R.fill.push(g);
+    });
+    // step 3: exceptions match by class name
+    const ex = mk("g", {}, svg); R.ex = ex;
+    txt(ex, 0, 222, "timeout=2.0 raises NodeTimeoutError", { "font-size": 15, fill: "var(--muted)" });
+    txt(ex, 0, 250, "[ConnectionError]", { "font-size": 17, fill: "var(--ink)" });
+    cross(ex, 330, 244, 8);
+    txt(ex, 350, 250, "timeout not retried", { "font-size": 17, "font-weight": 700, fill: "var(--risk)" });
+    txt(ex, 0, 280, '[ConnectionError, "NodeTimeoutError"]', { "font-size": 17, fill: "var(--ink)" });
+    check(ex, 420, 274, 9);
+    txt(ex, 440, 280, "retried", { "font-size": 17, "font-weight": 700, fill: "var(--state)" });
+    // step 4: the analyst's reply is the input of pay
+    const hand = mk("g", {}, svg); R.hand = hand;
+    mk("rect", { x: 0, y: 296, width: 660, height: 22, rx: 11, fill: "var(--human-soft)" }, hand);
+    txt(hand, 12, 312, 'analyst_review ⏸ → reply "yes" → pay(node_input="yes")', { "font-size": 15, "font-weight": 700, fill: "var(--human)" });
+  }
+
+  function clear() { tw.forEach((t) => t.kill()); tw = []; }
+
+  function vis(e, on, animate, ghost) {
+    gsap.killTweensOf(e);
+    const off = ghost === undefined ? 0 : ghost;
+    if (!on) gsap.set(e, { opacity: off });
+    else if (animate) tw.push(gsap.fromTo(e, { opacity: off }, { opacity: 1, duration: 0.45 }));
+    else gsap.set(e, { opacity: 1 });
+  }
+
+  function render(slide, n, animate) {
+    const svg = slide.querySelector("#rt-svg");
+    if (!svg) return;
+    if (!svg.childElementCount) build(svg);
+    clear();
+    vis(R.plan, n >= 1, animate && n === 1, 0.35);
+    R.fill.forEach((g) => { gsap.killTweensOf(g); gsap.set(g, { opacity: 0, scale: 1, transformOrigin: "center" }); });
+    R.waits.forEach((r) => { gsap.killTweensOf(r); gsap.set(r, { attr: { width: 0 } }); });
+    R.total.textContent = "waited 0.0 s";
+    if (n >= 2) {
+      if (animate && n === 2) {
+        let t = 0.2;
+        const c = { v: 0 };
+        A.forEach((a, i) => {
+          tw.push(gsap.fromTo(R.fill[i], { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1, duration: 0.35, delay: t, ease: "back.out(2.5)" }));
+          t += 0.45;
+          if (W[i]) {
+            tw.push(gsap.to(R.waits[i], { attr: { width: W[i].s * PX }, duration: W[i].s, delay: t, ease: "none" }));
+            tw.push(gsap.to(c, { v: i === 0 ? 0.5 : 1.5, duration: W[i].s, delay: t, ease: "none", onUpdate: () => { R.total.textContent = `waited ${c.v.toFixed(1)} s`; } }));
+            t += W[i].s + 0.1;
+          }
+        });
+      } else {
+        R.fill.forEach((g) => gsap.set(g, { opacity: 1 }));
+        R.waits.forEach((r, i) => gsap.set(r, { attr: { width: W[i].s * PX } }));
+        R.total.textContent = "waited 1.5 s";
+      }
+    }
+    vis(R.ex, n >= 3, animate && n === 3);
+    vis(R.hand, n >= 4, animate && n === 4);
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) {
+      clear();
+      if (slide) gsap.killTweensOf(slide.querySelectorAll("#rt-svg *"));
+    },
+  });
+})();
+</script>

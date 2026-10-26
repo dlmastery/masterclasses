@@ -1,0 +1,48 @@
+<section class="slide" id="adk-c06-http-server" data-tone="tool" data-title="Lab 6.3a: streamable HTTP server">
+  <style>
+    #adk-c06-http-server .hs-grid { display: grid; grid-template-columns: 820px 1fr; gap: 36px; align-items: start; }
+    #adk-c06-http-server .hs-right { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+    #adk-c06-http-server .diagram .node .nt { font-size: 18px; }
+    #adk-c06-http-server .diagram .node .ns { font-size: 15px; }
+    #adk-c06-http-server .diagram .group .gl { font-size: 15px; }
+    #adk-c06-http-server .cap { font-size: 22px; line-height: 1.4; color: var(--ink-2); margin: 0; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 6</span> Acme claims desk · step 3 of 4 · HTTP server</div>
+  <h2 class="title">The claims handbook runs as a streamable HTTP MCP server</h2>
+  <div class="lab-head"><span class="run">python claims_agent/handbook_server.py</span></div>
+  <div class="hs-grid fill">
+    <div class="code-wrap">
+      <div class="code-head">labs/adk/lab6-acme-claims-desk/claims_agent/handbook_server.py · excerpt</div>
+      <pre class="code" data-lang="python" data-focus="1:8-11, 2:13-15, 3:13-15"><code>from mcp.server.mcpserver import MCPServer
+mcp = MCPServer("claims-handbook-server")
+POLICIES = {
+    "glass": "Glass repair: no deductible on comprehensive policies.",
+    "rental": "Rental car covered up to 30 days at $40 per day.",
+    "towing": "Towing covered up to 50 miles per incident.",
+}
+@mcp.tool()
+def search_policy(topic: str) -&gt; str:
+    """Search the claims handbook. topic: glass, rental or towing."""
+    return POLICIES.get(topic.lower(), f"No policy for '{topic}'.")
+# list_topics(): same pattern, returns sorted(POLICIES)
+if __name__ == "__main__":
+    # mcp 2.x: host and port go to run(); the path defaults to /mcp
+    mcp.run(transport="streamable-http", host="127.0.0.1", port=3000)</code></pre>
+    </div>
+    <div class="hs-right">
+      <div class="diagram" style="width:536px;height:470px"
+           data-wires="sa>ss@1 [spawns]; a1>hb@3:flow; a2>hb@3:flow; a3>hb@3:flow">
+        <div class="group g-tool" style="left:0;top:0;width:536px;height:120px"><span class="gl">stdio · one child process per agent</span></div>
+        <div class="node n-agent" id="sa" style="left:20px;top:40px;width:170px"><span class="nt">claims_desk</span></div>
+        <div class="node n-tool" id="ss" style="left:336px;top:40px;width:180px"><span class="nt">claims-server</span></div>
+        <div class="group g-state" style="left:0;top:160px;width:536px;height:310px" data-step="2"><span class="gl">streamable HTTP · one shared service</span></div>
+        <div class="node n-agent" id="a1" style="left:20px;top:206px;width:170px" data-step="2"><span class="nt">claims_desk</span></div>
+        <div class="node n-agent" id="a2" style="left:20px;top:296px;width:170px" data-step="2"><span class="nt">triage agent</span></div>
+        <div class="node n-agent" id="a3" style="left:20px;top:386px;width:170px" data-step="2"><span class="nt">audit agent</span></div>
+        <div class="node n-tool" id="hb" style="left:336px;top:286px;width:180px" data-step="2"><span class="nt">handbook</span><span class="ns">:3000/mcp</span></div>
+      </div>
+      <p class="cap" data-step="3">It keeps running when an agent stops.</p>
+    </div>
+  </div>
+  <aside class="notes">This is step 3 of the Acme claims desk: the claims handbook runs as its own MCP server over streamable HTTP, in terminal 2. Step 1: the tool looks the same as on stdio; the decorator, the docstring and the type hints define it. Step 2: the difference is the transport. In mcp 2.x, host and port go to run(), not to the MCPServer constructor, and the endpoint path defaults to /mcp, so the agent URL must end in /mcp. Step 3: a stdio server is a child process of one agent and dies with it; an HTTP server is a network service that many agents share, here the claims desk, a triage agent and an audit agent, and it keeps running when an agent stops. Think of the stdio server as a cook inside one restaurant, and the HTTP server as a supplier across the street that many restaurants use. A likely question: "When do I choose HTTP?" When several agents or teams share the tools, when the server needs its own scaling or deploy cycle, or when it runs in another language or host.</aside>
+</section>

@@ -1,0 +1,43 @@
+<section class="slide" id="adk-c09-completion-bit" data-tone="model" data-title="Build: judge-free completion bit">
+  <style>
+    #adk-c09-completion-bit .c9-split { --c9l: 800px; }
+    #adk-c09-completion-bit .c9-cap { min-height: 100px; }
+  </style>
+  <div class="kicker">Build · Monday change from GAUGE</div>
+  <h2 class="title">Add a judge-free completion bit next to every rubric</h2>
+  <div class="c9-split fill">
+    <div class="code-wrap good">
+      <div class="code-head">labs/adk/lab9-refund-eval/completion_bit.py · excerpt</div>
+      <pre class="code" data-lang="python" data-focus="1:5, 2:9-10, 3:11-13"><code>from google.adk.evaluation.eval_case import get_all_tool_calls
+from google.adk.evaluation.evaluator import (
+    EvalStatus, EvaluationResult)
+
+DONE = {"escalate_to_human", "issue_refund"}   # terminal tools
+
+def completion_bit(eval_metric, actual_invocations,
+                   expected_invocations, conversation_scenario):
+    done = any(call.name in DONE for inv in actual_invocations
+               for call in get_all_tool_calls(inv.intermediate_data))
+    status = EvalStatus.PASSED if done else EvalStatus.FAILED
+    return EvaluationResult(overall_score=1.0 if done else 0.0,
+                            overall_eval_status=status)</code></pre>
+    </div>
+    <div class="c9-col">
+      <div class="code-wrap" data-step="4">
+        <div class="code-head">refund_agent/sim_config.json · merged in</div>
+        <pre class="code sm" data-lang="json"><code>"completion_bit": 1.0
+},
+"custom_metrics": {"completion_bit": {
+  "code_config": {"name":
+    "completion_bit.completion_bit"}}},</code></pre>
+      </div>
+      <div class="c9-cap">
+        <p data-step="1" data-until="2">Done means a terminal tool was called.</p>
+        <p data-step="2" data-until="3">Read the tool calls, not the words. No judge.</p>
+        <p data-step="3" data-until="4">Set the status, as in <code>refund_policy_score</code>.</p>
+        <p data-step="4">Completion is not correctness. Keep the rubric and the $500 metric.</p>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">The Monday change from GAUGE: a judge-free completion bit for the simulated set. The rule is simple: the chat is done only if the agent called a terminal tool, escalate_to_human or issue_refund; nothing a judge says can change that. The function reads the tool calls with get_all_tool_calls, sets the score and the status, and is registered like refund_policy_score, with the threshold under criteria and the import path under custom_metrics in sim_config.json. Completion is not correctness: a refund of 820 dollars is "complete", so keep refund_policy_score and the rubric next to it. Analogy: the parcel tracking says "delivered", whatever the customer email says. A likely question: "Why not check the final text for a ticket id?" You can, but tool calls are structured data, while text can mention a ticket that was never opened.</aside>
+</section>

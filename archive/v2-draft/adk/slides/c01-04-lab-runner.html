@@ -1,0 +1,158 @@
+<section class="slide" id="adk-c01-lab-runner" data-tone="tool" data-title="Lab 1: runner and trajectory">
+  <style>
+    #adk-c01-lab-runner .rn-main { display: grid; grid-template-columns: 820px 1fr; gap: 24px; }
+    #adk-c01-lab-runner .rn-left { gap: 12px; min-width: 0; }
+    #adk-c01-lab-runner .rn-right { gap: 12px; min-width: 0; }
+    #adk-c01-lab-runner .lab-head { font-size: 15px; gap: 12px; }
+    #adk-c01-lab-runner .lab-head .run { font-size: 14px; }
+    #adk-c01-lab-runner .lab-head .cite { font-size: 13.5px; padding: 5px 10px 5px 8px; margin-left: auto; }
+    #adk-c01-lab-runner .code-wrap .code-head { padding: 8px 14px; font-size: 13.5px; }
+    #adk-c01-lab-runner .rn-left pre.code { font-size: 12.5px; line-height: 1.45; padding: 10px 16px 12px; }
+    #adk-c01-lab-runner .code-wrap.out pre.code { font-size: 10.8px; line-height: 1.45; padding: 8px 12px 10px; }
+    #adk-c01-lab-runner .slot { display: grid; }
+    #adk-c01-lab-runner .slot > * { grid-area: 1 / 1; align-self: start; }
+    #adk-c01-lab-runner .steps-rail > * { font-size: 16px; line-height: 1.35; align-items: center; }
+    #adk-c01-lab-runner .steps-rail > *::before { background: var(--tool); }
+    #adk-c01-lab-runner .steps-rail code { font-size: 13.5px; }
+    #adk-c01-lab-runner .callout { font-size: 14.5px; padding: 9px 12px; line-height: 1.35; gap: 10px; }
+    #adk-c01-lab-runner .callout code { font-size: 12.5px; }
+    #adk-c01-lab-runner .es { position: relative; width: 100%; height: 218px; }
+    #adk-c01-lab-runner .es-runner { position: absolute; left: 0; top: 0; width: 150px; height: 112px; border-radius: 14px; border: 2px solid var(--agent); background: var(--agent-soft); display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 6px; text-align: center; }
+    #adk-c01-lab-runner .es-runner b { font: 700 15px/1.1 var(--f-mono); color: var(--ink); }
+    #adk-c01-lab-runner .es-runner span { font: 500 11.5px/1.2 var(--f-mono); color: var(--muted); }
+    #adk-c01-lab-runner .svc { position: absolute; left: 0; width: 150px; height: 24px; border-radius: 999px; font: 600 11.5px/24px var(--f-mono); text-align: center; color: var(--state); background: var(--state-soft); border: 1px solid color-mix(in oklab, var(--state) 40%, transparent); }
+    #adk-c01-lab-runner .dbg { position: absolute; left: 190px; top: 40px; width: 300px; padding: 10px 12px; border-radius: 12px; border: 1px dashed var(--state); background: var(--state-soft); font: 600 13px/1.4 var(--f-mono); color: var(--ink-2); }
+    #adk-c01-lab-runner .dbg i { font-style: normal; color: var(--state); }
+    #adk-c01-lab-runner .es-hd { position: absolute; right: 0; top: 0; font: 600 11.5px/1 var(--f-mono); color: var(--muted); }
+    #adk-c01-lab-runner .card { position: absolute; left: 20px; top: 40px; width: 358px; height: 32px; border-radius: 9px; display: flex; align-items: center; gap: 8px; padding: 0 10px; font: 500 12.5px/1 var(--f-mono); color: var(--ink); white-space: nowrap; overflow: hidden; opacity: 0; visibility: hidden; z-index: 2; }
+    #adk-c01-lab-runner .card.c-call { background: var(--tool-soft); border: 2px solid var(--tool); }
+    #adk-c01-lab-runner .card.c-resp { background: var(--surface-2); border: 2px solid color-mix(in oklab, var(--tool) 55%, transparent); }
+    #adk-c01-lab-runner .card.c-text { background: var(--model-soft); border: 2px solid var(--model); }
+    #adk-c01-lab-runner .card .k { font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--tool); }
+    #adk-c01-lab-runner .card.c-text .k { color: var(--model); }
+    #adk-c01-lab-runner .card .fin { margin-left: auto; font-size: 11.5px; color: var(--muted); }
+    #adk-c01-lab-runner .card .fin.lit { color: #fff; background: var(--model); padding: 4px 7px; border-radius: 6px; font-weight: 700; }
+    #adk-c01-lab-runner .card .mini { display: none; }
+    #adk-c01-lab-runner .card.is-mini { justify-content: center; padding: 0; }
+    #adk-c01-lab-runner .card.is-mini .full { display: none; }
+    #adk-c01-lab-runner .card.is-mini .mini { display: inline; font-size: 11px; font-weight: 700; }
+    #adk-c01-lab-runner .full { display: flex; align-items: center; gap: 8px; width: 100%; }
+    #adk-c01-lab-runner .lane { position: absolute; left: 190px; width: 358px; height: 96px; border-radius: 14px; border: 2px solid color-mix(in oklab, var(--state) 55%, transparent); background: color-mix(in oklab, var(--state) 5%, transparent); }
+    #adk-c01-lab-runner .lane .ll { position: absolute; left: 12px; top: 8px; font: 700 12px/1 var(--f-mono); color: var(--state); }
+    #adk-c01-lab-runner .lane .empty { position: absolute; left: 12px; right: 12px; top: 38px; height: 34px; border: 1.5px dashed var(--line-2); border-radius: 9px; display: grid; place-items: center; font: 500 12.5px/1 var(--f-mono); color: var(--muted); }
+  </style>
+  <div class="kicker"><span class="pill">Lab 1</span> Acme refund desk · step 3 of 3</div>
+  <h2 class="title">Drive the agent from Python and log the trajectory, not the answer</h2>
+  <div class="rn-main fill">
+    <div class="rn-left stack">
+      <div class="lab-head"><span class="run">python run_refund.py</span><span>next to refund_agent/</span>
+        <a class="cite repo" href="https://github.com/google/adk-python/tree/v2.13.0" target="_blank" rel="noopener"><b>Repo</b>&nbsp;google/adk-python v2.13.0 · runner_debug_example</a></div>
+      <div class="code-wrap">
+        <div class="code-head">run_refund.py</div>
+        <pre class="code" data-lang="python" data-focus="1:9, 2:10-11, 3:13-21, 4:22-24"><code>import asyncio
+from google.adk.runners import InMemoryRunner
+from google.genai import types
+from refund_agent.agent import root_agent
+
+APP = "refund_agent"   # match the folder name
+
+async def main() -> None:
+    runner = InMemoryRunner(agent=root_agent, app_name=APP)
+    # 1) Two-line debugging: creates session "debug_session_id" on first use.
+    await runner.run_debug("Is order A-1001 refundable? Changed my mind.", verbose=True)
+    # 2) Production loop: explicit session, event stream.
+    session = await runner.session_service.create_session(app_name=APP, user_id="cust-dana")
+    msg = types.UserContent(parts=[types.Part(text="Is A-1003 refundable? It arrived damaged.")])
+    async for event in runner.run_async(user_id="cust-dana", session_id=session.id, new_message=msg):
+        for call in event.get_function_calls():
+            print(f"  TOOL CALL  {call.name}({call.args})")
+        for resp in event.get_function_responses():
+            print(f"  TOOL RESULT {resp.name} -&gt; {resp.response}")
+        if event.is_final_response() and event.content and event.content.parts:
+            print(f"[{event.author}] {''.join(p.text or '' for p in event.content.parts)}")
+    # 3) Isolation: a new user/session does not see Dana's history.
+    await runner.run_debug("What did I ask before?", user_id="cust-li", session_id="li-1")
+    await runner.close()
+
+if __name__ == "__main__":
+    asyncio.run(main())</code></pre>
+      </div>
+    </div>
+    <div class="rn-right stack">
+      <div class="slot">
+        <div class="steps-rail" data-step="1" data-until="2"><div><span><code>InMemoryRunner</code> bundles in-memory session, artifact and memory services. <code>APP</code> must equal the folder name.</span></div></div>
+        <div class="steps-rail" data-step="2" data-until="3" style="counter-reset: sr 1"><div><span><code>run_debug()</code> creates the session and prints each event. It is "for debugging and experimentation only".</span></div></div>
+        <div class="steps-rail" data-step="3" data-until="4" style="counter-reset: sr 2"><div><span><code>run_async()</code> is the production loop: log every call and result. <code>is_final_response()</code> is false while calls are pending.</span></div></div>
+        <div class="steps-rail" data-step="4" style="counter-reset: sr 3"><div><span>A new user and session start with no history. Then <code>close()</code> the runner.</span></div></div>
+      </div>
+      <div class="es">
+        <div class="es-runner" data-step="1" data-fx="pop"><b>InMemoryRunner</b><span>app_name=<br>"refund_agent"</span></div>
+        <div class="svc" style="top:122px" data-step="1">session</div>
+        <div class="svc" style="top:154px" data-step="1">artifact</div>
+        <div class="svc" style="top:186px" data-step="1">memory</div>
+        <div class="dbg" data-step="2" data-until="3">run_debug() → session <i>debug_session_id</i><br>user <i>debug_user_id</i> · 5 events printed</div>
+        <div class="es-hd" data-step="3" data-until="4">is_final_response()</div>
+        <div class="lane" style="top:0" data-step="4"><span class="ll">cust-dana · session.id</span></div>
+        <div class="lane" style="top:118px" data-step="4"><span class="ll">cust-li · li-1</span><span class="empty">no events from Dana</span></div>
+        <div class="card c-call"><span class="full"><span class="k">call</span>lookup_order<span class="fin">False</span></span><span class="mini">call</span></div>
+        <div class="card c-resp"><span class="full"><span class="k">result</span>lookup_order<span class="fin">False</span></span><span class="mini">result</span></div>
+        <div class="card c-call"><span class="full"><span class="k">call</span>check_refund_eligibility<span class="fin">False</span></span><span class="mini">call</span></div>
+        <div class="card c-resp"><span class="full"><span class="k">result</span>defect_override<span class="fin">False</span></span><span class="mini">result</span></div>
+        <div class="card c-text"><span class="full"><span class="k">text</span>A-1003 is refundable<span class="fin lit">True</span></span><span class="mini">text</span></div>
+      </div>
+      <div class="code-wrap out">
+        <div class="code-head">output · illustrative</div>
+        <pre class="code" data-lang="none"><code><span data-step="2">refund_agent &gt; [Calling tool: lookup_order({'order_id': 'A-1001'})]
+refund_agent &gt; [Tool result: {'status': 'success', 'order': {...}}]
+refund_agent &gt; [Calling tool: check_refund_eligibility({...})]
+refund_agent &gt; [Tool result: {'status': 'success', 'eligible': True, ...}]
+<span class="ok">refund_agent &gt; Yes. A-1001 (apparel) was delivered 12 days ago, ...</span></span>
+<span data-step="3">  TOOL CALL  lookup_order({'order_id': 'A-1003'})
+  TOOL RESULT lookup_order -&gt; {'status': 'success', 'order': {...}}
+  TOOL CALL  check_refund_eligibility({..., 'reason': 'damaged'})
+  TOOL RESULT check_refund_eligibility -&gt; {..., 'rule': 'defect_override'}
+<span class="ok">[refund_agent] A-1003 is grocery, ... damaged items are always refundable.</span></span>
+<span data-step="4">refund_agent &gt; I don't have any earlier messages from you in this conversation.</span></code></pre>
+      </div>
+      <div class="slot">
+        <div class="callout tip" data-step="3" data-until="4"><span>Pass <code>abort_signal=asyncio.Event()</code> to <code>run_async</code> (since 2.11.0) and <code>set()</code> it from a timeout task.</span></div>
+        <div class="callout pitfall" data-step="4"><span><code>Session not found: &lt;id&gt;</code>: call <code>create_session</code> first with the same <code>app_name</code>, or use <code>Runner(..., auto_create_session=True)</code>.</span></div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">InMemoryRunner gives you a session, artifact and memory service in one line, and its app_name must match the folder name or ADK warns "App name mismatch detected". Use run_debug to look around, but its own docstring says it is for debugging and experimentation only. The production path is the run_async loop: print every function call and every function response, because the trajectory is where agents fail; CXBench (arXiv 2610.25954) found that 55.5% of runs had the right outcome with a non-compliant process. Think of the event stream as a flight recorder: you read it after the landing, not only the arrival time. A common question is "why did my second user see nothing?": sessions are keyed by app, user and session id, so cust-li starts empty, and an unknown id raises "Session not found" unless you create it first or set auto_create_session=True. Lab 1 ends here; next we move the refund policy out of the prompt and into callbacks.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c01-lab-runner";
+  let cards = [];
+  function render(slide, n, animate) {
+    cards = [...slide.querySelectorAll(".es .card")];
+    const fin = slide.querySelector(".es .fin.lit");
+    cards.forEach((c, i) => {
+      let t;
+      if (n < 3) t = { autoAlpha: 0, left: 20, top: 40, width: 120, height: 32 };
+      else if (n === 3) t = { autoAlpha: 1, left: 190, top: 22 + i * 38, width: 358, height: 32 };
+      else t = { autoAlpha: 1, left: 202 + i * 68, top: 40, width: 60, height: 30 };
+      c.classList.toggle("is-mini", n >= 4);
+      gsap.killTweensOf(c);
+      if (animate && n === 3) {
+        // events drop out of the Runner one by one, in stream order
+        gsap.fromTo(c, { autoAlpha: 0, left: 20, top: 40, width: 120, height: 32 },
+          { ...t, duration: 0.5, delay: 0.25 + i * 0.32, ease: "power3.out" });
+      } else if (animate) {
+        gsap.to(c, { ...t, duration: 0.55, delay: i * 0.06, ease: "power3.inOut" });
+      } else gsap.set(c, t);
+    });
+    // only the last event is final: its badge pulses after the stream lands
+    gsap.killTweensOf(fin);
+    gsap.set(fin, { scale: 1 });
+    if (animate && n === 3) gsap.fromTo(fin, { scale: 1 }, { scale: 1.2, duration: 0.22, repeat: 3, yoyo: true, delay: 2.0, ease: "power1.inOut" });
+  }
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { cards.forEach((c) => gsap.killTweensOf(c)); }
+  });
+})();
+</script>

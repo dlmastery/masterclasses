@@ -1,0 +1,172 @@
+<section class="slide tight" id="rag-c09-lab8-three-metrics" data-tone="human" data-title="Three metrics split the blame">
+  <style>
+    #rag-c09-lab8-three-metrics .m-main { display: grid; grid-template-columns: 800px 1fr; gap: 28px; }
+    #rag-c09-lab8-three-metrics .m-left, #rag-c09-lab8-three-metrics .m-right { gap: 12px; min-width: 0; }
+    #rag-c09-lab8-three-metrics .lab-head { font-size: 15px; gap: 12px; }
+    #rag-c09-lab8-three-metrics .lab-head .run { font-size: 14px; }
+    #rag-c09-lab8-three-metrics .code-wrap .code-head { padding: 8px 14px; font-size: 13.5px; }
+    #rag-c09-lab8-three-metrics pre.code { font-size: 13px; line-height: 1.45; padding: 12px 18px 14px; }
+    #rag-c09-lab8-three-metrics .code-wrap.out pre.code { font-size: 13px; line-height: 1.5; padding: 10px 18px 12px; }
+    #rag-c09-lab8-three-metrics .viz { border: 1px solid var(--line-2); border-radius: 16px; background: var(--surface); padding: 12px 14px 8px; }
+    #rag-c09-lab8-three-metrics .viz svg { display: block; overflow: visible; }
+    #rag-c09-lab8-three-metrics .steps-rail { gap: 8px; }
+    #rag-c09-lab8-three-metrics .steps-rail > * { font-size: 16px; line-height: 1.35; grid-template-columns: 30px 1fr; gap: 10px; }
+    #rag-c09-lab8-three-metrics .steps-rail > *::before { width: 26px; height: 26px; font-size: 13px; }
+    #rag-c09-lab8-three-metrics .steps-rail code { font-size: 14px; }
+    #rag-c09-lab8-three-metrics .src { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    #rag-c09-lab8-three-metrics pre.code { font-variant-ligatures: none; }
+    #rag-c09-lab8-three-metrics .cite { font-size: 13.5px; padding: 5px 10px 5px 8px; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 8</span> ShopCo release gate · step 2 of 4</div>
+  <h2 class="title">Three metrics split the blame: the retriever found it, the bot did not</h2>
+  <div class="m-main fill">
+    <div class="m-left stack">
+      <div class="lab-head"><span class="run">python lab1_ragas_refund.py</span><span>2nd run: served from <code>.ragas_cache</code> · ragas==0.4.3</span></div>
+      <div class="code-wrap">
+        <div class="code-head">lab1_ragas_refund.py · part 2 of 2: score and report</div>
+        <pre class="code" data-lang="python" data-focus="1:4-6, 2:7-10, 3:11, 4:17, 5:14-18"><code># part 1: imports, judge, POLICY, SAMPLES and faith, cp, cr
+
+async def score(s):
+    f, p, r = await asyncio.gather(
+        faith.ascore(user_input=s["user_input"], response=s["response"],
+                     retrieved_contexts=s["retrieved_contexts"]),
+        cp.ascore(user_input=s["user_input"], reference=s["reference"],
+                  retrieved_contexts=s["retrieved_contexts"]),
+        cr.ascore(user_input=s["user_input"], retrieved_contexts=s["retrieved_contexts"],
+                  reference=s["reference"]))
+    return f.value, p.value, r.value
+
+async def main():
+    rows = await asyncio.gather(*(score(s) for s in SAMPLES))
+    print(f"{'question':52} faith  ctxP  ctxR")
+    for s, (f, p, r) in zip(SAMPLES, rows):
+        flag = "  &lt;-- HALLUCINATION" if not math.isnan(f) and f &lt; 0.8 else ""
+        print(f"{s['user_input'][:50]:52} {f:5.2f} {p:5.2f} {r:5.2f}{flag}")
+
+asyncio.run(main())</code></pre>
+      </div>
+      <div class="code-wrap out" data-step="4">
+        <div class="code-head">output · illustrative</div>
+        <pre class="code" data-lang="none"><code><span class="dim">question                                             faith  ctxP  ctxR</span>
+<span class="ok">Can I return headphones delivered 10 days ago?        1.00  1.00  1.00</span>
+<span class="err">I revealed my gift card code. Can I get a refund?     0.00  0.50  1.00  &lt;-- HALLUCINATION</span></code></pre>
+      </div>
+    </div>
+    <div class="m-right stack">
+      <div class="viz"><svg id="c09m-svg" viewBox="0 0 540 316" width="534" height="312" aria-label="Score matrix for two ShopCo questions and the team that owns each failure"></svg></div>
+      <div class="steps-rail">
+        <div data-step="1"><span><code>gather</code> runs three judges at once. Faithfulness checks each statement against the contexts.</span></div>
+        <div data-step="2"><span>Same names, different positional order. Always pass keywords.</span></div>
+        <div data-step="3"><span><code>.value</code> is the score. <code>.reason</code> explains it.</span></div>
+        <div data-step="4"><span>No statements gives NaN. <code>pandas.mean()</code> skips it silently.</span></div>
+        <div data-step="5"><span>Row 2: recall 1.00, faith 0.00. The rule was fetched. The generator failed.</span></div>
+      </div>
+      <div class="src">
+        <a class="cite repo" href="https://github.com/vibrantlabsai/ragas" target="_blank" rel="noopener"><b>Repo</b>&nbsp;vibrantlabsai/ragas (v0.4.3)</a>
+        <a class="cite doc" href="https://ai.google.dev/gemini-api/docs/openai" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Gemini OpenAI compatibility</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    This is the second half of the lab script: we score both ShopCo questions with three ragas metrics in parallel and print one row per question. Row 2 is the gift-card answer that says refunds are possible within 30 days; Faithfulness gives it 0 because no retrieved chunk supports those statements. Context Recall is 1.0, so the retriever did fetch the gift-card rule, and Context Precision is 0.5 only because that chunk was ranked second. So the retriever and the reranker are fine, and the fix belongs in the prompt or the generator. Analogy: the librarian handed over the right page, and the student still wrote the wrong answer. A likely question is "why not one combined RAG score?": because one number hides which team must fix what. Next: two rows show the method; the release gate scores the whole golden.jsonl against a stored baseline.
+  </aside>
+</section>
+<script>
+(() => {
+  const ID = "rag-c09-lab8-three-metrics";
+  const NS = "http://www.w3.org/2000/svg";
+  const CX = [210, 340, 470], CW = 92, CH = 44, RY = [34, 92];
+  const COL = { g: "var(--state)", a: "var(--tool)", r: "var(--risk)" };
+  // [row][metric]: value text and colour key; metric order = faith, ctxP, ctxR
+  const VAL = [[["1.00", "g"], ["1.00", "g"], ["1.00", "g"]], [["0.00", "r"], ["0.50", "a"], ["1.00", "g"]]];
+  const FILL_STEP = [1, 2, 2];     // faith fills at step 1, ctxP and ctxR at step 2
+  const TEAMS = [["Generator", "faith low"], ["Reranker", "ctxP low"], ["Retriever", "ctxR low"]];
+  const mk = (tag, attrs, parent, text) => {
+    const el = document.createElementNS(NS, tag);
+    for (const k in attrs) el.setAttribute(k, attrs[k]);
+    if (text !== undefined) el.textContent = text;
+    parent.appendChild(el);
+    return el;
+  };
+  let svg = null, R = null;
+
+  function build(slide) {
+    svg = slide.querySelector("#c09m-svg");
+    if (svg._built) { R = svg._R; return; }
+    svg.innerHTML = "";
+    R = { cells: [[], []], arrows: [], teams: [], teamBox: [] };
+    const mono = "font-family:var(--f-mono)";
+    ["faith", "ctxP", "ctxR"].forEach((h, j) => mk("text", { x: CX[j], y: 22, "text-anchor": "middle", style: mono + ";font-size:14px;font-weight:700;fill:var(--ink-2)" }, svg, h));
+    R.q1 = mk("text", { x: 0, y: RY[0] + 27, style: mono + ";font-size:14px;font-weight:600;fill:var(--ink-2)" }, svg, "row 1 headphones");
+    R.q2 = mk("text", { x: 0, y: RY[1] + 20, style: mono + ";font-size:14px;font-weight:600;fill:var(--ink-2)" }, svg, "row 2 gift card");
+    R.flag = mk("text", { x: 0, y: RY[1] + 38, style: mono + ";font-size:12.5px;font-weight:700;fill:var(--risk)" }, svg, "<-- HALLUCINATION");
+    VAL.forEach((row, i) => row.forEach((v, j) => {
+      const g = mk("g", {}, svg);
+      const x = CX[j] - CW / 2, y = RY[i];
+      mk("rect", { x, y, width: CW, height: CH, rx: 10, style: "fill:none;stroke:var(--line-2);stroke-width:1.5;stroke-dasharray:4 4" }, g);
+      const fill = mk("rect", { x, y, width: CW, height: CH, rx: 10, style: `fill:${COL[v[1]]}` }, g);
+      const t = mk("text", { x: CX[j], y: y + 29, "text-anchor": "middle", style: mono + ";font-size:18px;font-weight:700;fill:#fff" }, g, v[0]);
+      R.cells[i].push({ fill, t });
+    }));
+    // step-3 caption (replaced by the flag at step 4)
+    R.valueCap = mk("text", { x: 0, y: 166, style: mono + ";font-size:13px;fill:var(--human);font-weight:600" }, svg, "f.value = 0.00   (MetricResult, float-like, .reason)");
+    // arrows from row-2 cells down to the owning team
+    CX.forEach((x, j) => {
+      const bad = j === 0;
+      const g = mk("g", {}, svg);
+      const line = mk("path", { d: `M${x} ${RY[1] + CH + 6} L${x} 214`, style: `fill:none;stroke:${bad ? "var(--risk)" : "var(--state)"};stroke-width:3` }, g);
+      mk("path", { d: `M${x - 7} 210 L${x} 222 L${x + 7} 210 Z`, style: `fill:${bad ? "var(--risk)" : "var(--state)"}` }, g);
+      R.arrows.push({ g, line });
+      const tg = mk("g", {}, svg);
+      const box = mk("rect", { x: x - 56, y: 226, width: 112, height: 44, rx: 22, style: "fill:var(--surface-2);stroke:var(--line-2);stroke-width:1.5" }, tg);
+      const name = mk("text", { x, y: 253, "text-anchor": "middle", style: "font-size:15px;font-weight:700;fill:var(--ink-2)" }, tg, TEAMS[j][0]);
+      mk("text", { x, y: 292, "text-anchor": "middle", style: mono + ";font-size:12.5px;fill:var(--muted)" }, tg, "owns: " + TEAMS[j][1]);
+      R.teams.push({ box, name }); R.teamBox.push(tg);
+    });
+    R.verdict = mk("text", { x: 270, y: 314, "text-anchor": "middle", style: mono + ";font-size:13px;font-weight:700;fill:var(--risk)" }, svg, "row 2: fix the prompt or generator, not retrieval");
+    svg._R = R; svg._built = true;
+  }
+
+  function render(n, animate) {
+    if (!R) return;
+    const d = animate ? 0.45 : 0;
+    const vis = (el, on, delay) => gsap.to(el, { autoAlpha: on ? 1 : 0, duration: d, delay: on && animate ? (delay || 0) : 0, overwrite: true });
+    R.cells.forEach((row, i) => row.forEach((c, j) => {
+      const on = n >= FILL_STEP[j];
+      const delay = 0.15 + i * 0.25 + (j === 2 ? 0.4 : 0);
+      gsap.to(c.fill, { opacity: on ? 1 : 0, duration: d, delay: on && animate ? delay : 0, overwrite: true });
+      gsap.to(c.t, { opacity: on ? 1 : 0, duration: d, delay: on && animate ? delay + 0.1 : 0, overwrite: true });
+      if (animate && on && n === FILL_STEP[j]) gsap.fromTo(c.fill, { scale: 0.6, transformOrigin: "50% 50%" }, { scale: 1, duration: 0.45, delay, ease: "back.out(2)" });
+    }));
+    // the Q2 faith cell pulses at step 3 (.value)
+    gsap.to(R.cells[1][0].fill, { attr: { "stroke-width": n === 3 ? 4 : 0 }, duration: d, overwrite: "auto" });
+    R.cells[1][0].fill.style.stroke = "var(--human)";
+    vis(R.valueCap, n === 3, 0.1);
+    vis(R.flag, n >= 4, 0.2);
+    R.q2.style.fill = n >= 4 ? "var(--risk)" : "var(--ink-2)";
+    // step 5: blame arrows, the generator lights red
+    R.arrows.forEach((a, j) => {
+      vis(a.g, n >= 5, 0.1 + j * 0.15);
+      const len = 214 - (RY[1] + CH + 6);
+      a.line.style.strokeDasharray = len;
+      gsap.to(a.line, { strokeDashoffset: n >= 5 ? 0 : len, duration: animate ? 0.5 : 0, delay: n >= 5 && animate ? 0.1 + j * 0.15 : 0, overwrite: true });
+    });
+    R.teams.forEach((t, j) => {
+      const lit = n >= 5;
+      const c = j === 0 ? "var(--risk)" : "var(--state)";
+      gsap.to(t.box, { attr: { "stroke-width": lit ? 3 : 1.5 }, duration: d, delay: lit && animate ? 0.6 : 0, overwrite: true });
+      t.box.style.stroke = lit ? c : "var(--line-2)";
+      t.box.style.fill = lit && j === 0 ? "var(--risk-soft)" : "var(--surface-2)";
+      t.name.style.fill = lit ? c : "var(--ink-2)";
+    });
+    if (animate && n === 5) gsap.fromTo(R.teamBox[0], { scale: 1 }, { scale: 1.08, transformOrigin: "50% 50%", duration: 0.3, delay: 0.8, yoyo: true, repeat: 1 });
+    vis(R.verdict, n >= 5, 0.9);
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { build(slide); render(step || 0, false); },
+    step(slide, n, animate) { build(slide); render(n, animate); },
+    leave() { if (svg) gsap.killTweensOf(svg.querySelectorAll("*")); }
+  });
+})();
+</script>

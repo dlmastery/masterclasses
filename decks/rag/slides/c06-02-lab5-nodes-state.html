@@ -1,0 +1,208 @@
+<section class="slide tight" id="rag-c06-lab5-nodes-state" data-tone="agent" data-title="Lab 5: nodes and state">
+  <style>
+    #rag-c06-lab5-nodes-state .ns-grid { position: relative; display: grid; grid-template-columns: 800px 1fr; gap: 24px; align-items: start; }
+    #rag-c06-lab5-nodes-state .ns-left, #rag-c06-lab5-nodes-state .ns-right { gap: 10px; min-width: 0; }
+    #rag-c06-lab5-nodes-state .code-wrap .code-head { padding: 7px 14px; font-size: 13.5px; }
+    #rag-c06-lab5-nodes-state pre.code.ns-c { font-size: 11.5px; line-height: 1.36; padding: 10px 16px 12px; }
+    #rag-c06-lab5-nodes-state pre.code.ns-t { font-size: 11px; line-height: 1.38; padding: 7px 12px 9px; }
+    #rag-c06-lab5-nodes-state pre.code.ns-o { font-size: 10.6px; line-height: 1.4; padding: 7px 12px 9px; }
+    #rag-c06-lab5-nodes-state .lab-head { gap: 10px; flex-wrap: nowrap; }
+    #rag-c06-lab5-nodes-state .lab-head .run { font-size: 14px; flex: none; }
+    #rag-c06-lab5-nodes-state .lab-head .cite { flex: none; white-space: nowrap; font-size: 13px; padding: 5px 10px 5px 8px; }
+    #rag-c06-lab5-nodes-state .ns-rail { position: relative; height: 50px; }
+    #rag-c06-lab5-nodes-state .ns-rail > p { position: absolute; left: 0; right: 0; top: 0; margin: 0; font-size: 16px; line-height: 1.36; }
+    #rag-c06-lab5-nodes-state .ns-rail code { font-size: .88em; }
+    #rag-c06-lab5-nodes-state .ns-svg { display: block; overflow: visible; }
+    #rag-c06-lab5-nodes-state .ns-svg text, #rag-c06-lab5-nodes-state .ns-ov text { font-family: var(--f-mono); }
+    #rag-c06-lab5-nodes-state .ns-svg .card { fill: var(--surface); stroke: var(--state); stroke-width: 1.6; }
+    #rag-c06-lab5-nodes-state .ns-svg .hd { font-size: 13px; font-weight: 700; fill: var(--state); letter-spacing: .04em; }
+    #rag-c06-lab5-nodes-state .ns-svg .em { font-size: 12.5px; font-weight: 600; fill: var(--muted); }
+    #rag-c06-lab5-nodes-state .ns-svg .key rect { fill: var(--state-soft); stroke: var(--state); stroke-width: 1.4; }
+    #rag-c06-lab5-nodes-state .ns-svg .key text { font-size: 12.5px; font-weight: 700; fill: var(--state); }
+    #rag-c06-lab5-nodes-state .ns-svg .key.hot rect { stroke-width: 3; }
+    #rag-c06-lab5-nodes-state .ns-svg .val { font-size: 11.5px; font-weight: 600; fill: var(--ink); }
+    #rag-c06-lab5-nodes-state .ns-svg .by { font-size: 11px; font-weight: 600; fill: var(--muted); }
+    #rag-c06-lab5-nodes-state .ns-ov { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+    #rag-c06-lab5-nodes-state .ns-ov .wire { stroke: var(--state); stroke-width: 2.6; fill: none; }
+    #rag-c06-lab5-nodes-state .ns-ov .ul { fill: #7ee2b8; }
+    #rag-c06-lab5-nodes-state .ns-ov .pl rect { fill: var(--state); }
+    #rag-c06-lab5-nodes-state .ns-ov .pl text { font-size: 12px; font-weight: 700; fill: #fff; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 5</span> Northwind helpdesk · step 1 of 4</div>
+  <h2 class="title">Functions and agents are nodes; state flows by parameter name</h2>
+  <div class="ns-grid fill">
+    <div class="stack ns-left">
+      <div class="code-wrap">
+        <div class="code-head">lab5_helpdesk.py · step 1: nodes and state</div>
+        <pre class="code ns-c" data-lang="python" data-focus="1:4-14, 2:23-24, 3:26-30, 4:32-35"><code>import asyncio, os, re
+from typing import Literal
+from pydantic import BaseModel, Field
+from google.adk import Agent, Event, Workflow
+from google.adk.runners import InMemoryRunner
+
+MODEL = os.getenv("MODEL", "gemini-3.8-flash")
+HR_DOCS = {
+    "PTO-2026": "Full-time staff accrue 1.75 PTO days per month. "
+                "At most 5 unused PTO days carry over into the next year.",
+    "PARENTAL-2026": "Birth and adoptive parents get 16 weeks of paid leave after 90 days of employment.",
+    "REMOTE-2026": "Staff may work remotely up to 3 days per week with manager approval. "
+                   "Working abroad over 30 days needs HR approval.",
+}
+
+class Route(BaseModel):
+    category: Literal["hr_policy", "it_support", "out_of_scope"]
+
+class Verdict(BaseModel):
+    supported: bool = Field(description="True only if EVERY claim in the draft is stated in the evidence")
+    unsupported_claims: list[str] = Field(description="Claims of the draft not found in the evidence")
+
+def take_question(node_input: str):
+    return Event(state={"question": node_input})
+
+router = Agent(name="router", model=MODEL, output_schema=Route, output_key="route",
+               instruction="Classify this employee message: {question}")
+
+def route_on_category(node_input: Route):
+    yield Event(route=node_input.category)
+
+def retrieve_hr(question: str, k: int = 2):
+    words = set(re.findall(r"[a-z]+", question.lower()))
+    ranked = sorted(HR_DOCS.items(), key=lambda kv: -len(words &amp; set(re.findall(r"[a-z]+", kv[1].lower()))))
+    return Event(state={"evidence": "\n".join(f"[{d}] {t}" for d, t in ranked[:k])})</code></pre>
+      </div>
+    </div>
+    <div class="stack ns-right">
+      <div class="lab-head">
+        <span class="run">python lab5_helpdesk.py</span>
+        <a class="cite repo" href="https://github.com/google/adk-python/tree/v2.13.0/contributing/samples/workflows/route" target="_blank" rel="noopener"><b>Repo</b>&nbsp;workflows/route sample @ v2.13.0</a>
+      </div>
+      <div class="code-wrap term">
+        <div class="code-head">run it Monday · Python &gt;= 3.11</div>
+        <pre class="code ns-t" data-lang="bash"><code>$ python -m venv .venv &amp;&amp; source .venv/bin/activate
+$ pip install "google-adk==2.13.0"
+$ export GOOGLE_API_KEY=... GOOGLE_GENAI_USE_VERTEXAI=FALSE
+$ export MODEL=gemini-3.8-flash
+hr_helpdesk/__init__.py    from . import agent
+hr_helpdesk/agent.py       copy of lab5_helpdesk.py -> adk web</code></pre>
+      </div>
+      <div class="steps-rail ns-rail">
+        <p data-step="1" data-until="2"><span>The package exports exactly <code>Agent, Context, Event, Runner, Workflow</code>.</span></p>
+        <p data-step="2" data-until="3"><span><code>Event(state=...)</code> writes a state delta: here, <code>question</code>.</span></p>
+        <p data-step="3" data-until="4"><span>A node agent runs <code>single_turn</code> with no history. The type hint turns the stored dict back into <code>Route</code>.</span></p>
+        <p data-step="4"><span><code>question</code> binds from state by name. <code>k</code> uses its default.</span></p>
+      </div>
+      <svg class="ns-svg" id="ns-svg" viewBox="0 0 568 156" width="568" height="156" aria-label="The session state card gains the keys question, route and evidence one by one"></svg>
+      <div class="code-wrap out" data-step="4">
+        <div class="code-head">output · illustrative · state after retrieve_hr</div>
+        <pre class="code ns-o" data-lang="output"><code>{'question': 'How many PTO days can I carry over into 2027?',
+ 'route': <span class="ok">{'category': 'hr_policy'}</span>,
+ 'evidence': '<span class="ok">[PTO-2026]</span> Full-time staff accrue 1.75 PTO days '
+             'per month. At most 5 unused PTO days carry over '
+             'into the next year.\n<span class="dim">[...]</span>'}</code></pre>
+      </div>
+    </div>
+    <svg class="ns-ov" id="ns-ov" aria-hidden="true"></svg>
+  </div>
+  <aside class="notes">
+    This is the run-it-Monday slide of Lab 5: make a Python 3.11 or newer venv, pin google-adk 2.13.0, set the AI Studio key and MODEL, and put the file in hr_helpdesk/agent.py so adk web finds it. The code is step 1 of lab5_helpdesk.py, the one file that the whole lab grows, adapted from the ADK Workflow Routing sample, and every node here is either a plain function or an Agent. Walk the four bands: the imports and the three HR policy documents; take_question writes the question into session state with Event(state=...); the router agent returns JSON that ADK validates against Route and stores as a dict under route, and route_on_category gets a Route object back through its type hint and picks the edge with Event(route=...); retrieve_hr gets question from state only because its parameter has that name. Analogy: state is a shared whiteboard, and each function reads the boxes whose labels match its parameter names. Likely question: "What if I rename the parameter to query?" Then ADK finds no state key with that name and raises WorkflowDataError, which is the gotcha later in this chapter. Next, step 2 wires these nodes into a graph.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ROWS = [
+    { k: "question", v: "'How many PTO days can I carry over into 2027?'", by: "take_question", step: 2 },
+    { k: "route", v: "{'category': 'hr_policy'}", by: "router", step: 3 },
+    { k: "evidence", v: "'[PTO-2026] Full-time staff accrue 1.75 PTO…'", by: "retrieve_hr", step: 4 },
+  ];
+  const RY = [44, 84, 124];
+  let B = null, prev = -1, tweens = [];
+  const mk = (p, tag, attrs, cls) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (cls) e.setAttribute("class", cls);
+    p.appendChild(e); return e;
+  };
+  function build(slide) {
+    const svg = slide.querySelector("#ns-svg");
+    svg.innerHTML = "";
+    mk(svg, "rect", { x: 1, y: 1, width: 566, height: 154, rx: 12 }, "card");
+    mk(svg, "text", { x: 16, y: 24 }, "hd").textContent = "SESSION STATE";
+    const empty = mk(svg, "text", { x: 16, y: 72 }, "em"); empty.textContent = "{ }   empty: HR_DOCS is code, not state";
+    const rows = ROWS.map((r, i) => {
+      const g = mk(svg, "g", {});
+      const key = mk(g, "g", {}, "key");
+      mk(key, "rect", { x: 14, y: RY[i] - 14, width: 88, height: 26, rx: 7 });
+      mk(key, "text", { x: 24, y: RY[i] + 4 }).textContent = r.k;
+      mk(g, "text", { x: 112, y: RY[i] + 4 }, "val").textContent = r.v;
+      mk(g, "text", { x: 554, y: RY[i] + 4, "text-anchor": "end" }, "by").textContent = r.by;
+      return { g, key };
+    });
+    const ov = slide.querySelector("#ns-ov");
+    ov.innerHTML = "";
+    const defs = mk(ov, "defs", {});
+    const m = mk(defs, "marker", { id: "ns-arr", viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto" });
+    mk(m, "path", { d: "M0,0 L10,5 L0,10 z", fill: "var(--state)" });
+    const wire = mk(ov, "path", { d: "M0,0", "marker-end": "url(#ns-arr)" }, "wire");
+    const ul = mk(ov, "rect", { x: 0, y: 0, width: 0, height: 3, rx: 1.5 }, "ul");
+    const pl = mk(ov, "g", {}, "pl");
+    const plr = mk(pl, "rect", { x: 0, y: 0, width: 132, height: 22, rx: 11 });
+    const plt = mk(pl, "text", { x: 0, y: 0, "text-anchor": "middle" }); plt.textContent = "bound by name";
+    B = { empty, rows, wire, ul, pl, plr, plt };
+  }
+  // place the overlay wire from the state key "question" to "question" in the retrieve_hr signature (code line 32)
+  function layout(slide) {
+    const s = slide.querySelector(".ns-grid").getBoundingClientRect(), k = slide.getBoundingClientRect().width / 1600 || 1;
+    const rel = (el) => { const r = el.getBoundingClientRect(); return { x: (r.left - s.left) / k, y: (r.top - s.top) / k, w: r.width / k, h: r.height / k }; };
+    const pre = slide.querySelector("pre.ns-c"), wrapR = rel(pre.closest(".code-wrap"));
+    const cs = getComputedStyle(pre), lh = parseFloat(cs.lineHeight), pt = parseFloat(cs.paddingTop), pl = parseFloat(cs.paddingLeft);
+    const ctx = document.createElement("canvas").getContext("2d");
+    ctx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+    const cw = ctx.measureText("0000000000").width / 10;
+    const p = rel(pre);
+    const x0 = p.x + pl, top32 = p.y + pt + 31 * lh;
+    const px = x0 + 16 * cw, pw = 8 * cw;
+    const kr = rel(B.rows[0].key.querySelector("rect"));
+    const sx = kr.x, sy = kr.y + kr.h / 2;
+    const vx = wrapR.x + wrapR.w - 26, ly = top32 - lh / 2;     // ly = middle of the blank line 31
+    const r = 10, tx = px + pw / 2;
+    const d = `M${sx - 4},${sy} L${vx + r},${sy} Q${vx},${sy} ${vx},${sy + (ly > sy ? r : -r)} L${vx},${ly + (ly > sy ? -r : r)} Q${vx},${ly} ${vx - r},${ly} L${tx + r},${ly} Q${tx},${ly} ${tx},${ly + r} L${tx},${top32 + 1}`;
+    B.wire.setAttribute("d", d);
+    B.ul.setAttribute("x", px); B.ul.setAttribute("y", top32 + lh - 2); B.ul.setAttribute("width", pw);
+    const cx = (vx + tx) / 2 + 40;
+    B.plr.setAttribute("x", cx - 66); B.plr.setAttribute("y", ly - 11);
+    B.plt.setAttribute("x", cx); B.plt.setAttribute("y", ly + 4);
+  }
+  function render(slide, n, animate) {
+    if (!B) build(slide);
+    tweens.forEach((t) => t.kill()); tweens = [];
+    const fwd = animate && n === prev + 1;
+    gsap.set(B.empty, { opacity: n < 2 ? 1 : 0 });
+    B.rows.forEach((r, i) => {
+      const on = n >= ROWS[i].step;
+      r.key.classList.toggle("hot", n === ROWS[i].step || (n === 4 && i === 0));
+      if (fwd && n === ROWS[i].step) tweens.push(gsap.fromTo(r.g, { opacity: 0, x: -24 }, { opacity: 1, x: 0, duration: 0.5, delay: 0.25, ease: "power3.out" }));
+      else gsap.set(r.g, { opacity: on ? 1 : 0, x: 0 });
+    });
+    const wOn = n >= 4;
+    if (wOn) layout(slide);
+    if (fwd && n === 4) {
+      const len = B.wire.getTotalLength();
+      gsap.set(B.wire, { opacity: 1, strokeDasharray: len, strokeDashoffset: len });
+      tweens.push(gsap.to(B.wire, { strokeDashoffset: 0, duration: 1.0, delay: 0.7, ease: "power2.inOut" }));
+      tweens.push(gsap.fromTo(B.ul, { opacity: 0, scaleX: 0, transformOrigin: "left center" }, { opacity: 1, scaleX: 1, duration: 0.35, delay: 1.7 }));
+      tweens.push(gsap.fromTo(B.pl, { opacity: 0 }, { opacity: 1, duration: 0.3, delay: 1.4 }));
+    } else {
+      gsap.set(B.wire, { opacity: wOn ? 1 : 0, strokeDasharray: "none", strokeDashoffset: 0 });
+      gsap.set(B.ul, { opacity: wOn ? 1 : 0, scaleX: 1 });
+      gsap.set(B.pl, { opacity: wOn ? 1 : 0 });
+    }
+    prev = n;
+  }
+  Deck.register("rag-c06-lab5-nodes-state", {
+    enter(slide, step) { prev = -1; B = null; render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { tweens.forEach((t) => t.kill()); tweens = []; prev = -1; }
+  });
+})();
+</script>

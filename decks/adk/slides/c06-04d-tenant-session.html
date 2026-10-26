@@ -1,0 +1,36 @@
+<section class="slide" id="adk-c06-tenant-session" data-tone="state" data-title="Lab 6.4b: create the session with its tenant">
+  <style>
+    #adk-c06-tenant-session .ts-grid { display: grid; grid-template-columns: 820px 1fr; gap: 36px; align-items: start; }
+    #adk-c06-tenant-session .ts-left { display: flex; flex-direction: column; gap: 28px; min-width: 0; }
+    #adk-c06-tenant-session .diagram .node .nt { font-size: 18px; }
+    #adk-c06-tenant-session .diagram .node .ns { font-size: 15px; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 6</span> Acme claims desk · step 4 of 4 · login</div>
+  <h2 class="title">Create each session with its tenant before the first message</h2>
+  <div class="ts-grid fill">
+    <div class="ts-left">
+      <div class="code-wrap term" data-step="1">
+        <div class="code-head">your login step · here with curl · terminal 4</div>
+        <pre class="code" data-lang="bash"><code>$ URL=127.0.0.1:8000/apps/claims_agent/users/broker-b/sessions
+$ curl -s -X POST $URL \
+    -H "Content-Type: application/json" \
+    -d '{"state": {"user:tenant": "broker-b"}}'</code></pre>
+      </div>
+      <div class="code-wrap out" data-step="2">
+        <div class="code-head">output · illustrative</div>
+        <pre class="code" data-lang="out"><code><span class="ok">{"id": "…", "userId": "broker-b",</span>
+<span class="ok"> "state": {"user:tenant": "broker-b"}}</span>
+# open this session in the UI at 127.0.0.1:8000
+# handbook calls now carry X-Tenant-ID: broker-b</code></pre>
+      </div>
+    </div>
+    <div class="diagram" style="width:536px;height:560px"
+         data-wires="lg>st@1 [user:tenant]; st>hp@2; hp>hb@3:flow [X-Tenant-ID]">
+      <div class="node n-human" id="lg" style="left:118px;top:0;width:300px"><span class="nt">login step</span><span class="ns">your app, not the model</span></div>
+      <div class="node n-state" id="st" style="left:118px;top:160px;width:300px" data-step="1"><span class="nt">session state</span><span class="ns">user:tenant = broker-b</span></div>
+      <div class="node n-tool" id="hp" style="left:118px;top:320px;width:300px" data-step="2"><span class="nt">tenant_headers()</span><span class="ns">header_provider</span></div>
+      <div class="node n-tool" id="hb" style="left:118px;top:480px;width:300px" data-step="3"><span class="nt">handbook :3000/mcp</span></div>
+    </div>
+  </div>
+  <aside class="notes">The header comes from session state, so something must put the tenant there before the first message. Step 1: your login step creates the session with user:tenant already set. adk api_server --with_ui serves the ADK REST API next to the dev UI, so here we use curl against /apps/claims_agent/users/broker-b/sessions; in production your web app does the same call after it checks the user. Step 2: the response shows the session and its state; open that session in the UI. Step 3: from now on every handbook call carries X-Tenant-ID: broker-b, read by tenant_headers. The model never writes this value: it comes from login, through state, into a header. Think of the front desk that codes your hotel key card before you reach the lift. A likely question: "What happens in adk web without this step?" tenant_headers raises, the handbook toolset fails closed, and the agent answers without handbook tools; the gotcha slides show how to alert on that.</aside>
+</section>

@@ -1,0 +1,213 @@
+<section class="slide tight" id="adk-c04-lab-loop" data-tone="agent" data-title="Lab 4.3: evaluator-optimizer loop">
+  <style>
+    #adk-c04-lab-loop .lp-main { display: grid; grid-template-columns: 664px 1fr; gap: 22px; align-items: start; }
+    #adk-c04-lab-loop .lab-head { gap: 10px; flex-wrap: nowrap; }
+    #adk-c04-lab-loop .lab-head .run { font-size: 13.5px; padding: 7px 10px; white-space: nowrap; }
+    #adk-c04-lab-loop .lab-head .pins { font: 500 13.5px/1.3 var(--f-mono); color: var(--muted); white-space: nowrap; }
+    #adk-c04-lab-loop .lab-head .cite { font-size: 12.5px; padding: 5px 9px 5px 7px; white-space: nowrap; }
+    #adk-c04-lab-loop .lp-env { font: 500 13.5px/1.3 var(--f-mono); color: var(--ink-2); margin-top: -6px; }
+    #adk-c04-lab-loop .lp-env b { color: var(--state); }
+    #adk-c04-lab-loop .lp-code .code-head { padding: 7px 14px; font-size: 13.5px; }
+    #adk-c04-lab-loop .lp-code pre.code { font-size: 13.2px; line-height: 1.36; padding: 8px 14px 10px; }
+    #adk-c04-lab-loop .lp-right { gap: 12px; min-width: 0; }
+    #adk-c04-lab-loop .lp-stage .node { padding: 7px 14px; min-width: 0; }
+    #adk-c04-lab-loop .lp-stage .node .nt { font-size: 17px; }
+    #adk-c04-lab-loop .lp-stage .node .ns { font-size: 13.5px; }
+    #adk-c04-lab-loop .lp-tok { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; z-index: 3; }
+    #adk-c04-lab-loop .lp-count { position: absolute; left: 470px; top: 0; width: 238px; z-index: 2; padding: 6px 12px; border-radius: 12px;
+      border: 1.5px solid var(--state); background: var(--surface); font: 600 15px/1.35 var(--f-mono); color: var(--ink-2); }
+    #adk-c04-lab-loop .lp-count .v { font-size: 22px; color: var(--state); }
+    #adk-c04-lab-loop .lp-count .g { display: block; }
+    #adk-c04-lab-loop .lp-count .g.bad { color: var(--risk); }
+    #adk-c04-lab-loop .lp-count .g.good { color: var(--state); }
+    #adk-c04-lab-loop .lp-rail { gap: 6px; }
+    #adk-c04-lab-loop .lp-rail > * { font-size: 15.5px; line-height: 1.32; grid-template-columns: 28px 1fr; gap: 10px; }
+    #adk-c04-lab-loop .lp-rail > *::before { width: 24px; height: 24px; font-size: 13px; }
+    #adk-c04-lab-loop .lp-rail code { font-size: 14px; }
+    #adk-c04-lab-loop .lp-outs { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
+    #adk-c04-lab-loop .out .code-head { padding: 6px 12px; font-size: 12.5px; }
+    #adk-c04-lab-loop .out pre.code { font-size: 12.5px; line-height: 1.38; padding: 7px 12px 9px; }
+    #adk-c04-lab-loop .lp-err { padding: 10px 12px; border-radius: 12px; border: 1.5px solid var(--risk); background: var(--risk-soft); display: grid; gap: 6px; }
+    #adk-c04-lab-loop .lp-err h4 { margin: 0; font: 700 13px/1.2 var(--f-mono); color: var(--risk); text-transform: uppercase; letter-spacing: .05em; }
+    #adk-c04-lab-loop .lp-err p { margin: 0; font-size: 14px; line-height: 1.3; color: var(--ink-2); }
+    #adk-c04-lab-loop .lp-err code { display: block; font: 500 12.5px/1.35 var(--f-mono); color: var(--risk); background: none; padding: 0; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 4</span> Northwind back office · step 3 of 4</div>
+  <h2 class="title">An evaluator-optimizer loop needs two exits: compliant or escalate</h2>
+  <div class="lab-head">
+    <span class="run">adk run copy_review "a unit-linked savings policy for first-time investors" --jsonl | grep node_path</span>
+    <span class="pins">Windows: findstr</span>
+    <a class="cite repo" href="https://github.com/google/adk-python/tree/v2.13.0/contributing/samples/workflows/loop" target="_blank" rel="noopener"><b>Repo</b>&nbsp;samples/workflows/loop</a>
+  </div>
+  <div class="lp-env">copy_review/.env: <b>GOOGLE_GENAI_USE_ENTERPRISE=FALSE</b> · <b>GOOGLE_API_KEY=&lt;key from Google AI Studio&gt;</b> · google-adk 2.13.0</div>
+  <div class="lp-main fill">
+    <div class="code-wrap lp-code">
+      <div class="code-head">copy_review/agent.py · the first LLM nodes of the lab</div>
+      <pre class="code" data-lang="python" data-focus="1:8-12, 2:13-24, 3:25-28, 4:29-31"><code>from typing import Literal
+from google.adk import Agent, Context, Event, Workflow
+from pydantic import BaseModel, Field
+MAX_ROUNDS = 3
+class Review(BaseModel):
+  grade: Literal["compliant", "needs_fix"]
+  feedback: str = Field(description="What to change to meet the policy.")
+def brief(node_input: str):
+  yield Event(state={"brief": node_input, "feedback": "", "round": 0})
+write_copy = Agent(name="write_copy", model="gemini-3.5-flash", output_key="draft",
+    instruction="Write a 2-sentence ad for: {brief}. Previous draft (may be "
+                "empty): {draft?} Feedback to apply (may be empty): {feedback?}")
+review_copy = Agent(name="review_copy", model="gemini-3.5-flash",
+    output_schema=Review, output_key="review",
+    instruction="Policy: no guaranteed returns, no 'risk-free', must say "
+                "'Capital at risk.' Grade this ad: {draft}")
+def gate(ctx: Context, node_input: Review):
+  ctx.state["round"] = ctx.state["round"] + 1
+  if node_input.grade == "compliant":
+    yield Event(route="done")
+  elif ctx.state["round"] &gt;= MAX_ROUNDS:
+    yield Event(route="escalate")
+  else:
+    yield Event(state={"feedback": node_input.feedback}, route="retry")
+def publish(draft: str):               # draft is read from ctx.state
+  yield Event(message=f"PUBLISHED:\n{draft}")
+def escalate(draft: str, round: int):  # both read from ctx.state
+  yield Event(message=f"Escalated to Legal after {round} rounds.\n{draft}")
+root_agent = Workflow(name="copy_review", edges=[
+    ("START", brief, write_copy, review_copy, gate),
+    (gate, {"retry": write_copy, "done": publish, "escalate": escalate})])</code></pre>
+    </div>
+    <div class="stack lp-right">
+      <div class="diagram lp-stage" style="width:708px;height:214px"
+           data-wires="lp-brief>lp-write:tb; lp-write>lp-review [draft]; lp-review>lp-gate:tb; lp-gate>lp-write@2:lb [retry]; lp-gate>lp-publish@2 [done]; lp-gate>lp-escalate@2:dash [round 3]">
+        <div class="node n-tool" id="lp-brief" style="left:0;top:0;width:150px"><span class="nt">brief</span><span class="ns">seeds state</span></div>
+        <div class="node n-model" id="lp-write" style="left:0;top:146px;width:170px"><span class="nt">write_copy</span><span class="ns">LLM · draft</span></div>
+        <div class="node n-model" id="lp-review" style="left:250px;top:0;width:180px"><span class="nt">review_copy</span><span class="ns">LLM · Review</span></div>
+        <div class="node n-tool" id="lp-gate" style="left:250px;top:146px;width:180px"><span class="nt">gate</span><span class="ns">round += 1</span></div>
+        <div class="node n-state" id="lp-publish" style="left:538px;top:76px;width:170px" data-step="2" data-fx="pop"><span class="nt">publish</span><span class="ns">compliant</span></div>
+        <div class="node n-human ghost" id="lp-escalate" style="left:538px;top:160px;width:170px" data-step="2" data-fx="pop"><span class="nt">escalate</span><span class="ns">to Legal</span></div>
+        <div class="lp-count">round <b class="v">–</b> / 3<span class="g">grade: –</span></div>
+      </div>
+      <div class="steps-rail lp-rail">
+        <div data-step="1"><span><code>{draft?}</code>: <code>?</code> = optional state key, empty in round 1. <code>{brief}</code> raises if missing.</span></div>
+        <div data-step="2"><span><code>gate</code> is the bound: "A graph cycle is not bounded automatically."</span></div>
+        <div data-step="3"><span>Params named <code>draft</code> and <code>round</code> are read from <code>ctx.state</code>.</span></div>
+        <div data-step="4"><span>Reuse the same <code>write_copy</code> object. The routed back-edge makes the cycle legal.</span></div>
+      </div>
+      <div class="lp-outs">
+        <div class="code-wrap out" data-step="3">
+          <div class="code-head">output · illustrative · node_path</div>
+          <pre class="code" data-lang="none"><code>copy_review@1/brief@1
+copy_review@1/write_copy@1
+copy_review@1/review_copy@1
+copy_review@1/gate@1        <span class="dim">needs_fix</span>
+<span class="ok">copy_review@1/write_copy@2</span>  <span class="dim">@2 = 2nd run</span>
+copy_review@1/review_copy@2
+copy_review@1/gate@2        <span class="dim">compliant</span>
+<span class="ok">copy_review@1/publish@1</span>
+<span data-step="4"><span class="dim"># never compliant: gate@3 -&gt;</span>
+<span class="err">copy_review@1/escalate@1</span></span></code></pre>
+        </div>
+        <div class="lp-err" data-step="4">
+          <h4>Two ways to break the cycle</h4>
+          <p>A back-edge with no route:</p>
+          <code>GraphValidationError: … Unconditional cycle detected: write_copy -&gt; review_copy -&gt; write_copy.</code>
+          <p>A second <code>Agent(name="write_copy")</code>:</p>
+          <code>GraphValidationError: … Duplicate node names found: ['write_copy']</code>
+        </div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">This is the evaluator-optimizer pattern for Northwind's ad copy on a unit-linked savings policy. It is the first LLM step of the lab, so copy_review needs a .env with GOOGLE_GENAI_USE_ENTERPRISE=FALSE and a GOOGLE_API_KEY from Google AI Studio; on Vertex AI set it to TRUE with your project and location instead. write_copy drafts, review_copy grades the draft against the compliance policy, and gate decides. Walk the bands: brief seeds round 0 and an empty feedback; the question mark in {draft?} and {feedback?} makes a state placeholder optional, so it renders empty on the first pass, while {brief} without it would raise if the key were missing. On a retry the writer sees its previous draft and the feedback, so it revises instead of starting over. Gate is the only thing that stops the loop, because a graph cycle has no max_iterations; it counts rounds and gives two exits, publish when compliant and escalate to Legal at MAX_ROUNDS. publish and escalate get draft and round because function parameters that are not node_input or ctx are looked up in ctx.state by name. Think of a junior copywriter and a compliance officer: after three rejections the draft goes to a lawyer instead of a fourth try. In the trace, @2 means the second run of that node, so you can measure cost per round. On Windows, pipe to findstr node_path instead of grep. A likely question is why not build a second write_copy for the back-edge: validation rejects duplicate names, and an unrouted back-edge is rejected as an unconditional cycle. Step 4 moves from a fixed graph to workers that start at run time, one per expense line.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c04-lab-loop";
+  const NS = "http://www.w3.org/2000/svg";
+  // wire order in data-wires: 0 brief>write, 1 write>review, 2 review>gate, 3 gate>write (retry), 4 gate>publish, 5 gate>escalate
+  const NODES = ["lp-brief", "lp-write", "lp-review", "lp-gate", "lp-publish", "lp-escalate"];
+  // the counter only goes up: round 0 after brief, 1 after the first gate, 2 after the second gate
+  const FINAL = {
+    0: { round: "–", grade: "–", cls: "", lit: [] },
+    1: { round: "0", grade: "–", cls: "", lit: ["lp-write"] },
+    2: { round: "1", grade: "needs_fix", cls: "bad", lit: ["lp-gate"] },
+    3: { round: "2", grade: "compliant", cls: "good", lit: ["lp-publish"] },
+    4: { round: "2", grade: "compliant", cls: "good", lit: ["lp-write"] }
+  };
+  let tl = null, retry = null, dot = null;
+  function setCounter(dg, round, grade, cls) {
+    dg.querySelector(".lp-count .v").textContent = round;
+    const g = dg.querySelector(".lp-count .g");
+    g.textContent = "grade: " + grade;
+    g.className = "g" + (cls ? " " + cls : "");
+  }
+  function setLit(dg, lit) {
+    NODES.forEach((id) => { const el = dg.querySelector("#" + id); if (el) el.classList.toggle("lit", lit.includes(id)); });
+  }
+  function stop() {
+    if (tl) { tl.kill(); tl = null; }
+    if (retry) { retry.kill(); retry = null; }
+    if (dot) gsap.killTweensOf(dot);
+  }
+  function render(slide, n, animate) {
+    stop();
+    const dg = slide.querySelector(".lp-stage");
+    if (!dg) return;
+    const k = Math.max(0, Math.min(4, n));
+    const f = FINAL[k];
+    let svg = dg.querySelector("svg.lp-tok");
+    if (!svg) { svg = document.createElementNS(NS, "svg"); svg.setAttribute("class", "lp-tok"); dg.appendChild(svg); }
+    svg.innerHTML = "";
+    dot = null;
+    const paths = [...dg.querySelectorAll("svg.wires path.w")];
+    const need = k >= 2 ? 6 : 3;
+    if (paths[3]) {
+      paths[3].classList.toggle("hot", k >= 4);
+      const ar = paths[3].parentNode.querySelector(".arrow");
+      if (ar) ar.classList.toggle("hot", k >= 4);
+    }
+    setCounter(dg, f.round, f.grade, f.cls); setLit(dg, f.lit);
+    if (k === 0) return;
+    if (paths.length < need) { retry = gsap.delayedCall(0.35, () => render(slide, n, animate)); return; }
+    dot = document.createElementNS(NS, "circle");
+    dot.setAttribute("r", 8); dot.setAttribute("fill", "var(--model)"); dot.setAttribute("opacity", 0);
+    svg.appendChild(dot);
+    const ride = (i, dur) => {
+      const p = paths[i], L = p.getTotalLength(), o = { t: 0 };
+      return gsap.to(o, { t: 1, duration: dur, ease: "power1.inOut", onStart: () => dot.setAttribute("opacity", 1),
+        onUpdate: () => { const pt = p.getPointAtLength(o.t * L); dot.setAttribute("cx", pt.x); dot.setAttribute("cy", pt.y); } });
+    };
+    const hide = () => dot.setAttribute("opacity", 0);
+    if (k === 4) {
+      // the cycle: the same write_copy instance -> review_copy -> gate -> back
+      tl = gsap.timeline({ repeat: -1, repeatDelay: 0.4 });
+      tl.add(ride(1, 0.7)).add(ride(2, 0.5)).add(ride(3, 0.8)).call(hide);
+      return;
+    }
+    if (!animate) return;
+    tl = gsap.timeline();
+    if (k === 1) {
+      setCounter(dg, "–", "–", ""); setLit(dg, ["lp-brief"]);
+      tl.add(ride(0, 0.7)).call(() => { setCounter(dg, "0", "–", ""); setLit(dg, ["lp-write"]); hide(); });
+    } else if (k === 2) {
+      setCounter(dg, "0", "–", ""); setLit(dg, ["lp-write"]);
+      tl.add(ride(1, 0.8)).call(() => { setCounter(dg, "0", "needs_fix", "bad"); setLit(dg, ["lp-review"]); })
+        .add(ride(2, 0.6), "+=0.2")
+        .call(() => { setCounter(dg, "1", "needs_fix", "bad"); setLit(dg, ["lp-gate"]); hide(); });
+    } else {
+      setCounter(dg, "1", "needs_fix", "bad"); setLit(dg, ["lp-gate"]);
+      tl.add(ride(3, 0.9), "+=0.2")
+        .call(() => setLit(dg, ["lp-write"]))
+        .add(ride(1, 0.8), "+=0.2")
+        .call(() => { setCounter(dg, "1", "compliant", "good"); setLit(dg, ["lp-review"]); })
+        .add(ride(2, 0.6), "+=0.25")
+        .call(() => { setCounter(dg, "2", "compliant", "good"); setLit(dg, ["lp-gate"]); })
+        .add(ride(4, 0.7), "+=0.25")
+        .call(() => { setLit(dg, ["lp-publish"]); hide(); });
+    }
+  }
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { stop(); }
+  });
+})();
+</script>

@@ -1,0 +1,94 @@
+<section class="slide" id="adk-c06-tenant-cache" data-tone="tool" data-title="Lab 6.4c: per-identity tool cache">
+  <style>
+    #adk-c06-tenant-cache .tc-grid { display: grid; grid-template-columns: 820px 1fr; gap: 36px; align-items: start; }
+    #adk-c06-tenant-cache .sc { position: relative; width: 536px; height: 430px; }
+    #adk-c06-tenant-cache .sc svg { position: absolute; inset: 0; overflow: visible; }
+    #adk-c06-tenant-cache .srv { position: absolute; left: 0; top: 0; width: 536px; height: 200px; border-radius: 14px; border: 2.5px solid var(--tool); background: var(--tool-soft); }
+    #adk-c06-tenant-cache .srv .bl { position: absolute; left: 16px; top: 14px; font: 700 18px/1.2 var(--f-mono); color: var(--tool); }
+    #adk-c06-tenant-cache .tcard { position: absolute; left: 16px; width: 200px; height: 40px; border-radius: 9px; border: 2px solid var(--tool); background: var(--bg);
+      display: flex; align-items: center; padding: 0 12px; font: 600 17px/1 var(--f-mono); color: var(--ink); white-space: nowrap; }
+    #adk-c06-tenant-cache .tcard.new { left: 300px; top: 100px; border-style: dashed; border-color: var(--risk); color: var(--risk); opacity: 0; }
+    #adk-c06-tenant-cache .tube { position: absolute; top: 270px; width: 258px; height: 150px; border-radius: 18px; border: 2.5px solid var(--state); background: var(--state-soft); }
+    #adk-c06-tenant-cache .tube .tl { position: absolute; left: 20px; top: 16px; font: 700 18px/1.2 var(--f-mono); color: var(--state); white-space: nowrap; }
+    #adk-c06-tenant-cache .tube .ts { position: absolute; left: 20px; top: 48px; font: 600 17px/1.2 var(--f-mono); color: var(--ink-2); white-space: nowrap; }
+    #adk-c06-tenant-cache .clk { position: absolute; left: 20px; top: 82px; width: 50px; height: 50px; border-radius: 50%; border: 3px solid var(--tool); background: var(--bg); opacity: 0; }
+    #adk-c06-tenant-cache .clk i { position: absolute; left: 21.5px; top: 4px; width: 3px; height: 19px; border-radius: 2px; background: var(--tool); transform-origin: 1.5px 19px; }
+    #adk-c06-tenant-cache .tc-left { display: flex; flex-direction: column; gap: 36px; min-width: 0; }
+    #adk-c06-tenant-cache .note { margin: 0; font: 700 26px/1.35 var(--f-body); color: var(--risk); opacity: 0; max-width: 760px; }
+    #adk-c06-tenant-cache .wire { fill: none; stroke: var(--state); stroke-width: 3; stroke-dasharray: 8 7; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 6</span> Acme claims desk · step 4 of 4 · tool cache</div>
+  <h2 class="title">tools/list is cached per identity for 300 s, then filtered again</h2>
+  <div class="tc-grid fill">
+    <div class="tc-left">
+    <div class="code-wrap">
+      <div class="code-head">labs/adk/lab6-acme-claims-desk/claims_agent/agent.py · excerpt</div>
+      <pre class="code" data-lang="python" data-focus="1:5, 2:5, 3:7-8, 4:3"><code>handbook_tools = McpToolset(
+    connection_params=StreamableHTTPConnectionParams(...),  # step 3
+    tool_filter=["search_policy", "list_topics"],  # review new tools
+    header_provider=tenant_headers,
+    tool_list_cache_ttl_seconds=300,   # tools/list reused for 5 minutes
+)
+# ADK does not subscribe to notifications/tools/list_changed
+# ttl=0 raises ValueError; ttl=None turns the cache off</code></pre>
+    </div>
+    <p class="note">new_tool is listed after the TTL, and tool_filter still hides it.</p>
+    </div>
+    <div class="sc" id="tc-sc">
+      <svg viewBox="0 0 536 430" width="536" height="430" aria-hidden="true">
+        <path class="wire" d="M129 200 L 129 270"/>
+        <path class="wire" d="M407 200 L 407 270"/>
+      </svg>
+      <div class="srv"><span class="bl">handbook :3000/mcp</span>
+        <div class="tcard" style="top:56px">search_policy</div>
+        <div class="tcard" style="top:120px">list_topics</div>
+        <div class="tcard new">new_tool</div>
+      </div>
+      <div class="tube" data-k="a" style="left:0"><span class="tl">cache · broker-a</span><span class="ts">listed 2 · shown 2</span><div class="clk"><i></i></div></div>
+      <div class="tube" data-k="b" style="left:278px"><span class="tl">cache · broker-b</span><span class="ts">listed 2 · shown 2</span><div class="clk"><i></i></div></div>
+    </div>
+  </div>
+  <aside class="notes">One more detail of the HTTP toolset: ADK caches the tools/list answer. Step 1: tool_list_cache_ttl_seconds=300 keeps each list for five minutes, and the cache is keyed like the session pool, so each header identity, here each broker, has its own entry and its own clock. Step 2: the server team deploys a new tool. ADK does not subscribe to the tools/list_changed notification, so both caches still say "listed 2" until their entries expire. Step 3: when each clock runs out, the next call lists 3 tools, but the agent still shows 2, because tool_filter lists only the two tools we reviewed. Step 4: that is the point of the filter: a server-side change cannot widen the agent's action space without a code review. A value of 0 raises ValueError; use None to turn the cache off. Think of a restaurant menu that is reprinted every five minutes, but the waiter only offers the dishes the manager approved. A likely question: "Why did my new server tool not appear?" The cache had not expired yet, or tool_filter does not list it.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c06-tenant-cache";
+  let tw = [];
+  function clear() { tw.forEach((t) => t.kill()); tw = []; }
+  const BEFORE = "listed 2 · shown 2", AFTER = "listed 3 · shown 2";
+  const START = [220, 120]; // each identity's entry is at a different age
+  function render(slide, n, animate) {
+    clear();
+    const q = (s) => slide.querySelector(s);
+    const tubes = [...slide.querySelectorAll(".tube")];
+    const clks = tubes.map((t) => t.querySelector(".clk")), hands = clks.map((c) => c.querySelector("i"));
+    const counts = tubes.map((t) => t.querySelector(".ts"));
+    const ghost = q(".tcard.new"), note = q(".note");
+    gsap.set(clks, { opacity: n >= 1 ? 1 : 0 });
+    gsap.set(ghost, { opacity: n >= 2 ? 1 : 0 });
+    gsap.set(note, { opacity: n >= 4 ? 1 : 0 });
+    if (animate && n === 1) tw.push(gsap.fromTo(clks, { scale: 0.4 }, { scale: 1, duration: 0.4, stagger: 0.15, ease: "back.out(2)" }));
+    if (animate && n === 2) tw.push(gsap.fromTo(ghost, { opacity: 0, y: -10 }, { opacity: 1, y: 0, duration: 0.4 }));
+    if (animate && n === 4) tw.push(gsap.fromTo(note, { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.4 }));
+    if (animate && n === 3) {
+      const dur = 3.2;
+      hands.forEach((h, i) => {
+        counts[i].textContent = BEFORE;
+        gsap.set(h, { rotation: START[i] });
+        tw.push(gsap.timeline({ delay: 0.3 })
+          .to(h, { rotation: 360, duration: ((360 - START[i]) / 360) * dur, ease: "none" })
+          .call(() => { counts[i].textContent = AFTER; })
+          .fromTo(tubes[i], { scale: 1.04 }, { scale: 1, duration: 0.35, ease: "back.out(3)" }));
+      });
+    } else {
+      hands.forEach((h, i) => gsap.set(h, { rotation: n >= 3 ? 360 : START[i] }));
+      counts.forEach((c) => (c.textContent = n >= 3 ? AFTER : BEFORE));
+    }
+  }
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { clear(); if (slide) gsap.killTweensOf(slide.querySelectorAll(".sc *")); },
+  });
+})();
+</script>

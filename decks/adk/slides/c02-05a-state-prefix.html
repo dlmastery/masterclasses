@@ -1,0 +1,91 @@
+<section class="slide tight" id="adk-c02-state-prefix" data-tone="state" data-title="Build: state prefixes">
+  <style>
+    #adk-c02-state-prefix .c02v-grid { display: grid; grid-template-columns: 790px 1fr; gap: 30px; align-items: start; }
+    #adk-c02-state-prefix .c02v-left, #adk-c02-state-prefix .c02v-right { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+  </style>
+  <div class="kicker"><span class="pill">Build</span> Acme claims API · remember the customer</div>
+  <h2 class="title">A state prefix decides how long each key lives</h2>
+  <div class="lab-head"><span class="run">python claims/claims_faq.py</span></div>
+  <div class="c02v-grid fill">
+    <div class="c02v-left">
+      <div class="code-wrap">
+        <div class="code-head">labs/adk/lab2-claims-api/claims/claims_faq.py · excerpt</div>
+        <pre class="code c17" data-lang="python" data-focus="1:6-8, 2:9-12, 3:1-4"><code>def get_policy(topic: str, tool_context: ToolContext) -&gt; dict:
+    tool_context.state["temp:last_topic"] = topic        # this turn only
+    asked = tool_context.state.get("user:topics_asked", [])
+    tool_context.state["user:topics_asked"] = asked + [topic]
+# ... in main():
+s1 = await svc.create_session(
+    app_name="claims_api", user_id="u-tom",
+    state={"app:company_name": "Acme", "user:customer_name": "Tom"})
+async for _ in runner.run_async(
+        user_id="u-tom", session_id=s1.id, new_message=msg,
+        state_delta={"user:language": "English"}):
+    pass</code></pre>
+      </div>
+      <div class="c02-cap">
+        <p data-until="1">Keys without a prefix live in one chat. A prefix changes the lifetime.</p>
+        <p data-step="1" data-until="2">Seed <code>app:</code> and <code>user:</code> keys at create. <code>app:</code> is shared by every user.</p>
+        <p data-step="2" data-until="3">Send per-turn context as <code>state_delta</code>. It is written through an event.</p>
+        <p data-step="3"><code>temp:</code> lives for this turn. <code>user:</code> follows u-tom into every chat.</p>
+      </div>
+    </div>
+    <div class="c02v-right">
+      <svg class="c02b-svg" id="c02v-svg" viewBox="0 0 580 440" width="572" height="434" aria-label="Four state buckets: app, user, no prefix and temp">
+        <g class="stag"><rect x="1" y="1" width="150" height="36" rx="18"/><text id="c02v-tag" x="76" y="25" text-anchor="middle">session 1</text></g>
+        <g class="wp" id="c02v-wp"><rect x="166" y="1" width="413" height="36" rx="18"/><text id="c02v-wpt" x="372" y="25" text-anchor="middle"></text></g>
+        <rect class="bk" id="c02v-b0" x="1" y="52" width="278" height="182" rx="16" fill-opacity="1"/>
+        <text class="bh" x="18" y="84">app:</text><text class="bs warn" x="262" y="84" text-anchor="end">every user</text>
+        <rect class="bk" id="c02v-b1" x="301" y="52" width="278" height="182" rx="16" fill-opacity=".75"/>
+        <text class="bh" x="318" y="84">user:</text><text class="bs" x="562" y="84" text-anchor="end">u-tom, every chat</text>
+        <rect class="bk" id="c02v-b2" x="1" y="252" width="278" height="182" rx="16" fill-opacity=".45"/>
+        <text class="bh" x="18" y="284">no prefix</text><text class="bs" x="262" y="284" text-anchor="end">this chat</text>
+        <rect class="bk t" id="c02v-b3" x="301" y="252" width="278" height="182" rx="16" fill-opacity=".2"/>
+        <text class="bh" x="318" y="284">temp:</text><text class="bs" x="562" y="284" text-anchor="end">this turn</text>
+        <g class="ch" id="c02v-k0"><rect x="14" y="102" width="252" height="34" rx="17"/><text x="140" y="125" text-anchor="middle">company_name</text></g>
+        <g class="ch" id="c02v-k1"><rect x="314" y="102" width="252" height="34" rx="17"/><text x="440" y="125" text-anchor="middle">customer_name</text></g>
+        <g class="ch" id="c02v-k2"><rect x="314" y="144" width="252" height="34" rx="17"/><text x="440" y="167" text-anchor="middle">language</text></g>
+        <g class="ch" id="c02v-k3"><rect x="314" y="186" width="252" height="34" rx="17"/><text x="440" y="209" text-anchor="middle">topics_asked</text></g>
+        <g class="ch" id="c02v-k4"><rect x="14" y="302" width="252" height="34" rx="17"/><text x="140" y="325" text-anchor="middle">last_answer</text></g>
+        <g class="ch t" id="c02v-k5"><rect x="314" y="302" width="252" height="34" rx="17"/><text x="440" y="325" text-anchor="middle">last_topic</text></g>
+        <rect class="wipe" id="c02v-wipe" x="580" y="46" width="44" height="392" rx="8" opacity="0"/>
+      </svg>
+      <div class="cites push"><a class="cite codelab" href="https://codelabs.developers.google.com/codelabs/agent-memory/instructions" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;Building Stateful and Personalized Agents with ADK</a></div>
+    </div>
+  </div>
+  <aside class="notes">This build is a standalone FAQ agent, claims_faq_agent, under the same app_name claims_api and the same customer u-tom; the full file is labs/adk/lab2-claims-api/claims/claims_faq.py. Start with the four buckets: a key without a prefix belongs to one session, so a new chat starts without it. Click 1: create_session seeds an app: key and a user: key. Warn the room: app: keys are shared by every user of the app, so never write customer data there. Click 2: the state_delta on run_async writes the language through an event, which is the legal way to inject per-turn context such as locale or channel. Click 3: the tool writes temp:last_topic, which lives only for this turn and is trimmed before commit, and appends to user:topics_asked, which follows u-tom into every chat. Analogy: app: is the office noticeboard, user: is the customer file, unprefixed keys are the notepad for this call, and temp: is a sticky note you throw away when you hang up. A likely question: "Where does InMemorySessionService keep user: keys?" In separate app and user dicts that it merges into every session it returns.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c02-state-prefix", P = "#c02v-";
+  const WP = { 0: "no prefix: one chat only", 1: "create_session(state=…)", 2: "run_async(state_delta=…)", 3: "get_policy → tool_context.state" };
+  // chip -> first step it is visible
+  const CH = { k0: 1, k1: 1, k2: 2, k3: 3, k5: 3 };
+  const CXY = { k0: [140, 119], k1: [440, 119], k2: [440, 161], k3: [440, 203], k5: [440, 319] };
+  const SRC = [372, 19];
+  let els = [];
+  function render(slide, n, animate) {
+    if (window.c02Focus) window.c02Focus(slide, n);
+    const q = (s) => slide.querySelector(P + s);
+    els = [...slide.querySelectorAll(".c02b-svg g, .c02b-svg rect")];
+    gsap.killTweensOf(els);
+    q("wpt").textContent = WP[n] || "";
+    if (animate) gsap.fromTo(q("wp"), { scale: 0.85, svgOrigin: "372 19" }, { scale: 1, svgOrigin: "372 19", duration: 0.35, ease: "back.out(2)" });
+    else gsap.set(q("wp"), { scale: 1, svgOrigin: "372 19" });
+    gsap.set(q("k4"), { opacity: 0 });
+    let k = 0;
+    Object.keys(CH).forEach((id) => {
+      const g = q(id), a = CH[id];
+      if (animate && n === a) {
+        const [cx, cy] = CXY[id];
+        gsap.fromTo(g, { x: SRC[0] - cx, y: SRC[1] - cy, opacity: 0 }, { x: 0, y: 0, opacity: 1, duration: 0.7, delay: 0.15 + (k++) * 0.16, ease: "power3.out" });
+      } else gsap.set(g, { x: 0, y: 0, opacity: n >= a ? 1 : 0 });
+    });
+  }
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { gsap.killTweensOf(els); },
+  });
+})();
+</script>

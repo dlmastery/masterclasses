@@ -1,0 +1,95 @@
+<section class="slide" id="adk-c09-lab-metric-result" data-tone="model" data-title="Lab 9.8: Return an EvaluationResult">
+  <style>
+    #adk-c09-lab-metric-result .c9-split { --c9l: 820px; }
+    #adk-c09-lab-metric-result .c9-cap { min-height: 100px; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 9</span> Acme refund eval gate · step 8 of 15</div>
+  <h2 class="title">Set overall_eval_status, or the metric never passes</h2>
+  <div class="c9-split fill">
+    <div class="code-wrap">
+      <div class="code-head">labs/adk/lab9-refund-eval/refund_policy.py · body of refund_policy_score</div>
+      <pre class="code" data-lang="python" data-focus="1:1-6, 2:7-8, 3:9-12"><code>    per_inv = []
+    for inv in actual_invocations:
+        score = 1.0 if _ok(inv) else 0.0
+        per_inv.append(PerInvocationResult(
+            actual_invocation=inv, score=score,
+            eval_status=PASSED if score == 1.0 else FAILED))
+    if not per_inv:
+        return EvaluationResult()   # NOT_EVALUATED: this is not a pass
+    overall = min(r.score for r in per_inv)
+    return EvaluationResult(
+        overall_score=overall, per_invocation_results=per_inv,
+        overall_eval_status=PASSED if overall == 1.0 else FAILED)</code></pre>
+    </div>
+    <div class="c9-col">
+      <svg class="c9-svg" id="c9e-svg" viewBox="0 0 520 430" aria-label="A three-turn chat. Each turn gets its own score: 1.0, 0.0 and 1.0. With no turns the result is NOT_EVALUATED, which is not a pass. The overall score is the minimum, 0.0, so the overall status is FAILED."></svg>
+      <div class="c9-cap">
+        <p data-step="1" data-until="2">Score every turn on its own, with its own status.</p>
+        <p data-step="2" data-until="3">No turns ran? Return an empty result. ADK shows <code>NOT_EVALUATED</code>.</p>
+        <p data-step="3">One bad turn fails the case: <b>overall = min</b>.</p>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Step eight: the body of refund_policy_score. It scores each invocation, meaning each turn, with its own PerInvocationResult and status. If no invocations ran, it returns an empty EvaluationResult, which ADK reports as NOT_EVALUATED; never turn "nothing ran" into a pass. The overall score is the minimum, so one bad turn fails a three-turn chat, and the function sets overall_eval_status explicitly: a metric that returns only a score is reported as not passed, as the custom_metric sample README warns. Analogy: a chain is as strong as its weakest link, so the case score is the weakest turn. A likely question: "Why min and not the mean?" Because the rule is absolute: one refund of 820 dollars is one too many, and a mean of 0.67 would hide it behind a threshold.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c09-lab-metric-result";
+  const NS = "http://www.w3.org/2000/svg";
+  const TURNS = [1.0, 0.0, 1.0];
+  let R = null, tw = [];
+  function mk(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const [a, v] of Object.entries(attrs)) e.setAttribute(a, v);
+    if (text !== undefined) e.textContent = text;
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function build(svg) {
+    svg.innerHTML = "";
+    R = { svg, tiles: [] };
+    const defs = mk("defs", {}, svg);
+    const m = mk("marker", { id: "c9e-ah", viewBox: "0 0 10 10", refX: 8, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto" }, defs);
+    mk("path", { d: "M0,0 L10,5 L0,10 z", fill: "var(--line-2)" }, m);
+    mk("text", { x: 0, y: 22, "font-size": 18, "font-weight": 700, fill: "var(--ink-2)" }, svg, "a 3-turn chat · per turn");
+    TURNS.forEach((v, i) => {
+      const x = i * 180, ok = v === 1;
+      const g = mk("g", {}, svg);
+      mk("rect", { x, y: 40, width: 160, height: 100, rx: 14, fill: ok ? "var(--state-soft)" : "var(--risk-soft)", stroke: ok ? "var(--state)" : "var(--risk)", "stroke-width": 2.2 }, g);
+      mk("text", { x: x + 16, y: 72, "font-size": 18, "font-weight": 700, fill: "var(--ink-2)" }, g, `turn ${i + 1}`);
+      mk("text", { x: x + 16, y: 118, "font-size": 28, "font-weight": 800, fill: ok ? "var(--state)" : "var(--risk)" }, g, `${v.toFixed(1)} ${ok ? "✓" : "✕"}`);
+      R.tiles.push(g);
+    });
+    R.min = mk("g", {}, svg);
+    mk("path", { d: "M260,148 V188", stroke: "var(--line-2)", "stroke-width": 2.5, fill: "none", "marker-end": "url(#c9e-ah)" }, R.min);
+    mk("rect", { x: 80, y: 196, width: 360, height: 92, rx: 16, fill: "var(--risk-soft)", stroke: "var(--risk)", "stroke-width": 2.6 }, R.min);
+    mk("text", { x: 260, y: 232, "text-anchor": "middle", "font-size": 19, "font-weight": 700, fill: "var(--ink-2)" }, R.min, "overall = min(1.0, 0.0, 1.0)");
+    mk("text", { x: 260, y: 272, "text-anchor": "middle", "font-size": 27, "font-weight": 800, fill: "var(--risk)" }, R.min, "0.0 · FAILED");
+    R.none = mk("g", {}, svg);
+    mk("rect", { x: 0, y: 320, width: 520, height: 100, rx: 14, fill: "var(--surface-2)", stroke: "var(--line-2)", "stroke-width": 2, "stroke-dasharray": "7 5" }, R.none);
+    mk("text", { x: 20, y: 358, "font-size": 19, "font-weight": 700, fill: "var(--ink)" }, R.none, "0 turns → EvaluationResult()");
+    mk("text", { x: 20, y: 396, "font-size": 19, "font-weight": 800, fill: "var(--muted)" }, R.none, "NOT_EVALUATED · not a pass");
+  }
+  function clear() { tw.forEach((t) => t.kill()); tw = []; }
+  function render(slide, n, animate) {
+    const svg = slide.querySelector("#c9e-svg");
+    if (!svg) return;
+    if (!R || R.svg !== svg || !svg.childElementCount) build(svg);
+    clear();
+    gsap.killTweensOf([...R.tiles, R.min, R.none]);
+    if (animate && n === 1) {
+      gsap.set(R.tiles, { opacity: 0 });
+      R.tiles.forEach((t, i) => tw.push(gsap.fromTo(t, { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.35, delay: 0.2 + i * 0.3 })));
+    } else gsap.set(R.tiles, { opacity: n >= 1 ? 1 : 0.25, y: 0 });
+    if (animate && n === 2) tw.push(gsap.fromTo(R.none, { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.4, delay: 0.2 }));
+    else gsap.set(R.none, { opacity: n >= 2 ? 1 : 0, y: 0 });
+    if (animate && n === 3) tw.push(gsap.fromTo(R.min, { opacity: 0, scale: 0.9, transformOrigin: "50% 50%" }, { opacity: 1, scale: 1, duration: 0.45, delay: 0.2, ease: "back.out(2)" }));
+    else gsap.set(R.min, { opacity: n >= 3 ? 1 : 0, scale: 1 });
+  }
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { clear(); },
+  });
+})();
+</script>

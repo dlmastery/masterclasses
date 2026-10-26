@@ -1,0 +1,241 @@
+<section class="slide" id="custom-c04-code-reward-floor" data-tone="risk" data-title="Code reward floor">
+  <div class="kicker"><span class="pill">Gotcha</span> code-execution rewards · refunds desk ticket router</div>
+  <h2 class="title sm">A constant answer earns the class prior: return 'billing' scores 0.25</h2>
+  <div class="crf-top">
+    <div class="stack crf-left">
+      <div class="panel tight crf-panel">
+        <svg id="crf-svg" viewBox="0 0 700 214" width="676" height="207" aria-label="Four candidate programs run in four sandboxes. The loop hits the 5 second timeout. Scores 1.0, 0.25, 0.0, 0.0 stamp in. A dashed constant baseline at 0.25 appears, then all scores are re-centred on it."></svg>
+      </div>
+      <div class="crf-pair">
+        <div class="code-wrap bad" data-step="1">
+          <div class="code-head">candidate 2 · "lazy"</div>
+          <pre class="code xs" data-lang="python"><code>def route_ticket(subject, body):
+    return 'billing'</code></pre>
+        </div>
+        <div class="code-wrap out" data-step="1">
+          <div class="code-head">python code_reward.py · output</div>
+          <pre class="code xs" data-lang="bash"><code><span class="dim">metric code/timeout_rate</span> <span class="err">0.25</span>
+<span class="ok">[1.0,</span> <span class="err">0.25</span><span class="ok">,</span> 0.0, 0.0<span class="ok">]</span></code></pre>
+        </div>
+      </div>
+      <div class="paper crf-paper" data-step="3">
+        <div class="pid">arXiv:2610.28707 <span>SimHack · Google · 20 Oct 2026</span></div>
+        <div class="find">Predicts the reward-hacking onset step to <b>11.3%</b> median error. Its curricula train <b>96.6%</b> longer without hacking.</div>
+        <div class="so">Log a cheap hack detector via log_metric from step 0.</div>
+      </div>
+      <div class="row crf-cites" data-step="3">
+        <a class="cite doc" href="https://huggingface.co/docs/trl/main/en/grpo_trainer" target="_blank" rel="noopener"><b>Docs</b>&nbsp;TRL GRPO Trainer</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2610.28707" target="_blank" rel="noopener"><b>Paper</b>&nbsp;arXiv 2610.28707 SimHack</a>
+      </div>
+    </div>
+    <div class="stack crf-right">
+    <div class="code-wrap good crf-code">
+      <div class="code-head">code_reward.py · trl 1.16.0 reward signature · CPU self-test</div>
+      <pre class="code xs" data-lang="python" data-focus="2:18-19, 3:25-26, 4:16-22"><code>import os, re, subprocess, sys, tempfile
+CODE_RE = re.compile(r"```python\n(.*?)```", re.DOTALL)
+HARNESS = open("harness.tpl").read()  # {code} + the hidden tests; prints the pass rate
+def unit_test_reward(completions, tests, log_metric=None, **kwargs):
+    rewards, timeouts = [], 0
+    for c, t in zip(completions, tests, strict=True):
+        m = CODE_RE.search(c[0]["content"])
+        if not m:
+            rewards.append(0.0)
+            continue
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "cand.py")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(HARNESS.format(code=m.group(1)))
+            try:
+                r = subprocess.run([sys.executable, "-I", path, t], cwd=d,
+                                   capture_output=True, text=True, timeout=5)
+                rewards.append(float(r.stdout.strip().splitlines()[-1])
+                               if r.returncode == 0 else 0.0)
+            except subprocess.TimeoutExpired:
+                timeouts += 1
+                rewards.append(0.0)
+            except (ValueError, IndexError):
+                rewards.append(0.0)
+    if log_metric is not None:
+        log_metric("code/timeout_rate", timeouts / len(completions))
+    return rewards</code></pre>
+    </div>
+    </div>
+  </div>
+  <div class="crf-cards">
+    <div class="gotcha crf-card" data-step="2">
+      <div class="crf-h">1 · Partial-credit floor</div>
+      <b>Symptom</b><span>Reward 0.25 for a do-nothing program.</span>
+      <b class="why">Cause</b><span>The class prior: 1 of 4 balanced queues.</span>
+      <b class="fix">Fix</b><span>Balance hidden tests. Subtract the constant baseline. Log <code>code/hardcoded_return_rate</code>.</span>
+    </div>
+    <div class="gotcha crf-card" data-step="4">
+      <div class="crf-h">2 · Hung rollouts</div>
+      <b>Symptom</b><span>Training hangs. One rollout step takes minutes.</span>
+      <b class="why">Cause</b><span>No timeout: a <code>while True</code> sample blocks the reward call.</span>
+      <b class="fix">Fix</b><span><code>timeout=5</code>, count timeouts with <code>log_metric</code>, use <code>async def</code> rewards. <code>-I</code> is a teaching sandbox only: use gVisor or Firecracker for untrusted code.</span>
+    </div>
+    <div class="gotcha crf-card" data-step="5">
+      <div class="crf-h">3 · Memorizable reward</div>
+      <b>Symptom</b><span>High reward, but new tickets fail.</span>
+      <b class="why">Cause</b><span>The hidden tests also appear in the prompt.</span>
+      <b class="fix">Fix</b><span><code>shots, hidden = rows[:3], rows[3:]</code>: the 9 test tickets are never shown.</span>
+    </div>
+  </div>
+  <style>
+    #custom-c04-code-reward-floor { gap: 16px; }
+    #custom-c04-code-reward-floor .crf-top { display: grid; grid-template-columns: 700px 1fr; gap: 24px; align-items: start; }
+    #custom-c04-code-reward-floor .crf-left { gap: 10px; }
+    #custom-c04-code-reward-floor .crf-panel { padding: 6px 12px; }
+    #custom-c04-code-reward-floor .crf-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    #custom-c04-code-reward-floor .code-head { font-size: 12.5px; padding: 7px 12px; }
+    #custom-c04-code-reward-floor .crf-pair pre.code.xs { font-size: 13px; line-height: 19px; padding: 8px 14px 10px; }
+    #custom-c04-code-reward-floor .crf-code pre.code.xs { font-size: 13px; line-height: 15.6px; padding: 9px 16px 10px; }
+    #custom-c04-code-reward-floor .crf-paper { padding: 9px 16px; gap: 4px; }
+    #custom-c04-code-reward-floor .crf-paper .find { font-size: 15px; line-height: 1.32; }
+    #custom-c04-code-reward-floor .crf-paper .so { font-size: 14.5px; }
+    #custom-c04-code-reward-floor .crf-cards { display: grid; grid-template-columns: 1fr 1.25fr 1fr; gap: 14px; }
+    #custom-c04-code-reward-floor .crf-card { grid-template-columns: 76px 1fr; gap: 2px 10px; padding: 8px 14px; font-size: 14px; line-height: 1.3; }
+    #custom-c04-code-reward-floor .crf-card > b { font-size: 11.5px; line-height: 1.7; }
+    #custom-c04-code-reward-floor .crf-card code { font-size: .82em; }
+    #custom-c04-code-reward-floor .crf-h { grid-column: 1 / -1; font: 700 13.5px/1.3 var(--f-mono); color: var(--ink); margin-bottom: 2px; }
+    #custom-c04-code-reward-floor .crf-right { gap: 10px; }
+    #custom-c04-code-reward-floor .crf-right > .code-wrap { align-self: stretch; }
+    #custom-c04-code-reward-floor .crf-cites { gap: 10px; }
+    #custom-c04-code-reward-floor .crf-cites .cite.paper { display: inline-flex; flex-direction: row; align-items: center; gap: 10px; padding: 8px 14px 8px 10px; border: 1px solid var(--line); border-radius: 10px; }
+    #custom-c04-code-reward-floor .crf-cites .cite { font-size: 12.5px; }
+  </style>
+  <aside class="notes">Lab 3 parsed a JSON answer; when the policy writes code, the reward runs that code, and new hacks appear. The refunds desk also routes incoming tickets into four queues, billing, outage, account and other, with a generated route_ticket function, and the reward is the fraction of hidden unit tests that pass in a subprocess. Run the self-test: the keyword router gets 1.0, but a function that always returns billing still gets 0.25, because one of the four balanced queues is billing. That 0.25 is the class prior, and GRPO will climb toward any cheap partial credit, so subtract the constant baseline and log a hard-coded-return rate. The loop sample shows why the timeout is not optional: without it one while True blocks the whole rollout step. Analogy: a multiple-choice exam where always ticking B gets you 25%. Likely question: "Is subprocess with -I safe?" No, it is a teaching sandbox; untrusted code needs a container, gVisor or Firecracker. Next: a production team that met the same hacks at scale.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c04-code-reward-floor";
+  // the four self-test candidates and the scores unit_test_reward gives them (lab-rl Lab 3, RAN)
+  const C = [
+    { name: "good", l1: "keyword router", l2: "4 keyword lists", tone: "state", score: 1.0, status: "4/4 pass", t: 0.35 },
+    { name: "lazy", l1: "return 'billing'", l2: "constant answer", tone: "tool", score: 0.25, status: "1/4 pass", t: 0.35 },
+    { name: "loop", l1: "while True: pass", l2: "never returns", tone: "risk", score: 0.0, status: "timeout", t: 1 },
+    { name: "no code", l1: "no ```python block", l2: "nothing to run", tone: "muted", score: 0.0, status: "skipped", t: 0 },
+  ];
+  const BX = [8, 183, 358, 533], BY = 8, BW = 158, BH = 100;
+  const TX0 = 14, TW = 112, TY = 78;
+  const Z0 = 196, ZB = 180, S = 64;          // zero axis raw, zero axis after re-centre (= the 0.25 floor), px per 1.0
+  const BAR = 60, BASE = 0.25;
+  let tl = null, P = null;
+
+  const el = (p, tag, a, txt) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); if (txt !== undefined) e.textContent = txt; p.appendChild(e); return e; };
+  const col = (t) => (t === "muted" ? "var(--muted)" : `var(--${t})`);
+  const fmt = (v) => (v < 0 ? "−" : "") + Math.abs(v).toFixed(2);
+
+  function build(svg) {
+    svg.innerHTML = "";
+    const boxes = C.map((c, i) => {
+      const x = BX[i];
+      const g = el(svg, "g", {});
+      const box = el(g, "rect", { x, y: BY, width: BW, height: BH, rx: 12, fill: "var(--surface-2)", stroke: "var(--line-2)", "stroke-width": 2 });
+      el(g, "text", { x: x + 12, y: BY + 22, "font-family": "var(--f-mono)", "font-size": 14, "font-weight": 700, fill: col(c.tone) }, c.name);
+      const st = el(g, "text", { x: x + BW - 10, y: BY + 22, "text-anchor": "end", "font-family": "var(--f-mono)", "font-size": 12, "font-weight": 700, fill: "var(--muted)" }, "");
+      el(g, "text", { x: x + 12, y: BY + 44, "font-family": "var(--f-mono)", "font-size": 11.5, fill: "var(--ink-2)" }, c.l1);
+      el(g, "text", { x: x + 12, y: BY + 60, "font-family": "var(--f-mono)", "font-size": 11, fill: "var(--muted)" }, c.l2);
+      el(g, "rect", { x: x + TX0, y: BY + TY, width: TW, height: 9, rx: 4.5, fill: "var(--bg)", stroke: "var(--line-2)" });
+      const fill = el(g, "rect", { x: x + TX0, y: BY + TY, width: 0, height: 9, rx: 4.5, fill: col(c.tone), opacity: 0.85 });
+      el(g, "line", { x1: x + TX0 + TW, x2: x + TX0 + TW, y1: BY + TY - 5, y2: BY + TY + 14, stroke: "var(--risk)", "stroke-width": 2 });
+      el(g, "text", { x: x + TX0 + TW + 6, y: BY + TY + 9, "font-family": "var(--f-mono)", "font-size": 11, fill: "var(--risk)" }, "5 s");
+      return { box, st, fill };
+    });
+    // score chart
+    const axis = el(svg, "line", { x1: 0, x2: 700, y1: Z0, y2: Z0, stroke: "var(--ink-2)", "stroke-width": 1.5 });
+    const floorG = el(svg, "g", { opacity: 0 });
+    el(floorG, "line", { x1: 0, x2: 700, y1: Z0 - BASE * S, y2: Z0 - BASE * S, stroke: "var(--tool)", "stroke-width": 2, "stroke-dasharray": "7 6" });
+    const fl1 = el(floorG, "text", { x: 696, y: Z0 - BASE * S - 22, "text-anchor": "end", "font-family": "var(--f-mono)", "font-size": 12, "font-weight": 700, fill: "var(--tool)" }, "constant");
+    const fl2 = el(floorG, "text", { x: 696, y: Z0 - BASE * S - 7, "text-anchor": "end", "font-family": "var(--f-mono)", "font-size": 12, "font-weight": 700, fill: "var(--tool)" }, "baseline 0.25");
+    const bars = C.map((c, i) => {
+      const cx = BX[i] + BW / 2;
+      const r = el(svg, "rect", { x: cx - BAR / 2, y: Z0, width: BAR, height: 0, rx: 4, fill: col(c.tone), opacity: 0.8 });
+      const t = el(svg, "text", { x: cx, y: Z0 - 5, "text-anchor": "middle", "font-family": "var(--f-mono)", "font-size": 13, "font-weight": 700, fill: "var(--ink)", opacity: 0 }, "");
+      return { r, t, cx };
+    });
+    P = { boxes, bars, axis, floorG, fl1, fl2 };
+  }
+
+  // geometry of one bar for value v drawn from zero line z
+  function geo(v, z) {
+    const h = Math.abs(v) * S;
+    return v >= 0 ? { y: z - h, height: h, ty: z - h - 5 } : { y: z, height: h, ty: z + h + 14 };
+  }
+
+  function runFinal() {
+    C.forEach((c, i) => {
+      const b = P.boxes[i];
+      gsap.set(b.fill, { attr: { width: c.t * TW } });
+      b.st.textContent = c.status;
+      b.st.setAttribute("fill", c.status === "timeout" ? "var(--risk)" : col(c.tone));
+      b.box.setAttribute("stroke", c.status === "timeout" ? "var(--risk)" : "var(--line-2)");
+    });
+  }
+
+  function play() {
+    tl = gsap.timeline();
+    C.forEach((c, i) => {
+      const b = P.boxes[i], bar = P.bars[i];
+      const dur = c.status === "timeout" ? 2.4 : 0.45;
+      const at = 0.3 + i * 0.12;
+      const g = geo(c.score, Z0);
+      tl.call(() => { b.st.textContent = c.t ? "running" : ""; b.st.setAttribute("fill", "var(--muted)"); b.box.setAttribute("stroke", "var(--line-2)"); }, null, 0)
+        .set(b.fill, { attr: { width: 0 } }, 0)
+        .set(bar.r, { attr: { y: Z0, height: 0 } }, 0)
+        .set(bar.t, { opacity: 0 }, 0)
+        .to(b.fill, { attr: { width: c.t * TW }, duration: c.t ? dur : 0.01, ease: c.status === "timeout" ? "none" : "power2.out" }, at)
+        .call(() => {
+          b.st.textContent = c.status;
+          b.st.setAttribute("fill", c.status === "timeout" ? "var(--risk)" : col(c.tone));
+          b.box.setAttribute("stroke", c.status === "timeout" ? "var(--risk)" : "var(--line-2)");
+        }, null, at + dur)
+        .to(bar.r, { attr: { y: g.y, height: g.height }, duration: 0.5, ease: "back.out(1.6)" }, at + dur + 0.1)
+        .call(() => { bar.t.textContent = c.score.toFixed(2); bar.t.setAttribute("y", g.ty); }, null, at + dur + 0.1)
+        .to(bar.t, { opacity: 1, duration: 0.25 }, at + dur + 0.2);
+    });
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) tl.progress(1);
+  }
+
+  // chart state for step n: floor at step 2, re-centre on the floor at step 3
+  function chart(n, animate) {
+    const re = n >= 3;
+    const z = re ? ZB : Z0;
+    const d = animate ? 0.6 : 0;
+    gsap.to(P.floorG, { opacity: n >= 2 ? 1 : 0, duration: d });
+    gsap.to(P.axis, { attr: { y1: z, y2: z }, duration: d, ease: "power2.inOut" });
+    P.fl1.textContent = re ? "new zero:" : "constant";
+    P.fl2.textContent = re ? "r − 0.25" : "baseline 0.25";
+    C.forEach((c, i) => {
+      const v = re ? c.score - BASE : c.score;
+      const g = geo(v, z);
+      const bar = P.bars[i];
+      bar.r.setAttribute("fill", re && v < 0 ? "var(--risk)" : col(c.tone));
+      gsap.to(bar.r, { attr: { y: g.y, height: g.height }, duration: d, ease: "power2.inOut" });
+      bar.t.textContent = re ? fmt(v) : c.score.toFixed(2);
+      gsap.to(bar.t, { attr: { y: g.ty }, opacity: 1, duration: d });
+    });
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) {
+      if (tl) tl.kill();
+      build(slide.querySelector("#crf-svg"));
+      if (step > 0) { runFinal(); chart(step, false); }
+      else play();
+    },
+    step(slide, n, animate) {
+      if (!P) return;
+      if (n === 0 && tl && tl.progress() < 1) return;   // the run is still playing
+      if (tl) tl.progress(1);
+      chart(n, animate);
+    },
+    leave() {
+      if (tl) tl.kill();
+      tl = null;
+      if (P) gsap.killTweensOf([P.floorG, P.axis, ...P.bars.map((b) => b.r), ...P.bars.map((b) => b.t), ...P.boxes.map((b) => b.fill)]);
+    },
+  });
+})();
+</script>

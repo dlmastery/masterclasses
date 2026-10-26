@@ -1,0 +1,67 @@
+<section class="slide tight" id="adk-c09-practices" data-tone="model" data-title="Practices: eval gate rules">
+  <style>
+    #adk-c09-practices .ep-body { display: grid; grid-template-columns: 640px minmax(0, 1fr); gap: 36px; align-items: start; }
+    #adk-c09-practices .ep-col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+    #adk-c09-practices .ep-grp { display: flex; flex-direction: column; gap: 10px; }
+    #adk-c09-practices .ep-grp h4 { font: 700 15px/1 var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--model); margin: 2px 0 0; }
+    #adk-c09-practices ul.checks { gap: 10px; }
+    #adk-c09-practices ul.checks li { font-size: 19px; line-height: 1.36; }
+    #adk-c09-practices ul.checks li code { font-size: 16px; }
+    #adk-c09-practices ul.checks li .r { color: var(--ink-2); }
+    #adk-c09-practices ul.checks li .id { font: 600 13px/1 var(--f-mono); color: var(--human); white-space: nowrap; }
+    #adk-c09-practices ul.checks li.no { background: var(--risk-soft); border-radius: 8px; padding: 3px 6px; margin: 0 -6px; }
+    #adk-c09-practices .code-head { padding: 7px 14px; font-size: 13.5px; }
+    #adk-c09-practices pre.code { font-size: 13.5px; line-height: 1.42; padding: 8px 14px 9px; }
+    #adk-c09-practices .ep-src { font: 500 13px/1.5 var(--f-mono); color: var(--ink-2); }
+    #adk-c09-practices .ep-src a { color: var(--human); text-decoration: none; }
+  </style>
+  <div class="kicker">Best practices</div>
+  <h2 class="title">8 rules and 2 traps for an eval gate that blocks bad deploys</h2>
+  <div class="ep-body fill">
+    <div class="ep-col">
+      <div class="ep-grp">
+        <h4>1 · What to score</h4>
+        <ul class="checks" data-fx="stagger">
+          <li><span>The $500 rule is a code metric. <span class="r">Judges plateau at 77-82%.</span> <span class="id">2608.26623</span></span></li>
+          <li><span>Judges for meaning only: pinned model, <code>num_samples</code> 5.</span></li>
+          <li><span>A completion bit beside each rubric. <span class="r">57.5% of "satisfied" chats failed.</span> <span class="id">2609.12191</span></span></li>
+          <li><span>Rubrics state the procedure, not golden ids. <span class="r">Golden-id judges fail correct answers.</span> <span class="id">2609.30471</span></span></li>
+          <li class="no"><span>Reference metrics on simulated cases. <span class="r"><code>expected_invocations is needed</code></span></span></li>
+        </ul>
+      </div>
+      <div class="ep-src" data-step="3">Sources (arXiv): <a href="https://arxiv.org/abs/2608.26623" target="_blank" rel="noopener">2608.26623 AgentJudgeBench</a> · <a href="https://arxiv.org/abs/2609.12191" target="_blank" rel="noopener">2609.12191 GAUGE</a> · <a href="https://arxiv.org/abs/2609.30471" target="_blank" rel="noopener">2609.30471 CARGO</a> · <a href="https://arxiv.org/abs/2609.32092" target="_blank" rel="noopener">2609.32092 production eval</a> · <a href="https://arxiv.org/abs/2609.33044" target="_blank" rel="noopener">2609.33044 Pinned and Still Unstable</a> · <a href="https://arxiv.org/abs/2608.26218" target="_blank" rel="noopener">2608.26218 Same Model, Different Harness</a></div>
+    </div>
+    <div class="ep-col">
+      <div class="ep-grp" data-step="1">
+        <h4>2 · How often</h4>
+        <ul class="checks">
+          <li><span>Run ≥ 3 times. Paired bootstrap: resample case pairs, CI on the delta. <span class="id">2609.32092</span></span></li>
+          <li class="no"><span>Trust one run. <span class="r">Close calls flip ~40%.</span> <span class="id">2609.33044</span></span></li>
+        </ul>
+      </div>
+      <div class="code-wrap good" data-step="1">
+        <div class="code-head">labs/test_refund.py · pip install pytest pytest-asyncio · cd labs &amp;&amp; pytest -q</div>
+        <pre class="code" data-lang="python"><code>import pytest
+from google.adk.evaluation.agent_evaluator import AgentEvaluator
+
+@pytest.mark.asyncio
+async def test_refund_golden():
+    await AgentEvaluator.evaluate(
+        agent_module="refund_agent",
+        eval_dataset_file_path_or_dir="refund_agent/refund.evalset.json",
+        num_runs=3)   # default 2; adk eval has no repeat flag in 2.13.0</code></pre>
+      </div>
+      <div class="ep-grp" data-step="2">
+        <h4>3 · How to trust the gate</h4>
+        <ul class="checks">
+          <li><span>In CI, <code>test -f</code> the config and assert the case count.</span></li>
+          <li><span>Known-good and known-bad case per gate. <span class="r">#7258 flipped a metric.</span></span></li>
+          <li><span>Pin models, log the harness. <span class="r">New harness alone: 43 → 72 solved.</span> <span class="id">2608.26218</span></span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    This is the checklist for the whole Acme refund eval gate, in three groups: what to score, how often, and how to trust the gate itself. Hard rules such as the 500 dollar ceiling go into a code metric, because judges plateau at 77 to 82 percent on hard tool-calling cases; every simulated rubric gets a judge-free completion bit, because 57.5 percent of "satisfied" simulated chats had failed; and rubrics describe the procedure, because the CARGO paper found a reference-based judge failed every correct answer about an entity that differed from the golden one. Run each eval at least three times with pytest and num_runs, and accept a change only by a paired bootstrap: resample the same cases from the old and new runs many times and check that the confidence interval of the score change stays above zero. A single run is not enough: a pinned judge flips about 40 percent of close calls. Then test the gate: check the config path, count the cases, keep a known-bad case that must fail, and pin the agent model, the judge model and the harness version, because changing only the harness took the same model from 43 to 72 solved SWE-bench tasks. Analogy: a smoke alarm is only useful if you test it with smoke. A likely question is "Why IN_ORDER and not EXACT?": the agent may make an extra lookup, but it must look up the order before it escalates.
+  </aside>
+</section>

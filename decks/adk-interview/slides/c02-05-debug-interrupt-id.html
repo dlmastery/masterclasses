@@ -1,0 +1,213 @@
+<section class="slide" id="adk-interview-c02-debug-interrupt-id" data-tone="human" data-title="Debug: the gate asks again">
+  <style>
+    #adk-interview-c02-debug-interrupt-id .ii-main { display: grid; grid-template-columns: 742px 1fr; gap: 28px; }
+    #adk-interview-c02-debug-interrupt-id .ii-left { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    #adk-interview-c02-debug-interrupt-id pre.code, #adk-interview-c02-debug-interrupt-id pre.code code,
+    #adk-interview-c02-debug-interrupt-id .lab-head .run, #adk-interview-c02-debug-interrupt-id .lab-head .pins, #adk-interview-c02-debug-interrupt-id svg text, #adk-interview-c02-debug-interrupt-id code { font-variant-ligatures: none !important; }
+    #adk-interview-c02-debug-interrupt-id .ii-left pre.code { font-size: 15.5px; line-height: 1.5; padding: 12px 16px 14px 10px; }
+    #adk-interview-c02-debug-interrupt-id .ii-left pre.code .L { transition: opacity .35s; }
+    #adk-interview-c02-debug-interrupt-id .ii-left pre.code .L::before { counter-increment: ln; content: counter(ln); display: inline-block; width: 2.1em; margin-right: 1em; text-align: right; color: #7d86b8; }
+    #adk-interview-c02-debug-interrupt-id .ii-left pre.code code { counter-reset: ln; }
+    #adk-interview-c02-debug-interrupt-id .ii-left pre.code .L.dimmed { opacity: .4; }
+    #adk-interview-c02-debug-interrupt-id .ii-left .code-wrap .band { background: color-mix(in oklab, var(--tool) 15%, transparent); border-left: 5px solid var(--tool); }
+    #adk-interview-c02-debug-interrupt-id .code-wrap .code-head { padding: 8px 14px; font-size: 14px; }
+    #adk-interview-c02-debug-interrupt-id .code-wrap.out pre.code { font-size: 12.5px; line-height: 1.5; padding: 8px 14px 10px; }
+    #adk-interview-c02-debug-interrupt-id .code-wrap.out .cmd { color: #c9cff2; }
+    #adk-interview-c02-debug-interrupt-id .ii-right { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+    #adk-interview-c02-debug-interrupt-id .lab-head { gap: 12px; flex-wrap: nowrap; }
+    #adk-interview-c02-debug-interrupt-id .lab-head .run { font-size: 14px; padding: 7px 10px; }
+    #adk-interview-c02-debug-interrupt-id .lab-head .pins { font: 500 13px/1.3 var(--f-mono); color: var(--muted); white-space: nowrap; }
+    #adk-interview-c02-debug-interrupt-id .steps-rail { gap: 6px; }
+    #adk-interview-c02-debug-interrupt-id .steps-rail > * { font-size: 15.5px; line-height: 1.35; grid-template-columns: 30px 1fr; align-items: center; }
+    #adk-interview-c02-debug-interrupt-id .steps-rail > *::before { width: 26px; height: 26px; font-size: 13px; }
+    #adk-interview-c02-debug-interrupt-id .steps-rail code { font-size: .88em; }
+    #adk-interview-c02-debug-interrupt-id .ii-slot { display: grid; }
+    #adk-interview-c02-debug-interrupt-id .ii-slot > * { grid-area: 1 / 1; align-self: start; }
+    #adk-interview-c02-debug-interrupt-id .gotcha { font-size: 15px; padding: 9px 14px; grid-template-columns: 78px 1fr; gap: 3px 12px; }
+    #adk-interview-c02-debug-interrupt-id .gotcha > b { font-size: 12px; }
+    #adk-interview-c02-debug-interrupt-id .ii-fix { display: flex; flex-direction: column; gap: 8px; }
+    #adk-interview-c02-debug-interrupt-id .ii-cause { font: 600 14.5px/1.3 var(--f-mono); padding: 8px 12px; border-radius: 10px; border-left: 4px solid var(--tool); background: color-mix(in oklab, var(--tool) 10%, transparent); color: var(--ink); }
+    #adk-interview-c02-debug-interrupt-id .ii-cause b { color: var(--tool); margin-right: 6px; }
+    #adk-interview-c02-debug-interrupt-id .code-wrap.good pre.code { font-size: 12.5px; line-height: 1.5; padding: 8px 14px 10px; }
+    #adk-interview-c02-debug-interrupt-id .ii-cites { display: flex; gap: 8px; flex-wrap: wrap; }
+    #adk-interview-c02-debug-interrupt-id .ii-cites .cite { font-size: 14px; padding: 6px 10px 6px 8px; }
+    #adk-interview-c02-debug-interrupt-id #ii-ids text { font-family: var(--f-mono); }
+  </style>
+  <div class="kicker"><span class="pill">Debug this</span> human-in-the-loop</div>
+  <h2 class="title">Debug this: the manager approves and the gate asks again</h2>
+  <div class="ii-main fill">
+    <div class="ii-left">
+      <div class="code-wrap bad">
+        <div class="code-head">refund_approval/agent.py · manager_gate</div>
+        <pre class="code" data-lang="python" data-focus="2:7-8, 3:12-13"><code>from uuid import uuid4
+from google.adk import Context, Event
+from google.adk.events import RequestInput
+from google.adk.workflow import node
+# intake wrote state {"order_id", "amount"}; nodes get
+# them by parameter name (parameter_binding="state")
+@node(rerun_on_resume=True)
+def manager_gate(ctx: Context, amount: float):
+  if amount &lt;= 500.0:  # auto-approve
+    yield Event(route="approved")
+    return
+  iid = f"refund_approval_{uuid4()}"
+  answer = ctx.resume_inputs.get(iid)
+  if answer is None:
+    yield RequestInput(interrupt_id=iid,
+                       message=f"Approve ${amount:.2f}? yes/no")
+    return
+  ok = str(answer).lower() == "yes"
+  yield Event(route="approved" if ok else "rejected")
+# intake, issue_refund, notify_rejected, edges: unchanged</code></pre>
+      </div>
+      <div class="ii-cites">
+        <a class="cite doc" href="https://adk.dev/graphs/human-input/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;ADK graphs: human input</a>
+        <a class="cite repo" href="https://github.com/google/adk-python/tree/v2.13.0/contributing/samples/workflows/request_input_rerun" target="_blank" rel="noopener"><b>Repo</b>&nbsp;request_input_rerun</a>
+      </div>
+    </div>
+    <div class="ii-right">
+      <div class="lab-head"><span class="run">adk run refund_approval --session_id case-2040</span><span class="pins">google-adk==2.13.0</span></div>
+      <div class="code-wrap out" data-step="1">
+        <div class="code-head">output · illustrative</div>
+        <pre class="code" data-lang="none"><code><span class="cmd">$ adk run refund_approval "A-2040 820" --session_id case-2040</span>
+[refund_approval]: (Paused for input...)
+<span class="cmd">exit=2</span>
+<span class="cmd">$ adk run refund_approval yes --session_id case-2040</span>
+Auto-resuming interrupt refund_approval_3f1… with input: yes
+<span class="err">[refund_approval]: (Paused for input...)</span>
+<span class="ok" data-step="4">Auto-resuming interrupt refund_approval_e7…_1 with input: yes</span>
+<span class="ok" data-step="4">[refund_approval]: REFUNDED $820.00 on A-2040 (key refund-A-2040)</span></code></pre>
+      </div>
+      <svg id="ii-ids" viewBox="0 0 600 100" width="600" height="100" aria-label="The answered interrupt id and the looked-up interrupt id do not match until the id is derived from the run"></svg>
+      <div class="steps-rail">
+        <div data-step="1"><span>The second call sends <b>yes</b>. The gate pauses again.</span></div>
+        <div data-step="2"><span><code>rerun_on_resume=True</code> reruns the node. What is <code>iid</code> now?</span></div>
+        <div data-step="3"><span><code>uuid4()</code> makes a new id each run: the lookup never matches.</span></div>
+      </div>
+      <div class="ii-slot">
+        <div class="gotcha" data-step="3" data-until="4">
+          <b>Symptom</b><span>Every answer opens a new pause.</span>
+          <b class="why">Cause</b><span><code>uuid4()</code> makes a new interrupt id on each rerun, so <code>ctx.resume_inputs.get(iid)</code> never matches the answered id.</span>
+          <b class="fix">Fix</b><span>Derive the id from the invocation and the run.</span>
+        </div>
+        <div class="ii-fix" data-step="4">
+          <div class="ii-cause"><b>CAUSE</b>uuid4() → a new id on every rerun</div>
+          <div class="code-wrap good">
+            <div class="code-head">manager_gate · lines 12-13</div>
+            <pre class="code" data-lang="python"><code># invocation_id: kept on resume · run_id: new per loop pass
+iid = f"refund_approval_{ctx.invocation_id}_{ctx.run_id}"
+answer = ctx.resume_inputs.get(iid)</code></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Show the code and the two adk run calls, and ask why the yes never lands. Point at the line numbers. The hint is lines 7-8: with rerun_on_resume=True the node runs again from the top when the answer arrives, so every line before the lookup runs a second time. The answer is lines 12-13: uuid4() gives a fresh interrupt id on that second run, so ctx.resume_inputs.get(iid) looks for an id that nobody answered and the node yields a new RequestInput. Fix it with an id derived from ctx.invocation_id and ctx.run_id. The CLI resumes the paused invocation, so invocation_id stays the same; run_id changes per loop pass. The RequestInput docstring says reusing an id is supported but unique ids per loop pass are recommended, so the rule is unique per pass, stable across reruns. Lines 5-6 answer a common question: function nodes get order_id and amount from state by parameter name. The workflow has no LLM node, so no API key is needed: pip install google-adk==2.13.0, a refund_approval folder with agent.py and an __init__.py that imports it. Analogy: a ticket desk that prints a new ticket number each time you come back, so your call is never answered. Likely follow-up: the default rerun_on_resume=False is the hand-off pattern, where the reply simply becomes the node's output and this bug cannot happen. This closes chapter 2; chapter 3 moves to what the model sees on each call: state, memory and cost.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "adk-interview-c02-debug-interrupt-id";
+  const A_APART = 0, B_APART = 338, A_NEAR = 10, B_NEAR = 326, A_LOCK = 14, B_LOCK = 322;
+  const FOCUS = { 2: [7, 8], 3: [12, 13] };
+  let svg, tagA, tagB, txtA, txtB, rectB, cross, check, arrow, arrowLbl, refundRect, token, built = false, lines = [];
+  const el = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); parent.appendChild(e); return e; };
+
+  // wrap each highlighted code line in a span so it gets a line number and can be dimmed
+  function numberLines(root) {
+    const code = root.querySelector(".ii-left pre.code code");
+    if (!code || code.dataset.ln) { lines = code ? [...code.querySelectorAll(".L")] : []; return; }
+    code.dataset.ln = "1";
+    code.innerHTML = code.innerHTML.split("\n").map((l) => `<span class="L">${l}</span>`).join("\n");
+    lines = [...code.querySelectorAll(".L")];
+  }
+  function focusLines(n) {
+    let f = null;
+    Object.keys(FOCUS).forEach((k) => { if (n >= +k) f = FOCUS[k]; });
+    lines.forEach((l, i) => l.classList.toggle("dimmed", !!f && (i + 1 < f[0] || i + 1 > f[1])));
+  }
+
+  function build(root) {
+    numberLines(root);
+    svg = root.querySelector("#ii-ids");
+    svg.innerHTML = "";
+    tagA = el("g", {}, svg);
+    el("rect", { x: 0, y: 4, width: 262, height: 36, rx: 10, fill: "var(--human-soft)", stroke: "var(--human)", "stroke-width": 2 }, tagA);
+    txtA = el("text", { x: 131, y: 27, "font-size": 13, "font-weight": 700, "text-anchor": "middle", fill: "var(--human)" }, tagA);
+    tagB = el("g", {}, svg);
+    rectB = el("rect", { x: 0, y: 4, width: 262, height: 36, rx: 10, fill: "var(--risk-soft)", stroke: "var(--risk)", "stroke-width": 2 }, tagB);
+    txtB = el("text", { x: 131, y: 27, "font-size": 13, "font-weight": 700, "text-anchor": "middle", fill: "var(--risk)" }, tagB);
+    cross = el("g", { opacity: 0 }, svg);
+    el("circle", { cx: 299, cy: 22, r: 13, fill: "var(--risk)" }, cross);
+    el("path", { d: "M293 16 L305 28 M305 16 L293 28", stroke: "#fff", "stroke-width": 3, "stroke-linecap": "round" }, cross);
+    check = el("g", { opacity: 0 }, svg);
+    el("circle", { cx: 299, cy: 22, r: 13, fill: "var(--state)" }, check);
+    el("path", { d: "M292 22 L297 27 L306 17", stroke: "#fff", "stroke-width": 3, fill: "none", "stroke-linecap": "round", "stroke-linejoin": "round" }, check);
+    const gate = el("g", {}, svg);
+    el("rect", { x: 0, y: 52, width: 170, height: 46, rx: 12, fill: "var(--human-soft)", stroke: "var(--human)", "stroke-width": 2 }, gate);
+    el("text", { x: 85, y: 80, "font-size": 14, "font-weight": 700, "text-anchor": "middle", fill: "var(--ink)" }, gate).textContent = "manager_gate";
+    const refund = el("g", {}, svg);
+    refundRect = el("rect", { x: 430, y: 52, width: 170, height: 46, rx: 12, fill: "var(--tool-soft)", stroke: "var(--tool)", "stroke-width": 2 }, refund);
+    el("text", { x: 515, y: 80, "font-size": 14, "font-weight": 700, "text-anchor": "middle", fill: "var(--ink)" }, refund).textContent = "issue_refund";
+    arrow = el("line", { x1: 176, y1: 75, x2: 420, y2: 75, stroke: "var(--line-2)", "stroke-width": 3, "stroke-dasharray": "7 6" }, svg);
+    el("path", { d: "M416 68 L428 75 L416 82 Z", fill: "var(--line-2)", class: "ii-head" }, svg);
+    arrowLbl = el("text", { x: 298, y: 66, "font-size": 13, "font-weight": 700, "text-anchor": "middle", fill: "var(--muted)" }, svg);
+    token = el("circle", { cx: 0, cy: 75, r: 8, fill: "var(--state)", opacity: 0 }, svg);
+    built = true;
+  }
+
+  function kill() { if (built) gsap.killTweensOf([tagA, tagB, cross, check, token]); }
+
+  function paint(n, animate) {
+    kill();
+    focusLines(n);
+    const fixed = n >= 4, clash = n === 3;
+    txtA.textContent = fixed ? "answered: refund_approval_e7…_1" : "answered: refund_approval_3f1…";
+    txtB.textContent = fixed ? "looked up: refund_approval_e7…_1" : clash ? "looked up: refund_approval_9c4…" : "looked up: ?";
+    const bCol = fixed ? "var(--state)" : "var(--risk)";
+    rectB.setAttribute("stroke", bCol);
+    rectB.setAttribute("fill", fixed ? "var(--state-soft)" : "var(--risk-soft)");
+    txtB.setAttribute("fill", bCol);
+    const head = svg.querySelector(".ii-head");
+    const aCol = fixed ? "var(--state)" : clash ? "var(--risk)" : "var(--line-2)";
+    arrow.setAttribute("stroke", aCol);
+    arrow.setAttribute("stroke-dasharray", fixed ? "none" : "7 6");
+    head.setAttribute("fill", aCol);
+    arrowLbl.textContent = fixed ? "route = approved" : clash ? "no match: pause again" : "";
+    arrowLbl.setAttribute("fill", fixed ? "var(--state)" : "var(--risk)");
+    refundRect.setAttribute("stroke-width", fixed ? 3.5 : 2);
+
+    const ax = fixed ? A_LOCK : clash ? A_NEAR : A_APART;
+    const bx = fixed ? B_LOCK : clash ? B_NEAR : B_APART;
+    const aOp = n >= 1 ? 1 : 0, bOp = n >= 2 ? 1 : 0;
+    if (animate && (clash || fixed)) {
+      gsap.set(tagA, { x: A_APART, opacity: aOp });
+      gsap.set(tagB, { x: B_APART, opacity: bOp });
+      gsap.to(tagA, { x: ax, duration: 0.6, ease: "power2.inOut" });
+      gsap.to(tagB, { x: bx, duration: 0.6, ease: "power2.inOut" });
+      gsap.set([cross, check], { opacity: 0, scale: 0.4, transformOrigin: "50% 50%" });
+      if (clash) {
+        gsap.to(cross, { opacity: 1, scale: 1, duration: 0.35, delay: 0.6, ease: "back.out(2.5)" });
+        gsap.to([tagA, tagB], { x: (i) => i === 0 ? ax - 10 : bx + 10, duration: 0.15, delay: 0.62, yoyo: true, repeat: 1 });
+      } else {
+        gsap.to(check, { opacity: 1, scale: 1, duration: 0.35, delay: 0.6, ease: "back.out(2.5)" });
+        gsap.set(token, { attr: { cx: 176 }, opacity: 1 });
+        gsap.to(token, { attr: { cx: 420 }, duration: 0.9, delay: 0.9, ease: "power2.inOut" });
+        gsap.to(token, { opacity: 0, duration: 0.2, delay: 1.8 });
+      }
+    } else {
+      gsap.set(tagA, { x: ax, opacity: aOp });
+      gsap.set(tagB, { x: bx, opacity: bOp });
+      gsap.set(cross, { opacity: clash ? 1 : 0, scale: 1, transformOrigin: "50% 50%" });
+      gsap.set(check, { opacity: fixed ? 1 : 0, scale: 1, transformOrigin: "50% 50%" });
+      gsap.set(token, { opacity: 0 });
+    }
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { build(slide); paint(step || 0, false); },
+    step(slide, n, animate) { if (!built) build(slide); paint(n, animate); },
+    leave() { kill(); }
+  });
+})();
+</script>

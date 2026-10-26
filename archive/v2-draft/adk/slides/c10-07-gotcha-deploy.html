@@ -1,0 +1,201 @@
+<section class="slide tight" id="adk-c10-gotcha-deploy" data-tone="risk" data-title="Gotcha: deploy defaults">
+  <style>
+    #adk-c10-gotcha-deploy .gd-body { display: grid; grid-template-columns: 640px minmax(0, 1fr); gap: 24px; align-items: start; }
+    #adk-c10-gotcha-deploy .gd-col { display: flex; flex-direction: column; gap: 11px; min-width: 0; }
+    #adk-c10-gotcha-deploy .gotcha { grid-template-columns: 84px 1fr; gap: 3px 12px; padding: 9px 14px; font-size: 15px; line-height: 1.36; }
+    #adk-c10-gotcha-deploy .gotcha > b { font-size: 12px; line-height: 1.75; }
+    #adk-c10-gotcha-deploy .gotcha .gd-n { grid-column: 1 / -1; font: 700 12.5px/1 var(--f-mono); color: var(--risk); letter-spacing: .05em; text-transform: uppercase; margin-bottom: 3px; }
+    #adk-c10-gotcha-deploy .gd-err { font: 500 12.5px/1.45 var(--f-mono); color: var(--risk); }
+    #adk-c10-gotcha-deploy .gd-src { color: var(--muted); }
+    #adk-c10-gotcha-deploy .code-head { padding: 7px 14px; font-size: 13px; }
+    #adk-c10-gotcha-deploy pre.code { font-size: 12.3px; line-height: 1.44; padding: 9px 14px 11px; }
+    #adk-c10-gotcha-deploy .gd-foot { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: stretch; }
+    #adk-c10-gotcha-deploy .gd-foot .panel { padding: 8px 12px; font-size: 13.5px; line-height: 1.36; gap: 2px; }
+    #adk-c10-gotcha-deploy .gd-foot .panel b { display: block; font: 700 12px/1.5 var(--f-mono); text-transform: uppercase; letter-spacing: .05em; color: var(--risk); }
+    #adk-c10-gotcha-deploy .gd-foot pre.code { font-size: 11.5px; }
+    #adk-c10-gotcha-deploy .gd-cites { display: flex; gap: 8px; flex-wrap: wrap; }
+    #adk-c10-gotcha-deploy .gd-cites .cite { font-size: 12px; padding: 3px 8px; }
+    #adk-c10-gotcha-deploy .gd-col > .code-wrap { width: 100%; }
+    #adk-c10-gotcha-deploy .gd-fig { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); padding: 8px 12px 4px; }
+    #adk-c10-gotcha-deploy .gd-fig svg { display: block; width: 100%; height: auto; overflow: visible; }
+    #adk-c10-gotcha-deploy svg text { font-family: var(--f-mono); }
+    #adk-c10-gotcha-deploy .gd-h { font-size: 13px; font-weight: 700; fill: var(--ink); }
+    #adk-c10-gotcha-deploy .gd-box { stroke-width: 2; }
+    #adk-c10-gotcha-deploy .gd-nt { font-size: 13px; font-weight: 700; fill: var(--ink); }
+    #adk-c10-gotcha-deploy .gd-ns { font-size: 11.5px; fill: var(--ink-2); }
+    #adk-c10-gotcha-deploy .gd-wire { fill: none; stroke-width: 2.2; }
+    #adk-c10-gotcha-deploy .gd-wl { font-size: 11.5px; font-weight: 700; }
+    #adk-c10-gotcha-deploy .gd-cnt { font-size: 13px; font-weight: 700; }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> Deployment</div>
+  <h2 class="title sm">Deploys lose sessions, duplicate instances or return 403 by default</h2>
+  <div class="gd-body fill">
+    <div class="gd-col">
+      <div class="gotcha" data-step="1">
+        <span class="gd-n">1 · Cloud Run forgets the conversation</span>
+        <b>Symptom</b><span>An employee loses the HR conversation after a scale event.</span>
+        <b class="why">Cause</b><span>No <code>--session_service_uri</code>: "the deployed container falls back to the in-memory session and artifact services … sessions and artifacts are lost whenever a Cloud Run instance is recycled."</span>
+        <b class="fix">Fix</b><span><code>--session_service_uri="agentengine://$AGENT_ENGINE_ID"</code>, or a SQLAlchemy URL.</span>
+      </div>
+      <div class="gotcha" data-step="2">
+        <span class="gd-n">2 · two Agent Runtime instances <span class="gd-src">· cli_deploy.py L1893-1898</span></span>
+        <b>Symptom</b><span>Two instances exist. The client still talks to the old one.</span>
+        <b class="why">Cause</b><span>Without <code>--agent_engine_id</code>, every <code>adk deploy agent_engine</code> creates a NEW instance. If an update fails, only a newly created instance is deleted.</span>
+        <b class="fix">Fix</b><span>Pass <code>--agent_engine_id</code> on every update.</span>
+      </div>
+      <div class="gotcha" data-step="3">
+        <span class="gd-n">3 · the private service says no</span>
+        <b>Symptom</b><span><span class="gd-err">403 Forbidden</span> on curl after <code>--no-allow-unauthenticated</code>.</span>
+        <b class="why">Cause</b><span>You sent an access token.</span>
+        <b class="fix">Fix</b><span>Send an identity token (<code>gcloud auth print-identity-token</code>). Grant <code>roles/run.invoker</code> to the caller.</span>
+      </div>
+      <div class="gd-foot" data-step="4">
+        <div class="code-wrap good">
+          <div class="code-head">hr_agent/requirements.txt</div>
+          <pre class="code" data-lang="bash" data-focus="4:1-2"><code>google-adk[gcp,otel]==2.13.0
+google-cloud-agentplatform&gt;=2.2,&lt;3</code></pre>
+        </div>
+        <div class="panel k-risk"><b>Old SDK, version skew</b><span><span class="gd-err">The installed Agent Platform SDK exposes Client.agent_engines rather than Client.runtimes…</span> Unpinned <code>google-adk&gt;=1.20.0</code> gave <span class="gd-err">'LlmAgent' object has no attribute 'mode'</span> (#6156). Pin versions.</span></div>
+      </div>
+    </div>
+    <div class="gd-col">
+      <div class="gd-fig" data-step="2">
+        <svg id="gd-svg" viewBox="0 0 800 272" aria-label="Each deploy without an instance id creates a new Agent Runtime instance; with --agent_engine_id the deploy updates instance 1 in place">
+          <defs>
+            <marker id="gd-ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" style="fill:var(--ink-2)"/></marker>
+          </defs>
+          <text class="gd-h" x="0" y="16">adk deploy agent_engine · hr_agent</text>
+          <rect class="gd-box" x="0" y="84" width="170" height="52" rx="10" style="fill:var(--tool-soft);stroke:var(--tool)"/>
+          <text class="gd-nt" x="85" y="106" text-anchor="middle">CI deploy</text>
+          <text class="gd-ns" x="85" y="124" text-anchor="middle">rev 1, 2, 3</text>
+          <rect class="gd-box" x="0" y="196" width="170" height="44" rx="22" style="fill:var(--human-soft);stroke:var(--human)"/>
+          <text class="gd-nt" x="85" y="223" text-anchor="middle">HR web client</text>
+          <path class="gd-wire" id="gd-w1" d="M170 112 L288 116" marker-end="url(#gd-ah)"/>
+          <path class="gd-wire" id="gd-w2" d="M170 98 C 290 30, 430 30, 534 82" marker-end="url(#gd-ah)"/>
+          <path class="gd-wire" id="gd-w3" d="M170 88 C 330 0, 610 0, 724 82" marker-end="url(#gd-ah)"/>
+          <path class="gd-wire" id="gd-wc" d="M170 218 C 270 218, 345 200, 345 148" marker-end="url(#gd-ah)" style="stroke:var(--human);stroke-dasharray:6 5"/>
+          <text class="gd-wl" id="gd-l1" x="196" y="104">#1</text>
+          <text class="gd-wl" id="gd-l2" x="352" y="38">#2</text>
+          <text class="gd-wl" id="gd-l3" x="440" y="20">#3</text>
+          <text class="gd-wl" id="gd-lf" x="176" y="168">--agent_engine_id</text>
+          <g id="gd-b1"><rect class="gd-box" x="290" y="86" width="110" height="60" rx="10"/><text class="gd-nt" x="345" y="111" text-anchor="middle">instance 1</text><text class="gd-ns" id="gd-r1" x="345" y="130" text-anchor="middle">rev 1</text></g>
+          <g id="gd-b2"><rect class="gd-box" x="480" y="86" width="110" height="60" rx="10"/><text class="gd-nt" x="535" y="111" text-anchor="middle">instance 2</text><text class="gd-ns" x="535" y="130" text-anchor="middle">rev 2</text></g>
+          <g id="gd-b3"><rect class="gd-box" x="670" y="86" width="110" height="60" rx="10"/><text class="gd-nt" x="725" y="111" text-anchor="middle">instance 3</text><text class="gd-ns" x="725" y="130" text-anchor="middle">rev 3</text></g>
+          <circle id="gd-dot" r="7" cx="0" cy="0" style="fill:var(--tool)"/>
+          <text class="gd-cnt" id="gd-cnt" x="420" y="200">instances: 0</text>
+          <text class="gd-ns" id="gd-sub" x="420" y="222"></text>
+        </svg>
+      </div>
+      <div class="code-wrap good" data-step="1">
+        <div class="code-head">deploy.sh · google-adk 2.13.0 · the fixes</div>
+        <pre class="code" data-lang="bash" data-focus="1:1-4, 2:6-8, 3:10-15"><code># 1: sessions outlive a recycled Cloud Run instance
+adk deploy cloud_run --project=$PROJECT --region=$REGION --service_name=contoso-hr \
+  --session_service_uri="agentengine://$AGENT_ENGINE_ID" \
+  hr_agent -- --no-allow-unauthenticated
+
+# 2: update the same Agent Runtime instance in place
+adk deploy agent_engine --project=$PROJECT --region=$REGION \
+  --agent_engine_id=$AGENT_ENGINE_ID hr_agent
+
+# 3: a private Cloud Run service wants an identity token
+URL=$(gcloud run services describe contoso-hr --region=$REGION \
+  --format='value(status.url)')
+TOKEN=$(gcloud auth print-identity-token)
+curl -X POST -H "Authorization: Bearer $TOKEN" \
+  $URL/apps/hr_agent/users/E-1001/sessions/s1</code></pre>
+      </div>
+      <div class="gd-cites" data-step="4">
+        <a class="cite doc" href="https://adk.dev/deploy/cloud-run/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;adk.dev/deploy/cloud-run</a>
+        <a class="cite doc" href="https://adk.dev/deploy/agent-runtime/deploy/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Deploy to Agent Runtime</a>
+        <a class="cite repo" href="https://github.com/google/adk-python/issues/6156" target="_blank" rel="noopener"><b>Repo</b>&nbsp;adk-python #6156</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">These three defaults bite the Contoso HR assistant on its first production week. First, Cloud Run without a session service URI keeps sessions in memory, so a scale event or a recycled instance throws the employee's conversation away; point it at Agent Runtime sessions or a SQLAlchemy database. Second, the animation shows that every adk deploy agent_engine without an instance id creates a new instance, so CI builds a pile of instances while the client stays on revision 1; pass --agent_engine_id and the deploy updates instance 1 in place. Think of the instance id as a house number: without it, the mover builds a new house each time instead of furnishing the one you live in. Third, a private Cloud Run service rejects an access token with 403; it wants an identity token and the caller needs roles/run.invoker. A likely question: "Why pin versions so tightly?" Because issue 6156 came from an unpinned google-adk resolving to a different version in the cloud than on the laptop. Next: the telemetry defaults from Lab 10 step 2 that also bite in production.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c10-gotcha-deploy";
+  let tl = null;
+  const q = (s, sel) => s.querySelector(sel);
+  const op = (el, v) => el.setAttribute("opacity", String(v));
+  function box(g, tone, alpha) {
+    const r = g.querySelector("rect");
+    r.style.fill = `var(--${tone}-soft)`;
+    r.style.stroke = `var(--${tone})`;
+    op(g, alpha);
+  }
+  function wire(el, tone, alpha) { el.style.stroke = `var(--${tone})`; op(el, alpha); }
+  // a in [0,3]: deploys #1..#3 without an id, each spawns a box
+  // b in [0,1]: the fix, a deploy with --agent_engine_id updates box 1
+  function render(s, a, b) {
+    const dot = q(s, "#gd-dot");
+    let dotOn = false;
+    for (let k = 1; k <= 3; k++) {
+      const w = q(s, "#gd-w" + k), l = q(s, "#gd-l" + k), g = q(s, "#gd-b" + k);
+      const started = a > k - 1, done = a >= k - 0.3;
+      const dupe = k > 1;
+      if (b > 0) {
+        wire(w, k === 1 ? "state" : "line-2", k === 1 ? 1 : 0.25);
+        op(l, k === 1 ? 0 : 0.25);
+        box(g, k === 1 ? "state" : "risk", k === 1 ? 1 : 0.25);
+      } else {
+        wire(w, dupe ? "risk" : "tool", started ? 1 : 0);
+        l.style.fill = dupe ? "var(--risk)" : "var(--tool)";
+        op(l, started ? 1 : 0);
+        box(g, dupe ? "risk" : "agent", done ? 1 : 0);
+      }
+      if (b === 0 && started && !done) {
+        const f = Math.min(1, (a - (k - 1)) / 0.7);
+        const p = w.getPointAtLength(w.getTotalLength() * f);
+        dot.setAttribute("cx", p.x); dot.setAttribute("cy", p.y);
+        dot.style.fill = dupe ? "var(--risk)" : "var(--tool)";
+        dotOn = true;
+      }
+    }
+    const lf = q(s, "#gd-lf");
+    lf.style.fill = "var(--state)";
+    op(lf, b > 0 ? 1 : 0);
+    if (b > 0 && b < 0.7) {
+      const w1 = q(s, "#gd-w1");
+      const p = w1.getPointAtLength(w1.getTotalLength() * (b / 0.7));
+      dot.setAttribute("cx", p.x); dot.setAttribute("cy", p.y);
+      dot.style.fill = "var(--state)";
+      dotOn = true;
+    }
+    op(dot, dotOn ? 1 : 0);
+    op(q(s, "#gd-wc"), a >= 0.7 ? 1 : 0);
+    const r1 = q(s, "#gd-r1");
+    r1.textContent = b >= 0.7 ? "rev 3 ✓" : "rev 1";
+    const n = (a >= 0.7 ? 1 : 0) + (a >= 1.7 ? 1 : 0) + (a >= 2.7 ? 1 : 0);
+    const c = q(s, "#gd-cnt"), sub = q(s, "#gd-sub");
+    if (b >= 0.7) {
+      c.textContent = "--agent_engine_id: 1 instance, updated";
+      c.style.fill = "var(--state)";
+      sub.textContent = "the client gets rev 3 on the same instance";
+    } else {
+      c.textContent = "instances: " + n;
+      c.style.fill = n > 1 ? "var(--risk)" : "var(--ink)";
+      sub.textContent = n > 1 ? "the client still talks to rev 1" : "";
+    }
+  }
+  function stop() { if (tl) tl.kill(); tl = null; }
+  function build(s, n, animate) {
+    stop();
+    const P = { a: n >= 2 ? 3 : 0, b: n >= 4 ? 1 : 0 };
+    if (animate && n === 2) P.a = 0;
+    if (animate && n === 4) P.b = 0;
+    render(s, P.a, P.b);
+    if (animate && (n === 2 || n === 4)) {
+      tl = gsap.timeline({ delay: 0.4 });
+      if (n === 2) tl.to(P, { a: 3, duration: 3.6, ease: "none", onUpdate: () => render(s, P.a, P.b) });
+      else tl.to(P, { b: 1, duration: 1.8, ease: "none", onUpdate: () => render(s, P.a, P.b) });
+    }
+  }
+  Deck.register(ID, {
+    enter(slide, n) { if (!tl) build(slide, n || 0, false); },
+    step(slide, n, animate) { build(slide, n, animate); },
+    leave() { stop(); }
+  });
+})();
+</script>

@@ -1,0 +1,178 @@
+<section class="slide chapter" id="custom-c11-chapter" data-tone="tool" data-title="Ch 11: Eval design and the quality card">
+  <style>
+    #custom-c11-chapter .c11-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    #custom-c11-chapter .display { font-size: 88px; max-width: 1300px; }
+    #custom-c11-chapter .lede { margin-top: -8px; max-width: 1180px; }
+    #custom-c11-chapter svg { margin-bottom: -6px; }
+    #custom-c11-chapter .cite.paper { display: inline-flex; flex-direction: row; gap: 10px; padding: 8px 14px 8px 10px; border-radius: 10px; border-color: var(--line); background: color-mix(in oklab, var(--surface) 60%, transparent); }
+    #custom-c11-chapter svg text { font-family: var(--f-mono); font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+  </style>
+  <div class="ch-num" data-fx="blur">11</div>
+  <svg id="c11-ch-svg" viewBox="0 0 1300 300" width="1300" height="300" aria-label="A loop. A single amber bar labelled 84 percent splits into 8 slice bars, one per line of business and language, each with a Wilson error whisker. A dashed red gate line appears at a CI lower bound of 0.50. The Spanish health and Spanish travel slices have whiskers that cross below the gate and turn red. A wire carries the slices into a quality card icon, which gets a red FAIL stamp. A fix loop arrow runs from the card back to the bars; the two red bars rise above the gate, and the card gets a green PASS stamp. The fix values are schematic; the first bars come from the Lab 10 run."></svg>
+  <h2 class="display">No number without n, CI, slice and version</h2>
+  <p class="lede" data-fx="up">An eval is an experiment. The quality card is the release gate.</p>
+  <div class="c11-row" data-fx="stagger">
+    <span class="tag t-tool">Acme claims-agent release · Lab 10</span>
+    <span class="tag t-state">statsmodels 0.15.0 · scipy 1.18.1</span>
+    <span class="tag t-state">numpy 2.5.4 · pandas 3.1.0 · Python 3.12+</span>
+    <span class="tag t-risk">gate: slice CI low ≥ 0.50 · judge κ ≥ 0.60</span>
+    <a class="cite paper" href="https://arxiv.org/abs/2411.00640" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2411.00640 Adding Error Bars to Evals</a>
+  </div>
+  <aside class="notes">Chapter 11 is Lab 10: the Acme claims-extraction agent is about to ship, and we decide whether it may. We report the pass rate per line of business and language with honest confidence intervals, we compare v1 and v2 on the same 400 golden cases with a paired test, and we write a versioned quality card that a CI job checks before release. The animation is the whole chapter in one loop: the 84% headline splits into eight slices, two Spanish slices fall below the gate, the card fails, and only a fix and a re-run turn it green. Analogy: a lab report without sample size and error bars is a rumour, not a result. Likely question: "Is 84% not good enough to ship?" The headline is fine, but one slice of real customers gets 56%, and the card makes that visible before the release, not after.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c11-chapter";
+  // Lab 10 (slices.py) real output, sorted by rate: [label1, label2, rate, lo, hi]
+  const S = [
+    ["health", "es", 0.562, 0.332, 0.769], ["home", "es", 0.690, 0.508, 0.827],
+    ["travel", "es", 0.692, 0.424, 0.873], ["home", "en", 0.824, 0.722, 0.894],
+    ["health", "en", 0.833, 0.641, 0.933], ["auto", "es", 0.875, 0.529, 0.978],
+    ["auto", "en", 0.897, 0.840, 0.936], ["travel", "en", 0.909, 0.764, 0.969],
+  ];
+  const FAILS = [0, 2];                                   // CI low < 0.50
+  const FIX = { 0: [0.80, 0.62, 0.91], 2: [0.82, 0.58, 0.93] };   // schematic values after the fix
+  const BASE = 250, SC = 200, X0 = 60, STEP = 88, BW = 62, MW = 88;
+  const Y = (v) => BASE - v * SC;
+  const bx = (i) => X0 + i * STEP, cx = (i) => bx(i) + BW / 2;
+  let tl = null, P = null;
+
+  const el = (parent, tag, attrs, style, text) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (style) Object.assign(e.style, style);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  };
+  const f = (w, s) => ({ fontWeight: w, fontSize: s + "px" });
+  const wpath = (x, lo, hi) => `M${x - 8} ${Y(hi)} H${x + 8} M${x} ${Y(hi)} V${Y(lo)} M${x - 8} ${Y(lo)} H${x + 8}`;
+
+  function build(svg) {
+    svg.innerHTML = "";
+    el(svg, "line", { x1: 40, y1: BASE, x2: 770, y2: BASE }, { stroke: "var(--line-2)", strokeWidth: 2 });
+    el(svg, "text", { x: 40, y: 16, "text-anchor": "start" }, { ...f(500, 12), fill: "var(--muted)" }, "bars: Lab 10 run · fix: schematic");
+    const bars = S.map((s, i) => el(svg, "rect", { x: X0 + i * MW, y: BASE, width: MW, height: 0 }, { fill: "var(--tool-soft)", stroke: "var(--tool)", strokeWidth: 2 }));
+    const whisk = S.map((s, i) => el(svg, "path", { d: wpath(cx(i), s[3], s[4]) }, { fill: "none", stroke: "var(--ink-2)", strokeWidth: 2.2, opacity: 0 }));
+    const labs = S.map((s, i) => {
+      const g = el(svg, "g", {}, { opacity: 0 });
+      el(g, "text", { x: cx(i), y: 268, "text-anchor": "middle" }, { ...f(700, 13), fill: "var(--ink)" }, s[0]);
+      el(g, "text", { x: cx(i), y: 284, "text-anchor": "middle" }, { ...f(500, 12), fill: "var(--muted)" }, s[1]);
+      return g;
+    });
+    const head = el(svg, "g", {}, { opacity: 0 });
+    el(head, "text", { x: X0 + 4 * MW, y: Y(0.839) - 30, "text-anchor": "middle" }, { ...f(700, 34), fill: "var(--tool)" }, "84%");
+    el(head, "path", { d: wpath(X0 + 4 * MW, 0.797, 0.873) }, { fill: "none", stroke: "var(--ink-2)", strokeWidth: 2.2 });
+    const gate = el(svg, "line", { x1: 40, y1: Y(0.5), x2: 40, y2: Y(0.5) }, { stroke: "var(--risk)", strokeWidth: 2.4, strokeDasharray: "8 6" });
+    const gateT = el(svg, "text", { x: 778, y: Y(0.5) + 5 }, { ...f(700, 13), fill: "var(--risk)", opacity: 0 }, "CI low ≥ 0.50");
+
+    // wire chart -> card
+    const wire = el(svg, "path", { d: "M778 205 H900" }, { fill: "none", stroke: "var(--tool)", strokeWidth: 2.6, strokeDasharray: "122", strokeDashoffset: "122" });
+    const wireHead = el(svg, "path", { d: "M890 198 L902 205 L890 212" }, { fill: "none", stroke: "var(--tool)", strokeWidth: 2.6, opacity: 0 });
+    const dot = el(svg, "circle", { cx: 778, cy: 205, r: 6 }, { fill: "var(--tool)", opacity: 0 });
+
+    // quality card
+    const card = el(svg, "rect", { x: 910, y: 44, width: 270, height: 232, rx: 16 }, { fill: "var(--surface)", stroke: "var(--line-2)", strokeWidth: 2.6 });
+    el(svg, "text", { x: 932, y: 76 }, { ...f(700, 16), fill: "var(--ink)" }, "quality_card.json");
+    const ROWS = ["eval sha256 · pinned", "n = 353 · 60 claim files", "8 slices · Wilson 95%", "gate: CI low ≥ 0.50"];
+    const rows = ROWS.map((r, i) => el(svg, "text", { x: 932, y: 106 + i * 28 }, { ...f(500, 14), fill: "var(--ink-2)", opacity: 0 }, r));
+    const stamp = (txt, c) => {
+      const g = el(svg, "g", { transform: "translate(1100 240) rotate(-10)" });
+      const inner = el(g, "g", {}, { opacity: 0 });
+      el(inner, "rect", { x: -62, y: -22, width: 124, height: 44, rx: 9 }, { fill: "var(--surface)", stroke: c, strokeWidth: 4 });
+      el(inner, "text", { x: 0, y: 10, "text-anchor": "middle" }, { ...f(800, 27), fill: c, letterSpacing: "0.12em" }, txt);
+      return inner;
+    };
+    const fail = stamp("FAIL", "var(--risk)");
+    const pass = stamp("PASS", "var(--state)");
+
+    // fix loop: card -> back to the bars
+    const loopD = "M1045 42 C1045 4, 300 0, 222 92";
+    const loop = el(svg, "path", { d: loopD }, { fill: "none", stroke: "var(--state)", strokeWidth: 2.6, strokeDasharray: "6 6", opacity: 0 });
+    const loopT = el(svg, "text", { x: 640, y: 44, "text-anchor": "middle" }, { ...f(700, 14), fill: "var(--state)", opacity: 0 }, "fix → re-run eval");
+    const loopDot = el(svg, "circle", { cx: 1045, cy: 42, r: 6 }, { fill: "var(--state)", opacity: 0 });
+    P = { bars, whisk, labs, head, gate, gateT, wire, wireHead, dot, card, rows, fail, pass, loop, loopT, loopDot };
+  }
+
+  const along = (path, circle, t) => {
+    const L = path.getTotalLength(), p = path.getPointAtLength(L * t);
+    circle.setAttribute("cx", p.x); circle.setAttribute("cy", p.y);
+  };
+
+  function reset() {
+    gsap.set(P.bars, { attr: { x: (i) => X0 + i * MW, width: MW, y: BASE, height: 0 }, fill: "var(--tool-soft)", stroke: "var(--tool)" });
+    S.forEach((s, i) => P.whisk[i].setAttribute("d", wpath(cx(i), s[3], s[4])));
+    gsap.set([...P.whisk, ...P.labs, P.head, P.gateT, P.wireHead, P.dot, ...P.rows, P.fail, P.pass, P.loop, P.loopT, P.loopDot], { opacity: 0 });
+    gsap.set(P.gate, { attr: { x2: 40 } });
+    gsap.set(P.wire, { strokeDashoffset: 122 });
+    gsap.set(P.card, { stroke: "var(--line-2)" });
+    gsap.set([P.fail, P.pass], { scale: 1 });
+  }
+
+  function failState() {
+    gsap.set(P.bars, { attr: { x: (i) => bx(i), width: BW, y: (i) => Y(S[i][2]), height: (i) => S[i][2] * SC } });
+    FAILS.forEach((i) => gsap.set(P.bars[i], { fill: "var(--risk-soft)", stroke: "var(--risk)" }));
+    gsap.set([...P.whisk, ...P.labs, P.gateT, P.wireHead, ...P.rows, P.fail], { opacity: 1 });
+    gsap.set(P.gate, { attr: { x2: 770 } });
+    gsap.set(P.wire, { strokeDashoffset: 0 });
+    gsap.set(P.card, { stroke: "var(--risk)" });
+  }
+
+  function play() {
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) { reset(); failState(); return; }
+    reset();
+    tl = gsap.timeline({ repeat: -1, repeatDelay: 1.2 });
+    tl.call(reset, null, 0);
+    // 1. the headline bar
+    tl.to(P.bars, { attr: { y: Y(0.839), height: 0.839 * SC }, duration: 0.6, ease: "power2.out" }, 0.4)
+      .to(P.head, { opacity: 1, duration: 0.4 }, 0.7);
+    // 2. split into 8 slices with whiskers
+    tl.to(P.head, { opacity: 0, duration: 0.3 }, 1.9)
+      .to(P.bars, { attr: { x: (i) => bx(i), width: BW, y: (i) => Y(S[i][2]), height: (i) => S[i][2] * SC }, duration: 0.9, stagger: 0.05, ease: "power3.inOut" }, 2.0)
+      .to(P.labs, { opacity: 1, duration: 0.3, stagger: 0.04 }, 2.6)
+      .to(P.whisk, { opacity: 1, duration: 0.3, stagger: 0.05 }, 2.9);
+    // 3. the gate line; two Spanish slices cross it
+    tl.to(P.gate, { attr: { x2: 770 }, duration: 0.7, ease: "power1.inOut" }, 3.7)
+      .to(P.gateT, { opacity: 1, duration: 0.3 }, 4.3)
+      .to(FAILS.map((i) => P.bars[i]), { fill: "var(--risk-soft)", stroke: "var(--risk)", duration: 0.4 }, 4.5);
+    // 4. into the quality card, which fails
+    const pd = { t: 0 };
+    tl.to(P.wire, { strokeDashoffset: 0, duration: 0.5 }, 5.1)
+      .to(P.wireHead, { opacity: 1, duration: 0.2 }, 5.5)
+      .set(P.dot, { opacity: 1 }, 5.1)
+      .to(pd, { t: 1, duration: 0.6, ease: "none", onUpdate: () => along(P.wire, P.dot, pd.t) }, 5.1)
+      .set(P.dot, { opacity: 0 }, 5.7)
+      .to(P.rows, { opacity: 1, duration: 0.25, stagger: 0.18 }, 5.6)
+      .fromTo(P.fail, { opacity: 0, scale: 1.7 }, { opacity: 1, scale: 1, duration: 0.35, ease: "back.out(2.4)", transformOrigin: "50% 50%" }, 6.6)
+      .to(P.card, { stroke: "var(--risk)", duration: 0.3 }, 6.7);
+    // 5. fix loop: re-run, the two slices clear the gate, the card passes
+    const ld = { t: 0 };
+    tl.to([P.loop, P.loopT], { opacity: 1, duration: 0.4 }, 7.8)
+      .set(P.loopDot, { opacity: 1 }, 7.9)
+      .to(ld, { t: 1, duration: 1.0, ease: "power1.inOut", onUpdate: () => along(P.loop, P.loopDot, ld.t) }, 7.9)
+      .set(P.loopDot, { opacity: 0 }, 8.9);
+    FAILS.forEach((i) => {
+      const [r, lo, hi] = FIX[i], from = { lo: S[i][3], hi: S[i][4] };
+      tl.to(P.bars[i], { attr: { y: Y(r), height: r * SC }, fill: "var(--tool-soft)", stroke: "var(--tool)", duration: 0.7, ease: "power2.out" }, 9.0)
+        .to(from, { lo, hi, duration: 0.7, ease: "power2.out", onUpdate: () => P.whisk[i].setAttribute("d", wpath(cx(i), from.lo, from.hi)) }, 9.0);
+    });
+    tl.to(P.fail, { opacity: 0, duration: 0.25 }, 9.9)
+      .fromTo(P.pass, { opacity: 0, scale: 1.7 }, { opacity: 1, scale: 1, duration: 0.35, ease: "back.out(2.4)", transformOrigin: "50% 50%" }, 10.1)
+      .to(P.card, { stroke: "var(--state)", duration: 0.3 }, 10.2)
+      .to(P.loop, { opacity: 0.25, duration: 0.4 }, 10.4)
+      .to({}, { duration: 2.2 });
+  }
+
+  function stop() {
+    if (tl) { tl.kill(); tl = null; }
+    if (P) gsap.killTweensOf([...P.bars, ...P.whisk, ...P.labs, ...P.rows, P.head, P.gate, P.gateT, P.wire, P.wireHead, P.dot, P.card, P.fail, P.pass, P.loop, P.loopT, P.loopDot]);
+  }
+
+  Deck.register(ID, {
+    enter(slide) { stop(); build(slide.querySelector("#c11-ch-svg")); play(); },
+    step() {},
+    leave() { stop(); },
+  });
+})();
+</script>

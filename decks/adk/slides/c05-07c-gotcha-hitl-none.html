@@ -1,0 +1,45 @@
+<section class="slide tight" id="adk-c05-gotcha-hitl-none" data-tone="risk" data-title="Gotcha: the gate never opens">
+  <style>
+    #adk-c05-gotcha-hitl-none pre.code, #adk-c05-gotcha-hitl-none code { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #adk-c05-gotcha-hitl-none .gg-body { display: grid; grid-template-columns: 520px minmax(0, 1fr); gap: 40px; align-items: start; }
+    #adk-c05-gotcha-hitl-none .gg-left { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
+    #adk-c05-gotcha-hitl-none .gg-right { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
+    #adk-c05-gotcha-hitl-none .gotcha { font-size: 20px; line-height: 1.4; padding: 20px 24px; gap: 12px 16px; }
+    #adk-c05-gotcha-hitl-none .gotcha > b { font-size: 15px; }
+    #adk-c05-gotcha-hitl-none .gotcha code { font-size: 18px; }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> Human-in-the-loop · 3 of 3 · open #7010</div>
+  <h2 class="title">A predicate that returns None lets an $820 refund run with no prompt</h2>
+  <div class="gg-body fill">
+    <div class="gg-left">
+      <div class="gotcha">
+        <b>Symptom</b><span>An $820 refund runs with no prompt.</span>
+        <b class="why" data-step="1">Cause</b><span data-step="1">No <code>return</code>, so Python returns <code>None</code>. <code>cast(bool, …)</code> does nothing at run time.</span>
+        <b class="fix" data-step="2">Fix</b><span data-step="2">Return a real <code>bool</code> on every path.</span>
+      </div>
+      <div class="cites" data-step="3">
+        <a class="cite repo" href="https://github.com/google/adk-python/issues/7010" target="_blank" rel="noopener"><b>Repo</b>&nbsp;adk-python #7010</a>
+        <a class="cite doc" href="https://adk.dev/graphs/human-input/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;adk.dev Human input</a>
+      </div>
+    </div>
+    <div class="gg-right">
+      <div class="code-wrap bad" data-step="1">
+        <div class="code-head">refund_approval/agent.py · tool-level FunctionTool</div>
+        <pre class="code" data-lang="python"><code>from google.adk.tools import FunctionTool
+def needs_ok(amount: float, **_) -&gt; bool:  # **_ takes the other args
+  amount &gt; AUTO_APPROVE_LIMIT              # no return: None
+FunctionTool(issue_refund, require_confirmation=needs_ok)</code></pre>
+      </div>
+      <div class="code-wrap good" data-step="2">
+        <div class="code-head">refund_approval/agent.py · write @node predicates the same way</div>
+        <pre class="code" data-lang="python" data-focus="3:3-5"><code>from google.adk.tools import FunctionTool
+def needs_ok(amount: float, **_) -&gt; bool:
+  if amount &gt; AUTO_APPROVE_LIMIT:
+    return True
+  return False                             # never fall through
+FunctionTool(issue_refund, require_confirmation=needs_ok)</code></pre>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">The third HITL bug is issue 7010, still open, about the tool-level FunctionTool predicate. ADK uses cast(bool, ...), which does nothing at run time, so a predicate that forgets its return statement returns None; None is falsy, and an 820-dollar refund runs with no prompt and no error. The fix is boring and strict: return a real bool on every path, and never fall through to the end of the function. Write the predicate of the node-level decorator from the build slide the same way. The double-star underscore parameter takes the other tool arguments, so the predicate only names the one it needs; FunctionTool passes the tool's own arguments to the predicate, so the name amount must match the tool's parameter name. Think of a door alarm with a loose wire: it does not ring, and silence looks exactly like "all clear". A likely question: "How do I catch this in CI?" Add a unit test that calls the predicate with 820 and asserts it is True, and one with 320 that asserts it is False; an assert on the type catches None.</aside>
+</section>

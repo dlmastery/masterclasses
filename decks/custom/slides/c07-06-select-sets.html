@@ -1,0 +1,229 @@
+<section class="slide" id="custom-c07-select-sets" data-tone="state" data-title="Select sets, not samples">
+  <style>
+    #custom-c07-select-sets .ss-grid { display: grid; grid-template-columns: 700px 1fr; gap: 28px; min-height: 0; }
+    #custom-c07-select-sets .ss-left { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    #custom-c07-select-sets .ss-right { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    #custom-c07-select-sets .code-head { padding: 7px 14px; font-size: 13px; }
+    #custom-c07-select-sets pre.code { font-size: 13.5px; line-height: 1.42; padding: 9px 16px 10px; }
+    #custom-c07-select-sets .paper { padding: 11px 16px; gap: 5px; }
+    #custom-c07-select-sets .paper .pid { align-items: center; font-size: 13px; }
+    #custom-c07-select-sets .paper .pid .cite { margin-left: auto; flex: none; flex-direction: row; white-space: nowrap; line-height: 1.2; font-size: 12.5px; padding: 3px 8px 3px 6px; gap: 6px; }
+    #custom-c07-select-sets .paper .cite::before { width: 14px; height: 14px; }
+    #custom-c07-select-sets .paper h4 { font-size: 16px; line-height: 1.25; }
+    #custom-c07-select-sets .paper .find { font-size: 14.5px; line-height: 1.36; }
+    #custom-c07-select-sets .paper .so { font-size: 14.5px; line-height: 1.32; }
+    #custom-c07-select-sets .ss-p2 { display: grid; grid-template-columns: 1fr 180px; gap: 14px; align-items: center; }
+    #custom-c07-select-sets .ss-p2-text { display: flex; flex-direction: column; gap: 5px; }
+    #custom-c07-select-sets code { font-size: .88em; }
+    #custom-c07-select-sets pre.code, #custom-c07-select-sets pre.code *, #custom-c07-select-sets code { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #custom-c07-select-sets svg text { font-family: var(--f-mono); font-variant-ligatures: none; }
+  </style>
+  <div class="kicker"><span class="pill">arXiv</span> Sep–Oct 2026 · three papers</div>
+  <h2 class="title sm">Select sets, not samples: set quotas, drop each example's self-vote</h2>
+  <div class="ss-grid fill">
+    <div class="ss-left">
+      <svg id="ss-svg" viewBox="0 0 700 420" width="700" height="420" role="img" aria-label="LOOM mechanism, schematic. A 10 by 10 gradient Gram matrix for one candidate batch with 2 noisy examples. The diagonal glows: each example's self-credit. Ranked by row sum, the two noisy examples score highest and enter the top 5. Then the diagonal is set to zero, the rows re-rank, and the noisy examples sink to the bottom. In the paper, with 20 percent corrupted responses, LOOM picks noise at under one fifth of its base rate, under 4 percent."></svg>
+      <div class="code-wrap">
+        <div class="code-head">loo_select.py · simplified sketch, not the authors' code</div>
+        <pre class="code" data-lang="python" data-focus="1:4, 2:5, 3:6-7"><code>import numpy as np
+def loo_select(G, k):
+    """G: (n, d) per-example gradients for one candidate batch."""
+    gram = G @ G.T
+    np.fill_diagonal(gram, 0.0)              # drop self-credit
+    score = gram.sum(1) / (len(G) - 1)       # agreement with the others
+    return np.argsort(-score)[:k]</code></pre>
+      </div>
+    </div>
+    <div class="ss-right">
+      <div class="paper" data-step="1">
+        <div class="pid">arXiv:2610.00436 <span>30 Sep 2026 · LOOM</span><a class="cite paper" href="https://arxiv.org/abs/2610.00436" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.00436</a></div>
+        <h4>Every Batch Is Its Own Validation Set: Leave-One-Out Gradient Matching</h4>
+        <div class="find">In-sample gradient matching rewards each example's own noise (the Gram diagonal). Dropping it beats full-batch training by <b>+2.3</b> (Llama-3.1-8B) and <b>+2.4</b> (Qwen2.5-7B). Injected label noise is picked at <b>under 1/5</b> of its base rate.</div>
+        <div class="so">Zero the diagonal of any gradient-similarity selector. Same lesson as out-of-sample pred_probs for cleanlab (chapter 9).</div>
+      </div>
+      <div class="paper ss-p2" data-step="4">
+        <div class="ss-p2-text">
+          <div class="pid">arXiv:2610.14028 <span>30 Sep 2026</span><a class="cite paper" href="https://arxiv.org/abs/2610.14028" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.14028</a></div>
+          <h4>Pick the Mixture, Not the Samples</h4>
+          <div class="find">Mixture-then-Select: set domain quotas first, then rank inside each domain. <b>+20-54%</b> over strong baselines.</div>
+          <div class="so">Set a quota per <code>claim_type</code>, then take the smallest margins inside each one.</div>
+        </div>
+        <svg id="ss-quota" viewBox="0 0 180 120" width="180" height="120" role="img" aria-label="Schematic. A global top-k bar fills mostly with one domain. A quota-first bar is split into four equal domain slots that then fill."></svg>
+      </div>
+      <div class="paper" data-step="5">
+        <div class="pid">arXiv:2610.24888 <span>17 Oct 2026</span><a class="cite paper" href="https://arxiv.org/abs/2610.24888" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.24888</a></div>
+        <h4>Measuring Data Diversity with Embeddings</h4>
+        <div class="find"><b>21</b> embedding diversity measures compared. Graph entropy beats the common mean pairwise distance.</div>
+        <div class="so">Report coverage per taxonomy leaf (<code>claim_type</code>) and a diversity score per release.</div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Lab 6 picked claims one by one, by margin; these papers say to pick sets. One idea links these three papers: the value of a training set is not the sum of the scores of its examples. LOOM explains why gradient-matching selectors pick noisy examples: each row of the Gram matrix includes the example's dot product with itself, and a noisy example has a large gradient, so it votes for itself; watch the two red rows sit on top, then sink when the diagonal is set to zero. The toy matrix is schematic; the numbers on the card, plus 2.3 and plus 2.4 over full-batch training and noise picked at under a fifth of its base rate, are the paper's. Analogy: a committee where each member may vote for their own proposal; remove the self-vote and the loudest member stops winning. Mixture-then-Select says the same at the domain level, set quotas before you rank, and the diversity benchmark tells you which number to report per release. Likely question: do I need per-example gradients? Yes, at least projected ones, which is the main cost the authors list.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c07-select-sets";
+  const mk = (tag, a, p, t) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); if (t !== undefined) e.textContent = t; p.appendChild(e); return e; };
+
+  // deterministic toy batch: 8 clean gradients near one direction, 2 noisy gradients with a large norm (rows 3 and 7)
+  const U = [1, 0.6, 0.2, 0.1], NOISY = [2, 6], K = 5, N = 10;
+  const G = Array.from({ length: N }, (_, i) => {
+    if (i === 2) return [0.2, -0.3, 0.1, 4.4];
+    if (i === 6) return [-0.2, 0.1, 4.3, 0.1];
+    return U.map((x, j) => x + 0.28 * Math.sin(i * 1.7 + j * 2.1 + 0.3));
+  });
+  const dot = (a, b) => a.reduce((s, x, k) => s + x * b[k], 0);
+  const M = G.map((a) => G.map((b) => dot(a, b)));
+  const INS = M.map((r) => r.reduce((a, b) => a + b, 0) / N);
+  const LOO = M.map((r, i) => (r.reduce((a, b) => a + b, 0) - r[i]) / (N - 1));
+  const rankOf = (s) => { const o = s.map((v, i) => [v, i]).sort((a, b) => b[0] - a[0]).map((x) => x[1]); const r = []; o.forEach((idx, pos) => (r[idx] = pos)); return r; };
+  const R_INS = rankOf(INS), R_LOO = rankOf(LOO);
+
+  const HX = 44, HY = 54, PITCH = 29, CELL = 26;
+  const BX = 440, BMAX = 170, BY = HY, SCALE = BMAX / 2.8;
+  let svg, S = {}, q, Q = {}, ctr = { v: 20 }, tl = null;
+
+  function build(slide) {
+    svg = slide.querySelector("#ss-svg");
+    svg.innerHTML = "";
+    mk("text", { x: 0, y: 18, "font-size": 13.5, "font-weight": 700, fill: "var(--ink-2)" }, svg, "gradient Gram G·Gᵀ · one batch of 10 · schematic");
+    // heatmap
+    S.cells = []; S.diag = [];
+    for (let r = 0; r < N; r++) {
+      const noisy = NOISY.includes(r);
+      mk("text", { x: HX - 8, y: HY + r * PITCH + 18, "text-anchor": "end", "font-size": 12, "font-weight": 700, fill: noisy ? "var(--risk)" : "var(--muted)" }, svg, String(r + 1));
+      for (let c = 0; c < N; c++) {
+        const v = M[r][c];
+        const e = mk("rect", { x: HX + c * PITCH, y: HY + r * PITCH, width: CELL, height: CELL, rx: 4, fill: v >= 0 ? "var(--state)" : "var(--risk)" }, svg);
+        e._o = Math.min(1, 0.1 + Math.abs(v) / 2.4);
+        e.setAttribute("opacity", e._o.toFixed(3));
+        if (r === c) S.diag.push(e); else S.cells.push(e);
+      }
+    }
+    // diagonal glow and labels
+    S.glow = mk("g", { opacity: 0 }, svg);
+    for (let i = 0; i < N; i++) {
+      mk("rect", { x: HX + i * PITCH - 2, y: HY + i * PITCH - 2, width: CELL + 4, height: CELL + 4, rx: 5, fill: "none", stroke: NOISY.includes(i) ? "var(--risk)" : "var(--tool)", "stroke-width": NOISY.includes(i) ? 3.4 : 2.2 }, S.glow);
+    }
+    NOISY.forEach((i) => mk("text", { x: HX + i * PITCH + 13, y: HY + i * PITCH + 17, "text-anchor": "middle", "font-size": 10, "font-weight": 800, fill: "#fff" }, S.glow, M[i][i].toFixed(0)));
+    S.glowLbl = mk("text", { x: HX, y: HY + N * PITCH + 12, "font-size": 13, "font-weight": 700, fill: "var(--tool)", opacity: 0 }, svg, "diagonal = self-credit ‖gᵢ‖²");
+    S.zeros = mk("g", { opacity: 0 }, svg);
+    for (let i = 0; i < N; i++) mk("text", { x: HX + i * PITCH + 13, y: HY + i * PITCH + 17, "text-anchor": "middle", "font-size": 11, "font-weight": 700, fill: "var(--muted)" }, S.zeros, "0");
+    S.wipeLbl = mk("text", { x: HX, y: HY + N * PITCH + 12, "font-size": 13, "font-weight": 700, fill: "var(--state)", opacity: 0 }, svg, "fill_diagonal(gram, 0.0)");
+
+    // ranked score bars
+    S.head = mk("text", { x: BX - 8, y: 18, "font-size": 12.5, "font-weight": 700, fill: "var(--ink-2)", opacity: 0 }, svg, "");
+    S.sel = mk("g", { opacity: 0 }, svg);
+    mk("rect", { x: BX - 8, y: BY - 3, width: 262, height: K * PITCH + 2, rx: 8, fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 1.4 }, S.sel);
+    mk("text", { x: BX - 8, y: 42, "font-size": 12, "font-weight": 700, fill: "var(--state)" }, S.sel, "green box = kept: top k = 5");
+    S.rows = G.map((_, i) => {
+      const noisy = NOISY.includes(i);
+      const g = mk("g", { opacity: 0 }, svg);
+      mk("text", { x: BX, y: 18, "font-size": 12, "font-weight": 700, fill: noisy ? "var(--risk)" : "var(--ink-2)" }, g, "ex " + (i + 1));
+      const bar = mk("rect", { x: BX + 46, y: 6, height: 16, rx: 4, width: 0, fill: noisy ? "var(--risk)" : "var(--state)" }, g);
+      const val = mk("text", { y: 19, "font-size": 11.5, fill: "var(--muted)" }, g, "");
+      if (noisy) mk("circle", { cx: BX - 16, cy: 14, r: 5, fill: "var(--risk)" }, g);
+      return { g, bar, val, i };
+    });
+    S.toy = mk("text", { x: BX - 8, y: HY + N * PITCH + 12, "font-size": 13, "font-weight": 700, fill: "var(--risk)", opacity: 0 }, svg, "");
+    // paper counter
+    S.ctr = mk("g", { opacity: 0 }, svg);
+    mk("rect", { x: 0, y: 366, width: 700, height: 52, rx: 12, fill: "var(--surface)", stroke: "var(--line-2)", "stroke-width": 1.4 }, S.ctr);
+    mk("text", { x: 16, y: 387, "font-size": 12.5, "font-weight": 700, fill: "var(--ink-2)" }, S.ctr, "paper · 20% of responses corrupted");
+    mk("text", { x: 16, y: 407, "font-size": 12.5, fill: "var(--muted)" }, S.ctr, "share of noise in LOOM's picks");
+    S.num = mk("text", { x: 684, y: 404, "text-anchor": "end", "font-size": 30, "font-weight": 800, fill: "var(--state)" }, S.ctr, "20%");
+    mk("text", { x: 470, y: 402, "text-anchor": "end", "font-size": 13, "font-weight": 700, fill: "var(--muted)" }, S.ctr, "base 20% →");
+  }
+
+  function rowsTo(scores, ranks, animate) {
+    S.rows.forEach((r) => {
+      const y = BY + ranks[r.i] * PITCH;
+      const w = Math.max(2, scores[r.i] * SCALE);
+      gsap.killTweensOf(r.g, "y"); gsap.killTweensOf(r.bar);
+      if (animate) {
+        gsap.to(r.g, { y: y, duration: .9, ease: "power2.inOut", delay: .5 });
+        gsap.to(r.bar, { attr: { width: w }, duration: .6, ease: "power2.out" });
+      } else { gsap.set(r.g, { y: y }); r.bar.setAttribute("width", w); }
+      r.val.setAttribute("x", BX + 46 + w + 6);
+      r.val.textContent = scores[r.i].toFixed(2);
+    });
+  }
+
+  function render(n, animate) {
+    const op = (el, v, d) => { gsap.killTweensOf(el, "opacity"); animate ? gsap.to(el, { opacity: v, duration: .45, delay: d || 0 }) : gsap.set(el, { opacity: v }); };
+    const loo = n >= 2;
+    op(S.glow, n >= 1 && !loo ? 1 : 0);
+    op(S.glowLbl, n === 1 ? 1 : 0);
+    op(S.wipeLbl, loo ? 1 : 0);
+    op(S.zeros, loo ? 1 : 0, animate ? .3 : 0);
+    S.diag.forEach((e) => { gsap.killTweensOf(e); const o = loo ? 0.06 : e._o; animate ? gsap.to(e, { opacity: o, duration: .5 }) : gsap.set(e, { opacity: o }); });
+    S.rows.forEach((r) => op(r.g, n >= 1 ? 1 : 0, animate && n === 1 ? .1 + r.i * .04 : 0));
+    op(S.sel, n >= 1 ? 1 : 0);
+    op(S.head, n >= 1 ? 1 : 0);
+    S.head.textContent = loo ? "score = (row sum − self) / (n − 1)" : "score = row sum / n  (in-sample)";
+    if (n >= 1) rowsTo(loo ? LOO : INS, loo ? R_LOO : R_INS, animate);
+    const noisyKept = NOISY.filter((i) => (loo ? R_LOO : R_INS)[i] < K).length;
+    S.toy.textContent = `noisy in top 5: ${noisyKept} of 5`;
+    S.toy.setAttribute("fill", noisyKept ? "var(--risk)" : "var(--state)");
+    op(S.toy, n >= 1 ? 1 : 0);
+    // step 3: counter 20% -> under 4%
+    op(S.ctr, n >= 3 ? 1 : 0);
+    gsap.killTweensOf(ctr);
+    const fmt = (v) => (v <= 4.001 ? "< 4%" : Math.round(v) + "%");
+    if (animate && n >= 3 && ctr.v !== 4) {
+      ctr.v = 20; S.num.textContent = "20%";
+      gsap.to(ctr, { v: 4, duration: 1.3, delay: .3, ease: "power2.inOut", onUpdate: () => { S.num.textContent = fmt(ctr.v); } });
+    } else { ctr.v = n >= 3 ? 4 : 20; S.num.textContent = fmt(ctr.v); }
+    // step 4: quota mini chart
+    quota(n >= 4, animate);
+  }
+
+  // card 2: schematic quota bars (shades of one tone = four domains)
+  const DOM = ["math", "code", "QA", "dialog"], SH = [1, .7, .45, .25];
+  const GLOB = [0.78, 0.12, 0.06, 0.04], QW = 150;
+  function buildQuota(slide) {
+    q = slide.querySelector("#ss-quota"); q.innerHTML = "";
+    mk("text", { x: 0, y: 12, "font-size": 11, "font-weight": 700, fill: "var(--muted)" }, q, "global top-k");
+    mk("text", { x: 0, y: 62, "font-size": 11, "font-weight": 700, fill: "var(--muted)" }, q, "quotas first");
+    mk("rect", { x: 0, y: 18, width: QW, height: 22, rx: 5, fill: "none", stroke: "var(--line-2)" }, q);
+    mk("rect", { x: 0, y: 68, width: QW, height: 22, rx: 5, fill: "none", stroke: "var(--line-2)" }, q);
+    Q.g = []; Q.q = []; Q.frames = mk("g", { opacity: 0 }, q);
+    let x = 0;
+    GLOB.forEach((f, i) => { const e = mk("rect", { x: x, y: 18, width: 0, height: 22, fill: "var(--state)", opacity: SH[i] }, q); e._x = x; e._w = f * QW; Q.g.push(e); x += f * QW; });
+    for (let i = 0; i < 4; i++) {
+      mk("rect", { x: i * QW / 4 + 1, y: 67, width: QW / 4 - 2, height: 24, rx: 4, fill: "none", stroke: "var(--state)", "stroke-dasharray": "3 2", "stroke-width": 1.2 }, Q.frames);
+      Q.q.push(mk("rect", { x: i * QW / 4 + 2, y: 69, width: 0, height: 20, rx: 3, fill: "var(--state)", opacity: SH[i] }, q));
+      mk("text", { x: i * QW / 4 + QW / 8, y: 106, "text-anchor": "middle", "font-size": 9.5, fill: "var(--muted)" }, q, DOM[i]);
+    }
+  }
+  function quota(on, animate) {
+    if (tl) { tl.kill(); tl = null; }
+    const all = Q.g.concat(Q.q, [Q.frames]);
+    gsap.killTweensOf(all);
+    const setEnd = () => {
+      Q.g.forEach((e) => e.setAttribute("width", on ? e._w : 0));
+      Q.q.forEach((e) => e.setAttribute("width", on ? QW / 4 - 4 : 0));
+      Q.frames.setAttribute("opacity", on ? 1 : 0);
+    };
+    if (!on || !animate) return setEnd();
+    Q.g.forEach((e) => e.setAttribute("width", 0)); Q.q.forEach((e) => e.setAttribute("width", 0)); Q.frames.setAttribute("opacity", 0);
+    tl = gsap.timeline();
+    Q.g.forEach((e, i) => tl.to(e, { attr: { width: e._w }, duration: .35, ease: "power1.out" }, .3 + i * .3));
+    tl.to(Q.frames, { opacity: 1, duration: .4 }, 1.6);
+    Q.q.forEach((e, i) => tl.to(e, { attr: { width: QW / 4 - 4 }, duration: .35, ease: "power1.out" }, 2.1 + i * .25));
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { build(slide); buildQuota(slide); ctr.v = 20; render(step || 0, false); },
+    step(slide, n, animate) { if (!svg || !S.rows) { build(slide); buildQuota(slide); } render(n, animate); },
+    leave(slide) {
+      if (tl) { tl.kill(); tl = null; }
+      gsap.killTweensOf(ctr);
+      const a = slide.querySelector("#ss-svg"), b = slide.querySelector("#ss-quota");
+      if (a) gsap.killTweensOf(a.querySelectorAll("*"));
+      if (b) gsap.killTweensOf(b.querySelectorAll("*"));
+    }
+  });
+})();
+</script>

@@ -1,0 +1,115 @@
+<section class="slide" id="adk-c08-gotcha-cache" data-tone="risk" data-title="Gotcha: no cache hits">
+  <style>
+    #adk-c08-gotcha-cache .gc-grid { display: grid; grid-template-columns: 690px 1fr; gap: 40px; align-items: start; }
+    #adk-c08-gotcha-cache .gc-col { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
+    #adk-c08-gotcha-cache #gc-svg { display: block; width: 690px; height: 500px; overflow: visible; }
+    #adk-c08-gotcha-cache #gc-svg text { font-family: var(--f-mono); }
+    #adk-c08-gotcha-cache .gotcha { font-size: 20px; line-height: 1.45; padding: 20px 24px; }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> Context cache</div>
+  <h2 class="title">cached=None on every turn: a timestamp moved the prefix</h2>
+  <div class="gc-grid fill">
+    <svg id="gc-svg" viewBox="0 0 700 507" aria-label="Left: a static_instruction box holds the handbook and, at first, a timestamp chip; an instruction box below is dynamic. Right: three turn rows. With the timestamp in static_instruction, each turn has a different prefix key, A, B and C, and every turn misses the cache. When the chip moves into instruction, every turn has prefix A, turn 1 is still a miss and turns 2 and 3 hit."></svg>
+    <div class="gc-col">
+      <div class="gotcha" data-step="1">
+        <b>Symptom</b><span><code>cached=None</code> on turns 2 and 3 too.</span>
+        <b class="why">Cause</b><span>A timestamp or <code>{state}</code> sits in <code>static_instruction</code>, or the prefix is under 4,096 tokens.</span>
+        <b class="fix">Fix</b><span>Keep the prefix byte-stable. Put dynamic text in <code>instruction</code>.</span>
+      </div>
+      <div class="code-wrap good" data-step="3">
+        <div class="code-head">handbook_app.py · fixed</div>
+        <pre class="code" data-lang="python" data-focus="3:3-4, 4:5"><code>agent = Agent(name="handbook_agent",
+    model="gemini-3.5-flash",
+    static_instruction=types.Content(   # byte-stable
+        role="user", parts=[types.Part(text=HANDBOOK)]),
+    instruction="Customer: {customer_name}. Now: {now}.")
+# {now} comes from session state, set before each turn</code></pre>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">The first Acme failure looks like "the cache does nothing": cached=None on every turn, not only on turn 1. Press once: the gotcha card. Press again: the animation shows why: a timestamp inside static_instruction makes the prefix different on every turn, so the cache key changes, A, B, C, and every request misses; when the chip moves into instruction, which ADK sends as user content after the prefix, the prefix stays A, so turns 2 and 3 hit. Turn 1 still misses, because caching starts on turn 2, so a single-turn eval never shows a hit. Press again: the fixed code keeps the handbook alone in static_instruction and moves {now} into instruction. Think of the cache like a photocopy master: write the date on the master and you need a new master every time. The other cause is size: the prefix must reach 4,096 tokens on Gemini 3 and 2,048 on Gemini 2.5. A likely question: "Where does {now} come from?" Write it into session state before each turn, the same way {customer_name} is set when the session is created.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c08-gotcha-cache";
+  const NS = "http://www.w3.org/2000/svg";
+  const SLOT_A = { x: 200, y: 130 }, SLOT_B = { x: 200, y: 352 };
+  const TURN_Y = [170, 250, 330];
+  let R = null, tw = [];
+  function mk(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text !== undefined) e.textContent = text;
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function build(svg) {
+    svg.innerHTML = "";
+    R = {};
+    R.boxA = mk("rect", { x: 0, y: 20, width: 370, height: 170, rx: 14, fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 2.2 }, svg);
+    mk("text", { x: 18, y: 52, "font-size": 18, "font-weight": 800, fill: "var(--state)" }, svg, "static_instruction");
+    mk("text", { x: 18, y: 80, "font-size": 16, fill: "var(--ink)" }, svg, "handbook.md · 4,096+ tok");
+    [96, 112].forEach((y, i) => mk("rect", { x: 18, y, width: 200 - i * 50, height: 8, rx: 4, fill: "var(--state)", opacity: 0.25 }, svg));
+    mk("rect", { x: 0, y: 236, width: 370, height: 170, rx: 14, fill: "var(--surface)", stroke: "var(--line-2)", "stroke-width": 1.8, "stroke-dasharray": "7 5" }, svg);
+    mk("text", { x: 18, y: 268, "font-size": 18, "font-weight": 800, fill: "var(--ink-2)" }, svg, "instruction");
+    mk("text", { x: 18, y: 296, "font-size": 16, fill: "var(--ink)" }, svg, "Customer: {customer_name}.");
+    R.chip = mk("g", {}, svg);
+    mk("rect", { x: 0, y: 0, width: 156, height: 36, rx: 18, fill: "var(--bg)", stroke: "var(--tool)", "stroke-width": 2.2 }, R.chip);
+    mk("text", { x: 78, y: 24, "font-size": 16, "font-weight": 700, "text-anchor": "middle", fill: "var(--tool)" }, R.chip, "Now: {now}");
+    R.st1 = mk("text", { x: 410, y: 46, "font-size": 19, "font-weight": 800, fill: "var(--risk)" }, svg, "prefix changes");
+    R.st2 = mk("text", { x: 410, y: 76, "font-size": 16, fill: "var(--risk)" }, svg, "every turn: MISS");
+    mk("text", { x: 410, y: 126, "font-size": 15, "font-weight": 700, fill: "var(--muted)" }, svg, "turn  key   result");
+    R.rows = TURN_Y.map((y, i) => {
+      const g = mk("g", {}, svg);
+      const bg = mk("rect", { x: 400, y: y - 28, width: 300, height: 56, rx: 10, fill: "var(--surface)", stroke: "var(--line-2)", "stroke-width": 1.4 }, g);
+      mk("text", { x: 422, y: y + 7, "font-size": 18, "font-weight": 800, fill: "var(--ink)" }, g, String(i + 1));
+      const keyBox = mk("rect", { x: 466, y: y - 18, width: 44, height: 36, rx: 8, fill: "var(--risk-soft)", stroke: "var(--risk)", "stroke-width": 2 }, g);
+      const key = mk("text", { x: 488, y: y + 7, "font-size": 18, "font-weight": 800, "text-anchor": "middle", fill: "var(--risk)" }, g, "A");
+      const v = mk("text", { x: 532, y: y + 7, "font-size": 17, "font-weight": 800, fill: "var(--risk)" }, g, "MISS");
+      return { g, bg, keyBox, key, v };
+    });
+    R.note = mk("text", { x: 400, y: 400, "font-size": 16, "font-weight": 700, fill: "var(--ink-2)" }, svg, "turn 1 never caches");
+  }
+  function paint(fixed) {
+    const col = fixed ? "var(--state)" : "var(--risk)";
+    R.st1.textContent = fixed ? "prefix stays the same" : "prefix changes";
+    R.st2.textContent = fixed ? "turns 2 and 3: HIT" : "every turn: MISS";
+    R.st1.setAttribute("fill", col); R.st2.setAttribute("fill", col);
+    R.boxA.setAttribute("stroke", col);
+    R.rows.forEach((r, i) => {
+      const hit = fixed && i > 0;
+      r.key.textContent = fixed ? "A" : "ABC"[i];
+      r.key.setAttribute("fill", col); r.keyBox.setAttribute("stroke", col);
+      r.keyBox.setAttribute("fill", fixed ? "var(--state-soft)" : "var(--risk-soft)");
+      r.v.textContent = hit ? "HIT · 8,960" : "MISS";
+      r.v.setAttribute("fill", hit ? "var(--state)" : (fixed ? "var(--ink-2)" : "var(--risk)"));
+      const mark = fixed && i === 0;
+      r.bg.setAttribute("stroke", mark ? "var(--ink-2)" : "var(--line-2)");
+      r.bg.setAttribute("stroke-width", mark ? 2.4 : 1.4);
+    });
+    gsap.set(R.note, { opacity: fixed ? 1 : 0 });
+  }
+  function clear() { tw.forEach((t) => t.kill()); tw = []; if (R) gsap.killTweensOf([R.chip, R.note]); }
+  function render(slide, n, animate) {
+    const svg = slide.querySelector("#gc-svg");
+    if (!R || !svg.childElementCount) build(svg);
+    clear();
+    const fixed = n >= 2;
+    if (animate && n === 2) {
+      gsap.set(R.chip, { x: SLOT_A.x, y: SLOT_A.y });
+      paint(false);
+      tw.push(gsap.to(R.chip, { x: SLOT_B.x, y: SLOT_B.y, duration: 0.9, ease: "power3.inOut", onComplete: () => paint(true) }));
+    } else {
+      const to = fixed ? SLOT_B : SLOT_A;
+      gsap.set(R.chip, { x: to.x, y: to.y });
+      paint(fixed);
+    }
+    if (animate && n === 1) R.rows.forEach((r, i) => tw.push(gsap.fromTo(r.keyBox, { scale: 1 }, { scale: 1.2, transformOrigin: "50% 50%", transformBox: "fill-box", duration: 0.18, yoyo: true, repeat: 1, delay: 0.2 + i * 0.25 })));
+  }
+  Deck.register(ID, {
+    enter(slide, step) { R = null; render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { clear(); if (slide) gsap.killTweensOf(slide.querySelectorAll("#gc-svg *")); },
+  });
+})();
+</script>

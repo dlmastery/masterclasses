@@ -1,0 +1,142 @@
+<section class="slide" id="adk-interview-c01-whiteboard-triage" data-tone="agent" data-title="Whiteboard: ticket triage">
+  <style>
+    #adk-interview-c01-whiteboard-triage .wt-main { display: grid; grid-template-columns: 520px 844px; gap: 28px; }
+    #adk-interview-c01-whiteboard-triage .wt-left { gap: 10px; min-width: 0; }
+    #adk-interview-c01-whiteboard-triage .wt-right { gap: 10px; min-width: 0; }
+    #adk-interview-c01-whiteboard-triage .wt-left h4 { margin: 0; font-size: 18px; }
+    #adk-interview-c01-whiteboard-triage .wt-prompt p { font-size: 16.5px; line-height: 1.38; margin: 0; }
+    #adk-interview-c01-whiteboard-triage .wt-prompt p b { color: var(--ink); }
+    #adk-interview-c01-whiteboard-triage .wt-clarify { padding: 12px 18px; gap: 6px; }
+    #adk-interview-c01-whiteboard-triage .wt-clarify ul.clean { gap: 5px; }
+    #adk-interview-c01-whiteboard-triage .wt-clarify li { font-size: 16.5px; line-height: 1.35; display: flex; align-items: center; gap: 8px; }
+    #adk-interview-c01-whiteboard-triage .wt-clarify li::before { content: "?"; flex: none; display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 6px; font: 700 12px/1 var(--f-mono); color: #fff; background: var(--agent); }
+    #adk-interview-c01-whiteboard-triage .wt-clarify .ans { margin-left: auto; font: 600 14px/1 var(--f-mono); padding: 5px 8px; border-radius: 7px; color: var(--state); background: color-mix(in oklab, var(--state) 12%, transparent); white-space: nowrap; }
+    #adk-interview-c01-whiteboard-triage .wt-left pre.code { font-size: 14.5px; line-height: 1.45; padding: 9px 16px 10px; }
+    #adk-interview-c01-whiteboard-triage .wt-left .code-head { padding: 8px 14px; font-size: 14px; }
+    #adk-interview-c01-whiteboard-triage .wt-left .callout { font-size: 16px; line-height: 1.35; padding: 10px 14px; }
+    #adk-interview-c01-whiteboard-triage .wt-cites { display: flex; flex-wrap: nowrap; gap: 8px; align-items: center; }
+    #adk-interview-c01-whiteboard-triage .wt-cites .cite { font-size: 13.5px; padding: 5px 10px 5px 8px; white-space: nowrap; flex-direction: row; align-items: center; gap: 8px; border-radius: 10px; }
+    #adk-interview-c01-whiteboard-triage .diagram .node { min-width: 0; padding: 12px 12px; }
+    #adk-interview-c01-whiteboard-triage .diagram .node .nt { font-size: 18px; }
+    #adk-interview-c01-whiteboard-triage .diagram .node .ns { font-size: 13.5px; }
+    #adk-interview-c01-whiteboard-triage .diagram .wires path.w:not(.hot) { stroke: color-mix(in oklab, var(--ink) 55%, transparent); stroke-width: 2; }
+    #adk-interview-c01-whiteboard-triage .diagram .wires .arrow:not(.hot) { fill: color-mix(in oklab, var(--ink) 55%, transparent); }
+    #adk-interview-c01-whiteboard-triage .diagram .group .tags { position: absolute; left: 22px; right: 22px; top: 20px; gap: 10px; align-items: center; flex-wrap: nowrap; }
+    #adk-interview-c01-whiteboard-triage .diagram .group .tags .tag { font-size: 14px; white-space: nowrap; }
+    #adk-interview-c01-whiteboard-triage .wt-tok { position: absolute; left: 0; top: 0; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%; z-index: 0; pointer-events: none; opacity: 0;
+      background: var(--agent); box-shadow: 0 0 0 6px color-mix(in oklab, var(--agent) 22%, transparent), 0 0 20px var(--agent); }
+    #adk-interview-c01-whiteboard-triage .wt-tok.b { background: var(--risk); box-shadow: 0 0 0 6px color-mix(in oklab, var(--risk) 22%, transparent), 0 0 20px var(--risk); }
+    #adk-interview-c01-whiteboard-triage .wt-p1 { position: absolute; left: 556px; top: 184px; z-index: 6; font: 700 14px/1 var(--f-mono); padding: 8px 11px; border-radius: 8px; background: var(--risk); color: #fff; white-space: nowrap; pointer-events: none; opacity: 0; }
+  </style>
+  <div class="kicker"><span class="pill">Whiteboard</span> system design</div>
+  <h2 class="title">Whiteboard: triage 10,000 support tickets a day without silent drops</h2>
+  <div class="wt-main fill">
+    <div class="wt-left stack">
+      <div class="panel k-agent tight wt-prompt">
+        <h4>Prompt</h4>
+        <p>Design triage for a SaaS support desk: <b>10,000 tickets a day</b>; billing, outage and how-to tickets; <b>p1</b> pages on-call <b>within a minute</b>; nothing is dropped; every decision is auditable.</p>
+      </div>
+      <div class="panel tight wt-clarify">
+        <h4>Clarify first</h4>
+        <ul class="clean">
+          <li>Is the label set closed or open?<span class="ans" data-step="1" data-fx="fade">closed: Literal</span></li>
+          <li>Can one ticket have two labels?<span class="ans" data-step="1" data-fx="fade">yes: list route</span></li>
+          <li>Who owns the fallback queue?<span class="ans" data-step="1" data-fx="fade">support lead</span></li>
+        </ul>
+      </div>
+      <div class="code-wrap" data-step="1">
+        <div class="code-head">ticket_triage/agent.py · intake + edges</div>
+        <pre class="code" data-lang="python" data-focus="1:1-2, 2:4, 3:5-7, 4:8"><code>def intake(node_input: str):
+  yield Event(state={"ticket": node_input})  # audit
+root_agent = Workflow(name="ticket_triage", edges=[
+  ("START", intake, classify, route_ticket),
+  (route_ticket, {"billing": billing,
+                  "page": page_oncall,
+                  "how_to": how_to,
+                  DEFAULT_ROUTE: human_queue})])</code></pre>
+      </div>
+      <div class="callout insight" data-step="5">Say this: the LLM labels, code routes, DEFAULT_ROUTE catches surprises, evals score the route.</div>
+    </div>
+    <div class="wt-right stack">
+      <div class="diagram" id="wt-dg" style="width:844px;height:566px"
+           data-wires="ticket>intake@1:rl [message]; intake>classify@1:rl [state.ticket]; classify>route@2:bt [Triage]; route>billing@3:bt; route>oncall@3:bt:flow{risk}; route>howto@3:bt; route>human@4:bt:dash">
+        <div class="node n-human pill" id="ticket" style="left:0;top:14px;width:110px"><span class="nt">ticket</span></div>
+        <div class="node n-tool" id="intake" style="left:200px;top:0;width:160px" data-step="1" data-fx="pop"><span class="nt">intake</span><span class="ns">state["ticket"]</span></div>
+        <div class="node n-model" id="classify" style="left:530px;top:0;width:230px" data-step="1" data-fx="pop"><span class="nt">classify</span><span class="ns">output_schema=Triage</span></div>
+        <div class="node n-tool" id="route" style="left:307px;top:166px;width:230px" data-step="2" data-fx="pop" data-on="4:hot"><span class="nt">route_ticket</span><span class="ns">code</span></div>
+        <div class="node n-agent" id="billing" style="left:0;top:388px;width:151px" data-step="3" data-fx="pop" data-on="4:hot"><span class="nt">billing</span><span class="ns">route "billing"</span></div>
+        <div class="node n-tool" id="oncall" style="left:231px;top:388px;width:151px" data-step="3" data-fx="pop" data-on="4:hot"><span class="nt">page_oncall</span><span class="ns">route "page"</span></div>
+        <div class="node n-agent" id="howto" style="left:462px;top:388px;width:151px" data-step="3" data-fx="pop"><span class="nt">how_to</span><span class="ns">route "how_to"</span></div>
+        <div class="node n-human" id="human" style="left:693px;top:388px;width:151px" data-step="4" data-fx="pop"><span class="nt">human_queue</span><span class="ns">DEFAULT · other</span></div>
+        <div class="group g-state" style="left:0;top:490px;width:844px;height:76px" data-step="5" data-fx="fade">
+          <span class="gl">trace + eval · every route logged</span>
+          <div class="tags"><span class="tag t-state">route accuracy</span><span class="tag t-risk">p1 page &lt; 60 s</span><span class="tag t-agent">cost per node_info.path</span><span class="tag t-tool">10k/day ≈ 0.12/s</span></div>
+        </div>
+        <div class="wt-tok a"></div>
+        <div class="wt-tok b"></div>
+        <div class="wt-p1">◀ p1: route=["billing", "page"]</div>
+      </div>
+      <div class="wt-cites">
+        <a class="cite codelab" href="https://codelabs.developers.google.com/adk2/instructions" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;ADK 2 Orchestration: Graph, Collaborative &amp; Dynamic Workflows</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2610.25954" target="_blank" rel="noopener"><b>arXiv 2610.25954</b>&nbsp;CXBench</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    Read the prompt and the three clarifying questions together, and let the room answer before you click. Step 1 shows the answers: the label set is closed, so classify gets a Literal output_schema; one ticket can have two labels, so route_ticket emits a list route; and the support lead owns human_queue, the fallback. Then build the graph in the order of the steps: intake writes the ticket text to state["ticket"] for the audit trail and for the prompts, classify returns a Triage object with labels and a priority, and route_ticket is plain code, so the rule "outage or any p1 pages on-call" is a unit test, not a prompt. The code card shows the new parts, intake and the edges: DEFAULT_ROUTE has its own key, because DEFAULT_ROUTE inside a list with other routes raises GraphValidationError. At step 4 a p1 billing ticket emits route=["billing", "page"], so both edges run at the same time, and "other" or any surprise label falls to human_queue instead of a silent end of the branch. Do the numbers: 10,000 tickets a day is about 7 a minute, or 0.12 a second, so even a 10x peak is small; the hard parts are correctness and the 60-second p1 budget, which is why paging is decided in code before any reply is written. For the audit trail, every event carries node_info.path (for example ticket_triage@1/classify@1), so you can sum cost and latency per node; and run an eval set where each case states the expected route, because CXBench (2610.25954) found 55.5% of runs had the right outcome with a non-compliant process. Analogy: the model is the nurse who reads the symptoms, the code is the hospital rule that decides the ward. Hand-off: the next slide leaves triage for the copy_review loop and asks the room to find a missing bound.
+  </aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-interview-c01-whiteboard-triage";
+  let tl = null;
+  function center(dg, id) {
+    const el = dg.querySelector("#" + id);
+    return { x: el.offsetLeft + el.offsetWidth / 2, y: el.offsetTop + el.offsetHeight / 2 };
+  }
+  function stop(slide) {
+    if (tl) { tl.kill(); tl = null; }
+    const els = slide.querySelectorAll(".wt-tok, .wt-p1");
+    gsap.killTweensOf(els);
+    gsap.set(els, { autoAlpha: 0 });
+    slide.querySelectorAll("#wt-dg .node.lit").forEach((n) => n.classList.remove("lit"));
+  }
+  function build(slide, n) {
+    stop(slide);
+    if (n < 1) return;
+    const dg = slide.querySelector("#wt-dg");
+    const a = slide.querySelector(".wt-tok.a"), b = slide.querySelector(".wt-tok.b"), tag = slide.querySelector(".wt-p1");
+    const path = ["ticket", "intake", "classify"];
+    if (n >= 2) path.push("route");
+    if (n === 3) path.push("billing");
+    const pts = path.map((id) => center(dg, id));
+    const lit = (id) => () => { const el = dg.querySelector("#" + id); if (el) el.classList.add("lit"); };
+    const unlit = () => dg.querySelectorAll(".node.lit").forEach((x) => x.classList.remove("lit"));
+    tl = gsap.timeline({ repeat: -1, repeatDelay: 0.6, delay: 0.6 });
+    tl.call(unlit);
+    tl.set([a, b], { x: pts[0].x, y: pts[0].y, autoAlpha: 0, scale: 1 });
+    tl.set(tag, { autoAlpha: 0, scale: 0.6, transformOrigin: "0% 50%" });
+    tl.to(a, { autoAlpha: 1, duration: 0.2 });
+    for (let i = 1; i < pts.length; i++) {
+      tl.to(a, { x: pts[i].x, y: pts[i].y, duration: 0.55, ease: "power1.inOut" });
+      tl.call(lit(path[i]));
+    }
+    if (n >= 4) {
+      // p1 ticket: one list route, two edges run at the same time
+      const bl = center(dg, "billing"), oc = center(dg, "oncall");
+      tl.to(tag, { autoAlpha: 1, scale: 1, duration: 0.3, ease: "back.out(2.2)" });
+      tl.set(b, { x: pts[pts.length - 1].x, y: pts[pts.length - 1].y, autoAlpha: 1 });
+      tl.to(a, { x: bl.x, y: bl.y, duration: 0.8, ease: "power1.inOut" }, "+=0.15");
+      tl.to(b, { x: oc.x, y: oc.y, duration: 0.8, ease: "power1.inOut" }, "<");
+      tl.call(lit("billing")); tl.call(lit("oncall"));
+      tl.to([a, b], { scale: 1.4, duration: 0.15, yoyo: true, repeat: 1 });
+    }
+    tl.to([a, b, tag], { autoAlpha: 0, duration: 0.3, delay: 0.5 });
+  }
+  Deck.register(ID, {
+    enter(slide, n) { build(slide, n); },
+    step(slide, n) { build(slide, n); },
+    leave(slide) { stop(slide); }
+  });
+})();
+</script>

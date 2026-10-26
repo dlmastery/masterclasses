@@ -1,0 +1,80 @@
+<section class="slide" id="adk-c09-paper-unstable" data-tone="model" data-title="Paper: Pinned and Still Unstable">
+  <style>
+    #adk-c09-paper-unstable .c9-split { --c9l: 600px; }
+    #adk-c09-paper-unstable .jp-lbl { fill: var(--ink); font-size: 19px; font-weight: 700; }
+    #adk-c09-paper-unstable .jp-sub { fill: var(--ink-2); font-size: 17px; }
+  </style>
+  <div class="kicker"><span class="pill">arXiv</span> Sep 2026</div>
+  <h2 class="title">A pinned temperature-0 judge still flips 40% of close calls</h2>
+  <div class="c9-split fill">
+    <div class="c9-col">
+      <div class="paper c9-paper">
+        <div class="pid">arXiv 2609.33044 <span>2026-09-27</span></div>
+        <h4>Pinned and Still Unstable: within-judge verdict variance</h4>
+        <div class="find">The same judge, same input, temperature 0, flips <b>~5%</b> of verdicts on reruns and <b>~40%</b> on close calls.</div>
+        <div class="so" data-step="3"><code>num_samples</code> 5 per case and <code>num_runs</code> ≥ 3 per change.</div>
+      </div>
+      <div class="cites" data-step="3"><a class="cite paper" href="https://arxiv.org/abs/2609.33044" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2609.33044 Pinned and Still Unstable</a></div>
+    </div>
+    <div class="c9-fig">
+      <svg class="c9-svg" id="pu-svg" viewBox="0 0 700 400" aria-label="Verdict tiles for ten reruns of five items. The four clear items flip 2 times in 40 verdicts, about 5 percent. At step 2 the close-call row flips 4 of 10 times, about 40 percent.">
+        <text class="jp-lbl" x="0" y="26">10 reruns, same input</text>
+        <g id="pu-tg"></g>
+        <text id="pu-cap" class="jp-lbl" x="0" y="388" style="fill:var(--risk)"></text>
+      </svg>
+    </div>
+  </div>
+  <aside class="notes">Pinned and Still Unstable, from September 2026, reruns the same judge on the same inputs with temperature 0 and a pinned model version. About 5 percent of verdicts still flip between reruns, and on close calls, the cases near the decision line, about 40 percent flip. The tiles are schematic: four clear items with 2 flips in 40 verdicts, which is 5 percent, and one close call that flips 4 of 10 times. For the Acme gate this means two things: sample the judge 5 times per case with num_samples, and judge a change by at least three runs, with AgentEvaluator num_runs, because adk eval has no repeat flag in 2.13.0. Analogy: a bathroom scale that reads 70 or 71 kilos on the same morning; weigh three times before you celebrate. A likely question: "Is temperature 0 not deterministic?" Not in practice: the paper measured these flips with temperature 0 and a pinned model.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c09-paper-unstable";
+  const NS = "http://www.w3.org/2000/svg";
+  const ROWS = 5, COLS = 10;
+  const FLIP_ITEMS = [[0, 7], [2, 3]];          // 2 flips in 40 clear verdicts (~5%)
+  const FLIP_CLOSE = [1, 4, 6, 9];              // 4 of 10 on the close call (~40%)
+  const q = (s, id) => s.querySelector("#" + id);
+  let tls = [];
+  function stop() { tls.forEach((t) => t.kill()); tls = []; }
+  function build(s) {
+    const g = q(s, "pu-tg");
+    if (g.childNodes.length) return;
+    for (let r = 0; r < ROWS; r++) {
+      const t = document.createElementNS(NS, "text");
+      t.setAttribute("x", 0); t.setAttribute("y", 88 + r * 58);
+      t.setAttribute("class", r === ROWS - 1 ? "jp-lbl" : "jp-sub");
+      t.textContent = r === ROWS - 1 ? "close call" : "item " + (r + 1);
+      g.appendChild(t);
+      for (let c = 0; c < COLS; c++) {
+        const grp = document.createElementNS(NS, "g");
+        grp.setAttribute("data-r", r); grp.setAttribute("data-c", c);
+        grp.innerHTML = `<rect x="${150 + c * 54}" y="${56 + r * 58}" width="46" height="46" rx="8"/><text x="${173 + c * 54}" y="${86 + r * 58}" text-anchor="middle" style="font-size:20px;font-weight:800;fill:#fff">A</text>`;
+        g.appendChild(grp);
+      }
+    }
+  }
+  function paint(s, shown, close) {
+    build(s);
+    q(s, "pu-tg").querySelectorAll("g").forEach((grp) => {
+      const r = +grp.dataset.r, c = +grp.dataset.c;
+      const b = r === ROWS - 1 ? close && FLIP_CLOSE.includes(c) : FLIP_ITEMS.some(([rr, cc]) => rr === r && cc === c);
+      grp.querySelector("rect").setAttribute("fill", b ? "var(--risk)" : "var(--agent)");
+      grp.querySelector("text").textContent = b ? "B" : "A";
+      grp.style.opacity = shown ? 1 : 0.2;
+    });
+    q(s, "pu-cap").textContent = !shown ? "" : close ? "close call flips 4 of 10 (~40%)" : "clear items: 2 flips in 40 (~5%)";
+  }
+  function render(s, n, animate) {
+    stop();
+    if (n === 2 && animate) {
+      paint(s, true, false);
+      tls.push(gsap.delayedCall(0.5, () => paint(s, true, true)));
+    } else paint(s, n >= 1, n >= 2);
+  }
+  Deck.register(ID, {
+    enter(slide, n) { render(slide, n || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { stop(); }
+  });
+})();
+</script>

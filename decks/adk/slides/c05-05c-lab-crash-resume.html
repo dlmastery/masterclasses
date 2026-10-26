@@ -1,0 +1,49 @@
+<section class="slide tight" id="adk-c05-lab-crash-resume" data-tone="tool" data-title="Lab 5B.6: resume after a crash">
+  <style>
+    #adk-c05-lab-crash-resume pre.code, #adk-c05-lab-crash-resume code { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #adk-c05-lab-crash-resume .cr-body { display: grid; grid-template-columns: 800px minmax(0, 1fr); gap: 36px; align-items: start; }
+    #adk-c05-lab-crash-resume .cr-col { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+    #adk-c05-lab-crash-resume table.t { width: 100%; font-size: 19px; line-height: 1.3; }
+    #adk-c05-lab-crash-resume table.t th, #adk-c05-lab-crash-resume table.t td { padding: 14px 12px; vertical-align: top; }
+    #adk-c05-lab-crash-resume table.t th { font-size: 18px; color: var(--ink); text-transform: none; letter-spacing: 0; }
+    #adk-c05-lab-crash-resume table.t td:first-child { color: var(--muted); font-size: 17px; }
+    #adk-c05-lab-crash-resume table.t code { font-size: 16px; }
+    #adk-c05-lab-crash-resume .cr-no { color: var(--risk); font-weight: 700; }
+    #adk-c05-lab-crash-resume .cr-yes { color: var(--state); font-weight: 700; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 5B</span> Acme payouts · step 6 of 6</div>
+  <h2 class="title">After a crash, call run_async with the invocation id and no message</h2>
+  <div class="cr-body fill">
+    <div class="cr-col">
+      <div class="code-wrap bad" data-step="1">
+        <div class="code-head">payouts/app.py · not resumable</div>
+        <pre class="code" data-lang="python"><code>app = App(name="payouts", root_agent=root)
+# ... run_async(..., invocation_id=inv, new_message=None)
+<span class="err"># ValueError: Running an agent requires a new_message</span>
+<span class="err">#             or a resumable app.</span></code></pre>
+      </div>
+      <div class="code-wrap good" data-step="2">
+        <div class="code-head">labs/adk/lab5b-payouts-durable/payouts/app.py · excerpt</div>
+        <pre class="code" data-lang="python"><code>app = App(name="payouts", root_agent=root,
+          resumability_config=ResumabilityConfig(is_resumable=True))
+# ...
+  else:                                       # "continue": after a crash
+    inv = json.load(open("pending.json"))["invocation_id"]
+    msg = None                                # needs ResumabilityConfig</code></pre>
+      </div>
+    </div>
+    <div class="cr-col">
+      <table class="t" data-step="3">
+        <thead><tr><th></th><th>answer a pause</th><th>after a crash</th></tr></thead>
+        <tbody>
+          <tr><td>new message</td><td>FunctionResponse</td><td>none</td></tr>
+          <tr><td>needs ResumabilityConfig</td><td class="cr-yes">no</td><td class="cr-no">yes</td></tr>
+          <tr><td>adk run, adk web</td><td class="cr-yes">works</td><td class="cr-no">not supported</td></tr>
+          <tr><td>retry budget</td><td>full</td><td>full again</td></tr>
+        </tbody>
+      </table>
+      <div class="cites" data-step="3"><a class="cite doc" href="https://adk.dev/runtime/resume/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;adk.dev Resume</a></div>
+    </div>
+  </div>
+  <aside class="notes">The last step of Lab 5B is the crash case. Try it: press Ctrl-C during attempt 2 of "resume yes", then run "python -m payouts.app continue -". The continue branch passes only the invocation id and no new message; the Runner then continues the interrupted invocation from the checkpoint events in payouts.db. That works only because the App sets ResumabilityConfig(is_resumable=True); without it, the same call fails with "ValueError: Running an agent requires a new_message or a resumable app." kyc_lookup replays and the log still has one line, and the attempt counter starts again, so pay gets its full retry budget back. The table separates the two kinds of resume that people mix up. Answering a pause sends a FunctionResponse, needs no ResumabilityConfig, and works from adk run and adk web. Continuing after a crash sends no message, needs ResumabilityConfig and your own Runner: the docs say resuming from the ADK Web UI or the CLI is not supported. Think of the checkpoint as the bookmark from the chapter opener: you go back to the page you were on, and you read that page again. A likely question: "Then why do I still need an idempotency key?" Because resume is at-least-once: a crash between the charge and the saved event re-runs pay; the retry gotcha comes back to this.</aside>
+</section>

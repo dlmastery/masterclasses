@@ -1,0 +1,50 @@
+<section class="slide" id="adk-c01-gotcha-temp" data-tone="risk" data-title="Gotcha: temperature on Gemini 3">
+  <style>
+    #adk-c01-gotcha-temp pre.code, #adk-c01-gotcha-temp pre.code * { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #adk-c01-gotcha-temp .gt-main { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: center; }
+    #adk-c01-gotcha-temp .gt-col { gap: 24px; min-width: 0; }
+    #adk-c01-gotcha-temp .code-wrap { align-self: stretch; }
+    #adk-c01-gotcha-temp .quote { font-size: 28px; }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> First run · model settings</div>
+  <h2 class="title">Agent rejects temperature=0, and Gemini 3 wants 1.0 anyway</h2>
+  <div class="gt-main fill">
+    <div class="gt-col stack">
+      <div class="code-wrap bad" data-step="1">
+        <div class="code-head">refund_agent/agent.py</div>
+        <pre class="code" data-lang="python"><code>root_agent = Agent(
+    name="refund_agent", model="gemini-3.5-flash",
+    temperature=0,          # not an Agent field
+    # ...
+)</code></pre>
+      </div>
+      <div class="code-wrap out" data-step="2">
+        <div class="code-head">output · pydantic ValidationError</div>
+        <pre class="code sm" data-lang="none"><code><span class="err">temperature is a GenerateContentConfig field.
+Pass generate_content_config=
+  types.GenerateContentConfig(temperature=...)
+  instead.</span></code></pre>
+      </div>
+    </div>
+    <div class="gt-col stack">
+      <div class="code-wrap good" data-step="3">
+        <div class="code-head">refund_agent/agent.py</div>
+        <pre class="code" data-lang="python"><code>from google.genai import types
+
+root_agent = Agent(
+    name="refund_agent", model="gemini-3.5-flash",
+    generate_content_config=types.GenerateContentConfig(
+        temperature=1.0),   # the Gemini 3 default
+    # ...
+)</code></pre>
+      </div>
+      <p class="quote" data-step="4">"Changing the temperature (setting it below 1.0) may lead to unexpected behavior, such as looping or degraded performance."</p>
+    </div>
+  </div>
+  <div class="cites">
+    <a class="cite doc" href="https://ai.google.dev/gemini-api/docs/gemini-3" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Gemini 3 developer guide</a>
+  </div>
+  <aside class="notes">
+    Step 1: many first agents copy temperature=0 from older tutorials and pass it straight to Agent. Step 2: ADK rejects it with a pydantic ValidationError: "temperature is a GenerateContentConfig field. Pass generate_content_config=types.GenerateContentConfig(temperature=...) instead." Step 3: sampling settings belong in generate_content_config. Step 4: on Gemini 3 do not lower the temperature at all: the Gemini 3 developer guide says that setting it below 1.0 "may lead to unexpected behavior, such as looping or degraded performance". That links straight back to the last gotcha: a lower temperature can cause the loop that hits the call cap. Analogy: the agent is the driver, the GenerateContentConfig is the engine map; you tune the engine in its own menu. Likely question: "How do I make answers deterministic, then?" Put the decision in tools and callbacks, which are deterministic code, and test the trajectory, not the wording. Next: two October papers on tool descriptions.
+  </aside>
+</section>

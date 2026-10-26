@@ -1,0 +1,94 @@
+<section class="slide tight" id="adk-c07-gotcha-skills-exec" data-tone="risk" data-title="Gotcha: skill code executor">
+  <style>
+    #adk-c07-gotcha-skills-exec .ge-top { display: grid; grid-template-columns: 560px 1fr; gap: 40px; align-items: start; }
+    #adk-c07-gotcha-skills-exec .gotcha { font-size: 19px; line-height: 1.4; gap: 8px 16px; }
+    #adk-c07-gotcha-skills-exec .em { display: block; margin-top: 4px; font: 600 17px/1.35 var(--f-mono); color: var(--risk); }
+    #adk-c07-gotcha-skills-exec .sc { position: relative; width: 792px; height: 300px; }
+    #adk-c07-gotcha-skills-exec .fo { position: absolute; top: 20px; height: 104px; padding: 0 18px; border-radius: 14px; border: 2px solid var(--risk); background: var(--risk-soft);
+      display: flex; flex-direction: column; justify-content: center; gap: 6px; white-space: nowrap; }
+    #adk-c07-gotcha-skills-exec .fo b { font: 700 20px/1.2 var(--f-mono); color: var(--ink); }
+    #adk-c07-gotcha-skills-exec .fo i { font: 600 16px/1.2 var(--f-mono); font-style: normal; color: var(--muted); }
+    #adk-c07-gotcha-skills-exec .fo.sc0 { border-color: var(--tool); background: var(--tool-soft); }
+    #adk-c07-gotcha-skills-exec .fo.amb { border-color: var(--tool); background: var(--tool-soft); }
+    #adk-c07-gotcha-skills-exec .fo.ok { border-color: var(--state); background: var(--state-soft); }
+    #adk-c07-gotcha-skills-exec .ar { position: absolute; top: 58px; font: 800 28px/1 var(--f-body); color: var(--muted); }
+    #adk-c07-gotcha-skills-exec .tok { position: absolute; left: 0; top: 64px; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%; background: var(--tool); opacity: 0; z-index: 3; }
+    #adk-c07-gotcha-skills-exec .ex { position: absolute; top: 172px; height: 110px; width: 248px; padding: 14px 16px; border-radius: 14px; border: 2px dashed var(--line-2);
+      background: var(--surface); display: flex; flex-direction: column; gap: 6px; opacity: .45; }
+    #adk-c07-gotcha-skills-exec .ex b { font: 700 18px/1.2 var(--f-mono); color: var(--ink); }
+    #adk-c07-gotcha-skills-exec .ex span { font-size: 17px; line-height: 1.3; color: var(--ink-2); }
+    #adk-c07-gotcha-skills-exec .ex.on { opacity: 1; border-style: solid; }
+    #adk-c07-gotcha-skills-exec .ex.r.on { border-color: var(--risk); background: var(--risk-soft); }
+    #adk-c07-gotcha-skills-exec .ex.a.on { border-color: var(--tool); background: var(--tool-soft); }
+    #adk-c07-gotcha-skills-exec .ex.g.on { border-color: var(--state); background: var(--state-soft); }
+    #adk-c07-gotcha-skills-exec .cites { margin-top: auto; }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> Agent Skills · scripts</div>
+  <h2 class="title">A skill script needs a code executor, and exec() is laptop-only</h2>
+  <div class="ge-top">
+    <div class="gotcha">
+      <b>Symptom</b><span><code>run_skill_script</code> returns <span class="em">"error_code": "NO_CODE_EXECUTOR"</span></span>
+      <b class="why" data-step="1">Cause</b><span data-step="1">No executor on the toolset or on the agent.</span>
+      <b class="fix" data-step="2">Fix</b><span data-step="2">Pass <code>code_executor=</code> or <code>environment=</code>, not both.</span>
+    </div>
+    <div class="sc">
+      <div class="fo sc0" style="left:0;width:200px"><b>prorate.py</b><i>scripts/</i></div>
+      <span class="ar" style="left:212px">→</span>
+      <div class="fo" id="ge-slot" style="left:252px;width:310px"><b id="ge-sb">no executor</b><i id="ge-si">nothing can run it</i></div>
+      <span class="ar" style="left:574px">→</span>
+      <div class="fo" id="ge-out" style="left:614px;width:178px"><b id="ge-ob">error dict</b><i id="ge-oi">NO_CODE_EXEC…</i></div>
+      <span class="tok" id="ge-tok"></span>
+      <div class="ex r" data-k="1" style="left:0"><b>none</b><span>an error dict, not a crash</span></div>
+      <div class="ex a" data-k="2" style="left:272px"><b>UnsafeLocal…</b><span>exec() in your process</span></div>
+      <div class="ex g" data-k="3" style="left:544px"><b>Container · Gke</b><span>isolated: production</span></div>
+    </div>
+  </div>
+  <div class="code-wrap good" data-step="2">
+    <div class="code-head">refund_skill_agent/agent.py · excerpt</div>
+    <pre class="code" data-lang="python" data-focus="2:4-6, 3:6"><code>from google.adk.code_executors import UnsafeLocalCodeExecutor
+from google.adk.tools.skill_toolset import SkillToolset
+# refund_skill, lookup_order: as in Lab 7 step 5
+skills = SkillToolset(skills=[refund_skill],
+                      additional_tools=[lookup_order],
+                      code_executor=UnsafeLocalCodeExecutor())  # laptop only</code></pre>
+  </div>
+  <div class="cites">
+    <a class="cite doc" href="https://adk.dev/skills/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Skills for ADK agents</a>
+  </div>
+  <aside class="notes">A skill with a script needs something to run the script. Without an executor on the toolset or on the agent, run_skill_script does not crash; it returns an error dict: "Neither Environment nor CodeExecutor is configured. An environment or code executor is required to run scripts.", with error_code NO_CODE_EXECUTOR. The model then often apologises or guesses the number, which is worse than a crash. The fix is to pass code_executor or environment on the SkillToolset, not both; passing both raises a ValueError. UnsafeLocalCodeExecutor is for a laptop only: it runs exec() in your process, shares its memory, and script_timeout does not apply. In production use ContainerCodeExecutor or GkeCodeExecutor, which isolate the script. Analogy: a recipe that says "bake for 20 minutes" is useless without an oven, and you do not put the oven in the dining room. A likely question: "Why not run scripts locally in production?" Because exec() shares your process and its memory, and nothing stops a slow script.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c07-gotcha-skills-exec";
+  let tw = [];
+  function clear() { tw.forEach((t) => t.kill()); tw = []; }
+  // the executor slot per step: none (0-1), UnsafeLocal (2-3); step 3 lights the production option
+  const SLOT = [["no executor", "nothing can run it", ""], ["no executor", "nothing can run it", ""],
+    ["UnsafeLocalCodeExecutor", "laptop: exec()", "amb"], ["UnsafeLocalCodeExecutor", "laptop only", "amb"]];
+  function render(slide, n, animate) {
+    clear();
+    const q = (s) => slide.querySelector("#" + s);
+    n = Math.max(0, Math.min(3, n | 0));
+    const [sb, si, cls] = SLOT[n];
+    q("ge-sb").textContent = sb; q("ge-si").textContent = si;
+    q("ge-slot").className = "fo" + (cls ? " " + cls : "");
+    const ran = n >= 2;
+    q("ge-out").className = "fo" + (ran ? " ok" : "");
+    q("ge-ob").textContent = ran ? "72.0" : "error dict";
+    q("ge-oi").textContent = ran ? "stdout" : "NO_CODE_EXEC…";
+    slide.querySelectorAll(".ex").forEach((e) => e.classList.toggle("on", +e.dataset.k === Math.max(1, n)));
+    const tok = q("ge-tok");
+    if (animate && n >= 1) {
+      gsap.set(tok, { x: 180, opacity: 1 });
+      const tl = gsap.timeline({ delay: 0.3 }).to(tok, { x: ran ? 640 : 300, duration: ran ? 1.1 : 0.6, ease: "power1.inOut" }).to(tok, { opacity: 0, duration: 0.15 });
+      tl.fromTo(q(ran ? "ge-out" : "ge-slot"), { scale: 1.06 }, { scale: 1, duration: 0.3, ease: "back.out(3)" });
+      tw.push(tl);
+    } else gsap.set(tok, { opacity: 0 });
+  }
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { clear(); if (slide) gsap.killTweensOf(slide.querySelectorAll(".sc *")); },
+  });
+})();
+</script>

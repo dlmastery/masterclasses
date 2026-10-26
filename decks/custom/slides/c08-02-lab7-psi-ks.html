@@ -1,0 +1,215 @@
+<section class="slide" id="custom-c08-lab7-psi-ks" data-tone="risk" data-title="Lab 7: PSI vs KS drift">
+  <style>
+    #custom-c08-lab7-psi-ks { gap: 20px; }
+    #custom-c08-lab7-psi-ks .d-grid { display: grid; grid-template-columns: 664px 1fr; gap: 24px; min-height: 0; }
+    #custom-c08-lab7-psi-ks .d-left, #custom-c08-lab7-psi-ks .d-right { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+    #custom-c08-lab7-psi-ks .lab-head { font-size: 14px; gap: 10px; }
+    #custom-c08-lab7-psi-ks .lab-head .run { font-size: 15px; padding: 7px 11px; }
+    #custom-c08-lab7-psi-ks .code-head { padding: 7px 14px; font-size: 13px; }
+    #custom-c08-lab7-psi-ks .d-code pre.code { font-size: 11.5px; line-height: 1.37; padding: 9px 14px 10px; }
+    #custom-c08-lab7-psi-ks .d-swap { display: grid; }
+    #custom-c08-lab7-psi-ks .d-swap > * { grid-area: 1 / 1; align-self: start; }
+    #custom-c08-lab7-psi-ks .d-swap pre.code { font-size: 11.5px; line-height: 1.38; padding: 8px 14px 10px; }
+    #custom-c08-lab7-psi-ks .steps-rail { gap: 7px; }
+    #custom-c08-lab7-psi-ks .steps-rail > * { font-size: 15px; line-height: 1.34; grid-template-columns: 28px 1fr; gap: 10px; }
+    #custom-c08-lab7-psi-ks .steps-rail > *::before { width: 24px; height: 24px; font-size: 13px; }
+    #custom-c08-lab7-psi-ks .steps-rail code, #custom-c08-lab7-psi-ks .callout code { font-size: .86em; }
+    #custom-c08-lab7-psi-ks .callout { padding: 8px 14px; font-size: 15px; line-height: 1.36; gap: 10px; }
+    #custom-c08-lab7-psi-ks .callout::before { width: 22px; height: 22px; font-size: 13px; }
+    #custom-c08-lab7-psi-ks pre.code, #custom-c08-lab7-psi-ks pre.code *, #custom-c08-lab7-psi-ks code, #custom-c08-lab7-psi-ks .code-head, #custom-c08-lab7-psi-ks svg text { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #c08d-svg text { font-family: var(--f-mono); }
+  </style>
+  <div class="kicker"><span class="pill">Lab 7</span> Acme refund-fraud model · step 1 of 5</div>
+  <h2 class="title">PSI says stable, KS says drift: at large n, distance beats p-value</h2>
+  <div class="d-grid fill">
+    <div class="d-left">
+      <div class="lab-head"><span class="run">python lab7_psi_ks.py</span><span class="small">numpy==2.5.4 · scipy==1.18.1 · offline</span></div>
+      <div class="code-wrap d-code">
+        <div class="code-head">fraud_data/lab7_psi_ks.py</div>
+        <pre class="code" data-lang="python" data-focus="1:4-6, 2:7, 3:8-11, 4:31-34"><code>import numpy as np
+from scipy.stats import ks_2samp
+
+def psi(reference, current, n_bins=10, eps=1e-4):
+    """Population Stability Index with quantile bins fixed on the REFERENCE window."""
+    edges = np.quantile(reference, np.linspace(0, 1, n_bins + 1))
+    edges[0], edges[-1] = -np.inf, np.inf          # catch out-of-range current values
+    edges = np.unique(edges)                       # ties (e.g. many zeros) collapse bins
+    ref_share = np.histogram(reference, edges)[0] / len(reference)
+    cur_share = np.histogram(current, edges)[0] / len(current)
+    ref_share, cur_share = np.clip(ref_share, eps, None), np.clip(cur_share, eps, None)
+    return float(np.sum((cur_share - ref_share) * np.log(cur_share / ref_share)))
+
+def verdict(value):
+    return "stable" if value &lt; 0.1 else ("moderate" if value &lt; 0.25 else "MAJOR")
+
+rng = np.random.default_rng(7)
+# Reference: September refund requests. Current: October, after a holiday promo.
+reference = {
+    "refund_amount_usd": rng.lognormal(mean=3.6, sigma=0.6, size=20_000),
+    "days_since_order":  rng.gamma(shape=2.0, scale=6.0, size=20_000),
+    "items_in_order":    rng.poisson(lam=2.0, size=20_000).astype(float),
+}
+current = {
+    "refund_amount_usd": rng.lognormal(mean=3.9, sigma=0.7, size=5_000),   # real shift
+    "days_since_order":  rng.gamma(shape=2.0, scale=6.2, size=5_000),      # tiny shift
+    "items_in_order":    rng.poisson(lam=2.0, size=5_000).astype(float),   # no shift
+}
+
+print(f"{'feature':&lt;20}{'PSI':&gt;8}  {'verdict':&lt;9}{'KS D':&gt;7}{'KS p':&gt;11}")
+for col in reference:
+    p = psi(reference[col], current[col])
+    ks = ks_2samp(reference[col], current[col])
+    print(f"{col:&lt;20}{p:&gt;8.3f}  {verdict(p):&lt;9}{ks.statistic:&gt;7.3f}{ks.pvalue:&gt;11.2e}")</code></pre>
+      </div>
+    </div>
+    <div class="d-right">
+      <div class="d-swap">
+        <div class="code-wrap term" data-until="3">
+          <div class="code-head">run it Monday · Python 3.12 · CPU only · no API keys</div>
+          <pre class="code" data-lang="bash"><code>$ pip install "numpy==2.5.4" "scipy==1.18.1" "scikit-learn==1.9.1" "pandas==3.0.*"
+fraud_data/
+  lab7_psi_ks.py         lab7_leakage_splits.py
+  lab7_calibration.py    lab7_cost_threshold.py</code></pre>
+        </div>
+        <div class="code-wrap out" data-step="3">
+          <div class="code-head">output · captured run</div>
+          <pre class="code" data-lang="none" data-focus="4:3"><code><span class="dim">feature                  PSI  verdict     KS D       KS p</span>
+<span class="err">refund_amount_usd      0.243  moderate   0.205  5.91e-148</span>
+<span class="ok">days_since_order       0.003  stable</span>     0.024   <span class="err">2.16e-02</span>
+<span class="ok">items_in_order         0.001  stable     0.013   4.99e-01</span></code></pre>
+        </div>
+      </div>
+      <svg id="c08d-svg" viewBox="0 0 708 296" width="708" height="296" role="img" aria-label="Three small-multiple histograms, one per feature, September reference bars in blue and October current outlines in amber. Step 1: reference bars draw on bins fixed at September quantiles, so every reference bar holds 10 percent. Step 2: October outlines rise; for refund_amount_usd the top open bin holds 26 percent of October. Step 3: PSI and KS numbers count up: refund 0.243 and D 0.205, days 0.003 and D 0.024 with p 0.02, items 0.001 and D 0.013; items_in_order collapses to 6 bins. Step 4: the days_since_order panel gets a split badge, PSI stable and KS drift."></svg>
+      <div class="steps-rail">
+        <div data-step="1"><span>Fix the bins on September quantiles. Then PSI from week to week is comparable.</span></div>
+        <div data-step="2"><span><code>±inf</code> edges catch October refunds above September's maximum.</span></div>
+        <div data-step="3"><span><code>unique()</code> collapses tied edges (<code>items_in_order</code>: 6 bins). <code>clip</code> stops <code>log(0)</code>.</span></div>
+        <div data-step="4"><span>Row 2: PSI 0.003, but KS p = 0.02 says "drift". At n = 20k/5k, p-values flag tiny shifts.</span></div>
+      </div>
+      <div class="callout tip" data-step="4"><span>Evidently uses distances when n &gt; 1000. Set your thresholds on September vs September (two halves).</span></div>
+      <a class="cite doc" data-step="4" href="https://docs.evidentlyai.com/metrics/customize_data_drift" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Evidently: customize data drift</a>
+    </div>
+  </div>
+  <aside class="notes">Lab 7 starts with drift on the Acme refund-fraud model: 20,000 September refund requests are the reference and 5,000 October requests, after the holiday promo, are the current window. Step 1: the bins are September deciles and stay fixed, so every blue bar holds 10% and next week's PSI is comparable with this week's; step 2: the plus and minus infinity edges catch the October refunds above September's maximum, and that open top bin holds 26% of October. Step 3: np.unique collapses the tied edges of the count feature to 6 bins, np.clip keeps an empty bin from giving log of zero, and the numbers come out: refund amount PSI 0.243, moderate. Step 4 is the lesson: days_since_order has PSI 0.003, stable, but the KS p-value is 0.02, so a p-value test at alpha 0.05 calls a tiny shift "drift" because n is large; this is why Evidently switches to distance metrics above 1,000 rows. Analogy: with a big enough crowd, a hearing test detects a whisper that nobody cares about. Likely question: "Are 0.1 and 0.25 standard?" No, they are a credit-risk convention, so set your own bands by comparing two halves of September with each other. Hand-off: drift tells us the data moved; step 2 asks whether the validation score can be trusted at all.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c08-lab7-psi-ks";
+  // shares per bin, printed from this exact script (seed 7): reference vs current
+  const F = [
+    { name: "refund_amount_usd", lo: "$17", hi: "$78", ref: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1],
+      cur: [0.0682, 0.062, 0.0604, 0.0748, 0.067, 0.0778, 0.0856, 0.1116, 0.1312, 0.2614], psi: 0.243, v: "moderate", d: 0.205, p: "5.91e-148", tone: "risk" },
+    { name: "days_since_order", lo: "3.2 d", hi: "23.4 d", ref: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1],
+      cur: [0.0916, 0.098, 0.1022, 0.0904, 0.0986, 0.105, 0.1034, 0.0998, 0.1036, 0.1074], psi: 0.003, v: "stable", d: 0.024, p: "2.16e-02", tone: "state" },
+    { name: "items_in_order", lo: "0", hi: "4", ref: [0.0, 0.135, 0.271, 0.2718, 0.1778, 0.1444],
+      cur: [0.0, 0.136, 0.257, 0.2748, 0.184, 0.1482], psi: 0.001, v: "stable", d: 0.013, p: "4.99e-01", tone: "state" },
+  ];
+  const PW = 216, PG = 30, BASE = 192, HMAX = 140, SMAX = 0.28;
+  const px = (i) => i * (PW + PG);
+  const hOf = (s) => s / SMAX * HMAX;
+  let S = null;
+
+  function mk(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  }
+
+  function build(slide) {
+    const svg = slide.querySelector("#c08d-svg");
+    if (svg._S) return svg._S;
+    svg.innerHTML = "";
+    const s = { prev: 0, panels: [], tweens: [] };
+    F.forEach((f, i) => {
+      const x0 = px(i), nb = f.ref.length, bw = PW / nb, P = { f };
+      P.frame = mk("rect", { x: x0 - 6, y: 2, width: PW + 12, height: 290, rx: 12, fill: "none", stroke: "var(--risk)", "stroke-width": 2.4, opacity: 0 }, svg);
+      mk("text", { x: x0, y: 20, "font-size": 13, "font-weight": 700, fill: "var(--ink)" }, svg, f.name);
+      P.sub = mk("text", { x: x0, y: 37, "font-size": 11.5, fill: "var(--muted)" }, svg, i === 2 ? "Sept quantiles · fixed edges" : "Sept deciles · 10 bins");
+      mk("line", { x1: x0, y1: BASE, x2: x0 + PW, y2: BASE, stroke: "var(--line-2)", "stroke-width": 1.6 }, svg);
+      P.edges = mk("g", { opacity: 0 }, svg);
+      for (let k = 1; k < nb; k++) mk("line", { x1: x0 + k * bw, y1: 46, x2: x0 + k * bw, y2: BASE, stroke: "var(--agent)", "stroke-width": 1, "stroke-dasharray": "3 4", opacity: 0.55 }, P.edges);
+      P.ref = f.ref.map((v, k) => mk("rect", { x: x0 + k * bw + 2, y: BASE, width: bw - 4, height: 0, rx: 2, fill: "var(--agent-soft)", stroke: "var(--agent)", "stroke-width": 1.2 }, svg));
+      P.cur = f.cur.map((v, k) => mk("rect", { x: x0 + k * bw + 3.5, y: BASE, width: bw - 7, height: 0, rx: 2, fill: "none", stroke: "var(--tool)", "stroke-width": 2.4, opacity: 0 }, svg));
+      mk("text", { x: x0 + bw, y: BASE + 16, "text-anchor": "middle", "font-size": 11, fill: "var(--muted)" }, svg, f.lo);
+      mk("text", { x: x0 + PW - bw, y: BASE + 16, "text-anchor": "middle", "font-size": 11, fill: "var(--muted)" }, svg, f.hi);
+      P.psiT = mk("text", { x: x0, y: 234, "font-size": 14, "font-weight": 700, fill: `var(--${f.tone})`, opacity: 0 }, svg, "");
+      P.ksT = mk("text", { x: x0, y: 254, "font-size": 12.5, "font-weight": 600, fill: "var(--ink-2)", opacity: 0 }, svg, "");
+      s.panels.push(P);
+    });
+    // step 2: the open top bin of refund_amount_usd
+    const r = F[0], rx = px(0) + PW - PW / 10 / 2;
+    s.tail = mk("g", { opacity: 0 }, svg);
+    mk("rect", { x: px(0) + PW - 124, y: BASE - hOf(r.cur[9]) - 22, width: 126, height: 18, rx: 4, fill: "var(--bg)" }, s.tail);
+    mk("text", { x: px(0) + PW, y: BASE - hOf(r.cur[9]) - 8, "text-anchor": "end", "font-size": 11.5, "font-weight": 700, fill: "var(--tool)", stroke: "var(--surface)", "stroke-width": 4, "paint-order": "stroke" }, s.tail, "+inf bin: Oct 26%");
+    mk("path", { d: `M${rx} ${BASE - hOf(r.cur[9]) - 2} L${rx} ${BASE - hOf(r.cur[9]) + 6}`, stroke: "var(--tool)", "stroke-width": 2 }, s.tail);
+    // legend
+    mk("rect", { x: px(0), y: 268, width: 12, height: 12, rx: 2, fill: "var(--agent-soft)", stroke: "var(--agent)", "stroke-width": 1.2 }, svg);
+    mk("text", { x: px(0) + 18, y: 279, "font-size": 11.5, "font-weight": 600, fill: "var(--agent)" }, svg, "Sept 20,000");
+    mk("rect", { x: px(0) + 112, y: 268, width: 12, height: 12, rx: 2, fill: "none", stroke: "var(--tool)", "stroke-width": 2 }, svg);
+    mk("text", { x: px(0) + 130, y: 279, "font-size": 11.5, "font-weight": 600, fill: "var(--tool)" }, svg, "Oct 5,000");
+    // step 4: split verdict on days_since_order
+    s.badge = mk("g", { opacity: 0 }, svg);
+    const bx = px(1);
+    mk("rect", { x: bx, y: 264, width: 104, height: 24, rx: 12, fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 1.4 }, s.badge);
+    mk("text", { x: bx + 52, y: 280, "text-anchor": "middle", "font-size": 11.5, "font-weight": 700, fill: "var(--state)" }, s.badge, "PSI: stable");
+    mk("rect", { x: bx + 112, y: 264, width: 104, height: 24, rx: 12, fill: "var(--risk-soft)", stroke: "var(--risk)", "stroke-width": 1.4 }, s.badge);
+    mk("text", { x: bx + 164, y: 280, "text-anchor": "middle", "font-size": 11.5, "font-weight": 700, fill: "var(--risk)" }, s.badge, "KS: drift");
+    // items legend sits in panel 3's badge row
+    s.binsNote = mk("text", { x: px(2), y: 280, "font-size": 11.5, "font-weight": 700, fill: "var(--state)", opacity: 0 }, svg, "unique(): 7 edges, 6 bins");
+    svg._S = s;
+    return s;
+  }
+
+  function setBars(rects, vals, frac, opacity) {
+    rects.forEach((rc, k) => {
+      const h = hOf(vals[k]) * frac;
+      rc.setAttribute("y", BASE - h); rc.setAttribute("height", h);
+      if (opacity !== undefined) rc.setAttribute("opacity", opacity);
+    });
+  }
+  function texts(P, frac) {
+    const f = P.f, done = frac >= 1;
+    P.psiT.textContent = `PSI ${(f.psi * frac).toFixed(3)}` + (done ? ` ${f.v}` : "");
+    P.ksT.textContent = `KS D ${(f.d * frac).toFixed(3)}` + (done ? ` · p ${f.p}` : "");
+  }
+
+  function render(s, n, animate) {
+    s.tweens.forEach((t) => t.kill()); s.tweens = [];
+    const T = (tw) => s.tweens.push(tw);
+    const op = (e, v, d) => (animate ? T(gsap.to(e, { opacity: v, duration: .4, delay: d || 0 })) : gsap.set(e, { opacity: v }));
+    s.panels.forEach((P, i) => {
+      // step 1: fixed edges + reference bars
+      op(P.edges, n >= 1 ? 1 : 0);
+      if (n >= 1 && animate && s.prev < 1) { const o = { f: 0 }; T(gsap.to(o, { f: 1, duration: .8, delay: .1 + i * .15, ease: "power2.out", onUpdate: () => setBars(P.ref, P.f.ref, o.f) })); }
+      else setBars(P.ref, P.f.ref, n >= 1 ? 1 : 0);
+      // step 2: current outlines rise
+      if (n >= 2 && animate && s.prev < 2) { setBars(P.cur, P.f.cur, 0, 1); const o = { f: 0 }; T(gsap.to(o, { f: 1, duration: 1.0, delay: .1 + i * .18, ease: "power2.out", onUpdate: () => setBars(P.cur, P.f.cur, o.f) })); }
+      else setBars(P.cur, P.f.cur, n >= 2 ? 1 : 0, n >= 2 ? 1 : 0);
+      // step 3: PSI and KS count up
+      op(P.psiT, n >= 3 ? 1 : 0); op(P.ksT, n >= 3 ? 1 : 0);
+      if (n >= 3 && animate && s.prev < 3) { texts(P, 0); const o = { f: 0 }; T(gsap.to(o, { f: 1, duration: 1.2, delay: .2 + i * .25, ease: "power1.out", onUpdate: () => texts(P, o.f) })); }
+      else texts(P, n >= 3 ? 1 : 0);
+    });
+    op(s.tail, n >= 2 ? 1 : 0, n >= 2 && animate && s.prev < 2 ? .9 : 0);
+    s.panels[2].sub.textContent = n >= 3 ? "Sept quantiles · 7 unique edges" : "Sept quantiles · fixed edges";
+    op(s.binsNote, n >= 3 ? 1 : 0);
+    // step 4: split verdict on days_since_order
+    op(s.badge, n >= 4 ? 1 : 0, n >= 4 && animate ? .2 : 0);
+    op(s.panels[1].frame, n >= 4 ? 1 : 0);
+    s.prev = n;
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { S = build(slide); render(S, step || 0, false); },
+    step(slide, n, animate) { S = build(slide); render(S, n, animate); },
+    leave(slide) {
+      const svg = slide.querySelector("#c08d-svg");
+      if (svg && svg._S) { svg._S.tweens.forEach((t) => t.kill()); svg._S.tweens = []; }
+      if (svg) gsap.killTweensOf(svg.querySelectorAll("*"));
+    }
+  });
+})();
+</script>

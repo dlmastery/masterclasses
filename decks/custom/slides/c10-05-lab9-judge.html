@@ -1,0 +1,250 @@
+<section class="slide" id="custom-c10-lab9-judge" data-tone="state" data-title="Lab 9: judge vs human labels">
+  <style>
+    #custom-c10-lab9-judge { gap: 18px; }
+    #custom-c10-lab9-judge .j-grid { display: grid; grid-template-columns: 748px 1fr; gap: 26px; min-height: 0; }
+    #custom-c10-lab9-judge .j-left, #custom-c10-lab9-judge .j-right { display: flex; flex-direction: column; gap: 9px; min-width: 0; }
+    #custom-c10-lab9-judge .lab-head { font-size: 13px; gap: 10px; flex-wrap: nowrap; }
+    #custom-c10-lab9-judge .lab-head .small { font: 500 12.5px/1.2 var(--f-mono); color: var(--muted); }
+    #custom-c10-lab9-judge .lab-head .run { font-size: 15px; padding: 7px 11px; }
+    #custom-c10-lab9-judge .code-head { padding: 7px 14px; font-size: 13px; }
+    #custom-c10-lab9-judge .j-code pre.code { font-size: 10.6px; line-height: 14px; padding: 8px 14px 9px; }
+    #custom-c10-lab9-judge .out pre.code, #custom-c10-lab9-judge .out pre.code code { font-size: 10.6px; line-height: 14px; padding: 6px 12px 8px; white-space: pre; }
+    #custom-c10-lab9-judge .out pre.code code { padding: 0; }
+    #custom-c10-lab9-judge .steps-rail { gap: 6px; }
+    #custom-c10-lab9-judge .steps-rail > * { font-size: 14px; line-height: 1.3; grid-template-columns: 28px 1fr; gap: 10px; }
+    #custom-c10-lab9-judge .steps-rail > *::before { width: 24px; height: 24px; font-size: 13px; }
+    #custom-c10-lab9-judge .steps-rail code, #custom-c10-lab9-judge .callout code { font-size: .86em; }
+    #custom-c10-lab9-judge .callout { padding: 7px 13px; font-size: 14px; line-height: 1.34; gap: 10px; }
+    #custom-c10-lab9-judge .callout::before { width: 22px; height: 22px; font-size: 13px; }
+    #custom-c10-lab9-judge .cites { display: flex; gap: 8px; flex-wrap: wrap; }
+    #custom-c10-lab9-judge .cite { font-size: 13px; padding: 5px 10px 5px 8px; }
+    #custom-c10-lab9-judge .lab-head .small, #custom-c10-lab9-judge pre.code, #custom-c10-lab9-judge pre.code *, #custom-c10-lab9-judge code, #custom-c10-lab9-judge .code-head, #custom-c10-lab9-judge svg text { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #c10j-svg text { font-family: var(--f-mono); }
+    #custom-c10-lab9-judge .cite.paper { flex-direction: row; gap: 10px; border-radius: 10px; border: 1px solid var(--line); }
+    #custom-c10-lab9-judge .lab-head .run { flex: none; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 9</span> Acme HR policy assistant · step 4 of 4</div>
+  <h2 class="title">88% agreement hides kappa 0.58; corrected pass rate is 72.7%</h2>
+  <div class="j-grid fill">
+    <div class="j-left">
+      <div class="lab-head"><span class="run">python lab9_judge.py</span><span class="small">pip install "krippendorff==0.9.0" "scikit-learn==1.9.1"</span></div>
+      <div class="code-wrap j-code">
+        <div class="code-head">hr_eval/lab9_judge.py · 300 labelled answers, 4,000 judge-only answers</div>
+        <pre class="code" data-lang="python" data-focus="1:13-18, 2:16-22, 3:23-27, 4:28-36"><code>import krippendorff
+import numpy as np
+from sklearn.metrics import cohen_kappa_score, confusion_matrix
+rng = np.random.default_rng(11)
+N_CAL, N_PROD = 300, 4000
+truth = (rng.random(N_CAL) &lt; 0.80).astype(int)          # 1 = answer is policy-correct
+def noisy(labels, tpr, tnr):
+    flip = np.where(labels == 1, rng.random(len(labels)) &gt; tpr, rng.random(len(labels)) &gt; tnr)
+    return np.where(flip, 1 - labels, labels)
+human_a, human_b = noisy(truth, 0.97, 0.93), noisy(truth, 0.95, 0.90)   # two HR reviewers
+judge = noisy(truth, 0.95, 0.60)                          # lenient judge: misses bad answers
+gold = human_a                                            # adjudicated label in real life
+tn, fp, fn, tp = confusion_matrix(gold, judge, labels=[0, 1]).ravel()
+tpr, tnr = tp / (tp + fn), tn / (tn + fp)
+print(f"raw agreement judge-vs-human {np.mean(judge == gold):.3f}")
+print(f"Cohen kappa human-human {cohen_kappa_score(human_a, human_b):.3f}  "
+      f"judge-human {cohen_kappa_score(gold, judge):.3f}")
+print(f"judge TPR={tpr:.3f}  TNR={tnr:.3f}   (TNR = catches bad answers)")
+# Krippendorff alpha: 3 raters x 300 units, human_b only rated 150 units (missing = nan).
+rel = np.vstack([human_a, np.where(np.arange(N_CAL) &lt; 150, human_b, np.nan), judge]).astype(float)
+print(f"Krippendorff alpha (nominal, 3 raters, missing ok) "
+      f"{krippendorff.alpha(reliability_data=rel, level_of_measurement='nominal'):.3f}")
+# Production: judge-only labels on 4000 answers whose true pass rate is 0.72.
+prod_truth = (rng.random(N_PROD) &lt; 0.72).astype(int)
+prod_judge = noisy(prod_truth, 0.95, 0.60)
+def rogan_gladen(p_obs, tpr, tnr):
+    return np.clip((p_obs + tnr - 1) / (tpr + tnr - 1), 0, 1)
+boots = []
+for _ in range(2000):                                     # resample BOTH calibration and prod
+    i, j = rng.integers(0, N_CAL, N_CAL), rng.integers(0, N_PROD, N_PROD)
+    g, jd = gold[i], judge[i]
+    b_tpr, b_tnr = jd[g == 1].mean(), 1 - jd[g == 0].mean()
+    boots.append(rogan_gladen(prod_judge[j].mean(), b_tpr, b_tnr))
+print(f"prod pass rate: judge-observed {prod_judge.mean():.3f}  corrected "
+      f"{rogan_gladen(prod_judge.mean(), tpr, tnr):.3f}  95% CI {np.round(np.percentile(boots, [2.5, 97.5]), 3)}"
+      f"  (truth {prod_truth.mean():.3f})")</code></pre>
+      </div>
+    </div>
+    <div class="j-right">
+      <svg id="c10j-svg" viewBox="0 0 594 212" width="560" height="200" style="align-self:center" role="img" aria-label="Three panels. Left: a 2 by 2 confusion matrix of judge versus gold on 300 answers: 228 true passes, 13 false fails, 24 bad answers passed, 35 bad answers caught; TPR 0.946 and TNR 0.593 gauges. Middle: Cohen kappa bars, 0.812 between the two HR reviewers drawn as a dashed ceiling and 0.580 for the judge. Right: production pass rate on 4,000 answers: the judge observes 0.799, the Rogan-Gladen correction gives 0.727 next to the true 0.726, with a 95% CI from 0.628 to 0.798."></svg>
+      <div class="steps-rail">
+        <div data-step="1"><span><code>labels=[0, 1]</code> keeps the 2x2 shape. Raw agreement is 0.877, but TNR is 0.593: the judge catches only 59% of bad answers.</span></div>
+        <div data-step="2"><span>Human-human kappa 0.812 is the ceiling, not 1.0. The judge gets 0.580. Alpha takes <code>nan</code> for the 150 missing ratings.</span></div>
+        <div data-step="3"><span>Rogan-Gladen inverts the judge's error rates: 0.799 becomes 0.727 (truth 0.726). It needs TPR + TNR &gt; 1.</span></div>
+        <div data-step="4"><span>Resample calibration AND production items. Only 300 labels give a wide CI: buy human labels on the failure class.</span></div>
+      </div>
+      <div class="code-wrap out">
+        <div class="code-head">output · real run</div>
+        <pre class="code" data-lang="none"><code><span data-step="1" data-fx="fade">raw agreement judge-vs-human <span class="ok">0.877</span></span>
+<span data-step="2" data-fx="fade">Cohen kappa human-human 0.812  judge-human <span class="err">0.580</span></span>
+<span data-step="1" data-fx="fade">judge TPR=0.946  TNR=<span class="err">0.593</span>   <span class="dim">(TNR = catches bad answers)</span></span>
+<span data-step="2" data-fx="fade">Krippendorff alpha (nominal, 3 raters, missing ok) 0.628</span>
+<span data-step="3" data-fx="fade">prod pass rate: judge-observed <span class="err">0.799</span>  corrected <span class="ok">0.727</span>  95% CI [0.628 0.798]  <span class="dim">(truth 0.726)</span></span></code></pre>
+      </div>
+      <div class="callout tip" data-step="4"><span>Validate per failure mode. Repeat runs and swap answer order: verdicts change at temperature 0. Read verdicts after generation, not first-token logits.</span></div>
+      <div class="cites push" data-step="4">
+        <a class="cite paper" href="https://arxiv.org/abs/2610.12083" target="_blank" rel="noopener" title="All Verdicts are Not Equal: Rethinking LLM Judge Reliability"><b>arXiv</b>&nbsp;2610.12083</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2610.00054" target="_blank" rel="noopener" title="The First Token Is Not the Verdict"><b>arXiv</b>&nbsp;2610.00054</a>
+        <a class="cite repo" href="https://github.com/pln-fing-udelar/fast-krippendorff" target="_blank" rel="noopener"><b>Repo</b>&nbsp;fast-krippendorff</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">This is the last step of the HR lab: can the LLM judge replace the two HR reviewers? On 300 labelled answers the judge agrees with the humans 87.7% of the time, which sounds fine, but the confusion matrix shows it passes 24 of the 59 bad answers: its TNR is only 0.593. Compare kappa with the human-human kappa of 0.812, because that is the real ceiling, and the judge reaches 0.580. Then we use the judge alone on 4,000 production answers: it reports 79.9% pass, and the Rogan-Gladen formula uses the measured TPR and TNR to correct that to 72.7%, almost exactly the hidden truth of 72.6%. The bootstrap resamples both the calibration labels and the production answers, so the CI from 0.628 to 0.798 is honest, and wide: the fix is more human labels on bad answers. Analogy: a bathroom scale that reads 3 kg heavy is still useful once you measure the error and subtract it. Likely question: "Why pass level_of_measurement='nominal'?" Because the default gives a silently wrong answer: the gotcha after the next slide shows it. Next, a build-up applies the same verify-before-keep rule to synthetic training code for the HR assistant's tools.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c10-lab9-judge";
+  // confusion matrix from the real run: tn=35 fp=24 fn=13 tp=228 (TPR 228/241 = 0.946, TNR 35/59 = 0.593)
+  const CELLS = [
+    { x: 64, y: 40, v: 228, lab: "TP", tone: "state" },
+    { x: 146, y: 40, v: 13, lab: "FN", tone: "muted" },
+    { x: 64, y: 96, v: 24, lab: "bad passed", tone: "risk" },
+    { x: 146, y: 96, v: 35, lab: "TN", tone: "state" }
+  ];
+  const CW = 76, CH = 50;
+  const KB = 192, KS = 150;                    // kappa baseline y, px per 1.0
+  const PB = 192, P0 = 0.6, PS = 600;          // pass-rate panel: baseline y at 0.60, px per unit
+  const py = (v) => PB - (v - P0) * PS;
+  let S = null;
+
+  function mk(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  }
+  const T = (x, y, s, a) => Object.assign({ x, y, "font-size": 11, fill: "var(--ink-2)" }, a || {}, s ? { "text-anchor": s } : {});
+
+  function build(slide) {
+    const svg = slide.querySelector("#c10j-svg");
+    if (svg._S) return svg._S;
+    svg.innerHTML = "";
+    const s = { prev: 0, tweens: [], cells: [], vals: [] };
+    // ---- panel A: confusion matrix + gauges
+    mk("text", T(0, 13, null, { "font-size": 12, "font-weight": 700, fill: "var(--ink)" }), svg, "judge vs gold · n=300");
+    mk("text", T(102, 33, "middle"), svg, "judge pass");
+    mk("text", T(184, 33, "middle"), svg, "judge fail");
+    mk("text", T(58, 69, "end"), svg, "gold pass");
+    mk("text", T(58, 125, "end"), svg, "gold fail");
+    CELLS.forEach((c, i) => {
+      mk("rect", { x: c.x, y: c.y, width: CW, height: CH, rx: 6, fill: "none", stroke: "var(--line-2)", "stroke-width": 1.2 }, svg);
+      const col = c.tone === "muted" ? "var(--muted)" : `var(--${c.tone})`;
+      const r = mk("rect", { x: c.x, y: c.y, width: CW, height: CH, rx: 6, fill: c.tone === "muted" ? "var(--line)" : `var(--${c.tone}-soft)`, stroke: col, "stroke-width": 1.6, opacity: 0 }, svg);
+      const t = mk("text", T(c.x + CW / 2, c.y + 27, "middle", { "font-size": 17, "font-weight": 700, fill: col, opacity: 0 }), svg, "0");
+      const l = mk("text", T(c.x + CW / 2, c.y + 42, "middle", { "font-size": 9.5, fill: col, opacity: 0 }), svg, c.lab);
+      s.cells.push({ r, t, l, v: c.v });
+    });
+    s.gauges = [["TPR", 0.946, "var(--state)", 170], ["TNR", 0.593, "var(--risk)", 196]].map(([n, v, col, y]) => {
+      mk("text", T(0, y + 4, null, { "font-weight": 700, fill: "var(--ink)" }), svg, n);
+      mk("rect", { x: 34, y: y - 6, width: 140, height: 11, rx: 5, fill: "var(--line)" }, svg);
+      const f = mk("rect", { x: 34, y: y - 6, width: 0, height: 11, rx: 5, fill: col }, svg);
+      const t = mk("text", T(180, y + 4, null, { "font-weight": 700, fill: col, opacity: 0 }), svg, v.toFixed(3));
+      return { f, t, w: 140 * v };
+    });
+    // ---- panel B: kappa bars
+    const B = mk("g", { opacity: 0.25 }, svg);
+    mk("text", T(256, 13, null, { "font-size": 12, "font-weight": 700, fill: "var(--ink)" }), B, "Cohen kappa");
+    mk("line", { x1: 256, y1: KB, x2: 384, y2: KB, stroke: "var(--line-2)", "stroke-width": 1.2 }, B);
+    mk("text", T(290, 207, "middle", { "font-size": 10 }), B, "humans");
+    mk("text", T(352, 207, "middle", { "font-size": 10 }), B, "judge");
+    s.B = B;
+    s.kH = mk("rect", { x: 268, y: KB, width: 44, height: 0, fill: "var(--human-soft)", stroke: "var(--human)", "stroke-width": 2, "stroke-dasharray": "5 4" }, svg);
+    s.kJ = mk("rect", { x: 330, y: KB, width: 44, height: 0, fill: "var(--model)", opacity: 0.9 }, svg);
+    const yH = KB - 0.812 * KS, yJ = KB - 0.580 * KS;
+    s.ceil = mk("line", { x1: 256, y1: yH, x2: 384, y2: yH, stroke: "var(--human)", "stroke-width": 1.6, "stroke-dasharray": "5 4", opacity: 0 }, svg);
+    s.kHt = mk("text", T(290, yH - 6, "middle", { "font-size": 12, "font-weight": 700, fill: "var(--human)", opacity: 0 }), svg, "0.812 ceiling");
+    s.kJt = mk("text", T(352, yJ - 6, "middle", { "font-size": 12, "font-weight": 700, fill: "var(--model)", opacity: 0 }), svg, "0.580");
+    s.kHy = yH; s.kJy = yJ;
+    // ---- panel C: production pass rate
+    const C = mk("g", { opacity: 0.25 }, svg);
+    mk("text", T(412, 13, null, { "font-size": 12, "font-weight": 700, fill: "var(--ink)" }), C, "prod pass · n=4,000");
+    [0.6, 0.7, 0.8].forEach((v) => {
+      mk("line", { x1: 440, y1: py(v), x2: 594, y2: py(v), stroke: "var(--line)", "stroke-width": 1 }, C);
+      mk("text", T(434, py(v) + 4, "end", { "font-size": 10, fill: "var(--muted)" }), C, v.toFixed(1));
+    });
+    mk("text", T(466, 207, "middle", { "font-size": 10 }), C, "judge");
+    mk("text", T(518, 207, "middle", { "font-size": 10 }), C, "corrected");
+    s.C = C;
+    s.pO = mk("rect", { x: 448, y: PB, width: 36, height: 0, fill: "var(--model)", opacity: 0.9 }, svg);
+    s.pOt = mk("text", T(466, py(0.799) - 6, "middle", { "font-size": 12, "font-weight": 700, fill: "var(--model)", opacity: 0 }), svg, "0.799");
+    s.arrow = mk("path", { d: `M484 ${py(0.799) + 4} C 500 ${py(0.799) + 4}, 508 ${py(0.727) - 26}, 512 ${py(0.727) - 18}`, fill: "none", stroke: "var(--state)", "stroke-width": 2.2, "marker-end": "url(#c10j-ah)", opacity: 0 }, svg);
+    const defs = mk("defs", {}, svg);
+    const m = mk("marker", { id: "c10j-ah", viewBox: "0 0 10 10", refX: 8, refY: 5, markerWidth: 6, markerHeight: 6, orient: "auto-start-reverse" }, defs);
+    mk("path", { d: "M0 0 L10 5 L0 10 z", fill: "var(--state)" }, m);
+    s.pC = mk("rect", { x: 500, y: PB, width: 36, height: 0, fill: "var(--state)", opacity: 0.9 }, svg);
+    s.pCt = mk("text", T(518, py(0.727) - 6, "middle", { "font-size": 12, "font-weight": 700, fill: "var(--state)", opacity: 0 }), svg, "0.727");
+    s.truth = mk("g", { opacity: 0 }, svg);
+    mk("line", { x1: 440, y1: py(0.726), x2: 594, y2: py(0.726), stroke: "var(--ink)", "stroke-width": 1.4, "stroke-dasharray": "3 3" }, s.truth);
+    mk("text", T(576, py(0.726) - 16, "middle", { "font-size": 10.5, "font-weight": 700, fill: "var(--ink)" }), s.truth, "truth");
+    mk("text", T(576, py(0.726) - 4, "middle", { "font-size": 10.5, "font-weight": 700, fill: "var(--ink)" }), s.truth, "0.726");
+    // CI whisker 0.628 .. 0.798
+    s.ci = mk("g", { opacity: 0 }, svg);
+    const wx = 544;
+    s.ciLine = mk("line", { x1: wx, y1: py(0.628), x2: wx, y2: py(0.798), stroke: "var(--ink)", "stroke-width": 2 }, s.ci);
+    mk("line", { x1: wx - 6, y1: py(0.798), x2: wx + 6, y2: py(0.798), stroke: "var(--ink)", "stroke-width": 2 }, s.ci);
+    mk("line", { x1: wx - 6, y1: py(0.628), x2: wx + 6, y2: py(0.628), stroke: "var(--ink)", "stroke-width": 2 }, s.ci);
+    mk("text", T(wx + 9, py(0.798) + 4, null, { "font-size": 10.5, "font-weight": 700, fill: "var(--ink)" }), s.ci, "0.798");
+    mk("text", T(wx + 9, py(0.628) + 4, null, { "font-size": 10.5, "font-weight": 700, fill: "var(--ink)" }), s.ci, "0.628");
+    mk("text", T(wx + 9, py(0.628) + 17, null, { "font-size": 9.5, fill: "var(--muted)" }), s.ci, "95% CI");
+    s.ciLen = py(0.628) - py(0.798);
+    svg._S = s;
+    return s;
+  }
+
+  function render(s, n, animate) {
+    s.tweens.forEach((t) => t.kill()); s.tweens = [];
+    const A = (k) => animate && n === k && s.prev === k - 1;   // animate only the step just entered
+    const tw = (el, v, d) => s.tweens.push(gsap.to(el, Object.assign({ duration: .6, ease: "power2.out" }, v, { delay: d || 0 })));
+    const put = (el, v, k, d) => (A(k) ? tw(el, v, d) : gsap.set(el, v));
+    // step 1: matrix cells fill one by one, counts count up, gauges settle
+    s.cells.forEach((c, i) => {
+      const on = n >= 1;
+      put(c.r, { opacity: on ? 1 : 0 }, 1, i * .25);
+      put(c.l, { opacity: on ? 1 : 0 }, 1, i * .25);
+      put(c.t, { opacity: on ? 1 : 0 }, 1, i * .25);
+      if (A(1)) { const o = { v: 0 }; c.t.textContent = "0"; s.tweens.push(gsap.to(o, { v: c.v, duration: .6, delay: i * .25, ease: "none", onUpdate: () => (c.t.textContent = Math.round(o.v)) })); }
+      else c.t.textContent = on ? c.v : "0";
+    });
+    s.gauges.forEach((g, i) => {
+      put(g.f, { attr: { width: n >= 1 ? g.w : 0 } }, 1, 1 + i * .2);
+      put(g.t, { opacity: n >= 1 ? 1 : 0 }, 1, 1.3 + i * .2);
+    });
+    // step 2: kappa bars, human bar as the dashed ceiling
+    put(s.B, { opacity: n >= 2 ? 1 : 0.25 }, 2);
+    put(s.kH, { attr: { y: n >= 2 ? s.kHy : KB, height: n >= 2 ? KB - s.kHy : 0 } }, 2);
+    put(s.kJ, { attr: { y: n >= 2 ? s.kJy : KB, height: n >= 2 ? KB - s.kJy : 0 } }, 2, .35);
+    put(s.ceil, { opacity: n >= 2 ? 1 : 0 }, 2, .6);
+    put(s.kHt, { opacity: n >= 2 ? 1 : 0 }, 2, .6);
+    put(s.kJt, { opacity: n >= 2 ? 1 : 0 }, 2, .8);
+    // step 3: observed 0.799 -> correction arrow -> 0.727, then the hidden truth 0.726 appears
+    const yO = py(0.799), yC = py(0.727);
+    put(s.C, { opacity: n >= 3 ? 1 : 0.25 }, 3);
+    put(s.pO, { attr: { y: n >= 3 ? yO : PB, height: n >= 3 ? PB - yO : 0 } }, 3);
+    put(s.pOt, { opacity: n >= 3 ? 1 : 0 }, 3, .5);
+    put(s.arrow, { opacity: n >= 3 ? 1 : 0 }, 3, .8);
+    put(s.pC, { attr: { y: n >= 3 ? yC : PB, height: n >= 3 ? PB - yC : 0 } }, 3, 1.1);
+    put(s.pCt, { opacity: n >= 3 ? 1 : 0 }, 3, 1.5);
+    put(s.truth, { opacity: n >= 3 ? 1 : 0 }, 3, 2.1);
+    // step 4: the CI whisker draws from the low end up
+    put(s.ci, { opacity: n >= 4 ? 1 : 0 }, 4);
+    if (A(4)) { gsap.set(s.ciLine, { attr: { "stroke-dasharray": s.ciLen, "stroke-dashoffset": s.ciLen } }); tw(s.ciLine, { attr: { "stroke-dashoffset": 0 }, duration: .8 }); }
+    else gsap.set(s.ciLine, { attr: { "stroke-dasharray": s.ciLen, "stroke-dashoffset": 0 } });
+    s.prev = n;
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { S = build(slide); S.prev = step || 0; render(S, step || 0, false); },
+    step(slide, n, animate) { S = build(slide); render(S, n, animate); },
+    leave(slide) {
+      const svg = slide.querySelector("#c10j-svg");
+      if (svg && svg._S) { svg._S.tweens.forEach((t) => t.kill()); svg._S.tweens = []; }
+      if (svg) gsap.killTweensOf(svg.querySelectorAll("*"));
+    }
+  });
+})();
+</script>

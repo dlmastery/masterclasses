@@ -1,0 +1,81 @@
+<section class="slide tight" id="adk-c04-lab-orchestrator-check" data-tone="tool" data-title="Lab 4.8: a deterministic re-check">
+  <style>
+    #adk-c04-lab-orchestrator-check .ok-grid { display: grid; grid-template-columns: 760px 1fr; gap: 28px; align-items: start; }
+    #adk-c04-lab-orchestrator-check .ok-left, #adk-c04-lab-orchestrator-check .ok-right { display: flex; flex-direction: column; gap: 22px; }
+    #adk-c04-lab-orchestrator-check pre.code { font-size: 17px; }
+    #adk-c04-lab-orchestrator-check .out pre.code { font-size: 16px; line-height: 1.5; }
+    #adk-c04-lab-orchestrator-check .cap { position: relative; height: 64px; }
+    #adk-c04-lab-orchestrator-check .cap > p { position: absolute; left: 0; right: 0; top: 0; margin: 0; font-size: 21px; line-height: 1.4; color: var(--ink-2); }
+    #adk-c04-lab-orchestrator-check .cap code { font-size: .9em; }
+    #adk-c04-lab-orchestrator-check .ok-diag .node { padding: 12px 16px; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 4</span> Acme back office · step 8 of 8</div>
+  <h2 class="title">Code re-checks the hotel line that the model flagged</h2>
+  <div class="ok-grid fill">
+    <div class="ok-left">
+      <div class="code-wrap">
+        <div class="code-head">labs/adk/c04-expense-audit/expense_audit/agent.py · excerpt</div>
+        <pre class="code" data-lang="python" data-focus="1:1-4, 2:7-10, 3:11-13"><code>@node(parameter_binding="node_input")   # deterministic, no LLM
+def policy_math(line: str, limit: float) -&gt; bool:
+  amount = float(line.rsplit("$", 1)[1])
+  return amount &lt;= limit
+
+# in orchestrate, after the gather:
+  for v in verdicts:
+    if v.status == "flag" and "hotel" in v.line.lower():
+      ok = await ctx.run_node(policy_math,
+          node_input={"line": v.line, "limit": 250.0})
+      if ok:
+        v.status = "ok"
+        v.reason = "Within hotel cap per deterministic check."</code></pre>
+      </div>
+      <div class="cap">
+        <p data-until="1">The model flagged "Hotel Berlin 1 night $240". The cap is $250.</p>
+        <p data-step="1" data-until="2"><code>policy_math</code> is a plain function node. It cannot misread a number.</p>
+        <p data-step="2" data-until="3">The dict keys bind to the parameters <code>line</code> and <code>limit</code>.</p>
+        <p data-step="3" data-until="4">240 ≤ 250, so code flips the verdict to OK.</p>
+        <p data-step="4">Two lines pass. Only the wine is flagged.</p>
+      </div>
+    </div>
+    <div class="ok-right">
+      <div class="diagram ok-diag" style="width:604px;height:250px"
+           data-wires="ok-aud>ok-pm@2:bt:flow [line, limit]; ok-pm>ok-res@3 [True]">
+        <div class="node n-agent" id="ok-aud" style="left:0;top:0;width:250px"><span class="nt">auditor · line 2</span><span class="ns">LLM verdict</span></div>
+        <div class="node n-tool" id="ok-pm" style="left:0;top:170px;width:250px" data-step="1" data-fx="pop"><span class="nt">policy_math</span><span class="ns">@node · no LLM</span></div>
+        <div class="node n-risk" id="ok-res" style="left:344px;top:84px;width:260px"><span class="nt">hotel verdict</span><span class="ns" id="ok-resv">FLAG</span></div>
+      </div>
+      <div class="code-wrap out" data-step="4">
+        <div class="code-head">output · illustrative · wrapped</div>
+        <pre class="code" data-lang="none"><code>[expense_audit]: Auditing 3 lines in parallel.
+[expense_audit]: <span class="ok">OK</span>   Team dinner 4 people $260
+  — $65/person, under the $75 cap.
+<span class="ok">OK</span>   Hotel Berlin 1 night $240
+  — Within hotel cap per deterministic check.
+<span class="err">FLAG</span> Wine for client $90
+  — Alcohol is not reimbursable.</code></pre>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">The hotel line shows a deterministic second opinion. The model said FLAG for "Hotel Berlin 1 night $240", but the cap is 250 dollars a night. policy_math is a plain function node with no LLM: it takes the number after the dollar sign and compares it with the limit, so an LLM mistake on a number cannot block a valid claim. It is decorated with @node(parameter_binding="node_input"), so the keys of the dict you pass as node_input bind to the parameters line and limit. The orchestrator calls it with ctx.run_node, the same way it called the auditors, so the call is recorded and replayed on resume. 240 is at most 250, so code flips the verdict to OK with a fixed reason. The output is illustrative and wrapped to fit: two lines pass and only the wine is flagged, because alcohol is not reimbursable. The finished verdicts go to state under flagged and to the output of the node. A likely question: "Why not ask the model to double-check?" A second model call can make the same mistake; a comparison in code cannot. The codelab level L4b goes further with recursive spawning, bounded by a MAX_DEPTH check in code.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c04-lab-orchestrator-check";
+  // the verdict flips from FLAG to OK when policy_math returns True (step 3)
+  function render(slide, n, animate) {
+    const res = slide.querySelector("#ok-res"), v = slide.querySelector("#ok-resv");
+    const ok = n >= 3;
+    gsap.killTweensOf(res);
+    res.classList.toggle("n-risk", !ok);
+    res.classList.toggle("n-state", ok);
+    res.classList.toggle("lit", n === 3);
+    v.textContent = ok ? "OK · 240 ≤ 250" : "FLAG";
+    if (animate && n === 3) gsap.fromTo(res, { scale: 1.12 }, { scale: 1, duration: 0.5, ease: "back.out(2)", delay: 0.6 });
+  }
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { if (slide) gsap.killTweensOf(slide.querySelector("#ok-res")); }
+  });
+})();
+</script>

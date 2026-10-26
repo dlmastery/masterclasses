@@ -1,0 +1,222 @@
+<section class="slide tight" id="rag-c05-build-contextual" data-tone="model" data-title="Build: contextual retrieval">
+  <style>
+    #rag-c05-build-contextual .cx-grid { display: grid; grid-template-columns: 790px 1fr; gap: 22px; align-items: start; }
+    #rag-c05-build-contextual .cx-left, #rag-c05-build-contextual .cx-right { gap: 8px; min-width: 0; }
+    #rag-c05-build-contextual .cx-right > .code-wrap { width: 100%; }
+    #rag-c05-build-contextual .code-wrap .code-head { padding: 6px 12px; font-size: 13px; }
+    #rag-c05-build-contextual .code-head .delta { margin-left: auto; font-size: 12.5px; padding: 3px 7px; }
+    #rag-c05-build-contextual pre.code.cx-c { font-size: 12px; line-height: 1.36; padding: 9px 14px 10px; }
+    #rag-c05-build-contextual pre.code.cx-s { font-size: 11px; line-height: 1.38; padding: 6px 12px 7px; }
+    #rag-c05-build-contextual .cx-rail { position: relative; height: 42px; }
+    #rag-c05-build-contextual .cx-rail > p { position: absolute; left: 0; right: 0; top: 0; margin: 0; font-size: 15px; line-height: 1.34; }
+    #rag-c05-build-contextual .cx-rail code { font-size: .86em; }
+    #rag-c05-build-contextual .cx-svg { display: block; overflow: visible; }
+    #rag-c05-build-contextual .cx-svg text { font-family: var(--f-mono); }
+    #rag-c05-build-contextual .cx-svg .hd { font-size: 10px; font-weight: 700; letter-spacing: .05em; fill: var(--muted); }
+    #rag-c05-build-contextual .cx-svg .nm { font-size: 13px; font-weight: 700; fill: var(--ink); }
+    #rag-c05-build-contextual .cx-svg .sb { font-size: 9.5px; font-weight: 600; fill: var(--muted); }
+    #rag-c05-build-contextual .cx-svg .row rect { fill: var(--surface); stroke: var(--line-2); stroke-width: 1.2; }
+    #rag-c05-build-contextual .cx-svg .row.on rect { stroke: var(--model); stroke-width: 2; }
+    #rag-c05-build-contextual .cx-svg .row.gold rect { fill: var(--state-soft); stroke: var(--state); stroke-width: 2; }
+    #rag-c05-build-contextual .cx-svg .row .id { font-size: 11px; font-weight: 700; fill: var(--ink); }
+    #rag-c05-build-contextual .cx-svg .row .tg { font-size: 10px; font-weight: 600; fill: var(--model); }
+    #rag-c05-build-contextual .cx-svg .rk { font-size: 10.5px; font-weight: 700; fill: var(--agent); }
+    #rag-c05-build-contextual .cx-svg .wire { fill: none; stroke-width: 1.8; }
+    #rag-c05-build-contextual .cx-svg .meter { font-size: 10px; font-weight: 700; }
+    #rag-c05-build-contextual .cites { gap: 8px; flex-wrap: nowrap; }
+    #rag-c05-build-contextual .cites .cite { flex: none; flex-direction: row; align-items: center; font-size: 12.5px; padding: 4px 9px 4px 6px; white-space: nowrap; gap: 6px; }
+    #rag-c05-build-contextual .cites .cite::before { width: 18px; height: 18px; }
+  </style>
+  <div class="kicker">Build · Northwind hard queries · step 2 of 3</div>
+  <h2 class="title">Build: Claude Haiku 5.5 writes each chunk's missing context once</h2>
+  <div class="cx-grid fill">
+    <div class="stack cx-left">
+      <div class="code-wrap good">
+        <div class="code-head">northwind_rag/lab8_contextual.py · anthropic 2.3.0</div>
+        <pre class="code cx-c" data-lang="python" data-focus="1:4-15, 2:16-27, 3:28-33, 4:34-36"><code>import json, os, anthropic
+from kb import CHUNKS, doc_text
+from evalkit import evaluate
+client = anthropic.Anthropic()
+DOCUMENT_CONTEXT_PROMPT = "\n&lt;document&gt;\n{doc_content}\n&lt;/document&gt;\n"
+CHUNK_CONTEXT_PROMPT = """
+Here is the chunk we want to situate within the whole document
+&lt;chunk&gt;
+{chunk_content}
+&lt;/chunk&gt;
+
+Please give a short succinct context to situate this chunk within the overall document \
+for the purposes of improving search retrieval of the chunk.
+Answer only with the succinct context and nothing else.
+"""
+def situate(doc: str, chunk: str) -&gt; str:
+    resp = client.messages.create(
+        model="claude-haiku-5-5", max_tokens=300,
+        output_config={"effort": "low"},                  # no temperature: 400 on API 2026-10-21
+        messages=[{"role": "user", "content": [
+            {"type": "text", "text": DOCUMENT_CONTEXT_PROMPT.format(doc_content=doc),
+             "cache_control": {"type": "ephemeral"}},     # same doc for every chunk -&gt; cache it
+            {"type": "text", "text": CHUNK_CONTEXT_PROMPT.format(chunk_content=chunk)}]}])
+    u = resp.usage
+    print(f"  cache_write={u.cache_creation_input_tokens}"
+          f" cache_read={u.cache_read_input_tokens} in={u.input_tokens}")
+    return next(b.text for b in resp.content if b.type == "text").strip()
+CACHE = "contexts.json"
+ctx = json.load(open(CACHE)) if os.path.exists(CACHE) else {}
+for cid, did, text in CHUNKS:                              # document order keeps the cache warm
+    if cid not in ctx:
+        ctx[cid] = situate(doc_text(did), text)
+json.dump(ctx, open(CACHE, "w"), indent=1)
+ctext = [f"{ctx[cid]}\n{text}" for cid, _, text in CHUNKS]  # index this for BM25 AND dense
+# omitted (8 lines): re-index ctext in bm25s + bge-small; contextual_hybrid(q) = rrf(k=60)
+evaluate("contextual hybrid", contextual_hybrid)</code></pre>
+      </div>
+    </div>
+    <div class="stack cx-right">
+      <div class="code-wrap term">
+        <div class="code-head">run it Monday · Python 3.12 · + Chapter 4 installs</div>
+        <pre class="code cx-s" data-lang="bash"><code>$ pip install "anthropic==2.3.0"
+$ export ANTHROPIC_API_KEY=...     # or: ant auth login
+$ python lab8_contextual.py        # first run: 18 Claude calls
+# northwind_rag/ ... lab7_query_transform.py  +lab8_contextual.py  contexts.json</code></pre>
+      </div>
+      <div class="code-wrap bad">
+        <div class="code-head">kb.py · c07 never says "tent"</div>
+        <pre class="code cx-s" data-lang="python"><code>("c07", "D2", "The window starts on the purchase date, "
+              "not the delivery date. Proof of purchase is required."),
+# q06: "does the tent warranty start at delivery or at purchase?"
+evaluate("hybrid", hybrid_search)         # R@1 0.667, c07 ranks low</code></pre>
+      </div>
+      <svg class="cx-svg" id="cx-svg" viewBox="0 0 580 162" width="580" height="162" aria-label="Document D2 sits in a cached prefix box; each D2 chunk passes through a Claude Haiku 5.5 node and gets a one-line context tag; the cache meter stays at zero because the toy document is under 512 tokens; c07 then moves from rank 3 to rank 1 for query q06"></svg>
+      <div class="steps-rail cx-rail">
+        <p data-step="1" data-until="2"><span>The two cookbook prompts, verbatim: the whole document first, then one chunk.</span></p>
+        <p data-step="2" data-until="3"><span>Cache the document block. The chunk goes after it: caching is a prefix match.</span></p>
+        <p data-step="3" data-until="4"><span>Persist <code>contexts.json</code>. Contexts are an ingest cost, paid once.</span></p>
+        <p data-step="4"><span>BM25 and the embedder index the same <code>ctext</code>. Test the free control: the heading path.</span></p>
+      </div>
+      <div class="code-wrap out" data-step="2">
+        <div class="code-head">output · illustrative<span class="delta up" data-step="4">R@1 0.667 → 0.733</span></div>
+        <pre class="code cx-s" data-lang="output"><code><span class="dim">  cache_write=0 cache_read=0 in=268   (x18, no error)</span><span data-step="3">
+c07 context: From Northwind's Warranty Policy for tents and
+backpacks; explains that the tent warranty period starts on
+the purchase date and requires proof of purchase.</span><span data-step="4">
+<span class="dim">                    R@1   R@3   R@5   MRR@10</span>
+hybrid              0.667 0.867 0.933 0.770
+<span class="ok">contextual hybrid   0.733 0.933 1.000 0.830</span></span></code></pre>
+      </div>
+      <div class="cites">
+        <a class="cite repo" href="https://github.com/anthropics/claude-cookbooks/blob/main/capabilities/contextual-embeddings/guide.ipynb" target="_blank" rel="noopener"><b>Cookbook</b>&nbsp;Enhancing RAG with Contextual Retrieval</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2610.10170" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.10170</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    Query q06 asks when the tent warranty starts, but chunk c07 only says "the window starts on the purchase date", so BM25 and the embedder both rank it low. Contextual Retrieval fixes the chunk, not the query: Claude Haiku 5.5 reads the whole document plus one chunk, writes a one-line context, and we index context plus chunk in BM25 and in the dense index alike. The cache meter stays at zero because our toy documents are under Haiku 5.5's 512-token cache minimum and the API returns no error; on real policy PDFs you should see cache_write on the first chunk and cache_read after it. Analogy: a librarian writes a short shelf label on each loose page so that it can be found again. Likely question: "Is the LLM call worth it at $0.10 per million input tokens?" Run the free control first, the heading path prefix, which arXiv 2610.10170 found better than LLM-contextualised windows on its corpora. Next: why the cookbook cell you might paste instead fails on anthropic 2.3.0.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  // D2 chunks in document order: Claude calls 6..10 of 18 (D1 chunks c01-c05 come first)
+  const ROWS = [["c06", "+ tent warranty: 2 years"], ["c07", "+ tent warranty start"], ["c08", "+ warranty exclusions"], ["c09", "+ backpack warranty"], ["c10", "+ warranty claims"]];
+  // q06 ranking after contextualisation (illustrative); c07 was rank 3 before
+  const RANK_AFTER = { c07: 0, c06: 1, c09: 2, c08: 3, c10: 4 };
+  const RX = 368, RW = 212, RY = 16, RP = 29, RH = 24;
+  let B = null, prev = -1, tweens = [];
+  const mk = (p, tag, attrs, cls, txt) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (cls) e.setAttribute("class", cls);
+    if (txt !== undefined) e.textContent = txt;
+    p.appendChild(e); return e;
+  };
+  function build(slide) {
+    const svg = slide.querySelector("#cx-svg");
+    svg.innerHTML = "";
+    const defs = mk(svg, "defs", {});
+    const m = mk(defs, "marker", { id: "cx-ar", viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 6, markerHeight: 6, orient: "auto" });
+    mk(m, "path", { d: "M0,0 L10,5 L0,10 z", fill: "var(--model)" });
+    // cached prefix + D2 document card
+    const pfxBox = mk(svg, "rect", { x: 0, y: 4, width: 140, height: 154, rx: 12, fill: "none", stroke: "var(--model)", "stroke-dasharray": "5 4", "stroke-width": 1.4 });
+    mk(svg, "text", { x: 10, y: 20 }, "hd", "CACHED PREFIX");
+    mk(svg, "rect", { x: 10, y: 28, width: 120, height: 120, rx: 8, fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 1.2 });
+    mk(svg, "text", { x: 20, y: 46 }, "nm", "D2");
+    mk(svg, "text", { x: 20, y: 61 }, "sb", "Warranty Policy:");
+    mk(svg, "text", { x: 20, y: 74 }, "sb", "Tents and Backpacks");
+    [0, 1, 2, 3].forEach((k) => mk(svg, "rect", { x: 20, y: 86 + k * 14, width: 98 - (k % 2) * 24, height: 6, rx: 3, fill: "var(--state)", opacity: 0.35 }));
+    // Claude node + cache meter
+    const cl = mk(svg, "g", {});
+    mk(cl, "rect", { x: 200, y: 22, width: 108, height: 50, rx: 12, fill: "var(--model-soft)", stroke: "var(--model)", "stroke-width": 1.6 });
+    mk(cl, "text", { x: 254, y: 43, "text-anchor": "middle" }, "nm", "Haiku 5.5");
+    mk(cl, "text", { x: 254, y: 60, "text-anchor": "middle" }, "sb", "$0.10/$0.50 MTok");
+    const wDoc = mk(svg, "path", { d: "M142,42 L196,42", stroke: "var(--model)", "marker-end": "url(#cx-ar)" }, "wire");
+    const wOut = mk(svg, "path", { d: "M310,42 L364,42", stroke: "var(--model)", "marker-end": "url(#cx-ar)" }, "wire");
+    const meter = mk(svg, "g", {});
+    const calls = mk(meter, "text", { x: 200, y: 94, fill: "var(--ink-2)" }, "meter", "calls 5/18");
+    mk(meter, "text", { x: 200, y: 110, fill: "var(--state)" }, "meter", "write 0 · read 0");
+    mk(meter, "rect", { x: 200, y: 118, width: 108, height: 20, rx: 6, fill: "var(--risk-soft)", stroke: "var(--risk)", "stroke-width": 1 });
+    mk(meter, "text", { x: 254, y: 132, fill: "var(--risk)", "text-anchor": "middle" }, "meter", "< 512 tokens");
+    // chunk rows (rank column sits left of each row)
+    const hdRows = mk(svg, "text", { x: RX, y: 10 }, "hd", "D2 CHUNKS · DOC ORDER");
+    const hdIdx = mk(svg, "text", { x: RX, y: 10 }, "hd", "CTX + CHUNK → BM25 + BGE");
+    const hdRank = mk(svg, "text", { x: RX, y: 10 }, "hd", "q06 RANK · ILLUSTRATIVE");
+    const rows = ROWS.map(([id, tag], k) => {
+      const g = mk(svg, "g", {}, "row");
+      mk(g, "rect", { x: 0, y: 0, width: RW, height: RH, rx: 7 });
+      mk(g, "text", { x: 8, y: 16 }, "id", id);
+      const tg = mk(g, "text", { x: 40, y: 16 }, "tg", "");
+      const rk = mk(g, "text", { x: -6, y: 16, "text-anchor": "end" }, "rk", "");
+      gsap.set(g, { x: RX, y: RY + k * RP });
+      return { id, tag, g, tg, rk, k };
+    });
+    const pulse = mk(svg, "circle", { cx: 0, cy: 0, r: 4, fill: "var(--model)", opacity: 0 });
+    B = { svg, pfxBox, cl, wDoc, wOut, meter, calls, hdRows, hdIdx, hdRank, rows, pulse };
+  }
+  function render(slide, n, animate) {
+    if (!B) build(slide);
+    tweens.forEach((t) => t.kill()); tweens = [];
+    const fwd = animate && n === prev + 1;
+    const T = (el, to, opt) => { if (fwd) tweens.push(gsap.to(el, { ...to, ...opt })); else gsap.set(el, to); };
+    gsap.set(B.pulse, { opacity: 0 });
+    // step 1: Claude reads the document (cached prefix) + one chunk
+    T([B.cl, B.wDoc, B.wOut], { opacity: n >= 1 ? 1 : 0.15 }, { duration: 0.4 });
+    T(B.pfxBox, { attr: { "stroke-width": n === 2 ? 2.6 : 1.4 } }, { duration: 0.3 });
+    // step 2: chunks pass one by one, each gets its tag; the cache meter stays at 0
+    T(B.meter, { opacity: n >= 2 ? 1 : 0 }, { duration: 0.3 });
+    B.rows.forEach((r) => {
+      r.g.classList.toggle("on", n === 3 || (n === 1 && r.id === "c07"));
+      r.g.classList.toggle("gold", n >= 4 && r.id === "c07");
+      r.tg.textContent = n >= 2 ? r.tag : "";
+    });
+    if (fwd && n === 2) {
+      B.calls.textContent = "calls 5/18";
+      B.rows.forEach((r, k) => {
+        const d = 0.3 + k * 0.7, cy = RY + k * RP + RH / 2;
+        r.tg.textContent = "";
+        tweens.push(gsap.delayedCall(d, () => r.g.classList.add("on")));
+        tweens.push(gsap.fromTo(B.pulse, { attr: { cx: RX, cy } }, { attr: { cx: 254, cy: 42 }, duration: 0.25, delay: d, immediateRender: false, onStart: () => gsap.set(B.pulse, { opacity: 1 }) }));
+        tweens.push(gsap.to(B.pulse, { attr: { cx: RX + 40, cy }, duration: 0.25, delay: d + 0.25 }));
+        const o = { i: 0 };
+        tweens.push(gsap.to(o, { i: r.tag.length, duration: 0.35, delay: d + 0.5, ease: "none", onUpdate: () => { r.tg.textContent = r.tag.slice(0, Math.round(o.i)); } }));
+        tweens.push(gsap.delayedCall(d + 0.7, () => { r.g.classList.remove("on"); B.calls.textContent = "calls " + (6 + k) + "/18"; }));
+      });
+      tweens.push(gsap.to(B.pulse, { opacity: 0, duration: 0.2, delay: 0.3 + 5 * 0.7 }));
+    } else B.calls.textContent = n >= 2 ? "calls 10/18" : "calls 5/18";
+    // headers: one per step region
+    T(B.hdRows, { opacity: n <= 2 ? 1 : 0 }, { duration: 0.25 });
+    T(B.hdIdx, { opacity: n === 3 ? 1 : 0 }, { duration: 0.25, delay: 0.2 });
+    T(B.hdRank, { opacity: n >= 4 ? 1 : 0 }, { duration: 0.25, delay: 0.2 });
+    // step 4: q06 ranking, c07 moves from rank 3 to rank 1
+    B.rows.forEach((r) => {
+      const slot = n >= 4 ? RANK_AFTER[r.id] : r.k;
+      r.rk.textContent = n >= 4 ? (r.id === "c07" ? "3→1" : "#" + (slot + 1)) : "";
+      T(r.g, { y: RY + slot * RP, x: RX }, { duration: 0.7, ease: "power3.inOut", delay: r.id === "c07" ? 0.2 : 0.3 });
+    });
+    prev = n;
+  }
+  Deck.register("rag-c05-build-contextual", {
+    enter(slide, step) { prev = -1; B = null; render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { tweens.forEach((t) => t.kill()); tweens = []; prev = -1; }
+  });
+})();
+</script>

@@ -1,0 +1,174 @@
+<section class="slide tight" id="adk-c09-lab-agent" data-tone="model" data-title="Lab 9.1: Refund agent + adk web capture">
+  <style>
+    #adk-c09-lab-agent .lab-head { gap: 6px 14px; }
+    #adk-c09-lab-agent .lab-head .run { font-size: 15px; padding: 7px 11px; white-space: nowrap; }
+    #adk-c09-lab-agent .lab-head .pins { font: 500 14px/1.3 var(--f-mono); color: var(--ink-2); white-space: nowrap; }
+    #adk-c09-lab-agent .lab-head .pins b { color: var(--ink); font-weight: 700; }
+    #adk-c09-lab-agent .lab-head .tree { flex-basis: 100%; font: 500 14px/1.3 var(--f-mono); color: var(--ink-2); white-space: nowrap; }
+    #adk-c09-lab-agent .ag-body { display: grid; grid-template-columns: 712px minmax(0, 1fr); gap: 22px; align-items: start; }
+    #adk-c09-lab-agent .ag-col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    #adk-c09-lab-agent .code-head { padding: 7px 14px; font-size: 13.5px; }
+    #adk-c09-lab-agent pre.code { font-size: 13.2px; line-height: 1.4; padding: 8px 14px 9px; }
+    #adk-c09-lab-agent .out pre.code { font-size: 13.6px; }
+    #adk-c09-lab-agent #ag-svg { display: block; width: 100%; height: auto; overflow: visible; }
+    #adk-c09-lab-agent #ag-svg text { font-family: var(--f-mono); }
+    #adk-c09-lab-agent .ag-rail { gap: 8px; }
+    #adk-c09-lab-agent .ag-rail > * { font-size: 15.5px; line-height: 1.34; grid-template-columns: 28px 1fr; gap: 10px; }
+    #adk-c09-lab-agent .ag-rail > *::before { width: 26px; height: 26px; font-size: 13px; border-radius: 7px; }
+    #adk-c09-lab-agent .ag-rail code { font-size: 13.5px; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 9</span> Acme refund eval gate · step 1 of 6</div>
+  <h2 class="title">Build the refund agent, then record golden chats in adk web</h2>
+  <div class="lab-head">
+    <span class="run">pip install "google-adk[eval]==2.13.0"</span>
+    <span class="pins">Python 3.11+ · <b>.env</b> GOOGLE_GENAI_USE_ENTERPRISE=FALSE · GOOGLE_API_KEY=&lt;AI Studio key&gt;</span>
+    <span class="tree"><b>cd labs</b> · export PYTHONPATH=$PWD (PowerShell: $env:PYTHONPATH=$PWD) · refund_agent/__init__.py: <span class="c-state">from . import agent</span></span>
+  </div>
+  <div class="ag-body fill">
+    <div class="ag-col">
+      <div class="code-wrap">
+        <div class="code-head">labs/refund_agent/agent.py</div>
+        <pre class="code" data-lang="python" data-focus="1:4-9, 2:10-14, 3:19-25"><code>from google.adk import Agent
+ORDERS = {"ORD-102": {"amount": 79.00, "order_state": "delivered"},
+          "ORD-555": {"amount": 820.00, "order_state": "delivered"}}
+def lookup_order(order_id: str) -&gt; dict:
+    """Returns the amount and delivery state of an order such as ORD-102."""
+    order = ORDERS.get(order_id.upper())
+    if order is None:
+        return {"status": "error", "error_message": f"Order {order_id} not found."}
+    return {"status": "success", "order_id": order_id.upper(), **order}
+def issue_refund(order_id: str, amount: float, reason: str) -&gt; dict:
+    """Issues a refund. Only for amounts of 500 USD or less."""
+    # deliberately NOT enforced here: the eval gate must catch it
+    return {"status": "success", "refund_id": f"RF-{order_id.upper()}",
+            "amount": amount}
+def escalate_to_human(order_id: str, reason: str) -&gt; dict:
+    """Opens a ticket for a human supervisor to approve a large refund."""
+    return {"status": "success", "ticket_id": f"ESC-{order_id.upper()}"}
+root_agent = Agent(name="refund_agent", model="gemini-3.5-flash",
+    instruction=(
+        "You handle refund requests for Acme Retail. Always call "
+        "lookup_order first. If the order amount is 500 USD or less, "
+        "call issue_refund with the full amount. If it is above 500 USD, "
+        "never call issue_refund; call escalate_to_human instead and tell "
+        "the customer a supervisor will review it within 24 hours."),
+    tools=[lookup_order, issue_refund, escalate_to_human])</code></pre>
+      </div>
+    </div>
+    <div class="ag-col">
+      <svg id="ag-svg" viewBox="0 0 660 262" aria-label="The adk web dev UI. On the left a chat: the customer asks to refund ORD-555, the agent calls lookup_order and escalate_to_human and answers that a supervisor will review it. On the right the Eval tab: at step 4 the Add current session button is pressed and the chat becomes a row in the eval set, which is saved as an evalset JSON file."></svg>
+      <div class="steps-rail ag-rail">
+        <div data-step="1"><span><code>lookup_order</code> gives the amount. ORD-555 is $820.</span></div>
+        <div data-step="2"><span><code>issue_refund</code> does not check the $500 limit. The gate must.</span></div>
+        <div data-step="3"><span>The rule lives only in the instruction. A model can ignore it.</span></div>
+        <div data-step="4"><span><b>Eval</b> tab → <b>Add current session</b> saves the chat as a case. Do it for ORD-555 and ORD-102.</span></div>
+      </div>
+      <div class="code-wrap out" data-step="3">
+        <div class="code-head">terminal · labs/ · output illustrative</div>
+        <pre class="code" data-lang="none"><code>$ adk run refund_agent
+[user]: Refund ORD-555 please, the TV is broken.
+<span class="ok">[refund_agent]: Order ORD-555 is above our 500 USD limit, so I
+opened ticket ESC-ORD-555. A supervisor will review it within 24 hours.</span></code></pre>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Step one of the Acme refund eval gate: the agent, and two recorded conversations. Run everything from the labs folder with PYTHONPATH set to that folder, because step 4 loads our metric module by its import path. The agent has two orders, ORD-102 at 79 dollars and ORD-555 at 820 dollars, and the instruction says never to call issue_refund above 500 dollars; the tool itself does not check the limit on purpose, so the eval gate has something to catch. Then start adk web, chat once about each order, open the Eval tab and click Add current session: that freezes the tool calls and the final answer as a golden case in an .evalset.json file that you review and keep in git. Think of it as a flight recorder: you record one good flight, and every new build must fly the same route. A likely question: "Why gemini-3.5-flash here and gemini-2.5-flash for the judge later?" The agent uses the 2.13.0 default model; the judge uses the source default judge model, and we pin both so a model update cannot move the scores.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c09-lab-agent";
+  const NS = "http://www.w3.org/2000/svg";
+  let R = null, tw = [], live = null;
+
+  function mk(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const [a, v] of Object.entries(attrs)) e.setAttribute(a, v);
+    if (text !== undefined) e.textContent = text;
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function bub(p, x, y, w, h, tone, lines) {
+    const g = mk("g", {}, p);
+    mk("rect", { x, y, width: w, height: h, rx: 10, fill: `var(--${tone}-soft)`, stroke: `var(--${tone})`, "stroke-width": 1.6 }, g);
+    lines.forEach((t, i) => mk("text", { x: x + 10, y: y + 18 + i * 17, "font-size": 13, "font-weight": 600, fill: "var(--ink)" }, g, t));
+    return g;
+  }
+
+  function build(svg) {
+    svg.innerHTML = "";
+    R = { svg };
+    mk("rect", { x: 0, y: 0, width: 660, height: 262, rx: 14, fill: "var(--surface)", stroke: "var(--line-2)", "stroke-width": 1.5 }, svg);
+    mk("text", { x: 14, y: 24, "font-size": 14, "font-weight": 700, fill: "var(--model)" }, svg, "adk web · localhost:8000");
+    // tabs
+    [["Chat", 330], ["Eval", 410], ["Trace", 490]].forEach(([t, x], i) => {
+      const g = mk("g", {}, svg);
+      const r = mk("rect", { x, y: 8, width: 70, height: 26, rx: 8, fill: i === 1 ? "var(--model-soft)" : "none", stroke: i === 1 ? "var(--model)" : "var(--line-2)", "stroke-width": 1.4 }, g);
+      mk("text", { x: x + 35, y: 26, "text-anchor": "middle", "font-size": 13, "font-weight": 700, fill: i === 1 ? "var(--model)" : "var(--muted)" }, g, t);
+      if (i === 1) R.evalTab = r;
+    });
+    mk("line", { x1: 0, y1: 44, x2: 660, y2: 44, stroke: "var(--line)", "stroke-width": 1.2 }, svg);
+    // chat column
+    R.chat = mk("g", {}, svg);
+    R.b = [
+      bub(R.chat, 14, 56, 300, 26, "human", ["Refund ORD-555, the TV is broken."]),
+      bub(R.chat, 14, 92, 220, 26, "tool", ["lookup_order(ORD-555)"]),
+      bub(R.chat, 14, 126, 260, 26, "tool", ["escalate_to_human(ORD-555)"]),
+      bub(R.chat, 14, 160, 300, 44, "agent", ["Above 500 USD: ticket ESC-ORD-555.", "A supervisor will review it."]),
+    ];
+    // eval column
+    mk("line", { x1: 330, y1: 52, x2: 330, y2: 250, stroke: "var(--line)", "stroke-width": 1.2 }, svg);
+    mk("text", { x: 346, y: 70, "font-size": 13, "font-weight": 700, fill: "var(--ink)" }, svg, "eval set: refund_golden");
+    R.btn = mk("g", {}, svg);
+    R.btnR = mk("rect", { x: 346, y: 82, width: 200, height: 30, rx: 8, fill: "var(--model)" }, R.btn);
+    mk("text", { x: 446, y: 102, "text-anchor": "middle", "font-size": 13, "font-weight": 700, fill: "#fff" }, R.btn, "+ Add current session");
+    R.row1 = mk("g", {}, svg);
+    mk("rect", { x: 346, y: 124, width: 298, height: 28, rx: 7, fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 1.5 }, R.row1);
+    mk("text", { x: 356, y: 143, "font-size": 13, "font-weight": 700, fill: "var(--ink)" }, R.row1, "✓ case: ORD-555 escalates");
+    R.row2 = mk("g", {}, svg);
+    mk("rect", { x: 346, y: 160, width: 298, height: 28, rx: 7, fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 1.5 }, R.row2);
+    mk("text", { x: 356, y: 179, "font-size": 13, "font-weight": 700, fill: "var(--ink)" }, R.row2, "✓ case: ORD-102 refunds $79");
+    R.file = mk("g", {}, svg);
+    mk("rect", { x: 346, y: 204, width: 298, height: 40, rx: 8, fill: "var(--surface)", stroke: "var(--state)", "stroke-width": 2, "stroke-dasharray": "5 4" }, R.file);
+    mk("text", { x: 358, y: 229, "font-size": 13.5, "font-weight": 700, fill: "var(--state)" }, R.file, "→ keep as refund.evalset.json");
+    R.ghost = mk("rect", { x: 14, y: 56, width: 300, height: 148, rx: 12, fill: "none", stroke: "var(--model)", "stroke-width": 2.5 }, svg);
+  }
+
+  function clear() { tw.forEach((t) => t.kill()); tw = []; if (live) { live.kill(); live = null; } }
+
+  function render(slide, n, animate) {
+    const svg = slide.querySelector("#ag-svg");
+    if (!svg) return;
+    if (!R || R.svg !== svg || !svg.childElementCount) build(svg);
+    clear();
+    gsap.killTweensOf([...R.b, R.row1, R.row2, R.file, R.ghost, R.btn]);
+    gsap.set(R.b, { opacity: 1, y: 0 });
+    const cap = n >= 4;
+    if (!cap) {
+      gsap.set([R.row1, R.row2, R.file, R.ghost], { opacity: 0 });
+      gsap.set(R.btn, { opacity: 0.55, scale: 1 });
+      return;
+    }
+    if (animate && n === 4) {
+      gsap.set([R.row1, R.row2, R.file], { opacity: 0 });
+      gsap.set(R.btn, { opacity: 1 });
+      tw.push(gsap.fromTo(R.btn, { scale: 1, transformOrigin: "50% 50%" }, { scale: 0.92, duration: 0.12, yoyo: true, repeat: 1, delay: 0.3 }));
+      tw.push(gsap.fromTo(R.ghost, { opacity: 1, x: 0, y: 0, scaleX: 1, scaleY: 1, transformOrigin: "0 0" },
+        { x: 332, y: 68, scaleX: 0.99, scaleY: 0.19, opacity: 0.2, duration: 0.8, delay: 0.55, ease: "power3.inOut" }));
+      tw.push(gsap.to(R.ghost, { opacity: 0, duration: 0.2, delay: 1.35 }));
+      tw.push(gsap.fromTo(R.row1, { opacity: 0, x: -10 }, { opacity: 1, x: 0, duration: 0.35, delay: 1.3 }));
+      tw.push(gsap.fromTo(R.row2, { opacity: 0, x: -10 }, { opacity: 1, x: 0, duration: 0.35, delay: 1.7 }));
+      tw.push(gsap.fromTo(R.file, { opacity: 0, y: 8 }, { opacity: 1, y: 0, duration: 0.4, delay: 2.1 }));
+    } else {
+      gsap.set([R.row1, R.row2, R.file], { opacity: 1, x: 0, y: 0 });
+      gsap.set(R.ghost, { opacity: 0 });
+      gsap.set(R.btn, { opacity: 1, scale: 1 });
+    }
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { clear(); },
+  });
+})();
+</script>

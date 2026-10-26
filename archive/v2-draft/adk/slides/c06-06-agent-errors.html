@@ -1,0 +1,195 @@
+<section class="slide tight" id="adk-c06-agent-errors" data-tone="tool" data-title="Tool errors written for agents">
+  <style>
+    #adk-c06-agent-errors .steps-rail { grid-template-columns: 1fr 1fr; gap: 8px 18px; }
+    #adk-c06-agent-errors .steps-rail > * { font-size: 15px; line-height: 1.35; grid-template-columns: 28px 1fr; gap: 8px; }
+    #adk-c06-agent-errors .steps-rail > *::before { width: 24px; height: 24px; font-size: 13px; border-radius: 7px; }
+    #adk-c06-agent-errors .ae-cite { flex-direction: row; gap: 8px; font-size: 13px; padding: 4px 10px 4px 8px; border-radius: 10px; border: 1px solid var(--line); background: color-mix(in oklab, var(--surface) 60%, transparent); }
+  </style>
+  <div class="kicker">Build · Northwind claims desk</div>
+  <h2 class="title sm">Write tool errors as the next tool call, not a terminal command</h2>
+  <div class="grid fill" style="grid-template-columns:720px 1fr;gap:24px">
+    <div class="stack" style="gap:12px">
+      <div class="code-wrap bad" data-step="1" style="align-self:stretch">
+        <div class="code-head">claims_agent/claims_server.py · get_claim · developer-style error</div>
+        <pre class="code xs" style="font-size:12px" data-lang="python"><code>def get_claim(claim_id: str) -> dict:
+    if not SESSION["valid"]:
+        return {"status": "error", "message": "Session expired. "
+                "Run `claims-cli login` and retry."}</code></pre>
+      </div>
+      <div class="code-wrap good" data-step="2" style="align-self:stretch">
+        <div class="code-head">claims_agent/claims_server.py · adds login · agent-style error</div>
+        <pre class="code xs" style="font-size:12px" data-lang="python" data-focus="2:5-9, 3:14-15"><code>from mcp.server.mcpserver import MCPServer
+mcp = MCPServer("claims-server")
+CLAIMS = {"CLM-1001": {"policy": "AUTO-77", "status": "open", "amount": 1800.0}}
+SESSION = {"valid": False}
+@mcp.tool()
+def login() -> dict:   # with tool_name_prefix="claims" the agent sees claims_login
+    """Start a new claims-system session. Call it when a tool says the session expired."""
+    SESSION["valid"] = True
+    return {"status": "ok"}
+@mcp.tool()
+def get_claim(claim_id: str) -> dict:
+    """Return policy, status and claimed amount (USD) for a claim id like CLM-1001."""
+    if not SESSION["valid"]:
+        return {"status": "error", "message": "Session expired. "
+                "Call claims_login first, then call claims_get_claim again."}
+    return {"status": "ok", "claim_id": claim_id, **CLAIMS[claim_id]}</code></pre>
+      </div>
+      <div class="steps-rail">
+        <div data-step="2"><span>New <code>login</code> tool. Add it to <code>tool_filter</code> in step 2.</span></div>
+        <div data-step="3"><span>Use the name the model sees.</span></div>
+        <div data-step="5"><span>Cannot edit it? Drop "Run ..." steps.</span></div>
+        <div data-step="6"><span>A returned dict replaces the result.</span></div>
+      </div>
+    </div>
+    <div class="stack" style="gap:12px">
+      <svg class="interactive" id="ae-svg" viewBox="0 0 648 244" width="648" height="244" aria-label="The error text the agent reads, and recovery rates before and after the rewrite">
+        <rect x="4" y="4" width="640" height="92" rx="12" style="fill:var(--bg);stroke:var(--line-2)" stroke-width="1.6"/>
+        <text x="18" y="24" style="fill:var(--muted);font:600 11px var(--f-mono)">TOOL RESULT THE MODEL READS</text>
+        <g id="ae-audit">
+          <text x="18" y="52" style="fill:var(--ink);font:700 13px var(--f-mono)">949 of 3,001 errors (150 MCP servers) prescribe a next step</text>
+          <text x="18" y="76" style="fill:var(--risk);font:600 13px var(--f-mono)">62 of 67 credential steps: terminal, config or web page</text>
+        </g>
+        <g id="ae-bad">
+          <text id="ae-s1" x="18" y="56" style="fill:var(--ink);font:600 13px var(--f-mono)">Session expired.</text>
+          <text id="ae-s2" x="151" y="56" style="fill:var(--risk);font:600 13px var(--f-mono)">Run `claims-cli login` and retry.</text>
+          <line id="ae-strike" x1="149" y1="52" x2="410" y2="52" style="stroke:var(--risk)" stroke-width="2"/>
+          <text id="ae-tag" x="18" y="82" style="fill:var(--risk);font:600 11.5px var(--f-mono)">a tool-only agent has no terminal</text>
+        </g>
+        <text id="ae-good" x="18" y="56" style="fill:var(--state);font:600 13px var(--f-mono)">Session expired. Call claims_login first, then call claims_get_claim again.</text>
+        <text id="ae-gtag" x="18" y="82" style="fill:var(--state);font:600 11.5px var(--f-mono)">the next step is a tool call the agent can make</text>
+        <text x="18" y="122" style="fill:var(--muted);font:700 11px var(--f-mono)">EXPIRED CREDENTIAL · recovery</text>
+        <text x="18" y="143" style="fill:var(--ink-2);font:500 12px var(--f-mono)">"Run ..." terminal step</text>
+        <text x="18" y="167" style="fill:var(--ink-2);font:500 12px var(--f-mono)">login tool named</text>
+        <text x="18" y="196" style="fill:var(--muted);font:700 11px var(--f-mono)">RATE LIMIT · recovery</text>
+        <text x="18" y="217" style="fill:var(--ink-2);font:500 12px var(--f-mono)">"Wait before retrying."</text>
+        <text x="18" y="237" style="fill:var(--ink-2);font:500 12px var(--f-mono)">"... call place_order again"</text>
+        <g style="fill:var(--line)">
+          <rect x="232" y="131" width="360" height="16" rx="4"/><rect x="232" y="155" width="360" height="16" rx="4"/>
+          <rect x="232" y="205" width="360" height="16" rx="4"/><rect x="232" y="225" width="360" height="16" rx="4"/>
+        </g>
+        <rect class="ae-bar" data-v="45" x="232" y="131" width="0" height="16" rx="4" style="fill:var(--risk)"/>
+        <rect class="ae-bar" data-v="84" x="232" y="155" width="0" height="16" rx="4" style="fill:var(--state)"/>
+        <rect class="ae-bar" data-v="6" x="232" y="205" width="0" height="16" rx="4" style="fill:var(--risk)"/>
+        <rect class="ae-bar" data-v="88" x="232" y="225" width="0" height="16" rx="4" style="fill:var(--state)"/>
+        <text class="ae-val" x="0" y="144" style="fill:var(--risk);font:700 12.5px var(--f-mono)">0%</text>
+        <text class="ae-val" x="0" y="168" style="fill:var(--state);font:700 12.5px var(--f-mono)">0%</text>
+        <text class="ae-val" x="0" y="218" style="fill:var(--risk);font:700 12.5px var(--f-mono)">0%</text>
+        <text class="ae-val" x="0" y="238" style="fill:var(--state);font:700 12.5px var(--f-mono)">0%</text>
+      </svg>
+      <div class="code-wrap" data-step="5" style="align-self:stretch">
+        <div class="code-head">plugins/agent_errors.py · for servers you cannot edit</div>
+        <pre class="code xs" style="font-size:11.5px" data-lang="python" data-focus="5:3-3, 6:12-13"><code>import re
+from google.adk.plugins.base_plugin import BasePlugin
+HUMAN_STEP = re.compile(r"\b(Run|Open|Edit) [^.]*\.\s*")   # human-only steps
+
+class AgentErrorPlugin(BasePlugin):
+    def __init__(self):
+        super().__init__(name="agent_errors")
+    async def after_tool_callback(self, *, tool, tool_args, tool_context, result):
+        text = str(result)
+        if "error" not in text.lower():
+            return None                       # normal results pass through
+        cleaned = HUMAN_STEP.sub("", text)    # keep the cause, drop the step
+        return {"result": cleaned} if cleaned != text else None
+# register once: App(..., plugins=[AgentErrorPlugin()])</code></pre>
+      </div>
+      <div class="row" data-step="7" style="gap:8px">
+        <span class="delta up">45% -&gt; 84% credential recovery (paper)</span>
+        <a class="cite paper ae-cite" href="https://arxiv.org/abs/2609.35381" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2609.35381</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">An error message is a prompt: the model reads it and tries to do what it says. arXiv 2609.35381 (2026-09-28) audited 3,001 errors from 150 popular MCP servers; 62 of 67 credential steps ask for a terminal command, a config change or a web page, which a tool-only agent cannot do. With a terminal step, mean recovery from an expired credential was 45% (GPT-6 Astra fell to 6%); naming a login tool ("Call ticket_login first.") gave 84%, and naming the call to repeat after a rate limit lifted recovery from 6% to 88%. On our own server we add a login tool and name it the way the model sees it: with tool_name_prefix="claims" that is claims_login, and login must also go into tool_filter. For third-party servers, the AgentErrorPlugin deletes the human-only sentence and keeps the cause, which the paper measured at 82%. Likely question: "Why not just retry in code?" Do both: back off in code for 429s, and still tell the model which call to repeat. Next, the three ways an MCP toolset fails, one of them silent.</aside>
+</section>
+<script>
+(() => {
+  const X0 = 232, W = 360;
+  const SHOW = [1, 3, 4, 4]; // step at which each bar appears
+  let last = -1, tl = null, E = null;
+  const grab = (s) => ({
+    audit: s.querySelector("#ae-audit"), bad: s.querySelector("#ae-bad"), s1: s.querySelector("#ae-s1"),
+    s2: s.querySelector("#ae-s2"), strike: s.querySelector("#ae-strike"), tag: s.querySelector("#ae-tag"),
+    good: s.querySelector("#ae-good"), gtag: s.querySelector("#ae-gtag"),
+    bars: [...s.querySelectorAll(".ae-bar")], vals: [...s.querySelectorAll(".ae-val")],
+  });
+  const all = (e) => [e.audit, e.bad, e.s1, e.s2, e.strike, e.tag, e.good, e.gtag, ...e.bars, ...e.vals];
+  const mode = (n) => (n < 1 ? "audit" : n <= 2 ? "bad" : n <= 4 ? "good" : "plugin");
+  function setBar(e, i, v) {
+    e.bars[i].setAttribute("width", (W * v) / 100);
+    e.vals[i].setAttribute("x", X0 + (W * v) / 100 + 8);
+    e.vals[i].textContent = Math.round(v) + "%";
+  }
+  function setFinal(e, n) {
+    const m = mode(n);
+    gsap.set(e.audit, { autoAlpha: m === "audit" ? 1 : 0, x: 0 });
+    gsap.set(e.bad, { autoAlpha: m === "bad" || m === "plugin" ? 1 : 0, x: 0 });
+    gsap.set([e.s1, e.s2], { autoAlpha: 1 });
+    gsap.set(e.s2, { autoAlpha: n >= 6 ? 0.3 : 1 });
+    gsap.set(e.strike, { autoAlpha: n >= 6 ? 1 : 0, scaleX: 1, transformOrigin: "0% 50%" });
+    e.tag.textContent = n >= 6 ? "plugin keeps the cause: 82% recover (cause only)" : m === "plugin" ? "third-party server: same text, you cannot edit it" : "a tool-only agent has no terminal";
+    e.tag.style.fill = n >= 6 ? "var(--state)" : m === "plugin" ? "var(--tool)" : "var(--risk)";
+    gsap.set(e.good, { autoAlpha: m === "good" ? 1 : 0, x: 0 });
+    gsap.set(e.gtag, { autoAlpha: m === "good" ? 1 : 0 });
+    e.bars.forEach((b, i) => {
+      const on = n >= SHOW[i];
+      gsap.set([b, e.vals[i]], { autoAlpha: on ? 1 : 0 });
+      setBar(e, i, on ? +b.dataset.v : 0);
+    });
+  }
+  function grow(e, i, at) {
+    const o = { v: 0 };
+    setBar(e, i, 0);
+    tl.set([e.bars[i], e.vals[i]], { autoAlpha: 1 }, at)
+      .to(o, { v: +e.bars[i].dataset.v, duration: 0.9, ease: "power2.out", onUpdate: () => setBar(e, i, o.v) }, at);
+  }
+  function render(slide, n, animate) {
+    if (!E) E = grab(slide);
+    const e = E;
+    if (tl) tl.kill();
+    gsap.killTweensOf(all(e));
+    setFinal(e, n);
+    const fwd = animate && n === last + 1;
+    last = n;
+    if (!fwd) return;
+    tl = gsap.timeline();
+    if (n === 0) {
+      tl.from(e.audit.children, { autoAlpha: 0, y: 8, duration: 0.45, stagger: 0.3 }, 0);
+    } else if (n === 1) {
+      e.bars.forEach((b, i) => { if (SHOW[i] === 1) gsap.set([b, e.vals[i]], { autoAlpha: 0 }); });
+      tl.from(e.s1, { autoAlpha: 0, duration: 0.4 }, 0)
+        .from(e.s2, { autoAlpha: 0, duration: 0.4 }, 0.5)
+        .fromTo(e.s2, { autoAlpha: 1 }, { autoAlpha: 0.25, duration: 0.15, yoyo: true, repeat: 3 }, 1.0)
+        .from(e.tag, { autoAlpha: 0, duration: 0.3 }, 1.6);
+      grow(e, 0, 1.6);
+    } else if (n === 3) {
+      gsap.set(e.bad, { autoAlpha: 1 });
+      gsap.set([e.bars[1], e.vals[1]], { autoAlpha: 0 });
+      tl.to(e.bad, { autoAlpha: 0, x: -30, duration: 0.4, ease: "power2.in" }, 0)
+        .fromTo(e.good, { autoAlpha: 0, x: 60 }, { autoAlpha: 1, x: 0, duration: 0.55, ease: "power3.out" }, 0.25)
+        .from(e.gtag, { autoAlpha: 0, duration: 0.3 }, 0.7);
+      grow(e, 1, 0.8);
+    } else if (n === 4) {
+      [2, 3].forEach((i) => gsap.set([e.bars[i], e.vals[i]], { autoAlpha: 0 }));
+      grow(e, 2, 0);
+      grow(e, 3, 0.5);
+    } else if (n === 5) {
+      tl.fromTo(e.bad, { autoAlpha: 0, x: 40 }, { autoAlpha: 1, x: 0, duration: 0.5, ease: "power3.out" }, 0);
+    } else if (n === 6) {
+      tl.fromTo(e.strike, { scaleX: 0 }, { scaleX: 1, duration: 0.5, ease: "power2.inOut" }, 0)
+        .fromTo(e.s2, { autoAlpha: 1 }, { autoAlpha: 0.3, duration: 0.4 }, 0.4)
+        .from(e.tag, { autoAlpha: 0, duration: 0.3 }, 0.6);
+    }
+  }
+  Deck.register("adk-c06-agent-errors", {
+    enter(slide, n) { last = n - 1; render(slide, n, n === 0); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() {
+      if (tl) tl.kill();
+      tl = null;
+      if (E) gsap.killTweensOf(all(E));
+      last = -1;
+    },
+  });
+})();
+</script>

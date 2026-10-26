@@ -1,0 +1,89 @@
+<section class="slide tight" id="adk-c07-lab-a2a-client" data-tone="agent" data-title="Lab 7.3: RemoteA2aAgent client">
+  <style>
+    #adk-c07-lab-a2a-client .ac-grid { display: grid; grid-template-columns: 800px 1fr; gap: 36px; align-items: start; }
+    #adk-c07-lab-a2a-client .ac-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+    #adk-c07-lab-a2a-client pre.code .dim { opacity: .95; color: #9aa3cf; }
+    #adk-c07-lab-a2a-client .ac-cap { position: relative; height: 34px; }
+    #adk-c07-lab-a2a-client .ac-cap > p { position: absolute; inset: 0 0 auto 0; font-size: 21px; line-height: 1.4; white-space: nowrap; }
+    #adk-c07-lab-a2a-client .node .nt { font-size: 20px; }
+    #adk-c07-lab-a2a-client .msg { position: absolute; left: 0; top: 0; padding: 7px 13px; border-radius: 999px; background: var(--agent);
+      font: 700 15px/1 var(--f-mono); color: #fff; white-space: nowrap; z-index: 4; opacity: 0; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 7</span> Acme refund team · step 3 of 6</div>
+  <h2 class="title">Support triage delegates refund tickets to the remote agent</h2>
+  <div class="lab-head">
+    <span class="run">adk web .</span>
+    <span>terminal 3 · pick triage · keep uvicorn on :8001</span>
+  </div>
+  <div class="ac-grid fill">
+    <div class="ac-col">
+      <div class="code-wrap">
+        <div class="code-head">labs/adk/lab7-acme-refunds/triage/agent.py</div>
+        <pre class="code" data-lang="python" data-focus="1:5-10, 2:15, 3:13-14"><code>from google.adk.agents import LlmAgent
+from google.adk.agents.remote_a2a_agent import (
+    AGENT_CARD_WELL_KNOWN_PATH, RemoteA2aAgent)
+
+refund_remote = RemoteA2aAgent(
+    name="refund_agent",      # local name: the LLM transfers by it
+    agent_card=f"http://localhost:8001{AGENT_CARD_WELL_KNOWN_PATH}",
+    description="Remote refund-eligibility agent (Payments team).",
+    timeout=60.0,             # default 600.0 seconds
+)
+root_agent = LlmAgent(
+    name="support_triage", model="gemini-3.5-flash",
+    instruction=("Classify the ticket. Refund or return questions: "
+                 "transfer to refund_agent. Else answer yourself."),
+    sub_agents=[refund_remote],
+)</code></pre>
+      </div>
+      <div class="ac-cap">
+        <p data-step="1" data-until="2"><code>agent_card</code> takes a URL, a file path or an AgentCard.</p>
+        <p data-step="2" data-until="3">In <code>sub_agents</code>: triage transfers to it by its local name.</p>
+        <p data-step="3">The A2A message carries the user's text, so it names A-100.</p>
+      </div>
+    </div>
+    <div class="ac-col">
+      <div class="diagram" id="ac-dg" style="width:556px;height:372px" data-wires="u>tri:bt [ticket]; tri>ref@2:bt:flow{agent}; ref>lk@1:rl">
+        <div class="group g-agent" style="left:0;top:206px;width:556px;height:166px" data-step="1"><span class="gl" style="left:auto;right:18px">A2A · Payments team · :8001</span></div>
+        <div class="node n-human pill" id="u" style="left:39px;top:0;width:220px"><span class="nt">User</span></div>
+        <div class="node n-agent" id="tri" style="left:0;top:98px;width:298px"><span class="nt">support_triage</span><span class="ns">LlmAgent · adk web</span></div>
+        <div class="node n-agent" id="ref" style="left:24px;top:252px;width:250px" data-step="1" data-fx="pop"><span class="nt">refund_agent</span><span class="ns">LlmAgent · to_a2a</span></div>
+        <div class="node n-tool" id="lk" style="left:340px;top:252px;width:192px" data-step="1" data-fx="pop"><span class="nt">lookup_order</span><span class="ns">their tool</span></div>
+        <span class="msg" id="ac-msg">"…order A-100…"</span>
+      </div>
+      <div class="code-wrap out" data-step="3">
+        <div class="code-head">output · illustrative · adk web → triage</div>
+        <pre class="code sm" data-lang="out"><code><span class="dim">[user]:</span> I want to return order A-100.
+<span class="dim">[support_triage]:</span> transfer → <span class="ok">refund_agent</span>
+<span class="dim">[refund_agent]:</span> <span class="ok">REFUNDABLE: A-100 is apparel,
+  bought 12 days ago (30-day window).</span></code></pre>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Step 3 of the Acme refund team: support triage, owned by the support team, delegates refund tickets to the refund agent that the Payments team serves on port 8001. Run adk web from the lab folder in terminal 3, pick triage in the dropdown, and keep uvicorn from step 2 running; the MCP server from step 1 is not needed. RemoteA2aAgent fetches the agent card from the well-known path; agent_card can also be an AgentCard object or a file path, and we lower the timeout from the 600 second default to 60. The remote agent sits in sub_agents like any local agent, and the LLM transfers to it by the local name you give it. There is no message argument on a transfer: RemoteA2aAgent builds the outgoing A2A message from the conversation, and the user's turn already names A-100. Session state does not cross: if triage saved the order id in state, the remote agent would never see it; the gotcha slides cover this, and context_builder controls what is sent. Think of a phone call to another department: they cannot read your notes, so you say the order number out loud. A likely question: "Will I see an error when state is dropped?" Not an error: since 2.12.0 ADK logs a warning that it cannot forward a state-only event across A2A.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c07-lab-a2a-client";
+  let tw = [];
+  function clear() { tw.forEach((t) => t.kill()); tw = []; }
+  // the message pill rides the vertical triage -> refund_agent wire (x = 149)
+  const X = 64, Y0 = 176, Y1 = 200;
+  function render(slide, n, animate) {
+    clear();
+    const msg = slide.querySelector("#ac-msg"), ref = slide.querySelector("#ref");
+    if (n >= 3 && animate && n === 3) {
+      gsap.set(msg, { x: X, y: Y0, opacity: 0 });
+      tw.push(gsap.timeline({ delay: 0.4, repeat: 1, repeatDelay: 0.4 })
+        .to(msg, { opacity: 1, duration: 0.2 })
+        .to(msg, { y: Y1, duration: 0.8, ease: "power2.inOut" })
+        .fromTo(ref, { scale: 1 }, { scale: 1.05, duration: 0.15, yoyo: true, repeat: 1 }));
+    } else gsap.set(msg, { x: X, y: Y1, opacity: n >= 3 ? 1 : 0 });
+  }
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { clear(); if (slide) gsap.killTweensOf(slide.querySelectorAll("#ac-msg, #ref")); },
+  });
+})();
+</script>

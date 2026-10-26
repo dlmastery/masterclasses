@@ -1,0 +1,140 @@
+<section class="slide" id="custom-c03-lora-coverage" data-tone="risk" data-title="LoRA coverage gotcha">
+  <div class="kicker"><span class="pill">Gotcha</span> PEFT target modules · peft 0.21.2</div>
+  <h2 class="title sm">DPO loss pinned at ln 2: LoRA reached only 4 of 56 layers</h2>
+  <div class="grid fill lc-grid">
+    <div class="stack lc-left">
+      <svg id="lc-svg" viewBox="0 0 640 320" width="640" height="320" aria-label="56 layer bars coloured by type: 27 Mamba-2, 25 MLP and 4 attention. At step 1 a LoRA cap appears on the 4 attention layers and the DPO loss stays flat at 0.693. At step 3 every layer gets a cap and the loss falls."></svg>
+      <div class="gotcha lc-card" data-step="1">
+        <b>Symptom</b><span>DPO-LoRA on <code>NVIDIA-Nemotron-Nano-9B-v2</code>: 25 of 25 steps finish, loss <code>0.6931</code> on every step.</span>
+        <b class="why">Cause</b><span>PEFT's default targets for <code>nemotron_h</code> are attention only: 4 of 56 layers. PEFT raises only when <i>no</i> target matches (#3658, open).</span>
+        <b class="fix">Fix</b><span>Target <code>all-linear</code>. Assert per-layer coverage before training.</span>
+      </div>
+      <div class="lc-dpo" data-step="1">DPO loss = −log σ(β·Δ). Δ = 0 (policy = reference) gives ln 2 = 0.6931.</div>
+    </div>
+    <div class="stack lc-right">
+      <div class="code-wrap bad" data-step="1">
+        <div class="code-head">check_lora.py · cfg</div>
+        <pre class="code" data-lang="python"><code>cfg = LoraConfig(r=16, lora_alpha=32, task_type="CAUSAL_LM")   # default targets</code></pre>
+      </div>
+      <div class="code-wrap good" data-step="3">
+        <div class="code-head">check_lora.py · cfg</div>
+        <pre class="code" data-lang="python"><code>cfg = LoraConfig(r=16, lora_alpha=32, task_type="CAUSAL_LM",
+                 target_modules="all-linear")   # + Mamba and MLP projections</code></pre>
+      </div>
+      <div class="code-wrap">
+        <div class="code-head">check_lora.py · peft 0.21.2 · transformers 5.20.2</div>
+        <pre class="code" data-lang="python" data-focus="1:6, 2:7-10, 3:6, 4:9-10"><code>import torch
+from peft import LoraConfig, get_peft_model
+from transformers import AutoModelForCausalLM
+model = AutoModelForCausalLM.from_pretrained("nvidia/NVIDIA-Nemotron-Nano-9B-v2",
+                                             dtype=torch.bfloat16)
+m = get_peft_model(model, cfg)                # cfg from the box above
+hit = {n.split(".lora_A")[0] for n, _ in m.named_parameters() if "lora_A" in n}
+layers = {int(n.split("layers.")[1].split(".")[0]) for n in hit if "layers." in n}
+assert len(layers) == model.config.num_hidden_layers, \
+    f"LoRA on {len(layers)} layers only"</code></pre>
+      </div>
+      <div class="code-wrap out" data-step="2">
+        <div class="code-head">output · illustrative</div>
+        <pre class="code" data-lang="none"><code><span class="err">AssertionError: LoRA on 4 layers only</span>      <span class="dim"># default targets: stops before step 1</span>
+<span class="ok lc-ok">(no error: 56 of 56 layers)</span>              <span class="dim lc-ok"># all-linear</span></code></pre>
+      </div>
+      <div class="steps-rail lc-rail">
+        <div data-step="2"><span>Count the layers that have a <code>lora_A</code>. <code>4 != 56</code> stops the run before the first training step.</span></div>
+        <div data-step="4"><span>Lab 2 model: PEFT's default for <code>qwen3</code> is <code>q_proj, v_proj</code> only. Lab 2 sets <code>all-linear</code>; keep the assert in CI.</span></div>
+      </div>
+    </div>
+  </div>
+  <style>
+    #custom-c03-lora-coverage .lc-grid { grid-template-columns: 640px 1fr; gap: 30px; }
+    #custom-c03-lora-coverage .lc-left { gap: 12px; }
+    #custom-c03-lora-coverage .lc-right { gap: 10px; min-width: 0; }
+    #custom-c03-lora-coverage .lc-card { grid-template-columns: 92px 1fr; gap: 3px 12px; padding: 10px 16px; font-size: 16px; line-height: 1.36; }
+    #custom-c03-lora-coverage .lc-card > b { font-size: 13px; line-height: 1.6; }
+    #custom-c03-lora-coverage .lc-dpo { font: 600 16px/1.4 var(--f-mono); color: var(--ink-2); padding: 8px 14px; border-left: 4px solid var(--risk); background: color-mix(in oklab, var(--risk) 7%, transparent); border-radius: 6px; }
+    #custom-c03-lora-coverage .code-head { font-size: 13px; padding: 7px 14px; }
+    #custom-c03-lora-coverage .lc-right pre.code { font-size: 13px; line-height: 18px; padding: 7px 16px 9px; }
+    #custom-c03-lora-coverage .lc-rail { gap: 6px; }
+    #custom-c03-lora-coverage .lc-rail > * { font-size: 15.5px; line-height: 1.32; grid-template-columns: 30px 1fr; gap: 10px; }
+    #custom-c03-lora-coverage .lc-rail > *::before { width: 26px; height: 26px; font-size: 13px; }
+    #custom-c03-lora-coverage .lc-rail code { font-size: .84em; }
+    #custom-c03-lora-coverage svg text { font-family: var(--f-mono); }
+  </style>
+  <aside class="notes">Lab 2 was safe because we passed all-linear; this trap appears when the default targets meet a hybrid model. The bug report: a DPO-LoRA run on NVIDIA-Nemotron-Nano-9B-v2 finished 25 of 25 steps, nothing crashed, and the DPO loss sat at 0.6931 on every step. Quick DPO reminder: the loss is minus log sigmoid of beta times the margin between the policy and the reference; when the policy equals the reference the margin is zero, and the loss is ln 2. So the adapter barely changed the model. The cause: this model has 56 layers, 27 Mamba-2, 25 MLP and only 4 attention, and PEFT's default targets for nemotron_h are attention projections. PEFT raises only when nothing matches, so a partial match is silent. Partial coverage does not always pin the loss exactly at ln 2; here the 4 attention layers were too small a share of the model to move it in 25 steps. The fix: target all-linear, which adds the Mamba in_proj and out_proj and the MLP up and down projections, and assert one LoRA layer per decoder layer before training. For the Lab 2 model the same lesson holds: PEFT's default for qwen3 is q_proj and v_proj only, which on Qwen3-0.6B gives 2.3 million instead of 10.1 million trainable parameters. A related load-time trap: PEFT drops unexpected adapter keys without a warning, and strict=True is ignored (PEFT #3804), so diff the adapter keys against the model keys and check that the adapter answer differs from the disable_adapter answer on 5 notes. Think of a dimmer switch wired to 4 bulbs out of 56: the switch moves, the room stays dark.</aside>
+</section>
+<script>
+(() => {
+  const ID = "custom-c03-lora-coverage";
+  const NS = "http://www.w3.org/2000/svg";
+  const PAT = "M-M-M-MM-M-M-M*-M-M-M*-M-M-M-M*-M-M-M-M*-M-MM-M-M-M-M-M-";   // hybrid_override_pattern
+  const COL = { M: "var(--state)", "-": "var(--muted)", "*": "var(--agent)" };
+  const N = 56, BX = 6, BP = 11.2, BW = 8, BY = 54, BH = 62;
+  const CX0 = 80, CX1 = 630, CY0 = 168, CY1 = 286, LMIN = 0.40, LMAX = 0.74;
+  const sx = (s) => CX0 + (s - 1) / 24 * (CX1 - CX0);
+  const sy = (v) => CY1 - (v - LMIN) / (LMAX - LMIN) * (CY1 - CY0);
+  let svg, bars = [], cnt, flat, flatLab, fixed, fixLab, tw = [];
+  const mk = (tag, a, p, t) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); if (t !== undefined) e.textContent = t; p.appendChild(e); return e; };
+
+  function build(slide) {
+    svg = slide.querySelector("#lc-svg"); svg.innerHTML = ""; bars = [];
+    mk("text", { x: BX, y: 18, "font-size": 15, "font-weight": 700, fill: "var(--ink-2)" }, svg, "nemotron_h · 56 decoder layers");
+    [["var(--state)", "Mamba-2 27", 0], ["var(--muted)", "MLP 25", 140], ["var(--agent)", "attention 4", 240], ["var(--risk)", "LoRA on", 380]].forEach(([c, t, x]) => {
+      mk("rect", { x: BX + x, y: 28, width: 13, height: 13, rx: 3, fill: c, opacity: c === "var(--risk)" ? 1 : .6 }, svg);
+      mk("text", { x: BX + x + 19, y: 40, "font-size": 13.5, fill: "var(--ink-2)" }, svg, t);
+    });
+    for (let i = 0; i < N; i++) {
+      const t = PAT[i];
+      mk("rect", { x: BX + i * BP, y: BY, width: BW, height: BH, rx: 2, fill: COL[t], opacity: .5 }, svg);
+      const cap = mk("rect", { x: BX + i * BP - 1, y: BY - 9, width: BW + 2, height: 7, rx: 2, fill: "var(--risk)", opacity: 0 }, svg);
+      bars.push({ att: t === "*", cap });
+    }
+    cnt = mk("text", { x: BX, y: BY + BH + 22, "font-size": 15, "font-weight": 700, fill: "var(--risk)" }, svg, "");
+    // loss chart
+    mk("line", { x1: CX0, y1: CY0 - 6, x2: CX0, y2: CY1, stroke: "var(--line-2)", "stroke-width": 1.5 }, svg);
+    mk("line", { x1: CX0, y1: CY1, x2: CX1, y2: CY1, stroke: "var(--line-2)", "stroke-width": 1.5 }, svg);
+    mk("text", { x: 16, y: (CY0 + CY1) / 2, "font-size": 13, "text-anchor": "middle", fill: "var(--muted)", transform: `rotate(-90 16 ${(CY0 + CY1) / 2})` }, svg, "DPO loss");
+    mk("text", { x: CX0 - 8, y: sy(0.6931) + 4, "font-size": 12, "text-anchor": "end", fill: "var(--muted)" }, svg, "0.693");
+    mk("text", { x: CX0 - 8, y: sy(0.45) + 4, "font-size": 12, "text-anchor": "end", fill: "var(--muted)" }, svg, "0.45");
+    mk("text", { x: CX0, y: CY1 + 20, "font-size": 12, fill: "var(--muted)" }, svg, "1");
+    mk("text", { x: CX1, y: CY1 + 20, "font-size": 12, "text-anchor": "end", fill: "var(--muted)" }, svg, "25");
+    mk("text", { x: (CX0 + CX1) / 2, y: CY1 + 20, "font-size": 12, "text-anchor": "middle", fill: "var(--muted)" }, svg, "training step");
+    flat = mk("path", { d: `M${sx(1)},${sy(0.6931)} L${sx(25)},${sy(0.6931)}`, fill: "none", stroke: "var(--risk)", "stroke-width": 3.5, "stroke-linecap": "round" }, svg);
+    flatLab = mk("text", { x: sx(25), y: sy(0.6931) - 10, "font-size": 13.5, "font-weight": 700, "text-anchor": "end", fill: "var(--risk)" }, svg, "4 / 56 layers: loss = ln 2");
+    let d = "";
+    for (let s = 1; s <= 25; s++) { const v = 0.46 + 0.2331 * Math.exp(-(s - 1) / 6); d += (s === 1 ? "M" : " L") + sx(s).toFixed(1) + "," + sy(v).toFixed(1); }
+    fixed = mk("path", { d, fill: "none", stroke: "var(--state)", "stroke-width": 3.5, "stroke-linecap": "round" }, svg);
+    fixLab = mk("text", { x: sx(25), y: sy(0.46) - 10, "font-size": 13.5, "font-weight": 700, "text-anchor": "end", fill: "var(--state)" }, svg, "56 / 56 layers · illustrative");
+  }
+  function drawLen(p) { const L = p.getTotalLength(); p.style.strokeDasharray = L; return L; }
+  function kill() { tw.forEach((t) => t.kill()); tw = []; }
+  function render(n, animate) {
+    kill();
+    bars.forEach((b, i) => {
+      const lit = n >= 3 || (n >= 1 && b.att);
+      const fresh = animate && lit && ((n === 1 && b.att) || (n === 3 && !b.att));
+      if (fresh) tw.push(gsap.fromTo(b.cap, { opacity: 0, y: -8 }, { opacity: 1, y: 0, duration: .25, delay: .15 + i * .018 }));
+      else gsap.set(b.cap, { opacity: lit ? 1 : 0, y: 0 });
+    });
+    cnt.textContent = n >= 3 ? "LoRA layers: 56 / 56" : n >= 1 ? "LoRA layers: 4 / 56" : "";
+    cnt.setAttribute("fill", n >= 3 ? "var(--state)" : "var(--risk)");
+    const Lf = drawLen(flat);
+    if (animate && n === 1) { flat.style.strokeDashoffset = Lf; tw.push(gsap.to(flat, { strokeDashoffset: 0, duration: 1.4, delay: .5, ease: "none" })); }
+    else flat.style.strokeDashoffset = n >= 1 ? 0 : Lf;
+    gsap.set(flat, { opacity: n >= 3 ? .35 : 1 });
+    gsap.set(flatLab, { opacity: n >= 1 ? (n >= 3 ? .45 : 1) : 0 });
+    const Lx = drawLen(fixed);
+    if (animate && n === 3) { fixed.style.strokeDashoffset = Lx; tw.push(gsap.to(fixed, { strokeDashoffset: 0, duration: 1.6, delay: 1.1, ease: "power1.inOut" })); }
+    else fixed.style.strokeDashoffset = n >= 3 ? 0 : Lx;
+    if (animate && n === 3) { gsap.set(fixLab, { opacity: 0 }); tw.push(gsap.to(fixLab, { opacity: 1, duration: .4, delay: 2.5 })); }
+    else gsap.set(fixLab, { opacity: n >= 3 ? 1 : 0 });
+    // output pane: the "no error" line appears with the fix
+    const slide = svg.closest(".slide");
+    slide.querySelectorAll(".lc-ok").forEach((e) => { e.style.opacity = n >= 3 ? 1 : 0; });
+  }
+  Deck.register(ID, {
+    enter(slide, step) { build(slide); render(step || 0, false); },
+    step(slide, n, animate) { if (!svg) build(slide); render(n, animate); },
+    leave() { kill(); if (svg) gsap.killTweensOf(bars.map((b) => b.cap).concat([flat, fixed, fixLab, flatLab])); }
+  });
+})();
+</script>

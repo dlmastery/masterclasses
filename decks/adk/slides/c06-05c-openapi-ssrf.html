@@ -1,0 +1,83 @@
+<section class="slide" id="adk-c06-openapi-ssrf" data-tone="risk" data-title="Gotcha: the OpenAPI SSRF guard">
+  <style>
+    #adk-c06-openapi-ssrf .ss-grid { display: grid; grid-template-columns: 700px 1fr; gap: 40px; align-items: start; }
+    #adk-c06-openapi-ssrf .gotcha { font-size: 19px; line-height: 1.45; }
+    #adk-c06-openapi-ssrf .gotcha code { font-size: 17px; }
+    #adk-c06-openapi-ssrf .ss-err { font: 600 17px/1.45 var(--f-mono); color: var(--risk); }
+    #adk-c06-openapi-ssrf svg { overflow: visible; display: block; }
+    #adk-c06-openapi-ssrf svg text { font-family: var(--f-mono); }
+    #adk-c06-openapi-ssrf .h rect { fill: var(--surface-2); stroke: var(--line-2); stroke-width: 2; }
+    #adk-c06-openapi-ssrf .h text { font-size: 17px; font-weight: 700; fill: var(--ink); }
+    #adk-c06-openapi-ssrf .h .k { font-size: 15px; font-weight: 500; fill: var(--muted); }
+    #adk-c06-openapi-ssrf .h.ok rect { fill: var(--state-soft); stroke: var(--state); }
+    #adk-c06-openapi-ssrf .h.no rect { fill: var(--risk-soft); stroke: var(--risk); }
+    #adk-c06-openapi-ssrf .h.warn rect { fill: var(--risk-soft); stroke: var(--risk); stroke-dasharray: 7 5; }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> OpenAPIToolset</div>
+  <h2 class="title">The SSRF guard blocks 127.0.0.1 until you allow private access</h2>
+  <div class="ss-grid fill">
+    <div class="gotcha">
+      <b data-step="1">Symptom</b><span data-step="1">The tool result says <span class="ss-err">Tool get_claim_status execution failed. ... Execution Error: Blocked host: 127.0.0.1</span></span>
+      <b class="why" data-step="2">Cause</b><span data-step="2"><code>allow_private_network_access=False</code> by default. Loopback, private, link-local (cloud metadata), <code>*.internal</code> and <code>*.local</code> are refused.</span>
+      <b class="fix" data-step="3">Fix</b><span data-step="3">Set it to <code>True</code> for a dev or internal API only. In production, call a public or VPC-routed hostname.</span>
+    </div>
+    <svg id="ss-svg" viewBox="0 0 652 520" width="652" height="520" aria-label="The REST tool sends requests to four hosts. The URL check blocks 127.0.0.1, the cloud metadata address and metadata.goog, and passes api.acme.example. With allow_private_network_access=True, 127.0.0.1 passes, and the metadata hosts pass too.">
+      <rect x="0" y="200" width="150" height="90" rx="14" style="fill:var(--tool-soft);stroke:var(--tool);stroke-width:2.5"/>
+      <text x="75" y="238" text-anchor="middle" style="font-size:18px;font-weight:700;fill:var(--ink)">RestApiTool</text>
+      <text x="75" y="264" text-anchor="middle" style="font-size:15px;fill:var(--muted)">claims_status</text>
+      <rect id="ss-wall" x="236" y="10" width="16" height="500" rx="8" style="fill:var(--risk)"/>
+      <text id="ss-wl" x="244" y="0" text-anchor="middle" style="font-size:16px;font-weight:700;fill:var(--ink-2)">URL check</text>
+      <g class="h" data-i="0"><rect x="340" y="40" width="312" height="74" rx="12"/><text x="360" y="72">127.0.0.1:8081</text><text class="k" x="360" y="98">loopback</text></g>
+      <g class="h" data-i="1"><rect x="340" y="150" width="312" height="74" rx="12"/><text x="360" y="182">169.254.169.254</text><text class="k" x="360" y="208">link-local · cloud metadata</text></g>
+      <g class="h" data-i="2"><rect x="340" y="260" width="312" height="74" rx="12"/><text x="360" y="292">metadata.goog</text><text class="k" x="360" y="318">metadata name</text></g>
+      <g class="h" data-i="3"><rect x="340" y="370" width="312" height="74" rx="12"/><text x="360" y="402">api.acme.example</text><text class="k" x="360" y="428">public hostname</text></g>
+      <g id="ss-dots"></g>
+      <text id="ss-flag" x="340" y="490" style="font-size:18px;font-weight:700;fill:var(--risk);opacity:0">True lifts the guard for every private host</text>
+    </svg>
+  </div>
+  <aside class="notes">This is the error you hit the first time OpenAPIToolset calls a local API. Step 1: the tool does not raise; it returns an error result that ends in "Execution Error: Blocked host: 127.0.0.1". Step 2: the cause is ADK's SSRF guard. By default, REST API tools refuse loopback, private and link-local addresses, which include the cloud metadata service, plus names such as localhost, metadata.goog and anything under .internal or .local. Public hostnames pass. Step 3: allow_private_network_access=True lets 127.0.0.1 through, which is right for this lab, but it lifts the guard for every private host, including the metadata endpoint, which holds cloud credentials. So keep it for a dev or internal API only, and in production call a public or VPC-routed hostname. Note that MCP connections do not go through this check. Think of a mail room that refuses letters addressed to the vault: turning that rule off for your desk turns it off for the vault too. A likely question: "Why is metadata dangerous?" A prompt-injected URL could make the agent fetch the instance's service-account token; the paper slides show SSRF to metadata in real MCP servers.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "adk-c06-openapi-ssrf";
+  const HY = [77, 187, 297, 407];
+  const PRIV = [true, true, true, false];
+  let tws = [];
+  function stop() { tws.forEach((t) => t.kill()); tws = []; }
+  function render(slide, n, animate) {
+    stop();
+    const svg = slide.querySelector("#ss-svg");
+    const g = svg.querySelector("#ss-dots");
+    g.innerHTML = "";
+    const allow = n >= 3;
+    const wall = svg.querySelector("#ss-wall"), flag = svg.querySelector("#ss-flag");
+    gsap.set(wall, { opacity: n >= 2 && !allow ? 1 : 0.18 });
+    gsap.set(flag, { opacity: allow ? 1 : 0 });
+    const hosts = [...svg.querySelectorAll(".h")];
+    hosts.forEach((h, i) => {
+      h.classList.remove("ok", "no", "warn");
+      if (n >= 2) h.classList.add(!PRIV[i] ? "ok" : allow ? (i === 0 ? "ok" : "warn") : "no");
+    });
+    if (n < 1) return;
+    // one request per host, repeating: blocked ones stop at the wall
+    HY.forEach((y, i) => {
+      const c = document.createElementNS(NS, "circle");
+      c.setAttribute("r", 9); c.style.fill = "var(--tool)"; g.appendChild(c);
+      const blocked = n >= 1 && n < 3 && PRIV[i];
+      const t = gsap.timeline({ repeat: -1, repeatDelay: 0.5, delay: i * 0.3 });
+      t.set(c, { attr: { cx: 150, cy: 245 }, opacity: 1, fill: "var(--tool)" })
+        .to(c, { attr: { cx: blocked ? 226 : 330, cy: blocked ? 245 + (y - 245) * 0.45 : y }, duration: blocked ? 0.7 : 1.1, ease: "none" });
+      if (blocked) t.set(c, { fill: "var(--risk)" }).to(c, { opacity: 0, duration: 0.4 });
+      else t.to(c, { opacity: 0, duration: 0.3 });
+      tws.push(t);
+    });
+    if (animate && n === 3) tws.push(gsap.fromTo(flag, { opacity: 0, y: 8 }, { opacity: 1, y: 0, duration: 0.4, delay: 0.6 }));
+  }
+  Deck.register(ID, {
+    enter(slide, n) { render(slide, n || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { stop(); },
+  });
+})();
+</script>

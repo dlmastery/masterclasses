@@ -1,0 +1,93 @@
+<section class="slide chapter" id="adk-c01-chapter" data-tone="tool" data-title="Ch 1: Your first agent">
+  <style>
+    #adk-c01-chapter .c1-mini { margin-bottom: 4px; }
+    #adk-c01-chapter .c1-ring { position: absolute; left: 232px; top: 108px; width: 330px; height: 110px; border: 2.5px dashed var(--agent); border-radius: 26px; background: color-mix(in oklab, var(--agent) 5%, transparent); z-index: 0; pointer-events: none; opacity: 0; }
+    #adk-c01-chapter .c1-ring span { position: absolute; left: 18px; top: -15px; padding: 3px 10px; border-radius: 999px; background: var(--bg); border: 1px solid color-mix(in oklab, var(--agent) 45%, transparent); font: 600 14px/1.2 var(--f-mono); color: var(--agent); white-space: nowrap; }
+    #adk-c01-chapter .c1-extra { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; z-index: 0; }
+    #adk-c01-chapter .c1-extra path { fill: none; stroke-width: 2.5; stroke-linecap: round; }
+    #adk-c01-chapter .c1-extra .p-tool { stroke: var(--tool); }
+    #adk-c01-chapter .c1-extra .p-human { stroke: var(--human); }
+    #adk-c01-chapter .c1-extra text { font: 600 14px/1 var(--f-mono); fill: var(--human); }
+    #adk-c01-chapter .c1-tok { position: absolute; left: 0; top: 0; width: 20px; height: 20px; margin: -10px 0 0 -10px; border-radius: 50%; background: var(--tool); box-shadow: 0 0 18px var(--tool); z-index: 4; opacity: 0; pointer-events: none; }
+    #adk-c01-chapter .node.run { box-shadow: 0 0 0 5px color-mix(in oklab, var(--nc) 30%, transparent), 0 0 36px -6px var(--nc); }
+    #adk-c01-chapter .tags .tag { font-size: 16px; }
+  </style>
+  <div class="ch-num" data-fx="blur">01</div>
+  <div class="diagram c1-mini" style="width:1210px;height:310px"
+       data-wires="c1-user>c1-agent:flow{human} [question]; c1-agent>c1-lookup:flow [order_id]; c1-agent>c1-check:flow [reason]">
+    <div class="c1-ring" id="c1-ring"><span>callbacks · refund cap + PII</span></div>
+    <svg class="c1-extra" width="1210" height="310" viewBox="0 0 1210 310" aria-hidden="true">
+      <path class="p-tool" id="c1-p1" d="M550,176 C615,176 610,285 668,285"/>
+      <path class="p-tool" id="c1-p1h" d="M658,278 L670,285 L658,292"/>
+      <path class="p-human" id="c1-p2" d="M980,285 L1048,285"/>
+      <path class="p-human" id="c1-p2h" d="M1038,278 L1050,285 L1038,292"/>
+    </svg>
+    <div class="node n-human pill" id="c1-user" style="left:0;top:140px;width:130px"><span class="nt">User</span></div>
+    <div class="node n-agent" id="c1-agent" style="left:250px;top:126px;width:300px"><span class="nt">refund_agent</span><span class="ns">LlmAgent · gemini-3.5-flash</span></div>
+    <div class="node n-tool" id="c1-lookup" style="left:680px;top:0;width:300px"><span class="nt">lookup_order</span></div>
+    <div class="node n-tool" id="c1-check" style="left:680px;top:130px;width:300px"><span class="nt">check_refund_eligibility</span></div>
+    <div class="node n-tool" id="c1-refund" style="left:680px;top:260px;width:300px" data-fx="none"><span class="nt">issue_refund</span></div>
+    <div class="node n-human" id="c1-approve" style="left:1060px;top:260px;width:150px" data-fx="none"><span class="nt">approve?</span></div>
+    <div class="c1-tok" id="c1-tok"></div>
+  </div>
+  <h2 class="display">Your first agent</h2>
+  <p class="lede" data-fx="up">Build the Acme refund desk: two tools, a runner, a refund cap and a human approval gate.</p>
+  <div class="tags" data-fx="up">
+    <span class="tag t-tool">2 typed tools + a runner</span>
+    <span class="tag t-agent">callbacks: refund cap + PII</span>
+    <span class="tag t-human">human approval over $200</span>
+    <span class="tag">google-adk 2.13.0</span>
+  </div>
+  <aside class="notes">
+    This chapter builds one agent end to end: the Acme refund desk that answers "Can I return order A-1002?". We start with an LlmAgent on gemini-3.5-flash and two typed Python functions, lookup_order and check_refund_eligibility, then drive it from adk run, adk web and a Python runner with full trajectory logs. Next we move policy out of the prompt: callbacks enforce the refund cap and redact PII, and FunctionTool with require_confirmation stops refunds over $200 until a human says yes. Analogy: the instruction is the job description, the tools are the forms the clerk can fill, and the callbacks are the till that refuses a refund over the limit no matter what the clerk was told. Likely question: "Why not just write the cap in the prompt?" Because a prompt can be talked around, and a callback is code that runs every time. Everything in this chapter is tested on google-adk 2.13.0. All lab code is in labs/adk/lab1-refund-tools and labs/adk/lab1-refund-guardrails. Lab 1 starts on the next slide with the setup.
+  </aside>
+</section>
+<script>
+(() => {
+  let intro = null, loop = null;
+  const ids = ["c1-ring", "c1-refund", "c1-approve", "c1-tok", "c1-p1", "c1-p1h", "c1-p2", "c1-p2h"];
+  const center = (el) => ({ x: el.offsetLeft + el.offsetWidth / 2, y: el.offsetTop + el.offsetHeight / 2 });
+  const kill = (slide) => {
+    if (intro) { intro.kill(); intro = null; }
+    if (loop) { loop.kill(); loop = null; }
+    if (!slide) return;
+    ids.forEach((id) => { const el = slide.querySelector("#" + id); if (el) gsap.killTweensOf(el); });
+    slide.querySelectorAll(".c1-mini .node").forEach((nd) => nd.classList.remove("run"));
+  };
+  const build = (slide) => {
+    kill(slide);
+    const q = (id) => slide.querySelector("#" + id);
+    const ring = q("c1-ring"), refund = q("c1-refund"), approve = q("c1-approve"), tok = q("c1-tok");
+    const paths = [q("c1-p1"), q("c1-p1h"), q("c1-p2"), q("c1-p2h")];
+    paths.forEach((p) => { const L = p.getTotalLength(); gsap.set(p, { strokeDasharray: L, strokeDashoffset: L }); });
+    gsap.set(ring, { opacity: 0, scale: 0.94 });
+    gsap.set([refund, approve], { autoAlpha: 0, scale: 0.7 });
+    gsap.set(tok, { opacity: 0 });
+    // build-up: ring at 1 s, then the gated third tool
+    intro = gsap.timeline({ delay: 1 });
+    intro.to(ring, { opacity: 1, scale: 1, duration: 0.6, ease: "power2.out" });
+    intro.to([paths[0], paths[1]], { strokeDashoffset: 0, duration: 0.5, ease: "power2.inOut" }, "+=0.2");
+    intro.to(refund, { autoAlpha: 1, scale: 1, duration: 0.5, ease: "back.out(1.8)" }, "<0.2");
+    intro.to([paths[2], paths[3]], { strokeDashoffset: 0, duration: 0.35, ease: "power2.inOut" }, "+=0.1");
+    intro.to(approve, { autoAlpha: 1, scale: 1, duration: 0.5, ease: "back.out(1.8)" }, "<0.15");
+    // request pulse: one full trip every 3 s
+    const route = ["c1-user", "c1-agent", "c1-lookup", "c1-agent", "c1-check", "c1-agent", "c1-refund", "c1-approve"];
+    const legs = [0.4, 0.33, 0.3, 0.33, 0.3, 0.33, 0.35];
+    loop = gsap.timeline({ repeat: -1, delay: 3, paused: false });
+    const p0 = center(q(route[0]));
+    loop.set(tok, { x: p0.x, y: p0.y, opacity: 1, background: "var(--human)", boxShadow: "0 0 18px var(--human)" });
+    for (let k = 1; k < route.length; k++) {
+      const el = q(route[k]), c = center(el);
+      loop.to(tok, { x: c.x, y: c.y, duration: legs[k - 1], ease: "power1.inOut" });
+      if (k === 1) loop.set(tok, { background: "var(--tool)", boxShadow: "0 0 18px var(--tool)" });
+      loop.call(() => { el.classList.add("run"); setTimeout(() => el.classList.remove("run"), 260); });
+    }
+    loop.to(tok, { opacity: 0, duration: 0.2 });
+    loop.to({}, { duration: 3 - legs.reduce((a, b) => a + b, 0) - 0.2 });
+  };
+  Deck.register("adk-c01-chapter", {
+    enter(slide) { build(slide); },
+    leave(slide) { kill(slide); }
+  });
+})();
+</script>

@@ -1,0 +1,44 @@
+<section class="slide tight" id="adk-c04-gotcha-builtins" data-tone="risk" data-title="Gotcha: built-in + function tools">
+  <style>
+    #adk-c04-gotcha-builtins .gb-grid { display: grid; grid-template-columns: 760px 1fr; gap: 32px; align-items: start; }
+    #adk-c04-gotcha-builtins .gb-col { display: flex; flex-direction: column; gap: 24px; }
+    #adk-c04-gotcha-builtins pre.code { font-size: 17px; }
+    #adk-c04-gotcha-builtins pre.code.gb-err { padding-top: 0; color: var(--risk); }
+    #adk-c04-gotcha-builtins .gotcha { font-size: 20px; line-height: 1.45; padding: 22px 24px; gap: 14px 16px; }
+    #adk-c04-gotcha-builtins .gotcha > b { font-size: 15px; }
+    #adk-c04-gotcha-builtins .gotcha .err { font: 500 17px/1.45 var(--f-mono); color: var(--risk); }
+    #adk-c04-gotcha-builtins table.t { font-size: 19px; line-height: 1.4; width: 100%; }
+    #adk-c04-gotcha-builtins table.t td, #adk-c04-gotcha-builtins table.t th { padding: 10px 12px; vertical-align: top; }
+    #adk-c04-gotcha-builtins table.t td:first-child { white-space: nowrap; font-weight: 700; }
+    #adk-c04-gotcha-builtins table.t code { font-size: .86em; }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> Built-in tools</div>
+  <h2 class="title">Gemini 2.x rejects google_search next to a function tool</h2>
+  <div class="gb-grid fill">
+    <div class="gb-col">
+      <div class="code-wrap bad">
+        <div class="code-head">pricing_analyst/agent.py · one agent, mixed tools</div>
+        <pre class="code" data-lang="python"><code>from google.adk.agents import LlmAgent
+from google.adk.tools import google_search
+
+def my_function_tool(policy_id: str) -&gt; dict: ...   # any FunctionTool
+
+pricing_analyst = LlmAgent(
+    name="pricing_analyst", model="gemini-2.5-flash",
+    tools=[google_search, my_function_tool])</code></pre>
+        <pre class="code gb-err" data-lang="none" data-step="1"><code>400 INVALID_ARGUMENT: Tool use with function calling is unsupported</code></pre>
+      </div>
+      <table class="t" data-step="3">
+        <tr><th>Model</th><th>Built-in + function tool in one agent</th></tr>
+        <tr><td>Gemini 3+</td><td>Accepted in the same request.</td></tr>
+        <tr><td>Gemini 2.x</td><td>Rejected. Use <code>AgentTool</code>, or <code>GoogleSearchTool(bypass_multi_tools_limit=True)</code>.</td></tr>
+      </table>
+    </div>
+    <div class="gotcha" data-step="2">
+      <b>Symptom</b><span class="err">400 INVALID_ARGUMENT: Tool use with function calling is unsupported</span>
+      <b class="why">Cause</b><span>Before Gemini 3, a built-in tool and function declarations cannot share one request (<code>model_name_utils.py</code> L199-214).</span>
+      <b class="fix">Fix</b><span>Give each built-in its own agent and call it through <code>AgentTool</code>, as on the last slide.</span>
+    </div>
+  </div>
+  <aside class="notes">This is the bug that made the AgentTool split necessary in the first place. Put google_search and any function tool on one Gemini 2.x agent and the API rejects the request with 400 INVALID_ARGUMENT: Tool use with function calling is unsupported. The rule lives in utils/model_name_utils.py, lines 199 to 214: Gemini 3 and later accept built-in tools in the same request as function declarations, earlier models do not. You have three fixes: give each built-in its own agent and call it through AgentTool, as on the last slide; or on an older model use GoogleSearchTool(bypass_multi_tools_limit=True), which makes ADK swap in a search sub-agent for you; or move to Gemini 3 and later. The same family of errors shows up at startup as "Agent ... has sub-agent transfer targets but is configured with GoogleSearchTool without bypass_multi_tools_limit=True" when the agent also has sub_agents. Analogy: on the old models the search tool insists on an office of its own. A likely question: "If Gemini 3 accepts the mix, why keep AgentTool?" Each subagent keeps its pages and code out of the root context, so the root stays small and cheap.</aside>
+</section>

@@ -1,0 +1,69 @@
+<section class="slide tight" id="adk-c05-lab-pause-save" data-tone="tool" data-title="Lab 5B.4: process 1 saves the pause">
+  <style>
+    #adk-c05-lab-pause-save pre.code, #adk-c05-lab-pause-save code { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #adk-c05-lab-pause-save .ps-body { display: grid; grid-template-columns: 810px minmax(0, 1fr); gap: 36px; align-items: start; }
+    #adk-c05-lab-pause-save .ps-col { display: flex; flex-direction: column; gap: 30px; min-width: 0; padding-top: 10px; }
+    #adk-c05-lab-pause-save .ps-pause { position: absolute; z-index: 5; width: 40px; height: 40px; border-radius: 50%;
+      background: var(--human); display: flex; gap: 5px; align-items: center; justify-content: center; opacity: 0; box-shadow: 0 0 0 4px var(--bg); }
+    #adk-c05-lab-pause-save .ps-pause i { width: 5px; height: 16px; border-radius: 1px; background: #fff; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 5B</span> Acme payouts · step 4 of 6</div>
+  <h2 class="title">Process 1 runs to the pause, saves both ids, and exits</h2>
+  <div class="ps-body fill">
+    <div class="code-wrap">
+      <div class="code-head">labs/adk/lab5b-payouts-durable/payouts/app.py · excerpt</div>
+      <pre class="code" data-lang="python" data-focus="1:2-6, 2:8-9, 3:10-14"><code>async def main(cmd: str, arg: str):
+  if cmd == "start":
+    await runner.session_service.create_session(
+        app_name="payouts", user_id="ops", session_id="s1")
+    msg = types.Content(role="user", parts=[types.Part(text=arg)])
+    inv = None
+  # ... "resume" and "continue": next slides
+  async for ev in runner.run_async(user_id="ops", session_id="s1",
+                                   invocation_id=inv, new_message=msg):
+    if ev.long_running_tool_ids:              # analyst_review paused
+      json.dump({"invocation_id": ev.invocation_id,
+                 "interrupt_id": next(iter(ev.long_running_tool_ids))},
+                open("pending.json", "w"))
+      print("PAUSED -&gt; pending.json")</code></pre>
+    </div>
+    <div class="ps-col">
+      <div class="diagram ps-diag" style="width:546px;height:330px"
+           data-wires="sess>kyc@2:dash; kyc>review@2; review>pending@3:flow {state} [both ids]">
+        <div class="node n-state" id="sess" style="left:0;top:0;width:250px" data-step="1"><span class="nt">session s1</span><span class="ns">payouts.db</span></div>
+        <div class="node n-tool" id="kyc" style="left:0;top:120px;width:250px" data-step="2"><span class="nt">kyc_lookup</span><span class="ns">ran · log: 1 line</span></div>
+        <div class="node n-human" id="review" style="left:0;top:250px;width:250px" data-step="2" data-on="2:hot"><span class="nt">analyst_review</span><span class="ns">paused</span></div>
+        <div class="node n-state" id="pending" style="left:316px;top:250px;width:230px" data-step="3" data-fx="pop"><span class="nt">pending.json</span><span class="ns">then exit</span></div>
+        <div class="ps-pause" aria-hidden="true"><i></i><i></i></div>
+      </div>
+      <div class="code-wrap out" data-step="3">
+        <div class="code-head">output · illustrative</div>
+        <pre class="code sm" data-lang="none"><code>$ python -m payouts.app start "ACME-GmbH"
+<span class="ok">PAUSED -&gt; pending.json</span></code></pre>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Step 4 of Lab 5B is the first half of the driver, main(). Process 1 is "start": it creates the session s1 in payouts.db and sends the payee name as the first message. run_async streams events; kyc_lookup runs and writes its one log line, then analyst_review yields a RequestInput. That event carries long_running_tool_ids, which is how a driver sees a pause. The driver writes the invocation id and the interrupt id to pending.json and the loop ends, so the interpreter exits with nothing left in memory. Everything the next process needs is now on disk: the session in SQLite and the two ids in a small file. Think of pending.json as the claim ticket you get when you leave a coat: the coat stays in the building, you keep only the number. A likely question: "Why save the invocation id too?" The resume call passes it so the Runner continues that invocation; the interrupt id alone names the question, not the run. For a fresh run, delete payouts.db, pending.json and side_effects.log, because start creates s1 again.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c05-lab-pause-save";
+  let pulse = null;
+  function clear(slide) { if (pulse) pulse.kill(); pulse = null; if (slide) gsap.killTweensOf(slide.querySelectorAll(".ps-pause")); }
+  function render(slide, n, animate) {
+    clear(slide);
+    const d = slide.querySelector(".ps-diag");
+    const pause = d.querySelector(".ps-pause"), r = d.querySelector("#review");
+    gsap.set(pause, { x: r.offsetLeft + r.offsetWidth - 30, y: r.offsetTop - 30, opacity: 0, scale: 1 });
+    if (n < 2) return;
+    gsap.set(pause, { opacity: 1 });
+    if (animate && n === 2) gsap.fromTo(pause, { scale: 0.3 }, { scale: 1, duration: 0.35, delay: 0.5, ease: "back.out(3)" });
+    pulse = gsap.to(pause, { scale: 1.18, duration: 0.6, yoyo: true, repeat: -1, ease: "sine.inOut", delay: animate ? 0.9 : 0 });
+  }
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { clear(slide); },
+  });
+})();
+</script>

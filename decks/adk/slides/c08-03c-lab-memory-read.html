@@ -1,0 +1,159 @@
+<section class="slide" id="adk-c08-lab-memory-read" data-tone="state" data-title="Lab 8.2c: preload memories">
+  <style>
+    #adk-c08-lab-memory-read .mr-grid { display: grid; grid-template-columns: 770px 1fr; gap: 44px; align-items: start; }
+    #adk-c08-lab-memory-read .mr-col { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+    #adk-c08-lab-memory-read #mr-svg { display: block; width: 578px; height: 404px; overflow: visible; }
+    #adk-c08-lab-memory-read #mr-svg text { font-family: var(--f-mono); }
+    #adk-c08-lab-memory-read .caps { display: grid; }
+    #adk-c08-lab-memory-read .caps > p { grid-area: 1 / 1; font-size: 22px; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 8</span> Acme support · memory · 3 of 3</div>
+  <h2 class="title">preload_memory puts the facts in context before the model call</h2>
+  <div class="lab-head"><span class="run">python support_memory.py day2</span></div>
+  <div class="mr-grid fill">
+    <div class="mr-col">
+      <div class="code-wrap">
+        <div class="code-head">labs/adk/c08-memory-bank/support_memory.py · excerpt</div>
+        <pre class="code" data-lang="python" data-focus="1:2-7, 2:11-13, 3:4"><code>async def wait_for_memory() -&gt; None:   # async generation
+    for _ in range(12):
+        r = await memory.search_memory(
+            app_name=APP, user_id=USER, query="SMS")
+        if r.memories:
+            return
+        await asyncio.sleep(5)
+async def main(day: str) -&gt; None:
+    if day == "day1":
+        ...                      # previous slide
+    else:
+        await wait_for_memory()
+        await say("day2", "My bill looks wrong this month. "
+                          "How will you follow up?")</code></pre>
+      </div>
+      <div class="caps">
+        <p data-step="1" data-until="2">Day 2 waits until the bank holds the facts.</p>
+        <p data-step="2" data-until="3">A new session, yet the agent already knows the plan.</p>
+        <p data-step="3">Scope is <code>app_name</code> + <code>user_id</code>. Erase with <code>delete_memory</code>.</p>
+      </div>
+    </div>
+    <div class="mr-col">
+      <svg id="mr-svg" viewBox="0 0 578 404" aria-label="Day 2, a new session. The user says the bill looks wrong. preload_memory searches the Memory Bank with the user turn and moves two facts, Family 4-line and SMS only, into the system context. Then the model runs and the agent answers that it will follow up by SMS. The scope is acme_support and cust-42; delete_memory erases it."></svg>
+      <div class="code-wrap out" data-step="2">
+        <div class="code-head">output · illustrative</div>
+        <pre class="code" data-lang="text"><code><span class="ok">[day2] agent&gt; I'll review your Family 4-line bill
+              and follow up by SMS.</span></code></pre>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Day two is a new session with the same user id. Press once: memory generation is asynchronous on the service, so wait_for_memory polls search_memory every five seconds, for up to a minute, until the facts exist; the spinner on the bank shows that wait. Press again: the user asks about the bill; preload_memory, the tool we attached on the previous slide, searches the bank with the new user turn and injects the matches into the system context before the model call, so the answer already uses the Family 4-line plan and the SMS preference. The alternative tool, load_memory, lets the model decide when to search. Press again: memories are keyed by app_name plus user_id, so a new user id looks like a stranger; to honour a forget-me request call delete_memory, new in 2.13, because delete_session leaves memories in place. Think of it as the next call-centre agent reading the customer file before picking up the phone. A likely question: "Can recalled memory authorise an action?" No: treat it as untrusted data and re-check with a tool, because injected text can come back later posing as a user commitment.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c08-lab-memory-read";
+  const NS = "http://www.w3.org/2000/svg";
+  const CX = 458, CT = 120, CB = 230, RX = 92, RY = 18, CW = 164;
+  const IN = [{ x: CX - CW / 2, y: 140 }, { x: CX - CW / 2, y: 182 }];
+  const SLOT = [{ x: 63, y: 138 }, { x: 63, y: 174 }];
+  let R = null, tw = [], spin = null;
+  function mk(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text !== undefined) e.textContent = text;
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function box(p, x, y, w, h, tone, l1, l2) {
+    const g = mk("g", {}, p);
+    mk("rect", { x, y, width: w, height: h, rx: 12, fill: `var(--${tone}-soft)`, stroke: `var(--${tone})`, "stroke-width": 2 }, g);
+    mk("text", { x: x + w / 2, y: y + (l2 ? h / 2 - 4 : h / 2 + 6), "text-anchor": "middle", "font-size": 16, "font-weight": 700, fill: "var(--ink)" }, g, l1);
+    if (l2) mk("text", { x: x + w / 2, y: y + h / 2 + 18, "text-anchor": "middle", "font-size": 16, "font-weight": 700, fill: "var(--ink)" }, g, l2);
+    return g;
+  }
+  function arrow(p, d, s) {
+    return mk("path", { d, fill: "none", stroke: s ? "var(--state)" : "var(--line-2)", "stroke-width": 2.6, "stroke-linecap": "round", "stroke-dasharray": s ? "7 5" : "none", "marker-end": `url(#mr-ah-${s ? "s" : "g"})` }, p);
+  }
+  function chip(p, label) {
+    const g = mk("g", {}, p);
+    mk("rect", { x: 0, y: 0, width: CW, height: 30, rx: 15, fill: "var(--bg)", stroke: "var(--state)", "stroke-width": 2 }, g);
+    mk("text", { x: CW / 2, y: 20.5, "text-anchor": "middle", "font-size": 15, "font-weight": 700, fill: "var(--state)" }, g, label);
+    return g;
+  }
+  function build(svg) {
+    svg.innerHTML = "";
+    R = {};
+    const defs = mk("defs", {}, svg);
+    [["mr-ah-s", "var(--state)"], ["mr-ah-g", "var(--line-2)"]].forEach(([id, c]) => {
+      const m = mk("marker", { id, viewBox: "0 0 10 10", refX: 8, refY: 5, markerWidth: 6, markerHeight: 6, orient: "auto-start-reverse" }, defs);
+      mk("path", { d: "M0,0 L10,5 L0,10 z", fill: c }, m);
+    });
+    mk("text", { x: 0, y: 18, "font-size": 16, "font-weight": 700, fill: "var(--muted)" }, svg, "day2 · new session");
+    // bank (from day 1)
+    R.bankG = mk("g", {}, svg);
+    mk("rect", { x: 352, y: 34, width: 224, height: 258, rx: 16, fill: "none", stroke: "var(--state)", "stroke-width": 2, "stroke-dasharray": "7 5" }, R.bankG);
+    mk("text", { x: 464, y: 62, "text-anchor": "middle", "font-size": 16, "font-weight": 800, fill: "var(--state)" }, R.bankG, "Agent Runtime");
+    mk("path", { d: `M${CX - RX},${CT} V${CB} A${RX},${RY} 0 0 0 ${CX + RX},${CB} V${CT}`, fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 2.2 }, R.bankG);
+    mk("ellipse", { cx: CX, cy: CT, rx: RX, ry: RY, fill: "var(--surface)", stroke: "var(--state)", "stroke-width": 2.2 }, R.bankG);
+    mk("text", { x: CX, y: 278, "text-anchor": "middle", "font-size": 17, "font-weight": 800, fill: "var(--state)" }, R.bankG, "Memory Bank");
+    R.ring = mk("g", {}, svg);
+    mk("circle", { cx: 548, cy: 58, r: 11, fill: "var(--bg)", stroke: "var(--line-2)", "stroke-width": 3 }, R.ring);
+    R.arc = mk("path", { d: "M548,47 A11,11 0 0 1 559,58", fill: "none", stroke: "var(--state)", "stroke-width": 3.5, "stroke-linecap": "round" }, R.ring);
+    R.ok = mk("path", { d: "M541,58 l5,5 l10,-10", fill: "none", stroke: "var(--state)", "stroke-width": 3.5, "stroke-linecap": "round", "stroke-linejoin": "round" }, svg);
+    R.stored = ["Family 4-line", "SMS only"].map((f) => chip(svg, f));
+    // day2 lane
+    R.u = box(svg, 0, 34, 290, 64, "human", "user> bill looks", "wrong this month");
+    R.w0 = arrow(svg, "M145,102 V124");
+    R.ctx = mk("g", {}, svg);
+    mk("rect", { x: 0, y: 130, width: 290, height: 104, rx: 12, fill: "none", stroke: "var(--state)", "stroke-width": 2, "stroke-dasharray": "6 4" }, R.ctx);
+    mk("text", { x: 280, y: 228, "text-anchor": "end", "font-size": 14, "font-weight": 700, fill: "var(--state)" }, R.ctx, "system context");
+    R.pl = arrow(svg, "M362,190 H298", true);
+    R.pll = mk("text", { x: 464, y: 320, "text-anchor": "middle", "font-size": 16, "font-weight": 700, fill: "var(--state)" }, svg, "preload_memory");
+    R.w1 = arrow(svg, "M145,238 V262");
+    R.m = box(svg, 40, 268, 210, 46, "model", "model call");
+    R.w2 = arrow(svg, "M145,318 V340");
+    R.a = box(svg, 0, 346, 290, 52, "agent", "agent> follow up by SMS");
+    R.pre = ["Family 4-line", "SMS only"].map((f) => chip(svg, f));
+    // scope + erase
+    R.scope = mk("g", {}, svg);
+    mk("text", { x: 464, y: 352, "text-anchor": "middle", "font-size": 15, "font-weight": 700, fill: "var(--ink)" }, R.scope, "acme_support / cust-42");
+    mk("rect", { x: 384, y: 366, width: 160, height: 32, rx: 9, fill: "var(--risk-soft)", stroke: "var(--risk)", "stroke-width": 1.8 }, R.scope);
+    mk("text", { x: 464, y: 388, "text-anchor": "middle", "font-size": 15, "font-weight": 700, fill: "var(--risk)" }, R.scope, "delete_memory()");
+  }
+  function clear() { tw.forEach((t) => t.kill()); tw = []; if (spin) { spin.kill(); spin = null; } }
+  function show(el, on, animate, delay) {
+    gsap.killTweensOf(el);
+    if (!on) { gsap.set(el, { opacity: 0 }); return; }
+    if (animate) tw.push(gsap.fromTo(el, { opacity: 0 }, { opacity: 1, duration: 0.4, delay: delay || 0 }));
+    else gsap.set(el, { opacity: 1 });
+  }
+  function render(slide, n, animate) {
+    const svg = slide.querySelector("#mr-svg");
+    if (!R || !svg.childElementCount) build(svg);
+    clear();
+    const a = (k) => animate && n === k;
+    gsap.set([R.bankG, R.u], { opacity: 1 });
+    R.stored.forEach((c, i) => gsap.set(c, { x: IN[i].x, y: IN[i].y, opacity: n >= 1 ? 1 : 0.25 }));
+    gsap.set(R.ring, { opacity: n === 1 ? 1 : 0 });
+    gsap.set(R.ok, { opacity: n >= 2 ? 1 : 0 });
+    gsap.set(R.arc, { rotation: 0, svgOrigin: "548 58" });
+    if (n === 1) spin = gsap.to(R.arc, { rotation: 360, svgOrigin: "548 58", duration: 1, ease: "none", repeat: -1 });
+    show(R.w0, n >= 2, a(2)); show(R.ctx, n >= 2, a(2), 0.1);
+    show(R.pl, n >= 2, a(2), 0.3); show(R.pll, n >= 2, a(2), 0.3);
+    R.pre.forEach((c, i) => {
+      gsap.killTweensOf(c);
+      if (n < 2) { gsap.set(c, { x: SLOT[i].x, y: SLOT[i].y, opacity: 0 }); return; }
+      if (a(2)) {
+        gsap.set(c, { x: IN[i].x, y: IN[i].y, opacity: 0 });
+        tw.push(gsap.to(c, { opacity: 1, duration: 0.2, delay: 0.5 + i * 0.2 }));
+        tw.push(gsap.to(c, { x: SLOT[i].x, y: SLOT[i].y, duration: 0.9, delay: 0.55 + i * 0.2, ease: "power2.inOut" }));
+      } else gsap.set(c, { x: SLOT[i].x, y: SLOT[i].y, opacity: 1 });
+    });
+    show(R.w1, n >= 2, a(2), 1.6); show(R.m, n >= 2, a(2), 1.7);
+    show(R.w2, n >= 2, a(2), 2.2); show(R.a, n >= 2, a(2), 2.3);
+    show(R.scope, n >= 3, a(3));
+  }
+  Deck.register(ID, {
+    enter(slide, step) { R = null; render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { clear(); if (slide) gsap.killTweensOf(slide.querySelectorAll("#mr-svg *")); },
+  });
+})();
+</script>

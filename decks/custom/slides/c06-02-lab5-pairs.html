@@ -1,0 +1,213 @@
+<section class="slide" id="custom-c06-lab5-pairs" data-tone="human" data-title="Lab 5: build preference pairs">
+  <style>
+    #custom-c06-lab5-pairs { gap: 22px; }
+    #custom-c06-lab5-pairs .p-grid { display: grid; grid-template-columns: 872px 1fr; gap: 24px; min-height: 0; }
+    #custom-c06-lab5-pairs .p-left { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+    #custom-c06-lab5-pairs .p-left pre.code { font-size: 12.5px; line-height: 1.5; padding: 14px 18px 16px; }
+    #custom-c06-lab5-pairs .p-right { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+    #custom-c06-lab5-pairs .p-swap { display: grid; }
+    #custom-c06-lab5-pairs .p-swap > * { grid-area: 1 / 1; align-self: start; }
+    #custom-c06-lab5-pairs .p-swap pre.code { font-size: 11px; line-height: 1.4; padding: 9px 14px 11px; }
+    #custom-c06-lab5-pairs .code-head { padding: 8px 14px; font-size: 13px; }
+    #custom-c06-lab5-pairs .lab-head { font-size: 15px; gap: 12px; }
+    #custom-c06-lab5-pairs .lab-head .run { font-size: 15px; padding: 7px 11px; }
+    #custom-c06-lab5-pairs .steps-rail { gap: 8px; }
+    #custom-c06-lab5-pairs .steps-rail > * { font-size: 15.5px; line-height: 1.36; grid-template-columns: 30px 1fr; gap: 10px; }
+    #custom-c06-lab5-pairs .steps-rail > *::before { width: 26px; height: 26px; font-size: 14px; }
+    #custom-c06-lab5-pairs code { font-size: .88em; }
+    #custom-c06-lab5-pairs .cite.paper { flex-direction: row; gap: 10px; padding: 8px 14px 8px 10px; border-color: var(--line); border-radius: 10px; }
+    #custom-c06-lab5-pairs pre.code, #custom-c06-lab5-pairs pre.code *, #custom-c06-lab5-pairs code, #custom-c06-lab5-pairs .code-head, #custom-c06-lab5-pairs svg text { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 5</span> Acme on-brand support replies · step 1 of 3</div>
+  <h2 class="title">Build preference pairs: 3 QA-reviewed seeds plus 3,000 general pairs</h2>
+  <div class="p-grid fill">
+    <div class="p-left">
+      <div class="lab-head"><span class="run">python dpo_support.py</span><a class="cite doc" href="https://huggingface.co/docs/trl/main/en/dpo_trainer" target="_blank" rel="noopener"><b>Docs</b>&nbsp;TRL DPO Trainer</a><a class="cite paper" href="https://arxiv.org/abs/2610.24945" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.24945 label flips</a></div>
+      <div class="code-wrap">
+        <div class="code-head">support_dpo/dpo_support.py · data part · trl 1.16.0 · datasets 5.1.0</div>
+        <pre class="code" data-lang="python" data-focus="1:6-18, 2:19, 3:20-22, 4:23-24"><code># dpo_support.py - DPO + LoRA for support-reply tone (TRL 1.16.0)
+from datasets import Dataset, concatenate_datasets, load_dataset
+from peft import LoraConfig
+from trl import DPOConfig, DPOTrainer
+
+def turn(q, r): return [{"role": "user", "content": q}, {"role": "assistant", "content": r}]
+
+PAIRS = [  # (customer message, on-brand reply, off-brand reply) - from QA-reviewed tickets
+    ("My package is 5 days late.",
+     "Sorry about the delay. Your parcel is at the Leeds depot and arrives tomorrow; I added a $5 credit.",
+     "Shipping delays happen. Please wait."),
+    ("I was charged twice!",
+     "You're right, I see two charges of $49.99. I refunded the duplicate; it shows in 3-5 business days.",
+     "Contact your bank about card issues."),
+    ("Your app deleted my notes.",
+     "I'm sorry. Notes stay in Trash for 30 days: Settings > Trash > Restore. Want me to restore them now?",
+     "We don't delete user data. You probably did it yourself."),
+]
+support = Dataset.from_list([{"chosen": turn(q, c), "rejected": turn(q, r)} for q, c, r in PAIRS] * 100)
+uf = (load_dataset("trl-lib/ultrafeedback_binarized", split="train[:3000]")
+      .select_columns(["chosen", "rejected"]))
+train = concatenate_datasets([uf, support.cast(uf.features)]).shuffle(seed=0)
+split = train.train_test_split(test_size=0.05, seed=0)
+print(split.num_rows, split["train"].column_names)</code></pre>
+      </div>
+    </div>
+    <div class="p-right">
+      <div class="p-swap">
+        <div class="code-wrap term" data-until="4">
+          <div class="code-head">run it Monday · as Lab 4 · Python &gt;= 3.11 · 16-24 GB GPU</div>
+          <pre class="code" data-lang="bash"><code>$ pip install "trl[peft,math_verify]==1.16.0" "transformers==5.20.2" \
+    "peft==0.21.2" "datasets==5.1.0" "accelerate==1.15.0" \
+    "math-verify==0.9.0" "trackio==0.43.0"
+support_dpo/
+  dpo_support.py          # data + DPOConfig + train (Lab 5)
+  filter_pairs.py         # length filter for QA exports
+  reward_model.py         # learned reward (build)</code></pre>
+        </div>
+        <div class="code-wrap out" data-step="4">
+          <div class="code-head">output · illustrative</div>
+          <pre class="code" data-lang="none"><code><span class="ok">{'train': 3135, 'test': 165} ['chosen', 'rejected']</span>
+<span class="dim"># 300 Acme rows (9%) + 3,000 UltraFeedback rows</span>
+<span class="dim"># each side: [user turn, assistant turn]</span></code></pre>
+        </div>
+      </div>
+      <svg id="c06p-svg" viewBox="0 0 560 276" width="100%" aria-label="Three pair cards (late package, charged twice, deleted notes), each with a green on-brand half and a red off-brand half. Each card becomes a stack of 100. A large blue UltraFeedback stack of 3,000 pairs joins. All pairs shuffle into one mixed column of chosen and rejected stripes. The bottom 5 percent splits off as the test set: 165 rows, train 3,135 rows."></svg>
+      <div class="steps-rail">
+        <div data-step="1"><span>Implicit prompt: each side holds the full chat. TRL splits off the shared user turn.</span></div>
+        <div data-step="2"><span><code>* 100</code>: 3 seeds become 300 rows.</span></div>
+        <div data-step="3"><span>General pairs keep general ability. <code>cast()</code> aligns features before concatenating.</span></div>
+        <div data-step="4"><span>Hold out 5%. Audit labels first: label flips can steer DPO (2610.24945).</span></div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">This is the data half of Lab 5: we turn three QA-reviewed tickets into DPO pairs. Each row has a chosen and a rejected conversation with the same user turn, and TRL extracts the shared prompt for us, so we do not need a prompt column. We repeat the three seeds 100 times so the brand signal is about 9% of the data, and we mix in 3,000 UltraFeedback pairs so the model does not forget how to answer everything else; the cast call is there because concatenate_datasets needs identical features. Analogy: three model answers from the QA lead, pinned beside a big pile of general examples. Likely question: "Are three seeds enough?" For a demo yes, but in production you want hundreds of reviewed pairs, and you must audit the labels, because a paper from 18 October 2026 shows that flipped preference labels can steer DPO toward an attacker's target.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c06-lab5-pairs";
+  const SEEDS = ["late package", "charged twice", "deleted notes"];
+  const CARD = { x: 0, y0: 34, dy: 76, w: 186, h: 58 };
+  const UF = { x: 248, y: 40, w: 100, h: 196 };
+  const COL = { x: 420, y: 44, w: 140, stripe: 4, gap: 1, n: 40 };
+  const EVAL_N = 2;                      // 2 of 40 stripes = 5%
+  const SEED_SLOTS = { 6: 0, 17: 1, 27: 2, 35: 0 };   // deterministic "shuffle(seed=0)" positions for the Acme rows
+  const CAPS = [
+    "",
+    "3 QA-reviewed pairs: chosen | rejected",
+    "* 100: 300 Acme rows",
+    "+ 3,000 UltraFeedback rows · shuffle(seed=0)",
+    "train_test_split(test_size=0.05)",
+  ];
+  let S = null, tl = null;
+
+  const el = (parent, tag, attrs, style, text) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (style) Object.assign(e.style, style);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  };
+  const mono = (w, s) => `${w} ${s}px var(--f-mono)`;
+
+  function build(svg) {
+    svg.innerHTML = "";
+    const cap = el(svg, "text", { x: 0, y: 14 }, { font: mono(600, 13), fill: "var(--muted)" }, "");
+    // seed cards with ghost stacks and x100 badges
+    const cards = [], ghosts = [], badges = [];
+    SEEDS.forEach((name, i) => {
+      const y = CARD.y0 + i * CARD.dy;
+      const gs = el(svg, "g", {});
+      for (let k = 3; k >= 1; k--) el(gs, "rect", { x: CARD.x + k * 5, y: y + k * 4, width: CARD.w, height: CARD.h, rx: 10 }, { fill: "var(--surface-2)", stroke: "var(--human)", strokeWidth: 1.2, opacity: 0.35 + 0.1 * (3 - k) });
+      ghosts.push(gs);
+      const g = el(svg, "g", {});
+      el(g, "rect", { x: CARD.x, y, width: CARD.w, height: CARD.h, rx: 10 }, { fill: "var(--surface-2)", stroke: "var(--human)", strokeWidth: 2 });
+      el(g, "text", { x: CARD.x + 12, y: y + 20 }, { font: mono(700, 12.5), fill: "var(--human)" }, name);
+      el(g, "rect", { x: CARD.x + 12, y: y + 28, width: 76, height: 20, rx: 6 }, { fill: "var(--state-soft)", stroke: "var(--state)", strokeWidth: 1.5 });
+      el(g, "text", { x: CARD.x + 50, y: y + 42, "text-anchor": "middle" }, { font: mono(600, 11), fill: "var(--state)" }, "on-brand");
+      el(g, "rect", { x: CARD.x + 98, y: y + 28, width: 76, height: 20, rx: 6 }, { fill: "var(--risk-soft)", stroke: "var(--risk)", strokeWidth: 1.5 });
+      el(g, "text", { x: CARD.x + 136, y: y + 42, "text-anchor": "middle" }, { font: mono(600, 11), fill: "var(--risk)" }, "off-brand");
+      cards.push(g);
+      badges.push(el(svg, "text", { x: CARD.x + CARD.w + 18, y: y + 36 }, { font: mono(700, 15), fill: "var(--human)" }, "×100"));
+    });
+    const seedCount = el(svg, "text", { x: 0, y: 268 }, { font: mono(700, 13), fill: "var(--human)" }, "support: 300 rows");
+    // UltraFeedback stack
+    const ufG = el(svg, "g", {});
+    for (let k = 3; k >= 0; k--) el(ufG, "rect", { x: UF.x + k * 5, y: UF.y + k * 4, width: UF.w, height: UF.h - 12, rx: 10 }, { fill: k ? "var(--agent-soft)" : "var(--surface-2)", stroke: "var(--agent)", strokeWidth: k ? 1.2 : 2 });
+    el(ufG, "text", { x: UF.x + UF.w / 2, y: UF.y + 80, "text-anchor": "middle" }, { font: mono(700, 13), fill: "var(--agent)" }, "Ultra");
+    el(ufG, "text", { x: UF.x + UF.w / 2, y: UF.y + 98, "text-anchor": "middle" }, { font: mono(700, 13), fill: "var(--agent)" }, "Feedback");
+    el(ufG, "text", { x: UF.x + UF.w / 2, y: UF.y + 126, "text-anchor": "middle" }, { font: mono(700, 18), fill: "var(--ink)" }, "3,000");
+    el(ufG, "text", { x: UF.x + UF.w / 2, y: UF.y + 146, "text-anchor": "middle" }, { font: mono(500, 12), fill: "var(--muted)" }, "pairs");
+    // mixed column: left half = chosen, right half = rejected
+    const colHead = el(svg, "g", {});
+    el(colHead, "text", { x: COL.x + 34, y: COL.y - 10, "text-anchor": "middle" }, { font: mono(600, 11.5), fill: "var(--muted)" }, "chosen");
+    el(colHead, "text", { x: COL.x + 106, y: COL.y - 10, "text-anchor": "middle" }, { font: mono(600, 11.5), fill: "var(--muted)" }, "rejected");
+    const stripes = [];
+    for (let i = 0; i < COL.n; i++) {
+      const y = COL.y + i * (COL.stripe + COL.gap);
+      const seed = i in SEED_SLOTS;
+      const g = el(svg, "g", {});
+      el(g, "rect", { x: COL.x, y, width: 68, height: COL.stripe }, { fill: seed ? "var(--state)" : "var(--agent)", opacity: seed ? 1 : 0.75 });
+      el(g, "rect", { x: COL.x + 72, y, width: 68, height: COL.stripe }, { fill: seed ? "var(--risk)" : "var(--agent)", opacity: seed ? 1 : 0.35 });
+      const src = seed ? { x: CARD.x + 60 - COL.x, y: CARD.y0 + SEED_SLOTS[i] * CARD.dy + 30 - y } : { x: UF.x - COL.x, y: UF.y + 20 + (i % 30) * 5 - y };
+      stripes.push({ g, src, seed });
+    }
+    const evalLine = el(svg, "text", { x: COL.x + COL.w, y: 274, "text-anchor": "end" }, { font: mono(700, 13), fill: "var(--ink-2)" }, "");
+    const trainTag = el(svg, "text", { x: COL.x - 8, y: COL.y + 100, "text-anchor": "end" }, { font: mono(700, 12), fill: "var(--muted)" }, "train");
+    const testTag = el(svg, "text", { x: COL.x - 8, y: COL.y + COL.n * 5 + 14, "text-anchor": "end" }, { font: mono(700, 12), fill: "var(--human)" }, "test");
+    S = { svg, cap, cards, ghosts, badges, seedCount, ufG, colHead, stripes, evalLine, trainTag, testTag };
+  }
+
+  function stop() {
+    if (tl) { tl.kill(); tl = null; }
+    if (S) gsap.killTweensOf([...S.cards, ...S.ghosts, ...S.badges, S.seedCount, S.ufG, S.colHead, ...S.stripes.map((s) => s.g), S.evalLine, S.trainTag, S.testTag]);
+  }
+
+  function render(n, animate) {
+    if (!S) return;
+    stop();
+    S.cap.textContent = CAPS[Math.min(n, 4)];
+    const show = (els, on) => gsap.set(els, { opacity: on ? 1 : 0, x: 0, y: 0, scaleY: 1 });
+    show(S.cards, n >= 1);
+    show([...S.ghosts, ...S.badges, S.seedCount], n >= 2);
+    show([S.ufG, S.colHead], n >= 3);
+    S.stripes.forEach((s, i) => gsap.set(s.g, { opacity: n >= 3 ? 1 : 0, x: 0, y: n >= 4 && i >= COL.n - EVAL_N ? 14 : 0 }));
+    show([S.trainTag, S.testTag], n >= 4);
+    S.evalLine.textContent = n >= 4 ? "train 3,135 · test 165" : n >= 3 ? "3,300 rows" : "";
+    S.seedCount.textContent = n >= 3 ? "support: 300 rows (9%)" : "support: 300 rows";
+    if (!animate) return;
+    tl = gsap.timeline();
+    if (n === 1) {
+      tl.fromTo(S.cards, { opacity: 0, scaleY: 0, transformOrigin: "50% 50%" }, { opacity: 1, scaleY: 1, duration: 0.45, stagger: 0.18, ease: "back.out(1.8)" });
+    } else if (n === 2) {
+      tl.fromTo(S.ghosts, { opacity: 0, x: -10, y: -8 }, { opacity: 1, x: 0, y: 0, duration: 0.4, stagger: 0.12, ease: "power2.out" })
+        .fromTo(S.badges, { opacity: 0, scale: 0.4, transformOrigin: "50% 50%" }, { opacity: 1, scale: 1, duration: 0.35, stagger: 0.12, ease: "back.out(2.5)" }, 0.15)
+        .fromTo(S.seedCount, { opacity: 0 }, { opacity: 1, duration: 0.3 }, 0.6);
+      const c = { v: 3 };
+      tl.fromTo(c, { v: 3 }, { v: 300, duration: 0.9, ease: "power1.out", onUpdate: () => { S.seedCount.textContent = `support: ${Math.round(c.v)} rows`; } }, 0.6);
+    } else if (n === 3) {
+      tl.fromTo(S.ufG, { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.5, ease: "power2.out" })
+        .fromTo(S.colHead, { opacity: 0 }, { opacity: 1, duration: 0.3 }, 0.4);
+      S.stripes.forEach((s, i) => {
+        tl.fromTo(s.g, { opacity: 0, x: s.src.x, y: s.src.y }, { opacity: 1, x: 0, y: 0, duration: 0.55, ease: "power2.inOut" }, 0.55 + i * 0.03);
+      });
+    } else if (n === 4) {
+      tl.fromTo(S.stripes.slice(COL.n - EVAL_N).map((s) => s.g), { y: 0 }, { y: 14, duration: 0.45, ease: "back.out(2)" })
+        .fromTo([S.trainTag, S.testTag], { opacity: 0 }, { opacity: 1, duration: 0.3 }, 0.3);
+    }
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) {
+      stop();
+      build(slide.querySelector("#c06p-svg"));
+      render(step || 0, false);
+    },
+    step(slide, n, animate) {
+      if (!S || !slide.contains(S.svg)) build(slide.querySelector("#c06p-svg"));
+      render(n, animate);
+    },
+    leave() { stop(); },
+  });
+})();
+</script>

@@ -1,0 +1,52 @@
+<section class="slide" id="adk-c03-migrate-ci" data-tone="agent" data-title="Build: CI gate and agent modes">
+  <style>
+    #adk-c03-migrate-ci .ci-main { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: start; }
+    #adk-c03-migrate-ci .ci-col { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+    #adk-c03-migrate-ci .out pre.code { font-size: 20px; white-space: pre-wrap; }
+    #adk-c03-migrate-ci .out pre.code code { white-space: pre-wrap; }
+    #adk-c03-migrate-ci .out .cmd { color: #7ee2b8; }
+    #adk-c03-migrate-ci .out .gap { display: block; height: 12px; }
+    #adk-c03-migrate-ci table.t { font-size: 23px; }
+    #adk-c03-migrate-ci table.t td:first-child { font-family: var(--f-mono); font-size: 21px; white-space: nowrap; }
+    #adk-c03-migrate-ci table.t td { padding: 18px 14px; }
+    #adk-c03-migrate-ci table.t tr.bad td:first-child { color: var(--risk); }
+    #adk-c03-migrate-ci .cap { display: grid; }
+    #adk-c03-migrate-ci .cap > * { grid-area: 1 / 1; font-size: 23px; line-height: 1.4; color: var(--ink-2); }
+    #adk-c03-migrate-ci .cap code { font-size: .82em; }
+    #adk-c03-migrate-ci, #adk-c03-migrate-ci * { font-variant-ligatures: none !important; }
+    #adk-c03-migrate-ci .out pre.code .dim { color: #a3abd6; opacity: 1; }
+    #adk-c03-migrate-ci .cites .cite { display: inline-flex; flex-direction: row; align-items: center; gap: 10px; white-space: nowrap; padding: 6px 12px 6px 10px; border-radius: 10px; }
+  </style>
+  <div class="kicker"><span class="pill">Build</span> Port a 1.x pipeline · 3 of 3</div>
+  <h2 class="title">Fail CI on DeprecationWarning to find every 1.x workflow agent</h2>
+  <div class="ci-main fill">
+    <div class="ci-col">
+      <div class="code-wrap out">
+        <div class="code-head">terminal · CI gate · output illustrative</div>
+        <pre class="code" data-lang="none"><code><span class="cmd">$ cd v1 &amp;&amp; python -W error::DeprecationWarning -m pytest tests/</span>
+<span data-step="1"><span class="err">DeprecationWarning: SequentialAgent is deprecated in favor of Workflow and will be removed in a future version.</span></span>
+<span class="gap"></span><span data-step="3"><span class="dim"># v2 with mode="chat" on synthesizer_agent</span>
+<span class="err">GraphValidationError: The agent 'synthesizer_agent' has been added to the workflow with mode='chat' following node 'intake_agent'. This is not supported...</span></span></code></pre>
+      </div>
+      <div class="cap">
+        <p data-until="1">Turn the warning into a failing test, then port until CI is green.</p>
+        <p data-step="1" data-until="2">The gate finds every <code>SequentialAgent</code>, <code>ParallelAgent</code> and <code>LoopAgent</code>.</p>
+        <p data-step="2" data-until="3">Pick the mode by what the node must do.</p>
+        <p data-step="3">A chat node is legal only right after <code>START</code>.</p>
+      </div>
+    </div>
+    <div class="ci-col">
+      <table class="t" data-step="2">
+        <tr><th>mode</th><th>use it for</th></tr>
+        <tr><td>single_turn</td><td>a one-shot worker (the default for a graph node)</td></tr>
+        <tr><td>task</td><td>ask the user for missing slots, then exit typed with <code>finish_task</code></td></tr>
+        <tr class="bad" data-on="3:hot"><td>chat</td><td>free conversation, only right after <code>START</code></td></tr>
+      </table>
+      <div class="cites" data-step="3">
+        <a class="cite repo" href="https://github.com/google/adk-python/issues/5780" target="_blank" rel="noopener"><b>Repo</b>&nbsp;issue #5780</a>
+        <a class="cite doc" href="https://adk.dev/2.0/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;ADK 2.0 migration</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">The last step of the port is a CI gate. Step 1: run pytest with -W error::DeprecationWarning, so the deprecation warning becomes an exception and the test fails; the lab has a one-line test that imports the agent, in v1 and in v2. That finds every SequentialAgent, ParallelAgent and LoopAgent in the code base. Step 2: pick the mode by what the node must do. single_turn is a one-shot worker, and what an agent node resolves to inside a graph. task asks the user for missing slots and then exits with a typed result through finish_task. chat is free conversation. Step 3: a chat agent after any node other than START fails validation, with the GraphValidationError on the slide. Put the chat agent at the root instead, with task-mode sub-agents. Also run the graph through the Runner; never call workflow.run(ctx=...) yourself, because that skips the Runner event-queue consumer that saves tool-call events. Analogy: the warning is a smoke detector; the -W flag connects it to the fire alarm. A likely question: "Does the old code still work?" Yes, today; but it can go in a future release, and 2.x ships every one to two weeks.</aside>
+</section>

@@ -1,0 +1,96 @@
+<section class="slide" id="adk-c01-gotcha-loop" data-tone="risk" data-title="Gotcha: the LLM call cap">
+  <style>
+    #adk-c01-gotcha-loop pre.code, #adk-c01-gotcha-loop pre.code * { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #adk-c01-gotcha-loop .gotcha code { white-space: normal; overflow-wrap: anywhere; }
+    #adk-c01-gotcha-loop .gotcha > span { min-width: 0; }
+    #adk-c01-gotcha-loop .gl-main { display: grid; grid-template-columns: 750px 1fr; gap: 36px; align-items: center; }
+    #adk-c01-gotcha-loop .gl-left, #adk-c01-gotcha-loop .gl-right { gap: 24px; min-width: 0; }
+    #adk-c01-gotcha-loop .gotcha .em { font: 500 17px/1.45 var(--f-mono); color: var(--risk); }
+    #adk-c01-gotcha-loop .meter { border: 1px solid color-mix(in oklab, var(--risk) 30%, transparent); border-radius: 18px; background: var(--surface); padding: 22px 24px; display: grid; gap: 26px; }
+    #adk-c01-gotcha-loop .mr { display: grid; grid-template-columns: 1fr 120px; gap: 8px 16px; align-items: center; }
+    #adk-c01-gotcha-loop .mr .l { font: 600 17px/1.3 var(--f-mono); color: var(--ink-2); }
+    #adk-c01-gotcha-loop .mr .v { font: 700 44px/1 var(--f-mono); color: var(--ink); text-align: right; grid-row: span 2; }
+    #adk-c01-gotcha-loop .trk { position: relative; height: 18px; border-radius: 9px; background: var(--line); overflow: hidden; }
+    #adk-c01-gotcha-loop .trk i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; border-radius: 9px; background: var(--tool); }
+    #adk-c01-gotcha-loop .st { grid-column: 1 / 3; font: 600 16px/1.3 var(--f-mono); color: var(--muted); min-height: 21px; }
+    #adk-c01-gotcha-loop .mr.red .v, #adk-c01-gotcha-loop .st.red { color: var(--risk); }
+    #adk-c01-gotcha-loop .mr.green .v, #adk-c01-gotcha-loop .st.green { color: var(--state); }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> First run · the runner</div>
+  <h2 class="title">A tool-call loop runs to the 500-call cap, so set a lower cap</h2>
+  <div class="gl-main fill">
+    <div class="gl-left stack">
+      <div class="gotcha" data-step="1">
+        <b>Symptom</b><span class="em">Max number of llm calls limit of `500` exceeded</span>
+        <b class="why">Cause</b><span>The model calls a tool again and again in one run. Vague tool errors make it worse.</span>
+        <b class="fix">Fix</b><span>Return clear error dicts. Lower the cap per run.</span>
+      </div>
+      <div class="code-wrap good" data-step="3">
+        <div class="code-head">labs/adk/lab1-refund-tools/run_capped.py · excerpt</div>
+        <pre class="code" data-lang="python"><code>from google.adk.agents.run_config import RunConfig
+# ... inside main(): runner, session, msg as before
+    cfg = RunConfig(max_llm_calls=20)  # or ADK_MAX_LLM_CALLS=20
+    async for ev in runner.run_async(
+            user_id="cust-dana", session_id=session.id,
+            new_message=msg, run_config=cfg):</code></pre>
+      </div>
+    </div>
+    <div class="gl-right stack">
+      <div class="meter" data-step="2">
+        <div class="mr" id="gl-r1"><span class="l">default cap · 500</span><span class="v" id="gl-n1">0</span><span class="trk"><i id="gl-b1"></i></span><span class="st" id="gl-s1">LLM calls in one run</span></div>
+        <div class="mr" id="gl-r2" data-step="3"><span class="l">RunConfig · max_llm_calls=20</span><span class="v" id="gl-n2">0</span><span class="trk"><i id="gl-b2"></i></span><span class="st" id="gl-s2">LLM calls in one run</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="cites">
+    <a class="cite repo" href="https://github.com/google/adk-python/tree/v2.13.0" target="_blank" rel="noopener"><b>Repo</b>&nbsp;google/adk-python v2.13.0 · agents/run_config.py</a>
+  </div>
+  <aside class="notes">
+    The third first-run error comes from the runner. Step 1: the symptom is LlmCallsLimitExceededError with the text "Max number of llm calls limit of `500` exceeded": the model called a tool again and again in one run, often because the tool returned a vague error. Step 2: the default cap is 500 LLM calls per run, so a loop burns 500 calls before it stops. Step 3: set RunConfig(max_llm_calls=20) on run_async, or the ADK_MAX_LLM_CALLS environment variable, so a loop fails fast and cheap at 20; then read the logged tool calls to find the loop. The excerpt is in labs/adk/lab1-refund-tools/run_capped.py. Analogy: the call cap is a circuit breaker; it protects the bill, it does not fix the wiring. Likely question: "Is 20 enough?" The refund desk needs three or four calls per turn; size the cap to a few times your longest normal trajectory. Next: the temperature trap.
+  </aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c01-gotcha-loop";
+  const CAP = 500;
+  let tl = null;
+  const q = (s, id) => s.querySelector("#" + id);
+  function row(s, k, v, state) {
+    q(s, "gl-n" + k).textContent = String(Math.round(v));
+    const b = q(s, "gl-b" + k);
+    b.style.width = (Math.min(v, CAP) / CAP * 100) + "%";
+    b.style.background = state === "red" ? "var(--risk)" : state === "green" ? "var(--state)" : "var(--tool)";
+    q(s, "gl-r" + k).classList.toggle("red", state === "red");
+    q(s, "gl-r" + k).classList.toggle("green", state === "green");
+    const st = q(s, "gl-s" + k);
+    st.classList.toggle("red", state === "red");
+    st.classList.toggle("green", state === "green");
+    st.textContent = state === "red" ? "LlmCallsLimitExceededError at 500" : state === "green" ? "stops at 20: 25x fewer calls" : "LLM calls in one run";
+  }
+  function stop() { if (tl) { tl.kill(); tl = null; } }
+  function build(s, n, animate) {
+    stop();
+    if (n < 2) { row(s, 1, 0, ""); row(s, 2, 0, ""); return; }
+    if (n === 2) {
+      row(s, 2, 0, "");
+      if (!animate) { row(s, 1, CAP, "red"); return; }
+      const o = { v: 1 };
+      row(s, 1, 1, "");
+      tl = gsap.timeline({ delay: 0.4 });
+      tl.to(o, { v: CAP, duration: 2.4, ease: "power1.in", onUpdate: () => row(s, 1, o.v, ""), onComplete: () => row(s, 1, CAP, "red") });
+      return;
+    }
+    row(s, 1, CAP, "red");
+    if (!animate) { row(s, 2, 20, "green"); return; }
+    const o = { v: 1 };
+    row(s, 2, 1, "");
+    tl = gsap.timeline({ delay: 0.5 });
+    tl.to(o, { v: 20, duration: 1.0, ease: "none", onUpdate: () => row(s, 2, o.v, ""), onComplete: () => row(s, 2, 20, "green") });
+  }
+  Deck.register(ID, {
+    enter(slide, n) { build(slide, n || 0, false); },
+    step(slide, n, animate) { build(slide, n, animate); },
+    leave() { stop(); }
+  });
+})();
+</script>

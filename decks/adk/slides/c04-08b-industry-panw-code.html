@@ -1,0 +1,136 @@
+<section class="slide tight" id="adk-c04-industry-panw-code" data-tone="agent" data-title="Industry: the PANW pattern in ADK">
+  <style>
+    #adk-c04-industry-panw-code .pc-grid { display: grid; grid-template-columns: 800px 1fr; gap: 28px; align-items: start; }
+    #adk-c04-industry-panw-code .pc-left { display: flex; flex-direction: column; gap: 20px; }
+    #adk-c04-industry-panw-code pre.code { font-size: 17px; line-height: 1.5; }
+    #adk-c04-industry-panw-code .cap { position: relative; height: 34px; }
+    #adk-c04-industry-panw-code .cap > p { position: absolute; left: 0; right: 0; top: 0; margin: 0; font-size: 21px; line-height: 1.4; color: var(--ink-2); }
+    #adk-c04-industry-panw-code .cap code { font-size: .9em; }
+    #adk-c04-industry-panw-code svg text { font-family: var(--f-mono); }
+    #adk-c04-industry-panw-code .pc-box { fill: var(--surface-2); stroke: var(--line-2); stroke-width: 1.6; }
+    #adk-c04-industry-panw-code .pc-box.q { stroke: var(--human); fill: var(--human-soft); }
+    #adk-c04-industry-panw-code .pc-box.d { stroke: var(--state); fill: var(--state-soft); }
+    #adk-c04-industry-panw-code .pc-h { font-size: 16px; font-weight: 700; fill: var(--muted); }
+    #adk-c04-industry-panw-code .pc-big { font-size: 46px; font-weight: 800; }
+    #adk-c04-industry-panw-code .pc-slot rect { fill: var(--surface-2); stroke: var(--agent); stroke-width: 2; stroke-dasharray: 6 5; transition: fill .2s; }
+    #adk-c04-industry-panw-code .pc-slot.busy rect { fill: var(--agent-soft); stroke-dasharray: none; }
+    #adk-c04-industry-panw-code .pc-slot .qn { font-size: 20px; font-weight: 800; fill: var(--agent); }
+    #adk-c04-industry-panw-code .pc-slot .ss { font-size: 15px; font-weight: 600; fill: var(--muted); }
+    #adk-c04-industry-panw-code .pc-ar { fill: none; stroke: var(--line-2); stroke-width: 2.2; }
+    #adk-c04-industry-panw-code .pc-m { font-size: 18px; font-weight: 700; fill: var(--ink-2); }
+  </style>
+  <div class="kicker"><span class="pill">In production</span> Palo Alto Networks · the pattern in ADK</div>
+  <h2 class="title">Five calls in flight, a fresh session each, one dict in your process</h2>
+  <div class="pc-grid fill">
+    <div class="pc-left">
+      <div class="code-wrap">
+        <div class="code-head">labs/adk/c04-dor-batch/dor.py · excerpt · google-adk 2.13.0</div>
+        <pre class="code" data-lang="python" data-focus="1:1-1, 2:3-6, 3:7-13, 4:15-16"><code>sem = asyncio.Semaphore(5)          # PANW: "batches of five"
+
+async def answer(q: str) -&gt; tuple[str, str]:
+  async with sem:                   # at most 5 calls in flight
+    s = await runner.session_service.create_session(
+        app_name="dor", user_id="dor")         # fresh session
+    msg = types.Content(role="user", parts=[types.Part(text=q)])
+    final = ""
+    async for ev in runner.run_async(
+        user_id="dor", session_id=s.id, new_message=msg):
+      if ev.is_final_response() and ev.content and ev.content.parts:
+        final = "".join(p.text or "" for p in ev.content.parts)
+    return q, final                 # context never grows
+
+async def build_dor(questions: list[str]) -&gt; dict[str, str]:
+  return dict(await asyncio.gather(*(answer(q) for q in questions)))</code></pre>
+      </div>
+      <div class="cap">
+        <p data-until="1">The orchestrator is plain Python. The agent answers one question.</p>
+        <p data-step="1" data-until="2"><code>Semaphore(5)</code> is PANW's batch of five.</p>
+        <p data-step="2" data-until="3">Each question gets a new session, so no history piles up.</p>
+        <p data-step="3" data-until="4">Keep only the final response text of each call.</p>
+        <p data-step="4"><code>gather</code> builds the whole document in your process.</p>
+      </div>
+    </div>
+    <svg id="pc-svg" viewBox="0 0 564 520" width="564" height="520" aria-label="140 questions wait in a queue; at most five run at the same time, each in a fresh session; answers collect into one dict until all 140 are answered">
+      <text class="pc-h" x="0" y="22">queued</text>
+      <rect class="pc-box q" x="0" y="36" width="150" height="150" rx="16"/>
+      <text class="pc-big" id="pc-q" x="75" y="128" text-anchor="middle" fill="var(--human)">140</text>
+      <text class="pc-h" x="200" y="22">in flight · max 5</text>
+      <g id="pc-slots"></g>
+      <text class="pc-h" x="414" y="22">answered</text>
+      <rect class="pc-box d" x="414" y="36" width="150" height="150" rx="16"/>
+      <text class="pc-big" id="pc-d" x="489" y="128" text-anchor="middle" fill="var(--state)">0</text>
+      <text class="pc-h" x="489" y="214" text-anchor="middle">one dict</text>
+      <path class="pc-ar" d="M150 111 L190 111"/><path d="M184 105 L194 111 L184 117" fill="none" stroke="var(--line-2)" stroke-width="2.2"/>
+      <path class="pc-ar" d="M372 111 L408 111"/><path d="M402 105 L412 111 L402 117" fill="none" stroke="var(--line-2)" stroke-width="2.2"/>
+      <text class="pc-m" id="pc-fl" x="0" y="508">in flight: 0 / 5</text>
+    </svg>
+  </div>
+  <aside class="notes">Here is the PANW pattern on google-adk 2.13.0, the full file is labs/adk/c04-dor-batch/dor.py. The orchestrator is ordinary async Python and the agent answers exactly one question per call. Semaphore(5) is PANW's batch of five: the sixth call waits until one of the five finishes, which is what the slots on the right show. Each call creates a fresh session, so no history piles up and the context never grows; that is the fix for the Out of Memory error. The loop over run_async keeps only the final response text. asyncio.gather collects every pair into one dict in your process: the document lives in your code, not in the agent's context. The animation runs all 140 questions through five slots; the answered count only rises, and in flight never goes above five. Analogy: a deli counter with five clerks and a ticket machine. A likely question: "Why not a ParallelAgent or a workflow fan-out?" You can, but for a flat list of independent questions a semaphore and gather is the smallest thing that works, and it runs the same against a deployed Agent Engine endpoint. Model ids in the lab file are pinned to gemini-3.5-flash; PANW used Gemini 2.5 Flash.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c04-industry-panw-code";
+  const NS = "http://www.w3.org/2000/svg";
+  const N = 140, K = 5;
+  // deterministic schedule: each answer takes 1.0-1.9 time units; a free slot takes the next question
+  const SCHED = (() => {
+    const free = Array(K).fill(0), out = [];
+    for (let i = 0; i < N; i++) {
+      let s = 0; for (let j = 1; j < K; j++) if (free[j] < free[s]) s = j;
+      const d = 1 + ((i * 37) % 10) / 10, st = free[s];
+      out.push({ i, slot: s, st, en: st + d }); free[s] = st + d;
+    }
+    return out;
+  })();
+  const T_END = Math.max(...SCHED.map((x) => x.en));
+  let tl = null;
+  function stop() { if (tl) { tl.kill(); tl = null; } }
+  function build(slide) {
+    const g = slide.querySelector("#pc-slots");
+    if (g.childNodes.length) return;
+    for (let s = 0; s < K; s++) {
+      const y = 36 + s * 92;
+      const sg = document.createElementNS(NS, "g");
+      sg.setAttribute("class", "pc-slot");
+      sg.innerHTML = `<rect x="200" y="${y}" width="172" height="76" rx="12"/><text class="qn" x="216" y="${y + 32}">–</text><text class="ss" x="216" y="${y + 58}">fresh session</text>`;
+      g.appendChild(sg);
+    }
+  }
+  // draw the state at time t (t < 0: nothing started)
+  function draw(slide, t, showSess) {
+    const slots = [...slide.querySelectorAll("#pc-slots .pc-slot")];
+    let queued = 0, done = 0, fl = 0;
+    const run = Array(K).fill(null);
+    SCHED.forEach((x) => {
+      if (t < x.st) queued++;
+      else if (t >= x.en) done++;
+      else { fl++; run[x.slot] = x.i; }
+    });
+    slots.forEach((sg, s) => {
+      sg.classList.toggle("busy", run[s] !== null);
+      sg.querySelector(".qn").textContent = run[s] === null ? "free" : "Q" + (run[s] + 1);
+      sg.querySelector(".ss").setAttribute("opacity", showSess && run[s] !== null ? 1 : 0);
+    });
+    slide.querySelector("#pc-q").textContent = queued;
+    slide.querySelector("#pc-d").textContent = done;
+    slide.querySelector("#pc-fl").textContent = `in flight: ${fl} / ${K}`;
+  }
+  function render(slide, n, animate) {
+    stop();
+    build(slide);
+    const slotsG = slide.querySelector("#pc-slots");
+    gsap.set(slotsG, { opacity: n >= 1 ? 1 : 0.25 });
+    if (n < 2) { draw(slide, -1, false); return; }
+    if (n < 4) { draw(slide, 0, true); return; }
+    if (!animate) { draw(slide, T_END, true); return; }
+    const o = { t: 0 };
+    draw(slide, 0, true);
+    tl = gsap.timeline({ delay: 0.3 }).to(o, { t: T_END, duration: 6, ease: "none", onUpdate: () => draw(slide, o.t, true) });
+  }
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { stop(); }
+  });
+})();
+</script>

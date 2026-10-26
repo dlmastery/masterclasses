@@ -1,0 +1,117 @@
+<section class="slide tight" id="adk-c04-lab-fanout-join" data-tone="agent" data-title="Lab 4.2: the joined dict">
+  <style>
+    #adk-c04-lab-fanout-join .fj-grid { display: grid; grid-template-columns: 760px 1fr; gap: 28px; align-items: start; }
+    #adk-c04-lab-fanout-join pre.code { font-size: 17px; }
+    #adk-c04-lab-fanout-join .fj-right { display: flex; flex-direction: column; gap: 18px; }
+    #adk-c04-lab-fanout-join .cap { position: relative; height: 64px; }
+    #adk-c04-lab-fanout-join .cap > p { position: absolute; left: 0; right: 0; top: 0; margin: 0; font-size: 21px; line-height: 1.4; color: var(--ink-2); }
+    #adk-c04-lab-fanout-join .cap code { font-size: .9em; }
+    #adk-c04-lab-fanout-join svg text { font-family: var(--f-mono); }
+    #adk-c04-lab-fanout-join .fj-h { font-size: 17px; font-weight: 700; fill: var(--muted); }
+    #adk-c04-lab-fanout-join .fj-card { fill: var(--agent-soft); stroke: var(--agent); stroke-width: 2; }
+    #adk-c04-lab-fanout-join .fj-slot { fill: var(--surface-2); stroke: var(--line-2); stroke-width: 1.5; stroke-dasharray: 6 5; }
+    #adk-c04-lab-fanout-join .fj-slot.full { stroke: var(--tool); stroke-dasharray: none; fill: var(--tool-soft); }
+    #adk-c04-lab-fanout-join .fj-k { font-size: 18px; font-weight: 700; fill: var(--ink); }
+    #adk-c04-lab-fanout-join .fj-v { font-size: 17px; font-weight: 600; fill: var(--tool); }
+    #adk-c04-lab-fanout-join .fj-cnt { font-size: 26px; font-weight: 800; fill: var(--agent); }
+    #adk-c04-lab-fanout-join .fj-calc { fill: var(--surface-2); stroke: var(--line-2); stroke-width: 1.5; }
+    #adk-c04-lab-fanout-join .fj-m { font-size: 18px; font-weight: 600; fill: var(--ink-2); }
+    #adk-c04-lab-fanout-join .fj-m b, #adk-c04-lab-fanout-join .fj-mb { font-weight: 800; fill: var(--ink); }
+    #adk-c04-lab-fanout-join .fj-chip rect { fill: var(--state-soft); stroke: var(--state); stroke-width: 2.5; }
+    #adk-c04-lab-fanout-join .fj-chip text { font-size: 22px; font-weight: 800; fill: var(--state); }
+    #adk-c04-lab-fanout-join .fj-ar { fill: none; stroke: var(--line-2); stroke-width: 2.5; }
+    #adk-c04-lab-fanout-join .fj-tok { fill: var(--tool); }
+  </style>
+  <div class="kicker"><span class="pill">Lab 4</span> Acme back office · step 2 of 8</div>
+  <h2 class="title">The JoinNode hands decide one dict, keyed by branch name</h2>
+  <div class="fj-grid fill">
+    <div class="code-wrap">
+      <div class="code-head">labs/adk/c04-claim-checks/claim_checks/agent.py · excerpt</div>
+      <pre class="code" data-lang="python" data-focus="1:1-2, 2:6-6, 3:7-12, 4:13-13"><code># join output: {"policy_check": {...}, "fraud_score": 0.07,
+#               "damage_estimate": 3990.0}
+def decide(node_input: dict):
+  pol, fraud = node_input["policy_check"], node_input["fraud_score"]
+  est = node_input["damage_estimate"]
+  payout = max(0, min(est, pol["limit"]) - pol["deductible"])
+  if not pol["active"] or payout == 0:
+    verdict = "DENY: policy inactive or payout 0"
+  elif fraud &gt; 0.6:
+    verdict = f"REFER to SIU (fraud score {fraud:.2f})"
+  else:
+    verdict = f"APPROVE payout ${payout:,.2f}"
+  yield Event(output=verdict, message=verdict)</code></pre>
+    </div>
+    <div class="fj-right">
+      <svg id="fj-svg" viewBox="0 0 604 500" width="604" height="500" aria-label="The join dict fills key by key: damage_estimate at 0.2 s, policy_check at 0.3 s, fraud_score at 0.5 s, counter 1/3, 2/3, 3/3. Then decide computes min(3990, 20000) minus 500 = 3,490 and gives APPROVE.">
+        <text class="fj-h" x="0" y="20">join_checks output</text>
+        <text class="fj-cnt" id="fj-cnt" x="604" y="24" text-anchor="end">0/3</text>
+        <rect class="fj-card" x="0" y="38" width="604" height="232" rx="16"/>
+        <g id="fj-r0"><rect class="fj-slot" x="18" y="56" width="568" height="58" rx="10"/><text class="fj-k" x="36" y="92">"policy_check"</text><text class="fj-v" x="568" y="92" text-anchor="end">active, limit 20000</text></g>
+        <g id="fj-r1"><rect class="fj-slot" x="18" y="128" width="568" height="58" rx="10"/><text class="fj-k" x="36" y="164">"fraud_score"</text><text class="fj-v" x="568" y="164" text-anchor="end">0.07</text></g>
+        <g id="fj-r2"><rect class="fj-slot" x="18" y="200" width="568" height="58" rx="10"/><text class="fj-k" x="36" y="236">"damage_estimate"</text><text class="fj-v" x="568" y="236" text-anchor="end">3990.0</text></g>
+        <circle class="fj-tok" id="fj-tok" r="9" cx="0" cy="0" opacity="0"/>
+        <g id="fj-calcg">
+          <path class="fj-ar" d="M302 274 L302 302"/><path d="M294 296 L302 308 L310 296" fill="none" stroke="var(--line-2)" stroke-width="2.5"/>
+          <rect class="fj-calc" x="0" y="312" width="604" height="96" rx="14"/>
+          <text class="fj-m" x="24" y="350">payout = min(3990.0, 20000) − 500</text>
+          <text class="fj-mb" x="102" y="390" font-size="23">= 3,490.00</text>
+        </g>
+        <g class="fj-chip" id="fj-chip"><rect x="0" y="428" width="604" height="68" rx="34"/><text x="302" y="471" text-anchor="middle">APPROVE payout $3,490.00</text></g>
+      </svg>
+      <div class="cap">
+        <p data-until="1">Keys are the predecessor node names, which are the function names.</p>
+        <p data-step="1" data-until="2">The branches finish at 0.2, 0.3 and 0.5 s. The join fires at 3/3.</p>
+        <p data-step="2" data-until="3"><code>max(0, …)</code> stops a negative payout under the deductible.</p>
+        <p data-step="3" data-until="4">Active policy, fraud 0.07: the claim is approved.</p>
+        <p data-step="4"><code>adk run</code> prints only events with a <code>message</code>.</p>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">decide is the node after the barrier. The JoinNode emits one dict keyed by predecessor node name, and a function node's name is its function name, so the keys are policy_check, fraud_score and damage_estimate, as in the comment at the top. Step 1 shows the order in which the keys arrive: damage_estimate after 0.2 s, policy_check after 0.3 s, fraud_score after 0.5 s; the join fires only at three of three. Step 2 is the payout: the estimate of 3,990 is capped at the 20,000 limit, minus the 500 deductible, and max(0, ...) clamps it, so a claim under the deductible is denied instead of paying a negative amount. Step 3: the policy is active and the fraud score is 0.07, so the claim is approved for 3,490. Step 4: decide yields an Event with a message, because adk run prints only message content; a plain return value prints nothing. Analogy: the join is an inbox tray with three labelled slots, and decide reads the tray only when every slot is full. A likely question: "What if I rename a function?" Then the key changes too, and decide raises a KeyError; print node_input.keys() once, or name the node with @node(name=...).</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c04-lab-fanout-join";
+  const ORDER = [2, 0, 1];                 // damage 0.2 s, policy 0.3 s, fraud 0.5 s
+  const AT = [0.2, 0.3, 0.5];
+  let tl = null;
+  function stop() { if (tl) { tl.kill(); tl = null; } }
+  function render(slide, n, animate) {
+    stop();
+    const q = (s) => slide.querySelector(s);
+    const rows = [0, 1, 2].map((i) => q("#fj-r" + i));
+    const cnt = q("#fj-cnt"), calc = q("#fj-calcg"), chip = q("#fj-chip"), tok = q("#fj-tok");
+    gsap.killTweensOf([...rows, calc, chip, tok]);
+    const fill = (i, on) => { rows[i].querySelector("rect").classList.toggle("full", on); gsap.set(rows[i].querySelector(".fj-v"), { opacity: on ? 1 : 0 }); };
+    const full = n >= 1;
+    [0, 1, 2].forEach((i) => fill(i, full));
+    cnt.textContent = full ? "3/3" : "0/3";
+    gsap.set(calc, { opacity: n >= 2 ? 1 : 0 });
+    gsap.set(chip, { opacity: n >= 3 ? 1 : 0, scale: 1, transformOrigin: "50% 50%" });
+    gsap.set(tok, { opacity: 0 });
+    if (!animate) return;
+    if (n === 1) {
+      [0, 1, 2].forEach((i) => fill(i, false));
+      cnt.textContent = "0/3";
+      tl = gsap.timeline({ delay: 0.3 });
+      ORDER.forEach((r, k) => {
+        const y = 85 + r * 72;
+        tl.set(tok, { attr: { cx: 302, cy: -10 }, opacity: 1 }, AT[k] * 4)
+          .to(tok, { attr: { cx: 560, cy: y }, duration: 0.45, ease: "power2.in" }, AT[k] * 4)
+          .set(tok, { opacity: 0 }, AT[k] * 4 + 0.45)
+          .call(() => { fill(r, true); cnt.textContent = `${k + 1}/3`; }, null, AT[k] * 4 + 0.45)
+          .fromTo(rows[r], { x: -6 }, { x: 0, duration: 0.3, ease: "back.out(3)" }, AT[k] * 4 + 0.45);
+      });
+    } else if (n === 2) {
+      tl = gsap.timeline().fromTo(calc, { opacity: 0, y: -10 }, { opacity: 1, y: 0, duration: 0.45 });
+    } else if (n === 3) {
+      tl = gsap.timeline().fromTo(chip, { opacity: 0, scale: 0.8 }, { opacity: 1, scale: 1, duration: 0.45, ease: "back.out(2)" });
+    }
+  }
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { stop(); }
+  });
+})();
+</script>

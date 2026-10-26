@@ -1,0 +1,75 @@
+<section class="slide chapter" id="adk-interview-c01-chapter" data-tone="agent" data-title="Ch 1: Architecture and graphs">
+  <style>
+    #adk-interview-c01-chapter { padding-bottom: 72px; }
+    #adk-interview-c01-chapter .ch-num { font-size: 210px; top: auto; bottom: 92px; right: 104px; }
+    #adk-interview-c01-chapter .ch-graph { margin-bottom: 12px; }
+    #adk-interview-c01-chapter .ch-graph .group > .gl { font-size: 15px; }
+    #adk-interview-c01-chapter .ch-graph .node .ns { font-size: 15px; }
+    #adk-interview-c01-chapter .ch-graph .wires path.w { stroke: color-mix(in oklab, var(--ink) 55%, transparent); stroke-width: 2.2; }
+    #adk-interview-c01-chapter .tok { position: absolute; left: 0; top: 0; width: 20px; height: 20px; margin: -10px 0 0 -10px; border-radius: 50%; background: var(--agent); box-shadow: 0 0 16px var(--agent); z-index: 0; opacity: 0; pointer-events: none; }
+    #adk-interview-c01-chapter .node.run { box-shadow: 0 0 0 5px color-mix(in oklab, var(--nc) 30%, transparent), 0 0 36px -6px var(--nc); }
+    #adk-interview-c01-chapter .lede { font-size: 25px; max-width: 1060px; }
+    #adk-interview-c01-chapter .tags .tag { font-size: 16px; padding: 9px 13px 9px 11px; }
+  </style>
+  <div class="ch-num" data-fx="blur">01</div>
+  <div class="diagram ch-graph" style="width:1120px;height:290px"
+       data-wires="start>llm:rl [ticket]; llm>route:rl:flow{model}; route>oncall@1:rl:flow{tool} [page]; route>queue@1:rl:dash [DEFAULT]">
+    <div class="group g-model" style="left:200px;top:10px;width:280px;height:270px"><span class="gl">LLM · judgment</span></div>
+    <div class="group g-tool" style="left:540px;top:10px;width:580px;height:270px"><span class="gl">Python code · flow</span></div>
+    <div class="node n-tool pill ghost" id="start" style="left:0;top:116px;width:100px"><span class="nt">START</span></div>
+    <div class="node n-model" id="llm" style="left:225px;top:104px;width:230px"><span class="nt">classify</span><span class="ns">LlmAgent → Triage</span></div>
+    <div class="node n-tool" id="route" style="left:570px;top:104px;width:180px"><span class="nt">route_ticket</span><span class="ns">function node</span></div>
+    <div class="node n-tool" id="oncall" style="left:870px;top:40px;width:220px" data-step="1" data-fx="pop"><span class="nt">page_oncall</span><span class="ns">outage, or any p1</span></div>
+    <div class="node n-human" id="queue" style="left:870px;top:180px;width:220px" data-step="1" data-fx="pop"><span class="nt">human_queue</span><span class="ns">no route matched</span></div>
+    <div class="tok" id="c01-tok"></div>
+  </div>
+  <h2 class="display">Agent architecture and graph workflows</h2>
+  <p class="lede" data-fx="up">In an ADK 2.0 Workflow, nodes are agents or Python functions and edges are code. Interviewers test where you draw that line.</p>
+  <div class="tags" data-fx="stagger">
+    <span class="tag t-agent">workflow vs agent vs multi-agent</span>
+    <span class="tag t-tool">routes, joins and loops</span>
+    <span class="tag t-agent">dynamic nodes and agent modes</span>
+    <span class="tag t-state">google-adk 2.13.0</span>
+  </div>
+  <aside class="notes">
+    This chapter drills one boundary: code owns the flow, and the model owns only the judgment. On the first frame the whole chain is visible: START hands the ticket text to classify, the only LLM node (coral zone), and classify returns a Triage object that a plain Python function, route_ticket, turns into a route (amber zone). On the click the two exits appear: route_ticket emits the "page" route for an outage or any p1 ticket, so it goes to page_oncall, and a label with no edge (such as "other") falls to DEFAULT_ROUTE and the human queue. Triage is a Pydantic object with the labels and a priority. The four chips are our agenda: architecture choice, routes and joins, loops, then dynamic nodes and agent modes, all tested against google-adk 2.13.0. Analogy: the LLM is the triage nurse who reads the symptoms, but the hospital protocol decides which ward the patient goes to. Likely student question: "Then why use an LLM at all?" Because free text needs judgment; the next slide gives the evidence for how little of the path should be free.
+  </aside>
+</section>
+<script>
+(() => {
+  let tl = null;
+  const kill = (slide) => {
+    if (tl) { tl.kill(); tl = null; }
+    if (!slide) return;
+    const tok = slide.querySelector("#c01-tok");
+    if (tok) { gsap.killTweensOf(tok); gsap.set(tok, { opacity: 0 }); }
+    slide.querySelectorAll(".ch-graph .node").forEach((n) => n.classList.remove("run"));
+  };
+  const center = (el) => ({ x: el.offsetLeft + el.offsetWidth / 2, y: el.offsetTop + el.offsetHeight / 2 });
+  const build = (slide, n) => {
+    kill(slide);
+    const q = (id) => slide.querySelector("#" + id);
+    const tok = q("c01-tok");
+    const runs = n >= 1 ? [["start", "llm", "route", "oncall"], ["start", "llm", "route", "queue"]] : [["start", "llm", "route"]];
+    tl = gsap.timeline({ repeat: -1, repeatDelay: 0.4, delay: 0.8 });
+    runs.forEach((path) => {
+      const p0 = center(q(path[0]));
+      tl.set(tok, { x: p0.x, y: p0.y, opacity: 1 });
+      path.forEach((id, k) => {
+        const el = q(id), c = center(el);
+        if (k > 0) tl.to(tok, { x: c.x, y: c.y, duration: 0.7, ease: "power2.inOut" });
+        tl.call(() => el.classList.add("run"));
+        tl.to({}, { duration: 0.35 });
+      });
+      tl.to(tok, { opacity: 0, duration: 0.3 });
+      tl.call(() => path.forEach((id) => q(id).classList.remove("run")));
+      tl.to({}, { duration: 0.3 });
+    });
+  };
+  Deck.register("adk-interview-c01-chapter", {
+    enter(slide, step) { build(slide, step); },
+    step(slide, n) { build(slide, n); },
+    leave(slide) { kill(slide); }
+  });
+})();
+</script>

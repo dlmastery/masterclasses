@@ -1,0 +1,187 @@
+<section class="slide" id="rag-interview-c02-qa-migrate" data-tone="state" data-title="Embedding-model migration">
+  <style>
+    #rag-interview-c02-qa-migrate .mf-grid { display: grid; grid-template-columns: 560px 1fr; gap: 28px; align-items: start; }
+    #rag-interview-c02-qa-migrate .qa-col { display: flex; flex-direction: column; gap: 22px; }
+    #rag-interview-c02-qa-migrate .qa { gap: 10px; transition: opacity .4s; }
+    #rag-interview-c02-qa-migrate .qa.dim { opacity: 0.4; }
+    #rag-interview-c02-qa-migrate .qa .q { font-size: 22px; }
+    #rag-interview-c02-qa-migrate .qa .a { font-size: 18px; line-height: 1.42; padding: 10px 16px; }
+    #rag-interview-c02-qa-migrate .qa .a code { font-size: 15px; }
+    #rag-interview-c02-qa-migrate .qa .a .big { display: block; margin-top: 6px; font: 700 20px/1.3 var(--f-display); color: var(--ink); }
+    #rag-interview-c02-qa-migrate .qa .a .big .c-risk { color: var(--risk); }
+    #rag-interview-c02-qa-migrate .right { display: grid; gap: 12px; }
+    #rag-interview-c02-qa-migrate svg.viz { width: 804px; height: 250px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+    #rag-interview-c02-qa-migrate .slot { display: grid; }
+    #rag-interview-c02-qa-migrate .slot > * { grid-area: 1 / 1; align-self: start; }
+    #rag-interview-c02-qa-migrate pre.code { font-size: 15.5px; line-height: 1.5; padding: 10px 16px 12px; }
+    #rag-interview-c02-qa-migrate pre.code.big { font-size: 18px; }
+    #rag-interview-c02-qa-migrate .code-wrap .code-head { padding: 7px 14px; font-size: 14px; }
+    #rag-interview-c02-qa-migrate .pins { font: 500 14px/1.35 var(--f-mono); color: var(--muted); }
+    #rag-interview-c02-qa-migrate code, #rag-interview-c02-qa-migrate pre.code, #rag-interview-c02-qa-migrate pre.code code { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #rag-interview-c02-qa-migrate .cites { gap: 8px; }
+    #rag-interview-c02-qa-migrate .cite { font-size: 14px; padding: 5px 9px 5px 7px; flex-direction: row; gap: 6px; border-radius: 10px; }
+  </style>
+  <div class="kicker">Interview · Embedding migration</div>
+  <h2 class="title">A new embedding model means a new index, not a mixed one</h2>
+  <div class="mf-grid fill">
+    <div class="qa-col">
+      <div class="qa" data-on="2:dim">
+        <div class="q">Can you query a gemini-embedding-001 index with gemini-embedding-2 vectors?</div>
+        <div class="a" data-step="1"><b>No.</b> Two models make two different vector spaces. Re-embed every chunk into a new table.</div>
+      </div>
+      <div class="qa" data-on="3:dim">
+        <div class="q">What else changes when you move from 001 to embedding-2?</div>
+        <div class="a" data-step="2"><b>No <code>task_type</code>:</b> put <code>task: search result | query: …</code> in the text. A list of strings returns one vector. Truncated output is unit length.</div>
+      </div>
+      <div class="qa">
+        <div class="q">How do you prove the migration is safe?</div>
+        <div class="a" data-step="3">Golden set = queries with their expected chunk ids. Switch only if recall@10 of v2 ≥ v1. Keep v1 for rollback.
+          <span class="big">Half-migrated index: <span class="c-risk">42%</span> of the full re-embed gain</span></div>
+      </div>
+    </div>
+    <div class="right">
+      <svg class="viz" id="mg-svg" viewBox="0 0 804 250" aria-label="Two vector spaces; a query from embedding-2 finds the wrong neighbours in the 001 index; a blue/green switch moves from v1 to v2"></svg>
+      <div class="slot">
+        <div class="stack" style="gap:8px" data-step="2" data-until="3">
+          <div class="pins">pip install "psycopg[binary]==3.3.6" pgvector==0.5.1 google-genai==2.33.0 numpy · env: PG_DSN, GEMINI_API_KEY</div>
+          <div class="code-wrap">
+            <div class="code-head">migrate.py · reads claim_chunks(id, title, content) from ingest</div>
+            <pre class="code" data-lang="python" data-focus="2:12-15"><code>import os, numpy as np, psycopg
+from google import genai
+from google.genai import types
+from pgvector.psycopg import register_vector
+conn = psycopg.connect(os.environ["PG_DSN"], autocommit=True)
+register_vector(conn)                    # after CREATE EXTENSION vector
+client = genai.Client()                  # reads GEMINI_API_KEY
+conn.execute("""CREATE TABLE claim_chunks_v2 (id bigint PRIMARY KEY,
+  title text, content text, embedding vector(768) NOT NULL)""")  # no sequence
+for cid, title, body in conn.execute(
+        "SELECT id, title, content FROM claim_chunks").fetchall():
+    doc = f"title: {title} | text: {body}"   # no task_type on embedding-2
+    r = client.models.embed_content(model="gemini-embedding-2",
+        contents=[types.Content(parts=[types.Part.from_text(text=doc)])],
+        config=types.EmbedContentConfig(output_dimensionality=768))
+    v = np.array(r.embeddings[0].values, dtype=np.float32)
+    conn.execute("INSERT INTO claim_chunks_v2 VALUES (%s, %s, %s, %s)",
+                 (cid, title, body, v))  # same ids as v1
+conn.execute("CREATE INDEX ON claim_chunks_v2"
+             " USING hnsw (embedding vector_cosine_ops)")</code></pre>
+          </div>
+        </div>
+        <div class="code-wrap" data-step="3">
+          <div class="code-head">swap.sql · psql "$PG_DSN" -f swap.sql</div>
+          <pre class="code big" data-lang="sql"><code>-- run only after the gate passes:
+-- recall@10(claim_chunks_v2) >= recall@10(claim_chunks)
+BEGIN;
+ALTER TABLE claim_chunks RENAME TO claim_chunks_v1;  -- rollback
+ALTER TABLE claim_chunks_v2 RENAME TO claim_chunks;
+COMMIT;</code></pre>
+        </div>
+      </div>
+      <div class="cites" data-step="3">
+        <a class="cite paper" href="https://arxiv.org/abs/2609.05339" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2609.05339 memory portability</a>
+        <a class="cite doc" href="https://ai.google.dev/gemini-api/docs/embeddings" target="_blank" rel="noopener"><b>Gemini API</b>&nbsp;Embeddings</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Ask each question and give the room twenty seconds before you reveal the answer. Q1 analogy: GPS coordinates from two map projections cannot be compared, so a vector from one model means nothing in the other model's index. Q2: gemini-embedding-2 has no task_type, so the RETRIEVAL_QUERY and RETRIEVAL_DOCUMENT settings that 001 used must move into the text: "task: search result | query: ..." for queries and "title: ... | text: ..." for documents. A plain list of strings in contents gives one aggregated vector (debug slide at the end of this chapter), and embedding-2 normalises truncated output itself. The code keeps v1's chunk ids in v2 (id bigint with no sequence), so the golden set maps to both tables. Do not copy v1 with LIKE ... INCLUDING DEFAULTS on a bigserial column: the copy reuses v1's sequence, which stays owned by v1, and dropping v1 later breaks v2's default. In production, send 100 inputs per call, each in its own Content. Q3: the golden set is a file of queries with their expected chunk ids. The memory-portability paper (2609.05339) found that a 50/50 mixed index recovered only 4.96 of the 11.90 points that a full re-embed gained, about 42%. Likely follow-up: "What about dual-read?" Send each query to both tables, serve v1, log v2 recall, and switch when v2 is equal or better.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "rag-interview-c02-qa-migrate";
+  let tweens = [], shown = -1;
+
+  function el(p, tag, attrs, style) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (style) Object.assign(e.style, style);
+    p.appendChild(e);
+    return e;
+  }
+  function text(p, x, y, s, o = {}) {
+    const t = el(p, "text", { x, y, "text-anchor": o.anchor || "middle" },
+      { fill: o.fill || "var(--ink-2)", fontFamily: o.font || "var(--f-mono)", fontSize: (o.size || 18) + "px", fontWeight: o.w || 500 });
+    t.textContent = s;
+    return t;
+  }
+  const T = (tw) => { tweens.push(tw); return tw; };
+  function kill() { tweens.forEach((t) => t.kill()); tweens = []; }
+
+  const V1 = Array.from({ length: 13 }, (_, i) => [18 + ((i * 0.618) % 1) * 164, 14 + ((i * 0.414 + 0.2) % 1) * 102]);
+  const V2 = Array.from({ length: 13 }, (_, i) => [18 + ((i * 0.382 + 0.5) % 1) * 164, 14 + ((i * 0.732 + 0.1) % 1) * 102]);
+  const QP = [120, 64];
+  const SX = 1.2, SY = 1.4;
+  function nearest(pts, p, k) {
+    return pts.map((q, i) => [i, Math.hypot(q[0] - p[0], q[1] - p[1])]).sort((a, b) => a[1] - b[1]).slice(0, k).map((x) => x[0]);
+  }
+
+  function draw(svg, n, animate) {
+    const B1 = { x: 14, y: 40 }, B2 = { x: 284, y: 40 };
+    const at = (b, p) => [b.x + p[0] * SX, b.y + p[1] * SY];
+    [[B1, "index · embedding-001", "var(--state)", V1], [B2, "query · embedding-2", "var(--agent)", V2]].forEach(([b, lab, c, pts]) => {
+      el(svg, "rect", { x: b.x, y: b.y, width: 240, height: 186, rx: 12 }, { fill: "none", stroke: c, strokeWidth: 1.5, opacity: 0.6 });
+      text(svg, b.x + 120, b.y - 14, lab, { size: 18, fill: c, w: 700 });
+      pts.forEach((p) => { const [x, y] = at(b, p); el(svg, "circle", { cx: x, cy: y, r: 6.5 }, { fill: c, opacity: 0.6 }); });
+    });
+    const [q2x, q2y] = at(B2, QP), [q1x, q1y] = at(B1, QP);
+    nearest(V2, QP, 3).forEach((i) => { const [x, y] = at(B2, V2[i]); el(svg, "line", { x1: q2x, y1: q2y, x2: x, y2: y }, { stroke: "var(--agent)", strokeWidth: 2.5 }); });
+    el(svg, "circle", { cx: q2x, cy: q2y, r: 9 }, { fill: "var(--human)" });
+    // switch on the right
+    const CX = 664;
+    text(svg, CX, 28, "serving index", { size: 18, fill: "var(--ink)", w: 700 });
+    el(svg, "rect", { x: CX - 50, y: 44, width: 100, height: 38, rx: 19 }, { fill: "var(--line)", stroke: "var(--line-2)" });
+    text(svg, CX - 76, 69, "v1", { size: 18, fill: "var(--state)", w: 700 });
+    text(svg, CX + 76, 69, "v2", { size: 18, fill: "var(--agent)", w: 700 });
+    const on = n >= 3;
+    const knob = el(svg, "circle", { cx: on && !animate ? CX + 31 : CX - 31, cy: 63, r: 14 }, { fill: on && !animate ? "var(--agent)" : "var(--state)" });
+    if (n < 1) {
+      text(svg, CX, 150, "same text,", { size: 18, fill: "var(--ink-2)" });
+      text(svg, CX, 176, "two models,", { size: 18, fill: "var(--ink-2)" });
+      text(svg, CX, 202, "two spaces", { size: 18, fill: "var(--ink)", w: 700 });
+      return;
+    }
+    // s1+: the embedding-2 query lands in the 001 index and finds the wrong chunks
+    const q1 = el(svg, "circle", { cx: q1x, cy: q1y, r: 9 }, { fill: "var(--human)" });
+    const bad = nearest(V1, QP, 3).map((i) => {
+      const [x2, y2] = at(B1, V1[i]);
+      const len = Math.hypot(x2 - q1x, y2 - q1y);
+      return el(svg, "line", { x1: q1x, y1: q1y, x2, y2 }, { stroke: "var(--risk)", strokeWidth: 3, strokeDasharray: len, strokeDashoffset: animate && n === 1 ? len : 0 });
+    });
+    const wrong = text(svg, B1.x + 120, 246, "nearest = wrong chunks", { size: 18, fill: "var(--risk)", w: 700 });
+    const stat = [
+      text(svg, CX, 128, "half-migrated keeps", { size: 17, fill: "var(--ink-2)", w: 600 }),
+      text(svg, CX, 186, "42%", { size: 54, fill: "var(--risk)", w: 700 }),
+      text(svg, CX, 214, "of the re-embed gain", { size: 17, fill: "var(--ink-2)", w: 600 }),
+      text(svg, CX, 240, "4.96 of 11.90 pts", { size: 17, fill: "var(--muted)", w: 600 }),
+    ];
+    if (n < 3) stat.forEach((s) => gsap.set(s, { opacity: 0 }));
+    if (!animate) return;
+    if (n === 1) {
+      T(gsap.from(q1, { attr: { cx: q2x }, duration: 0.9, ease: "power2.inOut" }));
+      T(gsap.to(bad, { strokeDashoffset: 0, duration: 0.45, stagger: 0.12, delay: 0.9 }));
+      T(gsap.fromTo(wrong, { opacity: 0 }, { opacity: 1, duration: 0.3, delay: 1.3 }));
+    }
+    if (n === 3) {
+      T(gsap.to(knob, { attr: { cx: CX + 31 }, duration: 0.5, delay: 0.4, ease: "back.out(1.6)", onStart: () => { knob.style.fill = "var(--agent)"; } }));
+      T(gsap.fromTo(stat, { opacity: 0 }, { opacity: 1, duration: 0.35, delay: 1.0, stagger: 0.15 }));
+    }
+  }
+
+  function render(slide, n, animate) {
+    const svg = slide.querySelector("#mg-svg");
+    if (!svg) return;
+    slide.querySelectorAll(".qa .a[data-step]").forEach((a) => { a.style.display = n >= +a.dataset.step ? "" : "none"; });
+    kill();
+    svg.innerHTML = "";
+    shown = n;
+    draw(svg, n, animate);
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { if (shown !== step) render(slide, step, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { kill(); shown = -1; }
+  });
+})();
+</script>

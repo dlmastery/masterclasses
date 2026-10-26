@@ -1,0 +1,76 @@
+<section class="slide tight" id="adk-c02-rest-sse" data-tone="state" data-title="Lab 2.3: POST /run_sse">
+  <style>
+    #adk-c02-rest-sse .c02e-grid { display: grid; grid-template-columns: 780px 1fr; gap: 30px; align-items: center; }
+    #adk-c02-rest-sse .c02e-left, #adk-c02-rest-sse .c02e-right { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+    #adk-c02-rest-sse .term pre.code { padding: 18px 22px 20px; }
+    #adk-c02-rest-sse .out { align-self: stretch; }
+    #adk-c02-rest-sse .out .code-head b { margin-left: auto; color: var(--model); font-weight: 700; }
+    #adk-c02-rest-sse .out pre.code { line-height: 1.6; padding: 16px 20px 18px; }
+    #adk-c02-rest-sse .stat { flex-direction: row; align-items: baseline; gap: 18px; }
+    #adk-c02-rest-sse .stat .n { font-size: 96px; color: var(--state); }
+  </style>
+  <div class="kicker"><span class="pill">Lab 2</span> Acme claims API · step 3 of 3</div>
+  <h2 class="title">POST /run_sse streams one data line per event as it happens</h2>
+  <div class="c02e-grid fill">
+    <div class="c02e-left">
+      <div class="code-wrap term">
+        <div class="code-head">terminal 2 · labs/adk/lab2-claims-api/rest_calls.sh · excerpt</div>
+        <pre class="code c17" data-lang="bash" data-focus="1:1, 3:3"><code>$ curl -N -X POST localhost:8000/run_sse \
+    -H "Content-Type: application/json" -d '{
+  "appName":"claims_api","userId":"u-tom","sessionId":"claim-77",
+  "newMessage":{"role":"user","parts":[{"text":"Is glass covered?"}]}}'</code></pre>
+      </div>
+      <div class="c02-cap">
+        <p data-until="1">Same body as <code>/run</code>, same session. Only the route changes.</p>
+        <p data-step="1" data-until="2"><code>curl -N</code> turns off buffering, so you see each line when it arrives.</p>
+        <p data-step="2" data-until="3">Each event is sent as soon as it exists: a <code>data:</code> line and a blank line.</p>
+        <p data-step="3">Add <code>"streaming": true</code> to the body to also get partial text chunks.</p>
+      </div>
+      <div class="stat push" data-step="2"><span class="n" id="c02e-n">0</span><span class="l">events streamed<br>in this turn</span></div>
+    </div>
+    <div class="c02e-right">
+      <div class="code-wrap out">
+        <div class="code-head">server-sent events · illustrative <b id="c02e-cnt">0 of 3</b></div>
+        <pre class="code c17" data-lang="output"><code><span class="c02e-l">data: {"author": "claims_assistant",
+       "functionCall": {"name": "lookup_policy", …}}</span>
+
+<span class="c02e-l">data: {"author": "claims_assistant",
+       "functionResponse": {"response": …}}</span>
+
+<span class="c02e-l">data: {"author": "claims_assistant",
+       "content": {"parts": [{"text":
+         "Yes, glass is covered on POL-448120."}]}}</span></code></pre>
+      </div>
+      <div class="cites push"><a class="cite repo" href="https://github.com/google/adk-python/blob/v2.13.0/src/google/adk/cli/api_server.py" target="_blank" rel="noopener"><b>Repo</b>&nbsp;google/adk-python · cli/api_server.py</a></div>
+    </div>
+  </div>
+  <aside class="notes">Same body as /run, same session claim-77, new question. Click 1: curl -N switches off output buffering, so each line shows the moment the server sends it. Click 2: /run_sse sends one data line per event while the turn runs: the tool call, the tool result, then the answer, three events, and the counter follows them. Click 3: add "streaming": true to the body and the server also sends partial text chunks, so expect more lines; your client must then join the partial text. Analogy: /run is a letter that arrives when the turn is done; /run_sse is a phone call that you hear as it happens. On Windows the single-quoted JSON breaks in PowerShell, so use Git Bash or WSL. A likely question: "Which one does a chat UI use?" /run_sse, because the user sees the tool call and the answer as they happen.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c02-rest-sse";
+  let calls = [];
+  function stop() { calls.forEach((c) => c.kill()); calls = []; }
+  function render(slide, n, animate) {
+    if (window.c02Focus) window.c02Focus(slide, n);
+    stop();
+    const ls = [...slide.querySelectorAll(".c02e-l")], cnt = slide.querySelector("#c02e-cnt"), num = slide.querySelector("#c02e-n");
+    gsap.killTweensOf(ls);
+    const set = (k) => { cnt.textContent = `${k} of 3`; num.textContent = String(k); };
+    if (n < 2) { gsap.set(ls, { autoAlpha: 0.12, x: 0 }); set(0); return; }
+    if (animate && n === 2) {
+      // the three data lines arrive one by one; both counters follow
+      gsap.set(ls, { autoAlpha: 0.12, x: 0 }); set(0);
+      ls.forEach((l, i) => calls.push(gsap.delayedCall(0.5 + i * 0.8, () => {
+        gsap.fromTo(l, { autoAlpha: 0.12, x: -10 }, { autoAlpha: 1, x: 0, duration: 0.35 });
+        set(i + 1);
+      })));
+    } else { gsap.set(ls, { autoAlpha: 1, x: 0 }); set(3); }
+  }
+  Deck.register(ID, {
+    enter(slide, n) { render(slide, n || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { stop(); },
+  });
+})();
+</script>

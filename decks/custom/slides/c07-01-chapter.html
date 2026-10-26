@@ -1,0 +1,175 @@
+<section class="slide chapter" id="custom-c07-chapter" data-tone="state" data-title="Ch 7: Dataset contracts">
+  <style>
+    #custom-c07-chapter .ch-num { right: 24px; top: 6px; }
+    #custom-c07-chapter .c07-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    #custom-c07-chapter .lede { margin-top: -8px; }
+    #custom-c07-chapter svg text { font-family: var(--f-mono); font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #custom-c07-chapter .c07-caps { display: grid; min-height: 30px; margin-top: -6px; }
+    #custom-c07-chapter .c07-caps > p { grid-area: 1 / 1; margin: 0; font-size: 19px; color: var(--ink-2); }
+    #custom-c07-chapter .c07-caps b { color: var(--ink); }
+  </style>
+  <div class="ch-num" data-fx="blur">07</div>
+  <svg id="c07-ch-svg" viewBox="0 0 960 340" width="960" height="340" role="img" aria-label="Chapter map. A nightly batch of 4 claims enters the ClaimsContract box. Step 1: the valid row goes to the training table, 1 row kept. Step 2: the 3 rows that fail a rule go to quarantine with the failure report. Step 3: the training table trains the fraud model; the model sends the claims with the smallest margin to the senior adjusters, who label 100 per day and send the labels back to the training table."></svg>
+  <div class="c07-caps">
+    <p data-until="1">A nightly batch of 4 claims meets <b>one contract</b>.</p>
+    <p data-step="1" data-until="2"><b>Valid</b> rows pass the contract and reach the training table.</p>
+    <p data-step="2" data-until="3">Rows that <b>fail a rule</b> go to quarantine with the full report.</p>
+    <p data-step="3">The model sends its <b>least-sure</b> claims to the adjusters.</p>
+  </div>
+  <h2 class="display">Contract the data</h2>
+  <p class="lede" data-fx="up">By the end: one pandera contract that both gates import, and a loop that picks which 100 claims the adjusters label each day.</p>
+  <div class="c07-row" data-fx="stagger">
+    <span class="tag t-state">pandera[pandas] 0.34.1</span>
+    <span class="tag t-model">scikit-learn 1.9.1</span>
+  </div>
+  <aside class="notes">This chapter is Lab 6 on the Acme claims intake. Every night a batch of claims arrives, and it must not reach the fraud-model training table until it passes a contract. Click 1: the one valid row of the lab batch goes through. Click 2: the three bad rows go to quarantine with the failure report; nothing is deleted. Click 3: the second half of the lab. The adjusters can label only 100 claims per day, so the model picks the claims with the smallest margin, the ones it is least sure about. Analogy: the contract is the security check at the airport door, and active learning is the officer who picks the few bags worth opening by hand. Likely question: "Is this not the job of the data warehouse?" The warehouse can check too, but the training job imports the same contract class, so one definition guards both gates.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c07-chapter";
+  const CW = 112, CH = 30;
+  // the 4 rows of the lab batch: row 0 passes, rows 1-3 fail
+  const CARDS = [
+    { id: "CLM-000101", fate: "ok" },
+    { id: "CLM-000102", fate: "bad" },
+    { id: "CLM-000102", fate: "bad" },
+    { id: "CLM-77", fate: "bad" },
+  ];
+  let P = null, tls = [];
+
+  const el = (parent, tag, attrs, style, text) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (style) Object.assign(e.style, style);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  };
+  const f = (w, s) => `${w} ${s}px var(--f-mono)`;
+
+  function node(g, x, y, w, h, tone, title, sub) {
+    el(g, "rect", { x, y, width: w, height: h, rx: 14 }, { fill: `var(--${tone}-soft)`, stroke: `var(--${tone})`, strokeWidth: 2.4 });
+    el(g, "text", { x: x + w / 2, y: y + h / 2 - 4, "text-anchor": "middle" }, { font: f(700, 18), fill: "var(--ink)" }, title);
+    return el(g, "text", { x: x + w / 2, y: y + h / 2 + 18, "text-anchor": "middle" }, { font: f(600, 13.5), fill: `var(--${tone})` }, sub);
+  }
+  function wire(g, d, tone, label) {
+    const p = el(g, "path", { d, "marker-end": `url(#c07ch-a-${tone})` }, { fill: "none", stroke: `var(--${tone})`, strokeWidth: 2.6 });
+    if (label) {
+      const L = p.getTotalLength(), m = p.getPointAtLength(L / 2), w = label.length * 7.8 + 18;
+      el(g, "rect", { x: m.x - w / 2, y: m.y - 12, width: w, height: 24, rx: 12 }, { fill: "var(--bg)", stroke: `var(--${tone})`, strokeWidth: 1.6 });
+      el(g, "text", { x: m.x, y: m.y + 4.5, "text-anchor": "middle" }, { font: f(700, 13), fill: `var(--${tone})` }, label);
+    }
+    return p;
+  }
+
+  function build(svg) {
+    svg.innerHTML = "";
+    const defs = el(svg, "defs", {});
+    ["line-2", "state", "risk", "tool", "human", "model"].forEach((t) => {
+      const m = el(defs, "marker", { id: `c07ch-a-${t}`, viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto-start-reverse" });
+      el(m, "path", { d: "M0 0 L10 5 L0 10 z" }, { fill: `var(--${t})` });
+    });
+    const G = (op) => el(svg, "g", {}, { opacity: op });
+    // step 0: batch + contract
+    const g0 = G(1);
+    node(g0, 0, 128, 140, 76, "tool", "nightly batch", "4 claims");
+    const entry = wire(g0, "M140 166 L206 166", "line-2", null);
+    // step 1: valid path + training table
+    const g1 = G(0);
+    const okP = wire(g1, "M382 148 C 500 148 500 38 616 38", "state", "valid");
+    const tableSub = node(g1, 620, 0, 270, 74, "state", "training table", "1 row kept");
+    // step 2: quarantine path
+    const g2 = G(0);
+    const badP = wire(g2, "M296 210 C 296 280 330 290 396 290", "risk", "fails a rule");
+    node(g2, 400, 252, 196, 78, "risk", "quarantine/", "3 rows + report");
+    // step 3: model -> adjusters -> labels
+    const g3 = G(0);
+    wire(g3, "M755 74 L755 116", "state", null);
+    node(g3, 620, 120, 270, 64, "model", "fraud model", "trained on the table");
+    const unP = wire(g3, "M755 184 L755 248", "tool", "smallest margin");
+    node(g3, 620, 252, 270, 78, "human", "senior adjusters", "100 labels/day");
+    const upP = wire(g3, "M890 291 C 936 291 936 37 894 37", "human", "labeled");
+    // cards pass behind the contract box
+    const cards = CARDS.map((c) => {
+      const g = el(svg, "g", {}, { opacity: 0 });
+      const r = el(g, "rect", { x: 0, y: 0, width: CW, height: CH, rx: 8 }, { fill: "var(--surface-2)", stroke: "var(--line-2)", strokeWidth: 2 });
+      el(g, "text", { x: CW / 2, y: 20, "text-anchor": "middle" }, { font: f(700, 12.5), fill: "var(--ink)" }, c.id);
+      return { g, r, c };
+    });
+    const dots = [0, 1, 2].map(() => el(svg, "circle", { r: 9 }, { fill: "var(--tool)", opacity: 0 }));
+    // contract box (on top)
+    el(svg, "rect", { x: 210, y: 121, width: 172, height: 90, rx: 16 }, { fill: "var(--surface)", stroke: "var(--state)", strokeWidth: 3 });
+    const glow = el(svg, "rect", { x: 210, y: 121, width: 172, height: 90, rx: 16 }, { fill: "var(--state)", opacity: 0 });
+    el(svg, "text", { x: 296, y: 162, "text-anchor": "middle" }, { font: f(700, 17), fill: "var(--state)" }, "ClaimsContract");
+    el(svg, "text", { x: 296, y: 184, "text-anchor": "middle" }, { font: f(500, 13), fill: "var(--muted)" }, "pandera · lazy=True");
+    // card route = entry (extended to the box centre) + fate path
+    const into = el(svg, "path", { d: "M90 166 L296 166" }, { fill: "none", stroke: "none" });
+    P = { svg, groups: [g0, g1, g2, g3], entry, into, okP, badP, unP, upP, cards, dots, glow, tableSub };
+  }
+
+  const place = (k, path, t) => {
+    const q = path.getPointAtLength(t * path.getTotalLength());
+    k.g.setAttribute("transform", `translate(${q.x - CW / 2} ${q.y - CH / 2})`);
+  };
+  const placeDot = (d, path, t) => {
+    const q = path.getPointAtLength(t * path.getTotalLength());
+    d.setAttribute("cx", q.x); d.setAttribute("cy", q.y);
+  };
+  const paint = (k, tone) => { k.r.style.fill = `var(--${tone}-soft)`; k.r.style.stroke = `var(--${tone})`; };
+
+  function stop() {
+    tls.forEach((t) => t.kill());
+    tls = [];
+    if (P) gsap.killTweensOf([P.glow, ...P.groups, ...P.cards.map((k) => k.g), ...P.dots]);
+  }
+
+  function sendCard(k, fateP, tone, delay) {
+    const o = { a: 0 };
+    const tl = gsap.timeline({ delay });
+    tl.call(() => { k.g.style.opacity = 1; paint(k, "line-2"); k.r.style.fill = "var(--surface-2)"; place(k, P.into, 0); })
+      .to(o, { a: 1, duration: 0.8, ease: "none", onUpdate: () => place(k, P.into, o.a) })
+      .call(() => { paint(k, tone); P.glow.style.fill = `var(--${tone})`; })
+      .fromTo(P.glow, { opacity: 0.35 }, { opacity: 0, duration: 0.4 })
+      .to(o, { a: 2, duration: 1.0, ease: "power1.inOut", onUpdate: () => place(k, fateP, Math.max(0, o.a - 1)) }, "<")
+      .to(k.g, { opacity: 0, duration: 0.3 });
+    tls.push(tl);
+  }
+
+  function loopDots() {
+    const tl = gsap.timeline({ repeat: -1, repeatDelay: 0.6, delay: 0.8 });
+    P.dots.forEach((d, i) => {
+      const o = { a: 0, b: 0 };
+      const t0 = i * 0.45;
+      tl.call(() => { d.style.fill = "var(--tool)"; d.style.opacity = 1; placeDot(d, P.unP, 0); }, null, t0)
+        .to(o, { a: 1, duration: 0.7, ease: "none", onUpdate: () => placeDot(d, P.unP, o.a) }, t0)
+        .call(() => { d.style.fill = "var(--human)"; }, null, t0 + 0.75)
+        .to(o, { b: 1, duration: 1.1, ease: "power1.inOut", onUpdate: () => placeDot(d, P.upP, o.b) }, t0 + 0.8)
+        .call(() => { d.style.opacity = 0; }, null, t0 + 1.95);
+    });
+    tls.push(tl);
+  }
+
+  function render(n, animate) {
+    if (!P) return;
+    stop();
+    const anim = animate && !matchMedia("(prefers-reduced-motion: reduce)").matches;
+    P.groups.forEach((g, i) => {
+      const on = i <= n;
+      if (anim && on && i === n && i > 0) gsap.fromTo(g, { opacity: 0 }, { opacity: 1, duration: 0.5 });
+      else g.style.opacity = on ? 1 : 0;
+    });
+    P.cards.forEach((k) => { k.g.style.opacity = 0; });
+    P.dots.forEach((d) => { d.style.opacity = 0; });
+    if (anim && n === 1) sendCard(P.cards[0], P.okP, "state", 0.3);
+    if (anim && n === 2) [1, 2, 3].forEach((i, j) => sendCard(P.cards[i], P.badP, "risk", 0.3 + j * 0.7));
+    if (n >= 3 && !matchMedia("(prefers-reduced-motion: reduce)").matches) loopDots();
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { stop(); build(slide.querySelector("#c07-ch-svg")); render(step || 0, false); },
+    step(slide, n, animate) { if (!P || !slide.contains(P.svg)) build(slide.querySelector("#c07-ch-svg")); render(n, animate); },
+    leave() { stop(); },
+  });
+})();
+</script>

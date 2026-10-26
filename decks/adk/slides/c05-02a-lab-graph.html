@@ -1,0 +1,119 @@
+<section class="slide tight" id="adk-c05-lab-graph" data-tone="human" data-title="Lab 5A.1: the refund graph">
+  <style>
+    #adk-c05-lab-graph .lab-head { flex-wrap: nowrap; gap: 14px; }
+    #adk-c05-lab-graph .lab-head .pins { font: 500 16px/1.3 var(--f-mono); color: var(--muted); white-space: nowrap; }
+    #adk-c05-lab-graph .lab-head .pins b { color: var(--ink-2); font-weight: 600; }
+    #adk-c05-lab-graph .g5-body { display: grid; grid-template-columns: 680px 1fr; gap: 40px; align-items: start; }
+    #adk-c05-lab-graph .g5-left { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+    #adk-c05-lab-graph .g5-right { display: flex; flex-direction: column; gap: 40px; padding-top: 70px; min-width: 0; }
+    #adk-c05-lab-graph .g5-rev { position: absolute; left: 0; top: 0; overflow: visible; z-index: 0; }
+    #adk-c05-lab-graph .g5-rev text { font: 600 16px var(--f-mono); fill: var(--human); }
+    #adk-c05-lab-graph .g5-cap { display: grid; font-size: 20px; line-height: 1.35; color: var(--ink-2); }
+    #adk-c05-lab-graph .g5-cap > p { grid-area: 1 / 1; margin: 0; }
+    #adk-c05-lab-graph .g5-cap code { font-size: 18px; }
+    #adk-c05-lab-graph .g5-tok { position: absolute; z-index: 4; left: 0; top: 0; height: 32px; padding: 0 14px; border-radius: 16px;
+      display: grid; place-items: center; font: 700 17px/1 var(--f-mono); color: #fff; background: var(--human);
+      box-shadow: 0 0 0 3px var(--bg), 0 0 16px var(--human); opacity: 0; pointer-events: none; white-space: nowrap; }
+    #adk-c05-lab-graph .g5-pause { position: absolute; z-index: 5; width: 40px; height: 40px; border-radius: 50%;
+      background: var(--human); display: flex; gap: 5px; align-items: center; justify-content: center; opacity: 0; box-shadow: 0 0 0 4px var(--bg); }
+    #adk-c05-lab-graph .g5-pause i { width: 5px; height: 16px; border-radius: 1px; background: #fff; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 5A</span> Acme refund approvals · step 1 of 5</div>
+  <h2 class="title">The refund graph drafts a reply, then a gate decides the route</h2>
+  <div class="lab-head">
+    <span class="run">pip install "google-adk==2.13.0"</span>
+    <span class="pins">refund_approval/.env · <b>GOOGLE_GENAI_USE_ENTERPRISE=FALSE</b> · <b>GOOGLE_API_KEY</b></span>
+  </div>
+  <div class="g5-body fill">
+    <div class="g5-left">
+      <div class="code-wrap">
+        <div class="code-head">labs/adk/lab5a-refund-approval/refund_approval/agent.py · excerpt</div>
+        <pre class="code" data-lang="python" data-focus="1:2-5, 2:6-9, 3:11-12, 4:13-15"><code>AUTO_APPROVE_LIMIT = 500.0
+def intake(node_input: str):     # "A-2040 820"
+  order_id, amount = node_input.split()[:2]
+  yield Event(state={"order_id": order_id,
+                     "amount": float(amount), "note": ""})
+draft_reply = Agent(
+    name="draft_reply", model="gemini-3.5-flash",
+    output_key="draft",          # -> state["draft"]
+    instruction=...)             # the email prompt
+# ... the gate and both end nodes: next slides
+root_agent = Workflow(name="refund_approval", edges=[
+    ("START", intake, draft_reply, manager_gate),
+    (manager_gate, {"approved": issue_refund,
+                    "rejected": notify_rejected,
+                    "revise": draft_reply}),
+])</code></pre>
+      </div>
+    </div>
+    <div class="g5-right">
+      <div class="diagram g5-diag" style="width:672px;height:380px"
+           data-wires="intake>draft@2; draft>gate@3; gate>issue@4 {state} [approved]; gate>notify@4 {risk} [rejected]">
+        <svg class="g5-rev" width="672" height="380" viewBox="0 0 672 380" data-step="4" data-fx="draw" aria-label="revise back-edge from manager_gate to draft_reply">
+          <path d="M584 66 C 584 -4, 328 -4, 328 60" fill="none" style="stroke:var(--human);stroke-width:2.8" />
+          <path d="M328 66 L320 52 L336 52 Z" style="fill:var(--human)" />
+          <rect x="416" y="-26" width="80" height="28" rx="14" style="fill:var(--bg);stroke:var(--human);stroke-width:1.5" />
+          <text x="456" y="-7" text-anchor="middle">revise</text>
+        </svg>
+        <div class="node n-tool" id="intake" style="left:0;top:70px;width:160px"><span class="nt">intake</span><span class="ns">→ amount</span></div>
+        <div class="node n-model" id="draft" style="left:240px;top:70px;width:176px" data-on="2:hot"><span class="nt">draft_reply</span><span class="ns">→ draft</span></div>
+        <div class="node n-human" id="gate" style="left:496px;top:70px;width:176px" data-on="3:hot"><span class="nt">manager_gate</span><span class="ns">@node</span></div>
+        <div class="node n-tool" id="issue" style="left:220px;top:290px;width:200px" data-step="4" data-fx="pop"><span class="nt">issue_refund</span></div>
+        <div class="node n-tool" id="notify" style="left:482px;top:290px;width:190px" data-step="4" data-fx="pop"><span class="nt">notify_rejected</span></div>
+        <div class="g5-pause" aria-hidden="true"><i></i><i></i></div>
+        <div class="g5-tok" aria-hidden="true">$820</div>
+      </div>
+      <div class="g5-cap">
+        <p data-until="1">An $820 refund for order A-2040 enters the graph.</p>
+        <p data-step="1" data-until="2"><code>intake</code> splits the input and writes <code>amount</code> to state.</p>
+        <p data-step="2" data-until="3"><code>output_key</code> writes the model reply to <code>state["draft"]</code>.</p>
+        <p data-step="3" data-until="4">The gate gets <code>amount</code> and <code>draft</code> by name, and pauses.</p>
+        <p data-step="4">Three routes leave the gate: approved, rejected, revise.</p>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">This is step 1 of Lab 5A, the Acme refund desk: refunds up to $500 go straight through, and larger ones stop at manager_gate. Install google-adk 2.13.0 and put the two keys in refund_approval/.env; GOOGLE_GENAI_USE_ENTERPRISE is the 2.x name, and the older GOOGLE_GENAI_USE_VERTEXAI still works but raises a DeprecationWarning. Walk the four focus steps with the $820 token. intake splits "A-2040 820" and writes amount to state. draft_reply is an LLM Agent whose output_key writes its reply to state["draft"]. The chain wires START, intake, draft_reply and manager_gate, and the gate receives amount and draft as arguments because the parameter names match the state keys. Finally the route map: approved goes to issue_refund, rejected to notify_rejected, and revise goes back to draft_reply. Think of state as the shared clipboard on a desk: each clerk writes one line, and the next clerk reads it by its label. A likely question: "Where is the pause itself?" Inside manager_gate, on the next slide. The full file is labs/adk/lab5a-refund-approval/refund_approval/agent.py.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c05-lab-graph";
+  let tl = null, pulse = null;
+  const at = (d, id) => { const e = d.querySelector("#" + id); return { x: e.offsetLeft + 36, y: e.offsetTop - 22 }; };
+  function clear(slide) {
+    if (tl) tl.kill(); tl = null;
+    if (pulse) pulse.kill(); pulse = null;
+    if (slide) gsap.killTweensOf(slide.querySelectorAll(".g5-tok, .g5-pause"));
+  }
+  function place(tok, p) { gsap.set(tok, { x: p.x - tok.offsetWidth / 2, y: p.y - tok.offsetHeight / 2 }); }
+  function render(slide, n, animate) {
+    clear(slide);
+    const d = slide.querySelector(".g5-diag");
+    const tok = d.querySelector(".g5-tok"), pause = d.querySelector(".g5-pause");
+    const gate = d.querySelector("#gate");
+    gsap.set(pause, { x: gate.offsetLeft + gate.offsetWidth - 30, y: gate.offsetTop - 32, opacity: 0, scale: 1 });
+    const stops = ["intake", "intake", "draft", "gate", "gate"];
+    const target = at(d, stops[Math.min(n, 4)]);
+    if (animate && n >= 1 && n <= 3) {
+      const from = at(d, stops[n - 1]);
+      place(tok, from);
+      gsap.set(tok, { opacity: 1 });
+      tl = gsap.timeline();
+      tl.to(tok, { x: target.x - tok.offsetWidth / 2, y: target.y - tok.offsetHeight / 2, duration: 0.6, ease: "power1.inOut" });
+    } else {
+      place(tok, target);
+      gsap.set(tok, { opacity: 1 });
+    }
+    if (n >= 3) {
+      const t = gsap.timeline({ delay: animate && n === 3 ? 0.65 : 0 });
+      t.fromTo(pause, { opacity: 0, scale: 0.3 }, { opacity: 1, scale: 1, duration: animate && n === 3 ? 0.3 : 0.01, ease: "back.out(3)" })
+       .add(() => { pulse = gsap.to(pause, { scale: 1.18, duration: 0.6, yoyo: true, repeat: -1, ease: "sine.inOut" }); });
+      if (!tl) tl = t;
+    }
+  }
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { clear(slide); },
+  });
+})();
+</script>

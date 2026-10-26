@@ -1,0 +1,75 @@
+<section class="slide tight" id="adk-c04-lab-loop" data-tone="model" data-title="Lab 4.4: writer and reviewer">
+  <style>
+    #adk-c04-lab-loop .lab-head .pins { font: 500 16px/1.3 var(--f-mono); color: var(--ink-2); white-space: nowrap; }
+    #adk-c04-lab-loop .lab-head .pins b { color: var(--state); font-weight: 600; }
+    #adk-c04-lab-loop .lp-grid { display: grid; grid-template-columns: 760px 1fr; gap: 28px; align-items: start; }
+    #adk-c04-lab-loop pre.code { font-size: 17px; }
+    #adk-c04-lab-loop .lp-right { display: flex; flex-direction: column; gap: 18px; }
+    #adk-c04-lab-loop .cap { position: relative; height: 64px; }
+    #adk-c04-lab-loop .cap > p { position: absolute; left: 0; right: 0; top: 0; margin: 0; font-size: 21px; line-height: 1.4; color: var(--ink-2); }
+    #adk-c04-lab-loop .cap code { font-size: .9em; }
+    #adk-c04-lab-loop .lp-state { position: absolute; left: 0; top: 352px; width: 604px; padding: 14px 16px; border-radius: 14px; border: 1.5px solid var(--state);
+      background: color-mix(in oklab, var(--state) 6%, var(--surface)); display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    #adk-c04-lab-loop .lp-state h4 { margin: 0 6px 0 0; font: 700 16px/1 var(--f-mono); color: var(--state); }
+    #adk-c04-lab-loop .lp-state span { font: 600 17px/1 var(--f-mono); padding: 8px 10px; border-radius: 8px; background: var(--state-soft); color: var(--ink); transition: opacity .3s; }
+    #adk-c04-lab-loop .lp-state span.off { opacity: .18; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 4</span> Acme back office · step 4 of 8</div>
+  <h2 class="title">An evaluator-optimizer loop: one LLM writes, one LLM grades</h2>
+  <div class="lab-head">
+    <span class="pins">copy_review/.env: <b>GOOGLE_GENAI_USE_ENTERPRISE=FALSE</b> · <b>GOOGLE_API_KEY=&lt;AI Studio key&gt;</b></span>
+  </div>
+  <div class="lp-grid fill">
+    <div class="code-wrap">
+      <div class="code-head">labs/adk/c04-copy-review/copy_review/agent.py · excerpt</div>
+      <pre class="code" data-lang="python" data-focus="1:1-4, 2:6-10, 3:12-16"><code>class Review(BaseModel):
+  grade: Literal["compliant", "needs_fix"]
+  feedback: str = Field(
+      description="What to change to meet the policy.")
+
+write_copy = Agent(
+    name="write_copy", model="gemini-3.5-flash", output_key="draft",
+    instruction="Write a 2-sentence ad for: {brief}. "
+                "Previous draft (may be empty): {draft?} "
+                "Feedback to apply (may be empty): {feedback?}")
+
+review_copy = Agent(
+    name="review_copy", model="gemini-3.5-flash",
+    output_schema=Review, output_key="review",
+    instruction="Policy: no guaranteed returns, no 'risk-free', must "
+                "say 'Capital at risk.' Grade this ad: {draft}")</code></pre>
+    </div>
+    <div class="lp-right">
+      <div class="diagram lp-stage" style="width:604px;height:420px"
+           data-wires="lp-brief>lp-write:bt; lp-write>lp-review@2 [draft]; lp-review>lp-gate@3:tb [Review]">
+        <div class="node n-tool" id="lp-brief" style="left:0;top:0;width:240px"><span class="nt">brief</span><span class="ns">seeds state</span></div>
+        <div class="node n-model" id="lp-write" style="left:0;top:150px;width:240px" data-on="2:hot"><span class="nt">write_copy</span><span class="ns">LLM · output_key</span></div>
+        <div class="node n-model" id="lp-review" style="left:364px;top:150px;width:240px" data-on="1:hot"><span class="nt">review_copy</span><span class="ns">LLM · output_schema</span></div>
+        <div class="node n-tool ghost" id="lp-gate" style="left:364px;top:0;width:240px" data-step="3" data-fx="pop"><span class="nt">gate</span><span class="ns">routes the grade</span></div>
+        <div class="lp-state"><h4>state</h4><span class="k0">brief</span><span class="k0">feedback=""</span><span class="k0">round=0</span><span class="k2 off">draft</span><span class="k3 off">review</span></div>
+      </div>
+      <div class="cap">
+        <p data-until="1"><code>brief</code> seeds state: the brief, empty feedback, round 0.</p>
+        <p data-step="1" data-until="2"><code>Review</code> is the grader's contract: a closed grade plus feedback.</p>
+        <p data-step="2" data-until="3"><code>{draft?}</code> is optional, empty in round 1. <code>{brief}</code> raises if missing.</p>
+        <p data-step="3">The gate reads a typed <code>Review</code>, not free text.</p>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">This is the evaluator-optimizer pattern for Acme's ad copy on a unit-linked savings policy, and the first LLM step of the lab: copy_review needs a .env with GOOGLE_GENAI_USE_ENTERPRISE=FALSE and a GOOGLE_API_KEY from Google AI Studio; on Vertex AI set it to TRUE with your project and location instead. Do not use the old name GOOGLE_GENAI_USE_VERTEXAI: it still works but raises a DeprecationWarning. Walk the bands: Review is the grader's contract, a closed grade plus feedback. write_copy writes its text to state under draft through output_key; the question mark in {draft?} and {feedback?} makes a state placeholder optional, so it renders empty on the first pass, while {brief} without it would raise if the key were missing. On a retry the writer sees its previous draft and the feedback, so it revises instead of starting over. review_copy has output_schema=Review, so the next node gets a typed object, not prose. Think of a junior copywriter and a compliance officer passing one folder back and forth. A likely question: "Why not one agent that writes and checks itself?" A separate grader with a fixed schema is easier to test and cannot talk itself into a pass. Next: the gate that bounds the loop.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c04-lab-loop";
+  // state keys appear when the node that writes them is explained: draft at step 2, review at step 3
+  function render(slide, n) {
+    slide.querySelectorAll(".lp-state .k2").forEach((e) => e.classList.toggle("off", n < 2));
+    slide.querySelectorAll(".lp-state .k3").forEach((e) => e.classList.toggle("off", n < 3));
+  }
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0); },
+    step(slide, n) { render(slide, n); },
+    leave() {}
+  });
+})();
+</script>

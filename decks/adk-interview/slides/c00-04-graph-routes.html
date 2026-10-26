@@ -1,0 +1,98 @@
+<section class="slide" id="adk-interview-c00-graph-routes" data-tone="tool" data-title="Lab 0: a function routes">
+  <style>
+    #adk-interview-c00-graph-routes .gr-main { display: grid; grid-template-columns: 840px 1fr; gap: 32px; }
+    #adk-interview-c00-graph-routes .gr-left, #adk-interview-c00-graph-routes .gr-right { gap: 14px; min-width: 0; }
+    #adk-interview-c00-graph-routes .gr-left pre.code { font-size: 17.5px; line-height: 1.5; padding: 14px 20px 16px; }
+    #adk-interview-c00-graph-routes .gr-right > * { width: 100%; }
+    #adk-interview-c00-graph-routes .code-wrap.out pre.code { font-size: 15px; line-height: 1.5; padding: 10px 14px 12px; white-space: pre; }
+    #adk-interview-c00-graph-routes .code-wrap.out .grp { transition: none; }
+    #adk-interview-c00-graph-routes .code-wrap.out .err { color: #ff9b9b; }
+    #adk-interview-c00-graph-routes .steps-rail > * { font-size: 19px; }
+    #adk-interview-c00-graph-routes .gr-cites { display: flex; gap: 8px; flex-wrap: wrap; }
+    #adk-interview-c00-graph-routes .gr-cites .cite { font-size: 15px; padding: 6px 10px 6px 8px; }
+    #adk-interview-c00-graph-routes pre .ln { display: block; margin: 0 -20px; padding: 0 20px; transition: opacity .35s, background-color .35s; }
+    #adk-interview-c00-graph-routes pre.dimmed .ln { opacity: .4; }
+    #adk-interview-c00-graph-routes pre.dimmed .ln.on { opacity: 1; background: color-mix(in oklab, var(--tool) 26%, transparent); box-shadow: inset 4px 0 0 var(--tool); }
+    #adk-interview-c00-graph-routes pre.dimmed .ln.onh { opacity: 1; background: color-mix(in oklab, var(--human) 34%, transparent); box-shadow: inset 4px 0 0 var(--human); }
+  </style>
+  <div class="kicker"><span class="pill">Lab 0</span> Support-ticket triage · step 2 of 2</div>
+  <h2 class="title">Lab 0: a function picks the route, DEFAULT_ROUTE catches the rest</h2>
+  <div class="gr-main fill">
+    <div class="gr-left stack">
+      <div class="code-wrap">
+        <div class="code-head">ticket_triage/agent.py · part 2 of 2 (Triage, intake, classify are in part 1)</div>
+        <pre class="code" data-lang="python" id="c00-code2"><code>def route_ticket(node_input: Triage):
+  yield Event(output=node_input.model_dump(),
+              route=list(node_input.labels))
+
+billing = Agent(name="billing", model="gemini-3.5-flash",
+    instruction="Draft a billing reply for: {ticket}")
+
+def page_oncall(node_input: dict):
+  yield Event(message=f"PAGED on-call (priority={node_input['priority']}).")
+
+def human_queue():
+  yield Event(message="Routed to the human L1 queue.")
+
+root_agent = Workflow(name="ticket_triage", edges=[
+    ("START", intake, classify, route_ticket),
+    (route_ticket, {"billing": billing, "outage": page_oncall,
+                    DEFAULT_ROUTE: human_queue}),
+])</code></pre>
+      </div>
+      <div class="gr-cites push">
+        <a class="cite doc" href="https://adk.dev/graphs/routes/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;adk.dev/graphs/routes</a>
+        <a class="cite repo" href="https://github.com/google/adk-python" target="_blank" rel="noopener"><b>Repo</b>&nbsp;github.com/google/adk-python</a>
+      </div>
+    </div>
+    <div class="gr-right stack">
+      <div class="steps-rail">
+        <div data-step="1"><span><code>route_ticket</code> is a function node: 0 LLM calls. With a list route, every label that has an edge runs its branch.</span></div>
+        <div data-step="2"><span><code>node_input</code> is the previous node's output: <code>model_dump()</code> gives <code>page_oncall</code> a dict. A node may omit it.</span></div>
+        <div data-step="3"><span>If <b>no</b> emitted label has an edge, <code>DEFAULT_ROUTE</code> sends the ticket to <code>human_queue</code>.</span></div>
+      </div>
+      <div class="code-wrap out" data-step="2">
+        <div class="code-head">output · illustrative</div>
+        <pre class="code" data-lang="out"><code><span class="grp" data-step="2" data-fx="fade"><span class="dim">$ adk run ticket_triage \
+    "Checkout API returns 500 since 09:00"</span>
+<span class="ok">[ticket_triage]: PAGED on-call (priority=p1).</span></span>
+<span class="grp" data-step="3" data-fx="fade"><span class="dim">$ adk run ticket_triage \
+    "I want to say thanks for the swag"</span>
+<span class="ok">[ticket_triage]: Routed to the human L1 queue.</span></span>
+<span class="grp" data-step="4" data-fx="fade"><span class="dim"># run B without DEFAULT_ROUTE: no reply, 1 log line</span>
+<span class="err">Node 'route_ticket' has conditional/DEFAULT edges
+but none were matched by the emitted route(s):
+['other']. The branch will end.</span></span></code></pre>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Part 2 finishes the graph. Step 1: route_ticket is plain code, and one Event carries both the payload and the route. A list route runs every branch whose label has an edge, so ["billing", "outage"] runs billing and page_oncall. Step 2: node_input is the previous node's output; a pydantic model goes in, model_dump() sends a dict out, and a function node may omit node_input, as human_queue does. The billing Agent reads {ticket} from state instead. Step 3: DEFAULT_ROUTE fires only when no emitted label matches an edge. Step 4: without it, run B ends with only that log warning and no error. Likely student question: "what about labels ["billing", "other"]?" Billing matches, so DEFAULT_ROUTE does not fire and "other" is dropped without a trace; if that matters, give "other" its own edge to human_queue. Analogy: the edge map is the hospital protocol that picks the ward.</aside>
+</section>
+<script>
+(() => {
+  // per step: lines (1-based) in focus (tool colour) and in violet (DEFAULT_ROUTE); all other lines dim
+  const FOCUS = { 1: { on: [1, 2, 3] }, 2: { on: [8, 9, 16] }, 3: { on: [11, 12], h: [17] }, 4: { on: [], h: [17] } };
+  function lines(pre) {
+    if (pre._lined) return [...pre.querySelectorAll(".ln")];
+    const code = pre.querySelector("code") || pre;
+    code.innerHTML = code.innerHTML.split("\n").map((l) => `<span class="ln">${l || " "}</span>`).join("");
+    pre._lined = true;
+    return [...pre.querySelectorAll(".ln")];
+  }
+  function render(slide, n) {
+    const pre = slide.querySelector("#c00-code2");
+    const ls = lines(pre);
+    const f = FOCUS[Math.min(4, n | 0)] || null;
+    pre.classList.toggle("dimmed", !!f);
+    ls.forEach((el, i) => {
+      el.classList.toggle("on", !!f && f.on.includes(i + 1));
+      el.classList.toggle("onh", !!f && !!f.h && f.h.includes(i + 1));
+    });
+  }
+  Deck.register("adk-interview-c00-graph-routes", {
+    enter(slide, n) { render(slide, n); },
+    step(slide, n) { render(slide, n); },
+    leave() {}
+  });
+})();
+</script>

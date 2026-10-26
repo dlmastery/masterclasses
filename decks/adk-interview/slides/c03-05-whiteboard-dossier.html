@@ -1,0 +1,173 @@
+<section class="slide" id="adk-interview-c03-whiteboard-dossier" data-tone="state" data-title="Whiteboard: 140-question dossier">
+  <style>
+    #adk-interview-c03-whiteboard-dossier .wd-left { width: 470px; flex: none; gap: 14px; }
+    #adk-interview-c03-whiteboard-dossier .wd-cell { display: grid; }
+    #adk-interview-c03-whiteboard-dossier .wd-cell > * { grid-area: 1 / 1; align-self: start; }
+    #adk-interview-c03-whiteboard-dossier .wd-prompt { padding: 16px 20px; }
+    #adk-interview-c03-whiteboard-dossier .wd-prompt p { font-size: 18px; line-height: 1.42; color: var(--ink); margin: 0; }
+    #adk-interview-c03-whiteboard-dossier .callout { font-size: 18px; line-height: 1.45; }
+    #adk-interview-c03-whiteboard-dossier .steps-rail { gap: 10px; }
+    #adk-interview-c03-whiteboard-dossier .steps-rail > * { font-size: 17px; line-height: 1.38; }
+    #adk-interview-c03-whiteboard-dossier .tags { gap: 8px; margin-top: 12px; }
+    #adk-interview-c03-whiteboard-dossier .tag { font-size: 14px; }
+    #adk-interview-c03-whiteboard-dossier .cites .cite { white-space: nowrap; }
+    #adk-interview-c03-whiteboard-dossier .wd-oom { position: absolute; left: 210px; top: 120px; width: 470px; height: 86px; border: 2px dashed var(--risk);
+      border-radius: 14px; background: var(--risk-soft); display: flex; flex-direction: column; justify-content: center; padding: 0 20px; gap: 4px; z-index: 2; }
+    #adk-interview-c03-whiteboard-dossier .wd-oom b { font: 700 18px/1.2 var(--f-body); color: var(--risk); }
+    #adk-interview-c03-whiteboard-dossier .wd-oom span { font: 500 15px/1.2 var(--f-mono); color: var(--ink-2); }
+    #adk-interview-c03-whiteboard-dossier .wd-oom.struck { opacity: .45; }
+    #adk-interview-c03-whiteboard-dossier .wd-oom.struck b { text-decoration: line-through; text-decoration-thickness: 3px; }
+    #adk-interview-c03-whiteboard-dossier .wd-pod { position: absolute; left: 210px; top: 340px; width: 190px; padding: 8px 12px; border-radius: 10px; border: 1.5px dashed var(--risk);
+      background: var(--surface); font: 500 14px/1.3 var(--f-mono); color: var(--risk); z-index: 2; }
+    #adk-interview-c03-whiteboard-dossier .wd-pod s { color: var(--ink-2); }
+    #adk-interview-c03-whiteboard-dossier .wd-fx { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 4; overflow: visible; }
+    #adk-interview-c03-whiteboard-dossier .wd-fx text { font-family: var(--f-mono); font-variant-ligatures: none; }
+    #adk-interview-c03-whiteboard-dossier #wd-dg .node .nt { font-size: 18px; }
+  </style>
+  <div class="kicker"><span class="pill">Whiteboard</span> system design</div>
+  <h2 class="title">Whiteboard: 140 questions per account, no giant context</h2>
+  <div class="row fill" style="gap:30px;align-items:start">
+    <div class="stack wd-left">
+      <div class="panel k-state wd-prompt">
+        <p>"Pre-sales wants a 360-degree account dossier: 140+ standard questions per account, answered from CRM data and internal docs, with a confidence label per answer, written back to the CRM."</p>
+      </div>
+      <div class="wd-cell">
+        <div data-until="5">
+          <div class="steps-rail">
+            <div data-step="1"><span><b>Clarify first:</b> latency budget per dossier? Which sources are trusted? Who reads the confidence label?</span></div>
+            <div data-step="2"><span><b>Fan out:</b> the orchestrator keeps the dossier and sends questions in batches of five to two agent endpoints.</span></div>
+            <div data-step="3"><span><b>Score:</b> both agents answer. Keep the answer with the larger share of grounded claims. Label it low, med or high.</span></div>
+            <div data-step="4"><span><b>Write back</b> through Pub/Sub. A separate service updates Salesforce.</span></div>
+          </div>
+          <div class="tags">
+            <span class="tag t-state" data-step="1">140+ questions</span>
+            <span class="tag t-agent" data-step="2">batches of 5</span>
+            <span class="tag t-risk" data-step="3">3 confidence levels</span>
+            <span class="tag t-tool" data-step="4">≈ 2.5 h per dossier before optimization</span>
+          </div>
+        </div>
+        <div class="callout insight" data-step="5" data-until="6">Say this: the dossier lives in my orchestrator, not in an agent context. Questions go out in batches of five, two answers are scored for groundedness, and the write-back is asynchronous.</div>
+        <div class="code-wrap" data-step="6">
+          <div class="code-head">orchestrator.py · the fan-out (google-adk 2.13.0)</div>
+          <pre class="code xs" data-lang="python"><code>import asyncio
+from google.adk import Agent
+from google.adk.apps.app import App
+from google.adk.runners import InMemoryRunner
+from google.genai import types
+
+answerer = Agent(name="dor_answerer", model="gemini-3.5-flash",
+    static_instruction="Answer ONE question from retrieved facts.")
+runner = InMemoryRunner(app=App(name="dor", root_agent=answerer))
+sem = asyncio.Semaphore(5)             # at most 5 questions in flight
+
+async def answer(q: str) -> tuple[str, str]:
+    async with sem:                    # a fresh session per question
+        s = await runner.session_service.create_session(app_name="dor", user_id="dor")
+        msg = types.Content(role="user", parts=[types.Part(text=q)])
+        async for ev in runner.run_async(user_id="dor", session_id=s.id, new_message=msg):
+            if ev.is_final_response() and ev.content and ev.content.parts:
+                return q, "".join(p.text or "" for p in ev.content.parts)
+        return q, "UNKNOWN"</code></pre>
+        </div>
+      </div>
+      <div class="cites">
+        <a class="cite doc" href="https://cloud.google.com/blog/topics/partners/palo-alto-networks-customer-intelligence-agentic-design" target="_blank" rel="noopener"><b>Blog</b>&nbsp;Palo Alto Networks Document of Record</a>
+      </div>
+    </div>
+
+    <div class="diagram" id="wd-dg" style="width:892px;height:600px"
+         data-wires="crm>orch@1:bt; orch>a1@2:flow; orch>a2@2:flow; a1>rag@2:bt; a2>rag@2:tb; a1>verify@3; a2>verify@3; verify>pubsub@4:bt [low/med/high]">
+      <div class="node n-tool" id="crm" style="left:205px;top:20px;width:190px" data-step="1" data-fx="pop"><span class="nt">Salesforce trigger</span><span class="ns">account metadata</span></div>
+      <div class="node n-agent" id="orch" style="left:205px;top:230px;width:190px" data-step="1" data-fx="pop"><span class="nt">Orchestrator</span><span class="ns">FastAPI on GKE</span></div>
+      <div class="node n-agent" id="a1" style="left:485px;top:30px;width:185px" data-step="2" data-fx="pop"><span class="nt">ADK agent A</span><span class="ns">Agent Engine</span></div>
+      <div class="node n-state" id="rag" style="left:485px;top:250px;width:185px" data-step="2" data-fx="pop"><span class="nt">RAG Engine</span><span class="ns">Vertex AI Search</span></div>
+      <div class="node n-agent" id="a2" style="left:485px;top:470px;width:185px" data-step="2" data-fx="pop"><span class="nt">ADK agent B</span><span class="ns">Agent Engine</span></div>
+      <div class="node n-risk" id="verify" style="left:745px;top:240px;width:147px" data-step="3" data-fx="pop"><span class="nt">grounded score</span><span class="ns">keep better</span></div>
+      <div class="node n-tool" id="pubsub" style="left:745px;top:470px;width:147px" data-step="4" data-fx="pop"><span class="nt">Pub/Sub</span><span class="ns">to Salesforce</span></div>
+      <div class="wd-oom" data-step="1" data-until="3" data-on="2:struck"><b>One agent context for all 140 questions</b><span>prompt overflows; PANW saw "Out of Memory" errors</span></div>
+      <div class="wd-pod" data-step="2"><s>agent in the same GKE cluster</s><br>pod crashes: agent moved to Agent Engine</div>
+      <svg class="wd-fx" id="wd-fx" viewBox="0 0 892 600" width="892" height="600" aria-label="140 questions leave the orchestrator queue in batches of five"></svg>
+    </div>
+  </div>
+  <aside class="notes">Give the candidate the prompt and two minutes to ask questions before you draw. The reference answer is the Palo Alto Networks Document of Record design on ADK and Vertex AI Agent Engine (Google's managed runtime for deployed agents), from the Google Cloud blog of 2026-01-14. Click 1: their first version sent all 140 questions through one agent context and hit "Out of Memory" errors; in general a growing prompt also overflows the context window and lowers answer quality. Click 2: the orchestrator keeps the dossier and sends questions to two ADK agent endpoints in batches of five; the second lesson is that the orchestrator and the agent in one GKE cluster gave frequent pod crashes, so the agent moved to Agent Engine. Click 3: each agent scores its answer by the share of claims grounded in the retrieved facts, the orchestrator keeps the better one, and a verification step labels it low, medium or high. The blog does not say how agents A and B differ. Click 4: write-back is asynchronous through Pub/Sub. Click 6 shows our own version of the fan-out, a semaphore of five with a fresh session per question; it is a design inspired by the case, not their code. The blog gives about 2.5 hours per dossier before optimization and no number after it. Likely follow-up: "Does a second agent double the cost?" Yes, roughly, so tie it back to the cost equation: you pay for quality with requests per turn.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-interview-c03-whiteboard-dossier";
+  const NS = "http://www.w3.org/2000/svg";
+  const N = 140, COLS = 14, GX = 12, GY = 12, QX = 8, QY = 236, BATCH = 5;
+  let svg = null, dots = [], flight, done, qlabel, split, arrow, tl = null, running = false;
+  const el = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); parent.appendChild(e); return e; };
+  const home = (i) => ({ x: QX + (i % COLS) * GX, y: QY + Math.floor(i / COLS) * GY });
+
+  function build(slide) {
+    svg = slide.querySelector("#wd-fx");
+    svg.innerHTML = "";
+    qlabel = el("text", { x: 0, y: 220, "font-size": 15, "font-weight": 700, fill: "var(--muted)" }, svg);
+    qlabel.textContent = "queue · 140 questions";
+    arrow = el("g", {}, svg);
+    el("path", { d: "M176 290 H196", stroke: "var(--ink-2)", "stroke-width": 2.5, fill: "none" }, arrow);
+    el("path", { d: "M194 283 L204 290 L194 297 Z", fill: "var(--ink-2)" }, arrow);
+    dots = Array.from({ length: N }, (_, i) => {
+      const p = home(i);
+      return el("circle", { cx: p.x, cy: p.y, r: 4, fill: "var(--state)" }, svg);
+    });
+    flight = el("text", { x: 0, y: 392, "font-size": 17, "font-weight": 700, fill: "var(--agent)" }, svg);
+    done = el("text", { x: 0, y: 418, "font-size": 17, "font-weight": 700, fill: "var(--state)" }, svg);
+    split = el("text", { x: 404, y: 228, "font-size": 15, "font-weight": 700, fill: "var(--agent)" }, svg);
+    split.textContent = "batches of 5";
+  }
+  function setCounts(f, d) {
+    flight.textContent = "in flight: " + f;
+    done.textContent = "done: " + d + "/140";
+  }
+  function stop() {
+    if (tl) { tl.kill(); tl = null; }
+    running = false;
+  }
+  function place(state) {   // state: "hidden" | "queued" | "done"
+    stop();
+    dots.forEach((c, i) => { gsap.killTweensOf(c); const p = home(i); gsap.set(c, { attr: { cx: p.x, cy: p.y }, opacity: state === "queued" ? 1 : 0 }); });
+    gsap.set([qlabel, flight, done, arrow], { opacity: state === "hidden" ? 0 : 1 });
+    gsap.set(split, { opacity: state === "done" ? 1 : 0 });
+    setCounts(0, state === "done" ? 140 : 0);
+  }
+  function target(dg, id, k) {
+    const n = dg.querySelector("#" + id);
+    return { x: n.offsetLeft - 10, y: n.offsetTop + n.offsetHeight / 2 + (k - 1) * 10 };
+  }
+  function run(slide) {
+    place("queued");
+    running = true;
+    gsap.set(split, { opacity: 1 });
+    const dg = slide.querySelector("#wd-dg");
+    const exit = { x: 410, y: 268 };
+    tl = gsap.timeline({ delay: 0.6, onComplete: () => { running = false; setCounts(0, 140); } });
+    for (let b = 0; b < N / BATCH; b++) {
+      const at = b * 0.5;
+      tl.call(() => setCounts(BATCH, b * BATCH), null, at);
+      for (let k = 0; k < BATCH; k++) {
+        const i = b * BATCH + k;
+        const t = target(dg, i % 2 === 0 ? "a1" : "a2", k >> 1);
+        tl.to(dots[i], { attr: { cx: exit.x, cy: exit.y }, duration: 0.18, ease: "power1.in" }, at + k * 0.03)
+          .to(dots[i], { attr: { cx: t.x, cy: t.y }, duration: 0.22, ease: "power1.out" }, at + 0.18 + k * 0.03)
+          .to(dots[i], { opacity: 0, duration: 0.08 }, at + 0.41 + k * 0.03);
+      }
+      tl.call(() => setCounts(0, (b + 1) * BATCH), null, at + 0.49);
+    }
+  }
+  // 0: nothing; 1: queue waits; 2: fan-out runs once; 3+: frozen at 140/140, queue empty
+  function sync(slide, n, animate) {
+    if (!svg || !slide.contains(svg)) build(slide);
+    if (n < 1) { place("hidden"); return; }
+    if (n === 1) { place("queued"); return; }
+    if (n === 2 && animate) { if (!running) run(slide); return; }
+    place("done");
+  }
+  Deck.register(ID, {
+    enter(slide, step) { stop(); build(slide); sync(slide, step || 0, false); },
+    step(slide, n, animate) { sync(slide, n, animate); },
+    leave() { stop(); dots.forEach((c) => gsap.killTweensOf(c)); }
+  });
+})();
+</script>

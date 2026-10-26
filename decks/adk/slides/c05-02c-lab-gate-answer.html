@@ -1,0 +1,50 @@
+<section class="slide tight" id="adk-c05-lab-gate-answer" data-tone="human" data-title="Lab 5A.3: the gate routes the answer">
+  <style>
+    #adk-c05-lab-gate-answer .gb-body { display: grid; grid-template-columns: 770px 1fr; gap: 40px; align-items: start; }
+    #adk-c05-lab-gate-answer .gb-right { display: flex; flex-direction: column; gap: 26px; min-width: 0; padding-top: 18px; }
+    #adk-c05-lab-gate-answer .gb-cap { display: grid; font-size: 20px; line-height: 1.35; color: var(--ink-2); }
+    #adk-c05-lab-gate-answer .gb-cap > p { grid-area: 1 / 1; margin: 0; }
+    #adk-c05-lab-gate-answer .gb-cap code { font-size: 18px; }
+    #adk-c05-lab-gate-answer .gb-cap b { color: var(--human); }
+  </style>
+  <div class="kicker"><span class="pill">Lab 5A</span> Acme refund approvals · step 3 of 5</div>
+  <h2 class="title">On the rerun, the same id finds the answer and picks one route</h2>
+  <div class="gb-body fill">
+    <div class="code-wrap">
+      <div class="code-head">labs/adk/lab5a-refund-approval/refund_approval/agent.py · excerpt</div>
+      <pre class="code" data-lang="python" data-focus="1:1-4, 2:6, 3:8-15, 4:11-12"><code>class ManagerDecision(BaseModel):
+  approved: bool
+  amount: Optional[float] = None          # partial refund
+  note: str = ""
+# ... manager_gate, run 2 (rerun_on_resume=True):
+  answer = ctx.resume_inputs.get(iid)     # None on the first run
+  # ... (the "if answer is None" branch is skipped)
+  d = ManagerDecision.model_validate(answer)
+  if not d.approved:
+    yield Event(route="rejected")
+  elif d.note:
+    yield Event(state={"note": d.note}, route="revise")
+  else:
+    yield Event(state={"final_amount": d.amount or amount},
+                route="approved")</code></pre>
+    </div>
+    <div class="gb-right">
+      <div class="diagram gb-diag" style="width:582px;height:400px"
+           data-wires="mgr>gate@2:flow {human} [reply]; gate>issue@3 {state} [approved]; gate>notify@3 {risk} [rejected]; gate>draft@3 {human} [revise]">
+        <div class="node n-human pill" id="mgr" style="left:10px;top:0;width:180px" data-step="2"><span class="nt">manager</span></div>
+        <div class="node n-human" id="gate" style="left:0;top:180px;width:200px" data-on="2:hot"><span class="nt">manager_gate</span><span class="ns">run 2</span></div>
+        <div class="node n-tool" id="issue" style="left:372px;top:20px;width:210px" data-step="3" data-on="4:dim"><span class="nt">issue_refund</span></div>
+        <div class="node n-tool" id="notify" style="left:372px;top:180px;width:210px" data-step="3" data-on="4:dim"><span class="nt">notify_rejected</span></div>
+        <div class="node n-model" id="draft" style="left:372px;top:330px;width:210px" data-step="3" data-on="4:hot"><span class="nt">draft_reply</span><span class="ns">run_id 2 → …_2</span></div>
+      </div>
+      <div class="gb-cap">
+        <p data-until="1">The reply must fit this schema.</p>
+        <p data-step="1" data-until="2">A JSON object such as <code>{"approved": true}</code> fits it.</p>
+        <p data-step="2" data-until="3">The function runs again from the top. Now <code>get(iid)</code> returns the reply.</p>
+        <p data-step="3" data-until="4">One route fires: approved, rejected or revise.</p>
+        <p data-step="4">A note means <b>revise</b>: a new pass, a new <code>run_id</code>, a new id.</p>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Step 3 of Lab 5A is the second half of manager_gate. ManagerDecision is the reply schema: approved is required, amount allows a partial refund, and note asks for a new draft. Because the decorator says rerun_on_resume=True, the whole function runs again from the top after the reply, and this time resume_inputs.get(iid) finds the answer, since invocation_id and run_id are the same on a resume. With the default rerun_on_resume=False, the hand-off pattern, the reply itself becomes the node output and the next node must read it; Lab 5B uses that pattern. model_validate turns the reply into a ManagerDecision, and exactly one route fires. The revise route goes back to draft_reply inside the same invocation, so the gate runs again with run_id 2 and asks with a new id ending in _2. Think of a revise as a new form with a new ticket number, so an old answer can never approve a new draft. A likely question: "What if the manager types approve, not JSON?" model_validate raises a ValidationError; step 5 shows why.</aside>
+</section>

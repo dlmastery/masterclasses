@@ -1,0 +1,55 @@
+<section class="slide" id="adk-c03-lab-routing-run" data-tone="agent" data-title="Lab 3.3: branches and the run">
+  <style>
+    #adk-c03-lab-routing-run .rr-main { display: grid; grid-template-columns: 800px 1fr; gap: 40px; align-items: start; }
+    #adk-c03-lab-routing-run .rr-right { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+    #adk-c03-lab-routing-run .out pre.code { font-size: 18px; white-space: pre-wrap; }
+    #adk-c03-lab-routing-run .out pre.code code { white-space: pre-wrap; }
+    #adk-c03-lab-routing-run .out .cmd { color: #7ee2b8; }
+    #adk-c03-lab-routing-run .out .gap { display: block; height: 12px; }
+    #adk-c03-lab-routing-run .cap { display: grid; }
+    #adk-c03-lab-routing-run .cap > * { grid-area: 1 / 1; font-size: 23px; line-height: 1.4; color: var(--ink-2); }
+    #adk-c03-lab-routing-run .cap code { font-size: .82em; }
+    #adk-c03-lab-routing-run, #adk-c03-lab-routing-run * { font-variant-ligatures: none !important; }
+    #adk-c03-lab-routing-run .out pre.code .dim { color: #a3abd6; opacity: 1; }
+    #adk-c03-lab-routing-run .cites .cite { display: inline-flex; flex-direction: row; align-items: center; gap: 10px; white-space: nowrap; padding: 6px 12px 6px 10px; border-radius: 10px; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 3.3</span> Acme support desk · 3 of 3</div>
+  <h2 class="title">Two branches run, and the graph still has one terminal output</h2>
+  <div class="rr-main fill">
+    <div class="code-wrap">
+      <div class="code-head">labs/adk/c03-ticket-triage/ticket_triage/agent.py · excerpt</div>
+      <pre class="code" data-lang="python" data-focus="1:1-4, 2:6-8, 3:14-15"><code>billing = Agent(
+    name="billing", model="gemini-3.5-flash",
+    instruction="Draft a billing reply for: {ticket}. "
+                "Mention invoice lookup.")
+
+def page_oncall(node_input: dict):     # route_ticket's output
+  yield Event(message=f"PAGED on-call "
+                      f"(priority={node_input['priority']}).")
+
+how_to = Agent(
+    name="how_to", model="gemini-3.5-flash",
+    instruction="Answer the product question in 4 steps: {ticket}")
+
+def human_queue():
+  yield Event(message="Routed to the human L1 queue.")</code></pre>
+    </div>
+    <div class="rr-right">
+      <div class="code-wrap out">
+        <div class="code-head">terminal · output illustrative</div>
+        <pre class="code" data-lang="none"><code><span class="cmd">$ adk run ticket_triage "Checkout API returns 500 since 09:00 and we were double charged"</span>
+<span data-step="1">[billing]: Hi — sorry about the duplicate charge. I've pulled invoice INV-… and …</span>
+<span data-step="2" class="ok">[ticket_triage]: PAGED on-call (priority=p1).</span>
+<span class="gap"></span><span data-step="3"><span class="cmd">$ adk run ticket_triage "I want to say thanks for the swag"</span>
+<span class="ok">[ticket_triage]: Routed to the human L1 queue.</span></span></code></pre>
+      </div>
+      <div class="cap">
+        <p data-until="1">Run the double-charge outage ticket.</p>
+        <p data-step="1" data-until="2"><code>billing</code> reads <code>{ticket}</code> from state and drafts the reply.</p>
+        <p data-step="2" data-until="3"><code>page_oncall</code> yields only a message, so <code>billing</code> gives the one output.</p>
+        <p data-step="3">A thank-you is <code>"other"</code>: no key matches, the default runs.</p>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">These are the four branch nodes and the two runs of Lab 3.3. Step 1: the double-charge outage ticket runs billing. billing is an Agent and reads {ticket} from state, which intake wrote at the start. Step 2: the same run also pages on-call, because the route list holds billing and outage. page_oncall gets the output of route_ticket as node_input, a dict, and yields only a message. That is why two branches can run and the graph still has at most one terminal output: only billing ends with an output. If page_oncall returned a value, the run would stop with WorkflowConfigurationError; a gotcha slide later shows that error. Step 3: the thank-you ticket is labelled other, no key matches, and DEFAULT_ROUTE sends it to human_queue. Function nodes sign as ticket_triage, the Workflow name. The output is illustrative. A likely question: "Do the two branches run in parallel?" They are both scheduled from the same route event; do not depend on their order. Next: the same router as YAML.</aside>
+</section>

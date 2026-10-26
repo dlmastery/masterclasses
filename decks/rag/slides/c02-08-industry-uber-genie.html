@@ -1,0 +1,60 @@
+<section class="slide" id="rag-c02-industry-uber-genie" data-tone="state" data-title="Industry: Uber Genie ingestion">
+  <style>
+    #rag-c02-industry-uber-genie .node { padding: 12px 14px; }
+    #rag-c02-industry-uber-genie .node .nt { font-size: 17px; }
+    #rag-c02-industry-uber-genie .node .ns { font-size: 13px; }
+    #rag-c02-industry-uber-genie .ug-bot { display: grid; grid-template-columns: 190px 190px 330px 1fr; gap: 24px; align-items: start; }
+    #rag-c02-industry-uber-genie .stat .n { font-size: 60px; }
+    #rag-c02-industry-uber-genie .stat .l { font-size: 15px; font-family: var(--f-mono); }
+    #rag-c02-industry-uber-genie .stat.neg .n { color: var(--state); }
+    #rag-c02-industry-uber-genie .panel p, #rag-c02-industry-uber-genie .callout p { font-size: 16.5px; line-height: 1.4; margin: 0; }
+    #rag-c02-industry-uber-genie .callout { padding: 10px 14px; }
+    #rag-c02-industry-uber-genie ul.clean li { font-size: 16px; line-height: 1.45; }
+    #rag-c02-industry-uber-genie .cites .cite { font-size: 14px; padding: 6px 10px 6px 8px; }
+  </style>
+  <div class="kicker"><span class="pill">In production</span> Uber</div>
+  <h2 class="title">Uber Genie: parse Google Docs, not PDFs, and enrich every chunk</h2>
+  <div class="diagram" style="width:1392px;height:356px"
+       data-wires="docs>load@1:flow{state}; load>md@1:flow{state} [HTML tables]; md>enr@1:flow{state} [markdown]; enr>st@1:flow{state} [keywords]; slack>qo@2:flow{human}; qo>si@2:flow{agent} [rewrites]; si>hy@2:flow{agent} [docs]; st>hy@2:dash{state}:bt [metadata]; hy>pp@2:flow{tool}; pp>llm@2:flow{agent} [ordered]">
+    <div class="group g-state" style="left:0;top:0;width:1392px;height:142px" data-step="1"><span class="gl">Offline · ingest and enrich</span></div>
+    <div class="group g-agent" style="left:0;top:206px;width:1392px;height:150px" data-step="2"><span class="gl">Online · LangGraph in Michelangelo</span></div>
+    <div class="node n-state" id="docs" style="left:18px;top:44px;width:160px" data-step="1" data-fx="pop"><span class="nt">Google Docs</span><span class="ns">policy docs</span></div>
+    <div class="node n-tool" id="load" style="left:314px;top:44px;width:160px" data-step="1" data-fx="pop"><span class="nt">Docs loader</span><span class="ns">custom, not PDF</span></div>
+    <div class="node n-model" id="md" style="left:610px;top:44px;width:160px" data-step="1" data-fx="pop"><span class="nt">LLM tables</span><span class="ns">tagged, unsplit</span></div>
+    <div class="node n-model" id="enr" style="left:906px;top:44px;width:160px" data-step="1" data-fx="pop"><span class="nt">LLM enrich</span><span class="ns">summary, FAQs</span></div>
+    <div class="node n-state" id="st" style="left:1202px;top:44px;width:160px" data-step="1" data-fx="pop"><span class="nt">Feature store</span><span class="ns">offline</span></div>
+    <div class="node n-human pill" id="slack" style="left:18px;top:258px;width:150px" data-step="2" data-fx="pop"><span class="nt">Slack question</span></div>
+    <div class="node n-agent" id="qo" style="left:259px;top:250px;width:150px" data-step="2" data-fx="pop"><span class="nt">Query Optimizer</span><span class="ns">rewrite, split</span></div>
+    <div class="node n-agent" id="si" style="left:500px;top:250px;width:150px" data-step="2" data-fx="pop"><span class="nt">Source Identifier</span><span class="ns">few-shot</span></div>
+    <div class="node n-tool" id="hy" style="left:741px;top:250px;width:150px" data-step="2" data-fx="pop" data-on="3:hot"><span class="nt">Hybrid search</span><span class="ns">vector + BM25</span></div>
+    <div class="node n-agent" id="pp" style="left:982px;top:250px;width:150px" data-step="2" data-fx="pop"><span class="nt">Post-Processor</span><span class="ns">dedupe, reorder</span></div>
+    <div class="node n-model" id="llm" style="left:1223px;top:250px;width:150px" data-step="2" data-fx="pop"><span class="nt">Answer LLM</span><span class="ns">replies in Slack</span></div>
+  </div>
+  <div class="ug-bot push">
+    <div class="stat" data-step="3">
+      <div class="n" data-to="27" data-pre="+" data-suf="%">+27%</div>
+      <div class="l">acceptable answers (relative)</div>
+    </div>
+    <div class="stat neg" data-step="3">
+      <div class="n" data-to="60" data-pre="-" data-suf="%">-60%</div>
+      <div class="l">incorrect advice (relative)</div>
+    </div>
+    <div class="panel tight k-human" data-step="3">
+      <ul class="clean">
+        <li>Golden set: 100+ SME queries, 40+ policy docs</li>
+        <li>LLM judge: score 0-5 with a reason</li>
+        <li>Experiments: weeks → minutes</li>
+      </ul>
+    </div>
+    <div class="stack" style="gap:10px">
+      <div class="callout pitfall" data-step="4"><p>PDF loaders destroyed table structure. Google Docs HTML also carries ACLs.</p></div>
+      <div class="panel tight k-state" data-step="4"><p><b>Lab 2:</b> <code>repeat_table_header</code> and isolated Unstructured table chunks do the same job.</p></div>
+      <div class="cites" data-step="4">
+        <a class="cite doc" href="https://www.uber.com/us/en/blog/enhanced-agentic-rag/" target="_blank" rel="noopener"><b>Blog</b>&nbsp;Uber: Enhanced Agentic-RAG (2025-05-29)</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    Uber's Genie answers policy questions in Slack, and the team found that most of the quality was won or lost at ingestion. Step 1, offline: a custom Google Docs loader replaces the PDF loader, an LLM turns tables and bullets into markdown, table chunks are tagged so they are never split, and an LLM writes a summary, FAQs and keywords for each document into an offline feature store. Step 2, online: a Query Optimizer rewrites and splits the question, a Source Identifier picks the likely policy docs, vector plus BM25 search runs over the enriched metadata, and a Post-Processor removes duplicates and puts chunks back in source order before the answer LLM replies. Step 3: acceptable answers rose 27% and incorrect advice fell 60%, both relative, measured on 100+ SME queries with an LLM judge, and experiment turnaround went from weeks to minutes. Analogy: they stopped photocopying the policy binder and asked for the original Word file. Likely question: "What if I only have PDFs?" Then use a layout-aware parser like Docling with table structure on, as in Lab 2, and test that no table is split. Chapter 3 takes out/claims_chunks.jsonl from Lab 2 and embeds and indexes it.
+  </aside>
+</section>

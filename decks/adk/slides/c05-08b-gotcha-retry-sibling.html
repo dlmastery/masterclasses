@@ -1,0 +1,129 @@
+<section class="slide tight" id="adk-c05-gotcha-retry-sibling" data-tone="risk" data-title="Gotcha: one run, two emails">
+  <style>
+    #adk-c05-gotcha-retry-sibling pre.code, #adk-c05-gotcha-retry-sibling code { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #adk-c05-gotcha-retry-sibling .gg-body { display: grid; grid-template-columns: 480px minmax(0, 1fr); gap: 40px; align-items: start; }
+    #adk-c05-gotcha-retry-sibling .gg-left { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
+    #adk-c05-gotcha-retry-sibling .gg-right { display: flex; flex-direction: column; gap: 26px; min-width: 0; }
+    #adk-c05-gotcha-retry-sibling .gotcha { font-size: 20px; line-height: 1.4; padding: 20px 24px; gap: 12px 16px; }
+    #adk-c05-gotcha-retry-sibling .gotcha > b { font-size: 15px; }
+    #adk-c05-gotcha-retry-sibling .gotcha code { font-size: 18px; }
+    #adk-c05-gotcha-retry-sibling .out pre.code, #adk-c05-gotcha-retry-sibling .out pre.code code { white-space: pre-wrap; }
+    #adk-c05-gotcha-retry-sibling #gr-svg { display: block; overflow: visible; }
+    #adk-c05-gotcha-retry-sibling svg text { font-family: var(--f-mono); }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> Retry and resume · 2 of 3 · open #7524</div>
+  <h2 class="title">A retry on the whole workflow re-runs a finished sibling: two emails</h2>
+  <div class="gg-body fill">
+    <div class="gg-left">
+      <div class="gotcha">
+        <b>Symptom</b><span><code>send_email</code> runs again when its sibling retries.</span>
+        <b class="why" data-step="2">Cause</b><span data-step="2">The retry sits on the parent workflow. SQLite only.</span>
+        <b class="fix" data-step="3">Fix</b><span data-step="3">Put <code>retry_config</code> on the node that fails.</span>
+      </div>
+      <div class="cites" data-step="3">
+        <a class="cite repo" href="https://github.com/google/adk-python/issues/7524" target="_blank" rel="noopener"><b>Repo</b>&nbsp;adk-python #7524</a>
+      </div>
+    </div>
+    <div class="gg-right">
+      <svg id="gr-svg" viewBox="0 0 832 300" width="832" height="300" aria-label="Left: a retry on the enclosing workflow re-runs send_email and sends two emails. Right: a retry on the flaky node sends one email"></svg>
+      <div class="code-wrap out bad" data-step="1">
+        <div class="code-head">output · issue #7524 repro · SQLite session</div>
+        <pre class="code sm" data-lang="none"><code><span class="err">node executions: {'flaky': 2, 'send_email': 2}</span>
+<span class="err">emails sent: ['email #1', 'email #2']</span></code></pre>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">The second retry bug is issue 7524, still open. The reporter's graph fans out two nodes, flaky and send_email, under a workflow that carries the retry_config. When flaky fails once on a SQLite session, the workflow retry re-runs the finished send_email too, so the customer gets two emails; a retry on the flaky node itself sends one. The cause is a race: the finished sibling's output was still being persisted when the batch was cancelled, which is why InMemorySessionService passes and SQLite fails. So test retry and resume on the session backend you use in production, not only in memory. Our payout already follows the fix, because the retry sits on pay and nowhere else. Think of a group order: if one dish is wrong, you re-cook that dish, not the whole table's order. A likely question: "Is the workflow-level retry ever right?" Only when every child is idempotent; until the issue is fixed, keep retries on leaf nodes.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c05-gotcha-retry-sibling";
+  const NS = "http://www.w3.org/2000/svg";
+  let tl = null, R = null;
+  function mk(tag, attrs, parent) {
+    const e = document.createElementNS(NS, tag);
+    for (const [a, v] of Object.entries(attrs)) e.setAttribute(a, v);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function txt(parent, x, y, s, attrs) { const t = mk("text", Object.assign({ x, y, "font-size": 17, fill: "var(--ink)" }, attrs || {}), parent); t.textContent = s; return t; }
+  function env(parent, x, y) {
+    const g = mk("g", {}, parent);
+    mk("rect", { x, y, width: 36, height: 26, rx: 4, "stroke-width": 2 }, g);
+    mk("path", { d: `M${x + 1} ${y + 2} L${x + 18} ${y + 14} L${x + 35} ${y + 2}`, fill: "none", "stroke-width": 2 }, g);
+    return g;
+  }
+  function panel(ox, title, groupLabel) {
+    const o = {};
+    txt(R.svg, ox, 20, title, { "font-size": 18, "font-weight": 700 });
+    o.grp = mk("rect", { x: ox + 90, y: 40, width: 300, height: 180, rx: 12, fill: "none", stroke: "var(--line-2)", "stroke-width": 2, "stroke-dasharray": "6 5" }, R.svg);
+    o.gl = txt(R.svg, ox + 104, 64, groupLabel, { "font-size": 15, fill: "var(--muted)" });
+    mk("rect", { x: ox, y: 112, width: 70, height: 36, rx: 18, fill: "var(--surface-2)", stroke: "var(--line-2)", "stroke-width": 2 }, R.svg);
+    txt(R.svg, ox + 35, 136, "START", { "font-size": 15, "font-weight": 700, "text-anchor": "middle" });
+    mk("path", { d: `M${ox + 70} 124 C ${ox + 88} 124, ${ox + 88} 98, ${ox + 106} 98`, fill: "none", stroke: "var(--line-2)", "stroke-width": 2 }, R.svg);
+    mk("path", { d: `M${ox + 70} 136 C ${ox + 88} 136, ${ox + 88} 166, ${ox + 106} 166`, fill: "none", stroke: "var(--line-2)", "stroke-width": 2 }, R.svg);
+    o.f = mk("rect", { x: ox + 106, y: 78, width: 150, height: 40, rx: 9, "stroke-width": 2 }, R.svg);
+    txt(R.svg, ox + 181, 104, "flaky", { "font-size": 17, "font-weight": 700, "text-anchor": "middle" });
+    o.m = txt(R.svg, ox + 266, 104, "", { "font-size": 15, "font-weight": 700 });
+    o.s = mk("rect", { x: ox + 106, y: 146, width: 150, height: 40, rx: 9, "stroke-width": 2 }, R.svg);
+    txt(R.svg, ox + 181, 172, "send_email", { "font-size": 17, "font-weight": 700, "text-anchor": "middle" });
+    o.e1 = env(R.svg, ox + 266, 153); o.e2 = env(R.svg, ox + 312, 153);
+    o.cnt = txt(R.svg, ox, 280, "emails sent: 0", { "font-size": 26, "font-weight": 800 });
+    return o;
+  }
+  function build(svg) {
+    svg.innerHTML = "";
+    R = { svg };
+    R.A = panel(0, "retry on the workflow", "Workflow retry");
+    mk("line", { x1: 418, y1: 0, x2: 418, y2: 300, stroke: "var(--line)", "stroke-width": 1.2 }, svg);
+    R.B = panel(436, "retry on the flaky node", "Workflow, no retry");
+    R.B.ring = mk("circle", { cx: 617, cy: 98, r: 0, fill: "none", stroke: "var(--tool)", "stroke-width": 2.5 }, svg);
+    R.B.rl = txt(svg, 542, 140, "node retry", { "font-size": 15, fill: "var(--tool)", opacity: 0 });
+  }
+  const tone = (el, t) => { el.setAttribute("fill", `var(--${t}-soft)`); el.setAttribute("stroke", `var(--${t})`); };
+  const envOn = (g, on, t) => { g.setAttribute("opacity", on ? 1 : 0); g.querySelectorAll("rect, path").forEach((e) => { e.setAttribute("stroke", `var(--${t})`); if (e.tagName === "rect") e.setAttribute("fill", `var(--${t}-soft)`); }); };
+  const mark = (el, st) => { el.setAttribute("opacity", st ? 1 : 0); el.textContent = st === 2 ? "✓ try 2" : "✕ try 1"; el.setAttribute("fill", st === 2 ? "var(--state)" : "var(--risk)"); };
+  function renderA(a) {
+    const P = R.A;
+    tone(P.f, a > 0.3 && a <= 0.6 ? "risk" : "tool"); tone(P.s, "tool");
+    mark(P.m, a > 0.6 ? 2 : a > 0.3 ? 1 : 0);
+    P.grp.setAttribute("stroke", a > 0.42 ? "var(--risk)" : "var(--line-2)");
+    P.grp.setAttribute("stroke-width", a > 0.42 && a <= 0.62 ? 3.5 : 2);
+    P.gl.textContent = a > 0.42 ? "Workflow retry: re-runs both" : "Workflow retry";
+    P.gl.setAttribute("fill", a > 0.42 ? "var(--risk)" : "var(--muted)");
+    envOn(P.e1, a > 0.15, "tool"); envOn(P.e2, a > 0.75, "risk");
+    const n = (a > 0.15 ? 1 : 0) + (a > 0.75 ? 1 : 0);
+    P.cnt.textContent = "emails sent: " + n;
+    P.cnt.setAttribute("fill", n > 1 ? "var(--risk)" : "var(--ink)");
+  }
+  function renderB(b) {
+    const P = R.B;
+    tone(P.f, b > 0.3 && b <= 0.62 ? "risk" : "tool"); tone(P.s, "tool");
+    mark(P.m, b > 0.62 ? 2 : b > 0.3 ? 1 : 0);
+    const r = b > 0.42 && b <= 0.62 ? 24 + 28 * ((b - 0.42) / 0.2) : 0;
+    P.ring.setAttribute("r", r); P.ring.setAttribute("opacity", r > 0 ? 1 - (r - 24) / 32 : 0);
+    P.rl.setAttribute("opacity", b > 0.42 ? 1 : 0);
+    envOn(P.e1, b > 0.15, "state"); envOn(P.e2, false, "state");
+    P.cnt.textContent = "emails sent: " + (b > 0.15 ? 1 : 0);
+    P.cnt.setAttribute("fill", b > 0.15 ? "var(--state)" : "var(--ink)");
+  }
+  function stop() { if (tl) tl.kill(); tl = null; }
+  function show(slide, n, animate) {
+    const svg = slide.querySelector("#gr-svg");
+    if (!svg) return;
+    if (!svg.childElementCount) build(svg);
+    stop();
+    const A = { a: n >= 1 ? 1 : 0 }, B = { b: n >= 3 ? 1 : 0 };
+    if (animate && n === 1) A.a = 0;
+    if (animate && n === 3) B.b = 0;
+    renderA(A.a); renderB(B.b);
+    if (animate && n === 1) tl = gsap.to(A, { a: 1, duration: 3.0, ease: "none", delay: 0.4, onUpdate: () => renderA(A.a) });
+    if (animate && n === 3) tl = gsap.to(B, { b: 1, duration: 2.6, ease: "none", delay: 0.4, onUpdate: () => renderB(B.b) });
+  }
+  Deck.register(ID, {
+    enter(slide, n) { show(slide, n || 0, false); },
+    step(slide, n, animate) { show(slide, n, animate); },
+    leave() { stop(); },
+  });
+})();
+</script>

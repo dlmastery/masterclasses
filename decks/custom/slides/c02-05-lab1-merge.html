@@ -1,0 +1,160 @@
+<section class="slide" id="custom-c02-lab1-merge" data-tone="model" data-title="Lab 1 · merge and verify">
+  <div class="kicker"><span class="pill">Lab 1</span> Acme refunds assistant · step 4 of 5</div>
+  <h2 class="title">Merge the adapter, then assert the argmax did not change</h2>
+  <div class="grid fill mg-grid">
+    <div class="code-wrap">
+      <div class="code-head">refunds_sft/step4_merge_and_verify.py · peft 0.21.2 · transformers 5.20.2</div>
+      <pre class="code mg-code" data-lang="python" data-focus="1:7-9, 2:16, 3:19-22, 5:23-24"><code>import torch
+from peft import PeftModel
+from transformers import AutoModelForCausalLM, AutoTokenizer
+from common import refund_splits
+BASE, ADAPTER = "Qwen/Qwen3-0.6B", "qwen3-0.6b-refund-lora/final"
+tok = AutoTokenizer.from_pretrained(BASE)
+# Merge into a bf16 (16-bit) base, never a 4-bit base.
+base = AutoModelForCausalLM.from_pretrained(BASE, dtype=torch.bfloat16)
+peft_model = PeftModel.from_pretrained(base, ADAPTER).eval()
+test = refund_splits()["test"].select(range(20))   # 20 held-out rows
+encs = [tok.apply_chat_template(r["messages"][:2],   # SYSTEM + user
+            add_generation_prompt=True, enable_thinking=False,
+            return_tensors="pt", return_dict=True) for r in test]
+with torch.no_grad():
+    ref = [peft_model(**e).logits.float() for e in encs]
+merged = peft_model.merge_and_unload(safe_merge=True)  # returns the model
+with torch.no_grad():
+    new = [merged(**e).logits.float() for e in encs]
+diff = max((a - b).abs().max().item() for a, b in zip(ref, new))
+same = all(torch.equal(a.argmax(-1), b.argmax(-1)) for a, b in zip(ref, new))
+print(f"max |logit diff| = {diff:.4f}  same argmax, 20 prompts: {same}")
+assert same, "merge changed the argmax - do not ship"
+merged.save_pretrained("qwen3-0.6b-refund-merged")  # ~1.2 GB, no peft
+tok.save_pretrained("qwen3-0.6b-refund-merged")</code></pre>
+    </div>
+
+    <div class="stack mg-side">
+      <div class="lab-head"><span class="run">python step4_merge_and_verify.py</span></div>
+      <div class="panel k-model tight mg-viz">
+        <svg id="mg-svg" viewBox="0 0 640 300" width="640" height="300" aria-label="Next-token logits before and after the merge. The tallest bar at each position stays the same; the logit change stays below 0.0625."></svg>
+      </div>
+      <div class="steps-rail mg-rail">
+        <div data-step="1"><span>Load the base in <b>bf16</b>. A 4-bit base re-rounds the merged weights.</span></div>
+        <div data-step="2"><span>Merge the <b>PeftModel</b> and keep the returned model. <code>safe_merge=True</code> stops on NaNs.</span></div>
+        <div data-step="3"><span>bf16 re-rounds W + B·A·α/r (α=32, r=16). 0.0625 is one bf16 step near logit 10. The argmax must not move.</span></div>
+      </div>
+      <div class="code-wrap out" data-step="4">
+        <div class="code-head">output · illustrative</div>
+        <pre class="code mg-out" data-lang="none"><code>max |logit diff| = 0.0625  same argmax, 20 prompts: <span class="ok">True</span></code></pre>
+      </div>
+    </div>
+  </div>
+  <style>
+    #custom-c02-lab1-merge .mg-grid { grid-template-columns: 716px 1fr; gap: 22px; align-items: start; }
+    #custom-c02-lab1-merge .mg-code { font-size: 14px; line-height: 1.45; padding: 12px 16px 14px; }
+    #custom-c02-lab1-merge .code-head { font-size: 13.5px; }
+    #custom-c02-lab1-merge .mg-side { gap: 12px; }
+    #custom-c02-lab1-merge .mg-viz { padding: 8px 10px; }
+    #custom-c02-lab1-merge .mg-viz svg { display: block; width: 100%; height: auto; }
+    #custom-c02-lab1-merge .mg-rail { gap: 8px; }
+    #custom-c02-lab1-merge .mg-rail > * { font-size: 16.5px; line-height: 1.35; }
+    #custom-c02-lab1-merge .mg-rail code { font-size: .84em; }
+    #custom-c02-lab1-merge .mg-out { font-size: 14px; line-height: 1.45; padding: 10px 16px 12px; white-space: pre-wrap; }
+    #custom-c02-lab1-merge svg text { font-variant-ligatures: none; }
+  </style>
+  <aside class="notes">This is step 4 of the refunds lab: we fold the 40 MB adapter into the bf16 base and prove that behaviour did not change. Load the base in bf16, because merging into 4-bit bitsandbytes layers re-quantizes, and PEFT warns: "Merge lora module to 4-bit linear may get different generations due to rounding errors." Call merge_and_unload on the PeftModel and use its return value, which is the plain transformers model with merged weights; if you call it on the base model you get "AttributeError: 'Qwen3ForCausalLM' object has no attribute 'merge_and_unload'". safe_merge=True checks the merged weights for NaNs. The prompts use the same system prompt and the same empty think block as training, on 20 held-out rows. The gate is the argmax at every prompt position: bf16 re-rounds W plus B times A times alpha over r, with alpha 32 and rank 16, so a scale of 2; logits move by about 0.06, which is one bf16 rounding step for values near 10, but the top token must stay the same. Think of it as re-typesetting a contract: the font can shift a pixel, but every word must be the same. A likely question: why not assert exact equality? Because it fails on harmless rounding, and the deployment decision is the token the model picks. The merged folder is about 1.2 GB and loads without peft. Next: step 5 serves the merged copy and the adapter on vLLM.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const P = 5, K = 3, BASE_Y = 140, AM = [0, 2, 1, 0, 2];        // argmax candidate per position
+  const DV = [0.023, 0.0625, 0.016, 0.047, 0.031];               // illustrative |delta logit| per position
+  const CX = [10, 330], PW = 300;
+  let svg, barsA = [], barsB = [], stamp, file, box, strip, built = false;
+  const mono = "font-family:var(--f-mono)";
+  const mk = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); parent.appendChild(e); return e; };
+  const txt = (s, attrs, parent) => { const e = mk("text", attrs, parent); e.textContent = s; return e; };
+  const height = (p, k) => 26 + ((p * 7 + k * 13) % 17) * 2 + (k === AM[p] ? 44 : 0);
+
+  function chart(x0, label, arr, after) {
+    const g = mk("g", {}, svg);
+    txt(label, { x: x0, y: 18, "font-size": 15, "font-weight": 600, fill: "var(--ink-2)", style: mono }, g);
+    mk("line", { x1: x0, y1: BASE_Y, x2: x0 + PW, y2: BASE_Y, stroke: "var(--faint)", "stroke-width": 1 }, g);
+    for (let p = 0; p < P; p++) {
+      for (let k = 0; k < K; k++) {
+        const h = height(p, k) + (after ? (k === AM[p] ? -DV[p] * 32 : DV[p] * 32) : 0);
+        const x = x0 + p * 60 + k * 17 + 4;
+        const r = mk("rect", { x, y: BASE_Y, width: 15, height: 0, rx: 2, fill: "var(--model)", opacity: 0.7 }, g);
+        arr.push({ el: r, h, top: k === AM[p] });
+      }
+      txt("t" + (p + 1), { x: x0 + p * 60 + 20, y: BASE_Y + 18, "font-size": 13, fill: "var(--muted)", style: mono }, g);
+    }
+    return g;
+  }
+
+  function build(slide) {
+    svg = slide.querySelector("#mg-svg");
+    svg.innerHTML = ""; barsA = []; barsB = [];
+    chart(CX[0], "before · PeftModel", barsA, false);
+    chart(CX[1], "after · merged", barsB, true);
+    stamp = mk("g", { opacity: 0 }, svg);
+    mk("rect", { x: CX[1], y: 168, width: 168, height: 26, rx: 7, fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 1.5 }, stamp);
+    txt("✓ same argmax", { x: CX[1] + 12, y: 186, "font-size": 15, "font-weight": 700, fill: "var(--state)", style: mono }, stamp);
+    // |delta logit| strip with a 0 .. 0.1 scale
+    strip = mk("g", { opacity: 0 }, svg);
+    const SX = (v) => 110 + v * 4000, SY = 236;
+    txt("|Δ logit|", { x: 10, y: SY + 5, "font-size": 15, fill: "var(--muted)", style: mono }, strip);
+    mk("line", { x1: SX(0), x2: SX(0.1), y1: SY, y2: SY, stroke: "var(--line-2)", "stroke-width": 2 }, strip);
+    [0, 0.05, 0.1].forEach((v) => {
+      mk("line", { x1: SX(v), x2: SX(v), y1: SY - 5, y2: SY + 5, stroke: "var(--line-2)", "stroke-width": 2 }, strip);
+      txt(String(v), { x: SX(v), y: SY + 22, "text-anchor": "middle", "font-size": 13, fill: "var(--muted)", style: mono }, strip);
+    });
+    DV.forEach((v) => mk("circle", { cx: SX(v), cy: SY, r: 6, fill: "var(--tool)", opacity: 0.85 }, strip));
+    mk("line", { x1: SX(0.0625), x2: SX(0.0625), y1: SY - 18, y2: SY + 5, stroke: "var(--tool)", "stroke-width": 2.5 }, strip);
+    txt("max 0.0625", { x: SX(0.0625), y: SY - 22, "text-anchor": "middle", "font-size": 14, "font-weight": 700, fill: "var(--tool)", style: mono }, strip);
+    // ship box with the folder name kept under the icon
+    box = mk("g", {}, svg);
+    mk("rect", { x: 300, y: 262, width: 330, height: 36, rx: 8, fill: "none", stroke: "var(--faint)", "stroke-dasharray": "5 4", "stroke-width": 1.5 }, box);
+    txt("ship · bf16", { x: 620, y: 285, "text-anchor": "end", "font-size": 14, fill: "var(--muted)", style: mono }, box);
+    file = mk("g", { transform: "translate(10 266)", opacity: 0.35 }, svg);
+    mk("path", { d: "M0 0h16l7 7v21h-23z", fill: "var(--model-soft)", stroke: "var(--model)", "stroke-width": 1.5 }, file);
+    txt("qwen3-0.6b-refund-merged/", { x: 32, y: 19, "font-size": 14, fill: "var(--ink-2)", style: mono }, file);
+    built = true;
+  }
+
+  function setBars(arr, on, glow, animate, delay) {
+    arr.forEach((b, i) => {
+      const fill = glow && b.top ? "var(--state)" : "var(--model)";
+      const op = glow ? (b.top ? 1 : 0.35) : 0.7;
+      const to = { y: on ? BASE_Y - b.h : BASE_Y, height: on ? b.h : 0 };
+      if (animate) gsap.to(b.el, { attr: { ...to, fill, opacity: op }, duration: 0.5, delay: delay + (i % 15) * 0.025, ease: "power2.out" });
+      else { for (const k in to) b.el.setAttribute(k, to[k]); b.el.setAttribute("fill", fill); b.el.setAttribute("opacity", op); }
+    });
+  }
+  const show = (el, on, animate, delay = 0) => {
+    if (animate) gsap.to(el, { attr: { opacity: on ? 1 : 0 }, duration: 0.4, delay });
+    else el.setAttribute("opacity", on ? 1 : 0);
+  };
+
+  function render(slide, n, animate) {
+    if (!built) build(slide);
+    gsap.killTweensOf([...barsA, ...barsB].map((b) => b.el).concat([strip, stamp, file]));
+    setBars(barsA, n >= 1, n >= 3, animate, 0);
+    setBars(barsB, n >= 2, n >= 3, animate, 0.1);
+    show(strip, n >= 2, animate, 0.6);
+    show(stamp, n >= 3, animate, 0.5);
+    const ship = n >= 5;
+    const fx = ship ? 312 : 10, fo = ship ? 1 : (n >= 2 ? 0.8 : 0.35);
+    if (animate && n === 5) gsap.to(file, { attr: { transform: `translate(${fx} 266)`, opacity: fo }, duration: 0.8, ease: "power2.inOut" });
+    else { file.setAttribute("transform", `translate(${fx} 266)`); file.setAttribute("opacity", fo); }
+    const br = box.querySelector("rect"), bt = box.querySelector("text");
+    br.setAttribute("stroke", ship ? "var(--state)" : "var(--faint)");
+    br.setAttribute("fill", ship ? "var(--state-soft)" : "none");
+    bt.setAttribute("fill", ship ? "var(--state)" : "var(--muted)");
+    bt.setAttribute("opacity", ship ? 0 : 1);
+  }
+
+  Deck.register("custom-c02-lab1-merge", {
+    enter(slide, step) { build(slide); render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { gsap.killTweensOf([...barsA, ...barsB].map((b) => b.el).concat([strip, stamp, file].filter(Boolean))); }
+  });
+})();
+</script>

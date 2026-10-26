@@ -1,0 +1,134 @@
+<section class="slide" id="custom-c02-silent-defaults" data-tone="risk" data-title="Port a pre-1.0 tutorial">
+  <div class="kicker"><span class="pill">Gotcha</span> TRL 1.16 / PEFT 0.21 / transformers 5.20</div>
+  <h2 class="title sm">Port a pre-1.0 TRL tutorial: one loud error, then two silent defaults</h2>
+  <div class="grid fill" style="grid-template-columns:660px 1fr;gap:28px">
+    <div class="stack" style="gap:12px">
+      <div class="code-wrap bad">
+        <div class="code-head">old_tutorial.py · written for trl 0.x</div>
+        <pre class="code sd-code" data-lang="none"><code><span class="token comment"># tok and ds as in Lab 1 steps 1-2</span>
+trainer = SFTTrainer(<span class="token string">"Qwen/Qwen3-0.6B"</span>, <span class="sd-x">tokenizer=</span>tok,
+    args=SFTConfig(output_dir=<span class="token string">"out"</span>, <span class="sd-x">max_seq_length=</span><span class="token number">1024</span>,
+                   <span class="sd-x">warmup_ratio=</span><span class="token number">0.03</span>),
+    train_dataset=ds[<span class="token string">"train"</span>],
+    peft_config=LoraConfig(r=<span class="token number">16</span>, lora_alpha=<span class="token number">32</span>, task_type=<span class="token string">"CAUSAL_LM"</span>))</code></pre>
+      </div>
+      <div class="gotcha sd-card">
+        <b>Symptom</b><span class="sd-err">TypeError: SFTTrainer.__init__() got an unexpected keyword argument 'tokenizer'</span>
+        <b class="why">Cause</b><span>TRL 1.x renamed the kwargs. <code>SFTConfig</code> also rejects <code>max_seq_length</code> and <code>warmup_ratio</code>.</span>
+        <b class="fix">Fix</b><span><code>processing_class</code>, <code>max_length</code>, <code>warmup_steps=0.03</code>. Pin <code>trl==1.16.0</code>.</span>
+      </div>
+      <div class="code-wrap good" data-step="1">
+        <div class="code-head">fixed.py · trl 1.16.0</div>
+        <pre class="code sd-code" data-lang="python" data-focus="1:1-3, 2:7, 3:4"><code>trainer = SFTTrainer("Qwen/Qwen3-0.6B", processing_class=tok,
+    args=SFTConfig(output_dir="out", max_length=1024,
+                   warmup_steps=0.03,              # float = ratio
+                   model_init_kwargs={"dtype": torch.bfloat16}),
+    train_dataset=ds["train"],
+    peft_config=LoraConfig(r=16, lora_alpha=32, task_type="CAUSAL_LM",
+                           target_modules="all-linear"))
+print(next(trainer.model.parameters()).dtype)   # torch.bfloat16</code></pre>
+      </div>
+    </div>
+
+    <div class="panel tight sd-panel">
+      <svg id="sd-svg" viewBox="0 0 700 560" width="700" height="560" aria-label="LoRA modules lit per layer and the weight memory bar: q/v only and float32 at first, then all-linear and bfloat16"></svg>
+    </div>
+  </div>
+  <style>
+    #custom-c02-silent-defaults pre.code.sd-code { font-size: 14.5px; line-height: 1.5; padding: 10px 18px 12px; }
+    #custom-c02-silent-defaults .code-head { font-size: 13.5px; }
+    #custom-c02-silent-defaults .sd-card { grid-template-columns: 92px 1fr; gap: 4px 12px; padding: 12px 16px; font-size: 16px; line-height: 1.38; }
+    #custom-c02-silent-defaults .sd-card > b { font-size: 13px; line-height: 1.7; }
+    #custom-c02-silent-defaults .sd-err { font: 500 14px/1.45 var(--f-mono); color: var(--risk); }
+    #custom-c02-silent-defaults .sd-panel { padding: 10px 12px; }
+    #custom-c02-silent-defaults .sd-panel svg { display: block; width: 100%; height: auto; }
+    #custom-c02-silent-defaults .sd-x { text-decoration: line-through 2px #ff5f86; color: #ff8fab; }
+    #custom-c02-silent-defaults svg text { font-variant-ligatures: none; }
+  </style>
+  <aside class="notes">Most SFT tutorials on the web are pre-1.0, and porting one to TRL 1.16 fails in two ways. The loud way: tokenizer is now processing_class, max_seq_length is max_length, and warmup_ratio is gone in transformers v5, where warmup_steps takes a float below 1 as a ratio; each of these raises a TypeError, which is easy to fix. The silent way comes after the renames, when the run starts: with no target_modules, PEFT uses the qwen3 default of q_proj and v_proj only, so 2.29 million trainable parameters instead of 10.09 million with all-linear; and SFTTrainer loads a string model id in float32, so a 0.6B model takes about 2.4 GB of weights instead of 1.2 GB, before gradients and optimizer states. Both give a worse or more expensive run with no warning. Fix both as in Lab 1 step 2, and log the dtype at step 0. Think of it like a rental car with the seat set for somebody else: it drives, but not well, until you check every setting. A likely question: "Why does TRL keep float32 as the default?" The maintainers keep it on purpose because their training-inference mismatch results were measured at that precision. Next: the same refund rows on managed Gemini tuning, with no GPU of our own.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const MODS = ["q", "k", "v", "o", "gate", "up", "down"];
+  const QV = new Set([0, 2]);
+  const X0 = 70, DX = 52, BW = 42, Y0 = 82, RH = 10, RG = 3, LAYERS = 28;
+  let svg, cells = [], cnt, pct, tgt, solid, solidTxt, ghostTxt, dtypeTxt, tweens = [];
+  const mono = "font-family:var(--f-mono)";
+  const mk = (tag, a, p) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); p.appendChild(e); return e; };
+  const tx = (s, a, p) => { const e = mk("text", a, p); e.textContent = s; return e; };
+  const fmt = (v) => Math.round(v).toLocaleString("en-US");
+
+  function build(slide) {
+    svg = slide.querySelector("#sd-svg");
+    svg.innerHTML = ""; cells = [];
+    tx("After the renames the run starts, but silently trains this:", { x: 0, y: 22, "font-size": 17, "font-weight": 600, fill: "var(--ink-2)", style: mono }, svg);
+    tx("Qwen3-0.6B · 28 layers · LoRA r=16", { x: 0, y: 50, "font-size": 15, fill: "var(--muted)", style: mono }, svg);
+    MODS.forEach((m, c) => tx(m, { x: X0 + c * DX + BW / 2, y: 74, "font-size": 15, "font-weight": 600, "text-anchor": "middle", fill: "var(--ink-2)", style: mono }, svg));
+    for (let l = 0; l < LAYERS; l++) {
+      const y = Y0 + l * (RH + RG);
+      if (l === 0 || l === LAYERS - 1) tx("L" + (l + 1), { x: X0 - 12, y: y + 9, "font-size": 14, "text-anchor": "end", fill: "var(--muted)", style: mono }, svg);
+      MODS.forEach((m, c) => cells.push({ c, l, el: mk("rect", { x: X0 + c * DX, y, width: BW, height: RH, rx: 3, fill: "var(--faint)", opacity: 0.25 }, svg) }));
+    }
+    const CX = 460;
+    tx("trainable params", { x: CX, y: 120, "font-size": 16, fill: "var(--muted)", style: mono }, svg);
+    cnt = tx("", { x: CX, y: 166, "font-size": 34, "font-weight": 700, fill: "var(--risk)", style: mono }, svg);
+    pct = tx("", { x: CX, y: 196, "font-size": 17, fill: "var(--ink-2)", style: mono }, svg);
+    tx("target_modules", { x: CX, y: 250, "font-size": 16, fill: "var(--muted)", style: mono }, svg);
+    tgt = tx("", { x: CX, y: 278, "font-size": 17, "font-weight": 700, fill: "var(--ink)", style: mono }, svg);
+    tx("lm_head is not a target", { x: CX, y: 320, "font-size": 15, fill: "var(--muted)", style: mono }, svg);
+    // weight memory bar
+    tx("weights in GPU memory · 0.6B params", { x: 0, y: 482, "font-size": 16, fill: "var(--muted)", style: mono }, svg);
+    mk("rect", { x: 0, y: 494, width: 600, height: 34, rx: 8, fill: "none", stroke: "var(--risk)", "stroke-width": 2, "stroke-dasharray": "6 5" }, svg);
+    solid = mk("rect", { x: 0, y: 494, width: 600, height: 34, rx: 8, fill: "var(--risk)" }, svg);
+    solidTxt = tx("", { x: 14, y: 517, "font-size": 16, "font-weight": 700, fill: "#fff", style: mono }, svg);
+    ghostTxt = tx("float32 · 4 B/param ≈ 2.4 GB", { x: 594, y: 517, "font-size": 15, "text-anchor": "end", fill: "var(--risk)", style: mono }, svg);
+    dtypeTxt = tx("next(model.parameters()).dtype → torch.bfloat16", { x: 0, y: 552, "font-size": 15, fill: "var(--state)", "font-weight": 600, style: mono }, svg);
+  }
+
+  const kill = () => { tweens.forEach((t) => t.kill()); tweens = []; };
+
+  function render(slide, n, animate) {
+    if (!svg || !slide.contains(svg)) build(slide);
+    kill();
+    const all = n >= 2;
+    cells.forEach((cell) => {
+      const lit = all || QV.has(cell.c);
+      const fill = lit ? "var(--model)" : "var(--faint)";
+      cell.el.setAttribute("fill", fill);
+      if (animate && n === 2 && !QV.has(cell.c)) {
+        cell.el.setAttribute("opacity", 0.25);
+        tweens.push(gsap.to(cell.el, { attr: { opacity: 1 }, duration: 0.3, delay: 0.2 + cell.l * 0.025 + cell.c * 0.05 }));
+      } else cell.el.setAttribute("opacity", lit ? 1 : 0.25);
+    });
+    pct.textContent = all ? "1.67% of 606M" : "0.38% of 606M";
+    tgt.textContent = all ? '"all-linear"' : "None → q_proj, v_proj";
+    tgt.setAttribute("fill", all ? "var(--state)" : "var(--risk)");
+    cnt.setAttribute("fill", all ? "var(--state)" : "var(--risk)");
+    if (animate && n === 2) {
+      const o = { v: 2293760 };
+      tweens.push(gsap.to(o, { v: 10092544, duration: 1.2, delay: 0.2, ease: "power2.out", onUpdate: () => { cnt.textContent = fmt(o.v); } }));
+    } else cnt.textContent = fmt(all ? 10092544 : 2293760);
+    // dtype: float32 until step 3, then the bar shrinks to bfloat16
+    const bf = n >= 3;
+    const setBf = () => { solid.setAttribute("fill", "var(--state)"); solidTxt.textContent = "bfloat16 ≈ 1.2 GB"; };
+    if (animate && n === 3) {
+      solid.setAttribute("width", 600); solid.setAttribute("fill", "var(--risk)"); solidTxt.textContent = "float32 ≈ 2.4 GB";
+      ghostTxt.setAttribute("opacity", 0); dtypeTxt.setAttribute("opacity", 0);
+      tweens.push(gsap.to(solid, { attr: { width: 300 }, duration: 1.0, delay: 0.4, ease: "power3.inOut", onStart: setBf }));
+      tweens.push(gsap.to([dtypeTxt, ghostTxt], { attr: { opacity: 1 }, duration: 0.4, delay: 1.4 }));
+    } else {
+      solid.setAttribute("width", bf ? 300 : 600);
+      if (bf) setBf(); else { solid.setAttribute("fill", "var(--risk)"); solidTxt.textContent = "float32 ≈ 2.4 GB"; }
+      ghostTxt.setAttribute("opacity", bf ? 1 : 0);
+      dtypeTxt.setAttribute("opacity", bf ? 1 : 0);
+    }
+  }
+
+  Deck.register("custom-c02-silent-defaults", {
+    enter(slide, step) { build(slide); render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { kill(); }
+  });
+})();
+</script>

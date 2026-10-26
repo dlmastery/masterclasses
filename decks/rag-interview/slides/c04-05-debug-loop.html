@@ -1,0 +1,254 @@
+<section class="slide" id="rag-interview-c04-debug-loop" data-tone="model" data-title="Debug: the endless verify loop">
+  <style>
+    #rag-interview-c04-debug-loop .dbl-prompt { font-size: 19px; line-height: 1.35; color: var(--ink-2); margin: 0; }
+    #rag-interview-c04-debug-loop .dbl-main { display: grid; grid-template-columns: 790px 1fr; gap: 24px; }
+    #rag-interview-c04-debug-loop .dbl-left { gap: 12px; min-width: 0; }
+    #rag-interview-c04-debug-loop .dbl-slot { display: grid; }
+    #rag-interview-c04-debug-loop .dbl-slot > * { grid-area: 1 / 1; align-self: start; min-width: 0; }
+    #rag-interview-c04-debug-loop .dbl-left pre.code { font-size: 15.5px; line-height: 1.42; padding: 10px 18px 12px; }
+    #rag-interview-c04-debug-loop .code-wrap .code-head { padding: 8px 14px; font-size: 13.5px; }
+    #rag-interview-c04-debug-loop .dbl-right { gap: 10px; min-width: 0; }
+    #rag-interview-c04-debug-loop .lab-head { gap: 6px 12px; }
+    #rag-interview-c04-debug-loop .lab-head .run { font-size: 14px; padding: 7px 10px; }
+    #rag-interview-c04-debug-loop .lab-head .pins { font: 500 12.5px/1.35 var(--f-mono); color: var(--muted); }
+    #rag-interview-c04-debug-loop .code-wrap.out pre.code { font-size: 14px; line-height: 1.42; padding: 8px 14px 10px; }
+    #rag-interview-c04-debug-loop .steps-rail { gap: 3px; }
+    #rag-interview-c04-debug-loop .steps-rail > * { font-size: 15px; grid-template-columns: 30px 1fr; align-items: center; }
+    #rag-interview-c04-debug-loop .steps-rail > *::before { width: 26px; height: 26px; font-size: 13px; }
+    #rag-interview-c04-debug-loop .dbl-cites { display: flex; gap: 8px; flex-wrap: wrap; }
+    #rag-interview-c04-debug-loop #dbl-svg text { font-family: var(--f-mono); }
+  </style>
+  <div class="kicker"><span class="pill">Debug this</span> agent loop</div>
+  <h2 class="title">Debug this: one refund question burned thousands of LLM calls</h2>
+  <p class="dbl-prompt">The refund graph passed its tests. In production, one question ran for minutes and the bill spiked before it crashed. Find the bug.</p>
+  <div class="dbl-main fill">
+    <div class="dbl-left stack">
+      <div class="dbl-slot">
+        <div class="code-wrap bad" data-until="5">
+          <div class="code-head">refund_graph.py · passes the happy-path test</div>
+          <pre class="code" data-lang="python" data-focus="2:11-12, 3:5-7, 4:15"><code># omitted: imports, llm, store, retrieve(); g = StateGraph(State)
+# with the edges START > retrieve > generate > verify
+class State(TypedDict, total=False):
+    question: str; context: str; answer: str; grounded: bool
+def generate(s):
+    p = f"Use ONLY:\n{s['context']}\nQ: {s['question']}"
+    return {"answer": llm.invoke(p).text}
+def verify(s):
+    p = f"Supported? YES/NO\n{s['context']}\n{s['answer']}"
+    return {"grounded": "YES" in llm.invoke(p).text}
+g.add_conditional_edges("verify",
+    lambda s: END if s["grounded"] else "generate")
+app = g.compile()
+q = {"question": "Can I get a refund on a sale jacket?"}
+print(app.invoke(q)["answer"])</code></pre>
+        </div>
+        <div class="code-wrap good" data-step="5">
+          <div class="code-head">refund_graph.py · counter, feedback, fallback, safety net</div>
+          <pre class="code" data-lang="python" data-focus="5:13-15"><code># as before: imports, llm, store, retrieve(), q, g with linear edges
+# State gains two keys: unsupported: list[str], tries: int
+class Verdict(BaseModel): unsupported: list[str] = []
+def generate(s):
+    bad = s.get("unsupported") or []          # failures fed back
+    p = f"Use ONLY:\n{s['context']}\nAvoid: {bad}\nQ: {s['question']}"
+    n = s.get("tries", 0) + 1                  # tries counted here
+    return {"answer": llm.invoke(p).text, "tries": n}
+def verify(s):
+    p = f"List unsupported sentences.\n{s['context']}\n{s['answer']}"
+    v = llm.with_structured_output(Verdict).invoke(p)
+    return {"unsupported": v.unsupported}
+def after_verify(s):
+    if not s["unsupported"]: return "publish"
+    return "generate" if s["tries"] &lt; 2 else "fallback"
+g.add_node("publish", lambda s: {})       # no-op: answer is in state
+g.add_node("fallback", lambda s: {"answer": "A specialist will reply."})
+g.add_conditional_edges("verify", after_verify)
+for n in ("publish", "fallback"): g.add_edge(n, END)
+print(g.compile().invoke(q, {"recursion_limit": 25})["answer"])</code></pre>
+        </div>
+      </div>
+      <div class="dbl-cites push">
+        <a class="cite repo" href="https://github.com/langchain-ai/langgraph/tree/1.2.17/libs/langgraph/langgraph" target="_blank" rel="noopener"><b>Repo</b>&nbsp;LangGraph 1.2.17 _internal/_config.py</a>
+        <a class="cite doc" href="https://docs.langchain.com/oss/python/langgraph/agentic-rag" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Build a custom RAG agent</a>
+      </div>
+    </div>
+    <div class="dbl-right stack">
+      <div class="lab-head"><span class="run">python refund_graph.py</span><span class="pins">pip install langgraph==1.2.17 langchain-core==1.7.0 langchain-google-genai==4.4.2 · export GOOGLE_API_KEY=…</span></div>
+      <div class="dbl-slot" data-step="1">
+        <div class="code-wrap out" data-until="5">
+          <div class="code-head">output · illustrative</div>
+          <pre class="code" data-lang="none"><code><span class="dbl-ln">retrieve -&gt; generate -&gt; verify   grounded=False</span>
+<span class="dbl-ln">generate -&gt; verify   grounded=False</span>
+<span class="dbl-ln">generate -&gt; verify   grounded=False</span>
+<span class="dbl-ln dim"># ~5,000 rounds x 2 LLM calls = ~10,000 paid calls</span>
+<span class="dbl-ln err">GraphRecursionError: Recursion limit of 10007 reached</span>
+<span class="dbl-ln err">  without hitting a stop condition.</span></code></pre>
+        </div>
+        <div class="code-wrap out" data-step="5">
+          <div class="code-head">output · illustrative</div>
+          <pre class="code" data-lang="none"><code>retrieve -&gt; generate (tries=1) -&gt; verify   unsupported=1
+generate (tries=2) -&gt; verify   unsupported=1
+<span class="ok">fallback: A specialist will reply.</span>
+<span style="color:#9aa3d0"># 6 graph steps, 4 LLM calls; limit 25 never reached</span></code></pre>
+        </div>
+      </div>
+      <svg id="dbl-svg" viewBox="0 0 590 190" width="540" height="174" aria-label="The verify to generate loop with a step counter and a cost meter"></svg>
+      <div class="steps-rail">
+        <div data-step="2"><span><code>verify → generate</code>: no counter and no fallback route.</span></div>
+        <div data-step="3"><span><code>generate</code> gets the same prompt each time, so verify says NO forever.</span></div>
+        <div data-step="4"><span>No <code>recursion_limit</code>: the 1.2.17 default is 10007 steps.</span></div>
+        <div data-step="5"><span>Fix: <code>tries</code> in state, failures fed back, a fallback, limit 25.</span></div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Show the code and ask the room to find the bug before you advance. Click 1 runs it: the output streams, the step counter climbs, and the run dies at 10007 steps; each round is one generate call and one verify call, so about 5,000 rounds cost about 10,000 paid LLM calls. Finding 1: the verify to generate edge has no counter and no fallback. Finding 2: generate never sees which sentences failed, so it gets the same prompt, writes the same draft, and verify says NO forever. Finding 3: in LangGraph 1.2.17 the default recursion limit is 10007, not 25; source: langgraph/_internal/_config.py, getenv("LANGGRAPH_DEFAULT_RECURSION_LIMIT", "10007"). The fix puts a tries counter in state (it is counted in generate, so after two drafts tries is 2 and after_verify routes to fallback), sends the unsupported sentences back into the prompt, and passes recursion_limit 25 as the safety net. The publish node returns an empty dict on purpose: the answer is already in state. Analogy: the counter is the guard at the door, and the recursion limit is the fire alarm, so you need both. A likely follow-up: why not just set the limit? Because the limit raises an error with no answer, while the counter ends in a fallback the customer can use.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "rag-interview-c04-debug-loop";
+  const LIMIT = 10007;
+  let svg = null, tl = null, E = {}, cnt = { v: 0 }, tok = { t: 0 }, lines = [];
+  const el = (tag, attrs, parent, text) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text != null) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  };
+  // geometry (viewBox 590 x 190)
+  const N = {
+    ret: { x: 0, y: 14, w: 124, h: 44, tone: "agent", label: "retrieve" },
+    gen: { x: 214, y: 14, w: 124, h: 44, tone: "model", label: "generate" },
+    ver: { x: 448, y: 14, w: 124, h: 44, tone: "risk", label: "verify" },
+    fb:  { x: 448, y: 140, w: 124, h: 44, tone: "human", label: "fallback" }
+  };
+  const BACK = [[478, 58], [393, 128], [308, 58]];    // verify -> generate (quadratic)
+  const lin = (p, t) => [p[0][0] + (p[1][0] - p[0][0]) * t, p[0][1] + (p[1][1] - p[0][1]) * t];
+  const qb = (p, t) => { const u = 1 - t; return [u * u * p[0][0] + 2 * u * t * p[1][0] + t * t * p[2][0], u * u * p[0][1] + 2 * u * t * p[1][1] + t * t * p[2][1]]; };
+  const fill = (v) => Math.min(1, Math.log10(v + 1) / Math.log10(LIMIT + 1));
+
+  function build(s) {
+    svg = s; svg.innerHTML = ""; E = {};
+    const defs = el("defs", {}, svg);
+    [["ah", "var(--line-2)"], ["ahr", "var(--risk)"], ["ahh", "var(--human)"]].forEach(([id, c]) => {
+      const m = el("marker", { id: "dbl-" + id, viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto-start-reverse" }, defs);
+      el("path", { d: "M0,0 L10,5 L0,10 z", style: `fill:${c}` }, m);
+    });
+    el("line", { x1: 124, y1: 36, x2: 214, y2: 36, style: "stroke:var(--line-2);stroke-width:2", "marker-end": "url(#dbl-ah)" }, svg);
+    el("line", { x1: 338, y1: 36, x2: 448, y2: 36, style: "stroke:var(--line-2);stroke-width:2", "marker-end": "url(#dbl-ah)" }, svg);
+    E.back = el("path", { d: `M${BACK[0]} Q${BACK[1]} ${BACK[2]}`, style: "fill:none;stroke:var(--risk);stroke-width:2.5", "marker-end": "url(#dbl-ahr)" }, svg);
+    E.backLbl = el("text", { x: 393, y: 112, "text-anchor": "middle", "font-size": 14, "font-weight": 700, style: "fill:var(--risk)" }, svg, "not grounded");
+    E.down = el("line", { x1: 510, y1: 58, x2: 510, y2: 140, style: "stroke:var(--human);stroke-width:2.5", "marker-end": "url(#dbl-ahh)" }, svg);
+    E.downLbl = el("text", { x: 500, y: 130, "text-anchor": "end", "font-size": 14, "font-weight": 700, style: "fill:var(--human)" }, svg, "tries = 2");
+    for (const k in N) {
+      const n = N[k];
+      const g = el("g", {}, svg);
+      E[k] = el("rect", { x: n.x, y: n.y, width: n.w, height: n.h, rx: 12, style: `fill:var(--${n.tone}-soft);stroke:var(--${n.tone});stroke-width:2` }, g);
+      el("text", { x: n.x + n.w / 2, y: n.y + 28, "text-anchor": "middle", "font-size": 16, "font-weight": 700, style: "fill:var(--ink)" }, g, n.label);
+      E[k + "G"] = g;
+    }
+    E.tok = el("circle", { r: 8, cx: 276, cy: 36, style: "fill:var(--model);stroke:#fff;stroke-width:2" }, svg);
+    // counter + cost meter (hidden until the run starts)
+    E.meterG = el("g", {}, svg);
+    E.cLbl = el("text", { x: 0, y: 106, "font-size": 13, style: "fill:var(--muted)" }, E.meterG, "graph steps");
+    E.cNum = el("text", { x: 0, y: 146, "font-size": 34, "font-weight": 700, style: "fill:var(--ink)" }, E.meterG, "0");
+    E.mLbl = el("text", { x: 150, y: 106, "font-size": 13, style: "fill:var(--muted)" }, E.meterG, "LLM calls (log)");
+    el("rect", { x: 150, y: 120, width: 200, height: 16, rx: 8, style: "fill:var(--surface-2);stroke:var(--line-2)" }, E.meterG);
+    E.meter = el("rect", { x: 150, y: 120, width: 0, height: 16, rx: 8, style: "fill:var(--risk)" }, E.meterG);
+    E.status = el("text", { x: 0, y: 180, "font-size": 14, "font-weight": 700, style: "fill:var(--risk)" }, E.meterG, "");
+  }
+
+  const setSteps = (v) => { E.cNum.textContent = Math.round(v).toLocaleString("en-US"); E.meter.setAttribute("width", 200 * fill(v)); };
+  const place = (xy) => { E.tok.setAttribute("cx", xy[0]); E.tok.setAttribute("cy", xy[1]); };
+  const flash = (t, rect) => t.fromTo(rect, { attr: { "stroke-width": 2 } }, { attr: { "stroke-width": 6 }, duration: 0.12, yoyo: true, repeat: 1 });
+
+  function stopAll() {
+    if (tl) { tl.kill(); tl = null; }
+    if (E.tok) gsap.killTweensOf([cnt, tok, E.ver, E.fb, E.tok, ...lines]);
+  }
+
+  // endless state, final frame: the run died at the limit
+  function brokenFinal() {
+    E.cLbl.textContent = "graph steps"; E.mLbl.textContent = "LLM calls (log)";
+    setSteps(LIMIT); place([448, 36]); E.tok.style.fill = "var(--risk)";
+    E.status.textContent = "GraphRecursionError at 10,007 steps";
+    gsap.set(lines, { opacity: 1 });
+  }
+  // fixed state, final frame: tries 2/2 and the fallback lit
+  function fixedFinal() {
+    E.cLbl.textContent = "tries (cap 2)"; E.mLbl.textContent = "LLM calls: 4";
+    E.cNum.textContent = "2/2"; E.meter.setAttribute("width", 200 * fill(4));
+    place([510, 140]); E.tok.style.fill = "var(--human)";
+    gsap.set(E.fb, { attr: { "stroke-width": 5 } });
+    E.status.textContent = "6 steps · fallback · limit 25 unused";
+  }
+
+  function render(slide, n, animate) {
+    stopAll();
+    lines = [...slide.querySelectorAll(".dbl-ln")];
+    const fixed = n >= 5;
+    gsap.set([E.down, E.downLbl, E.fbG], { opacity: fixed ? 1 : 0 });
+    gsap.set(E.fb, { attr: { "stroke-width": 2 } });
+    E.backLbl.textContent = fixed ? "tries < 2" : "not grounded";
+    E.meter.style.fill = fixed ? "var(--state)" : "var(--risk)";
+    E.status.style.fill = fixed ? "var(--state)" : "var(--risk)";
+    E.status.textContent = "";
+    E.tok.style.fill = "var(--model)";
+    gsap.set(E.meterG, { opacity: n >= 1 ? 1 : 0 });
+    gsap.set(E.tok, { opacity: n >= 1 ? 1 : 0 });
+    if (n === 0) { place([276, 36]); setSteps(0); return; }
+    if (!fixed) {
+      if (!(animate && n === 1)) { brokenFinal(); return; }
+      // step 1: the output streams while the counter ticks, then it jumps to the limit
+      cnt.v = 0; setSteps(0); place([276, 36]);
+      gsap.set(lines, { opacity: 0 });
+      tl = gsap.timeline({ onComplete: brokenFinal });
+      const round = (k) => {
+        tl.set(tok, { t: 0 })
+          .to(tok, { t: 1, duration: 0.4, ease: "none", onUpdate: () => place(lin([[276, 36], [448, 36]], tok.t)) })
+          .add(() => { cnt.v += 1; setSteps(cnt.v); });
+        flash(tl, E.ver);
+        tl.to(lines[k], { opacity: 1, duration: 0.2 })
+          .set(tok, { t: 0 })
+          .to(tok, { t: 1, duration: 0.45, ease: "none", onUpdate: () => place(qb(BACK, tok.t)) })
+          .to(tok, { t: 0, duration: 0.12, ease: "none", onUpdate: () => place(lin([[308, 58], [276, 36]], 1 - tok.t)) })
+          .add(() => { cnt.v += 1; setSteps(cnt.v); });
+      };
+      tl.add(() => { cnt.v = 2; setSteps(2); }, 0.3);
+      [0, 1, 2].forEach(round);
+      tl.to(lines[3], { opacity: 1, duration: 0.2 });
+      tl.to(cnt, { v: LIMIT, duration: 2.0, ease: "expo.in", onUpdate: () => setSteps(cnt.v) });
+      tl.to([lines[4], lines[5]], { opacity: 1, duration: 0.2 });
+      return;
+    }
+    if (!animate || n > 5) { fixedFinal(); return; }
+    // step 5: the fixed graph runs once: tries 1/2, 2/2, then the fallback
+    E.cLbl.textContent = "tries (cap 2)"; E.mLbl.textContent = "LLM calls: 0";
+    const calls = { v: 0 };
+    const call = () => { calls.v += 1; E.mLbl.textContent = `LLM calls: ${calls.v}`; E.meter.setAttribute("width", 200 * fill(calls.v)); };
+    E.cNum.textContent = "0/2"; E.meter.setAttribute("width", 0); place([276, 36]);
+    tl = gsap.timeline({ delay: 0.3, onComplete: fixedFinal });
+    [1, 2].forEach((k) => {
+      tl.add(() => { E.cNum.textContent = `${k}/2`; call(); })
+        .set(tok, { t: 0 })
+        .to(tok, { t: 1, duration: 0.5, ease: "none", onUpdate: () => place(lin([[276, 36], [448, 36]], tok.t)) })
+        .add(call);
+      flash(tl, E.ver);
+      if (k === 1) {
+        tl.set(tok, { t: 0 })
+          .to(tok, { t: 1, duration: 0.55, ease: "none", onUpdate: () => place(qb(BACK, tok.t)) })
+          .to(tok, { t: 0, duration: 0.15, ease: "none", onUpdate: () => place(lin([[308, 58], [276, 36]], 1 - tok.t)) });
+      }
+    });
+    tl.set(tok, { t: 0 })
+      .to(tok, { t: 1, duration: 0.5, ease: "none", onUpdate: () => place(lin([[510, 40], [510, 140]], tok.t)) })
+      .to(E.fb, { attr: { "stroke-width": 5 }, duration: 0.2 });
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { build(slide.querySelector("#dbl-svg")); render(slide, step || 0, false); },
+    step(slide, n, animate) { if (!svg || !svg.isConnected || !E.tok) build(slide.querySelector("#dbl-svg")); render(slide, n, animate); },
+    leave() { stopAll(); }
+  });
+})();
+</script>

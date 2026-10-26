@@ -1,0 +1,156 @@
+<section class="slide chapter" id="custom-c10-chapter" data-tone="state" data-title="Ch 10: Synthetic eval sets">
+  <style>
+    #custom-c10-chapter .c10-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    #custom-c10-chapter .lede { margin-top: -8px; max-width: 1180px; }
+    #custom-c10-chapter svg { margin-bottom: -6px; position: relative; z-index: 1; }
+    #custom-c10-chapter .ch-num { z-index: 0; }
+    #custom-c10-chapter svg text { font-family: var(--f-mono); font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+  </style>
+  <div class="ch-num" data-fx="blur">10</div>
+  <svg id="c10-ch-svg" viewBox="0 0 1300 340" width="1300" height="340" aria-label="A schematic loop. A generator node on the left emits 12 question and answer cards. Each card moves right through three gates: grounded, closed-book and near-duplicate. One card fails the grounded gate, two fail the closed-book gate and one fails the near-duplicate gate; each failed card drops into a red bin under its gate. The 8 cards that pass get a sha256 hash stamp and enter a frozen eval set node on the right. Counters at the top count generated, dropped and kept cards."></svg>
+  <h2 class="display">Generate, verify, keep</h2>
+  <p class="lede" data-fx="up">Synthetic data is a draft. It counts only after grounding, closed-book, dedup and human checks.</p>
+  <div class="c10-row" data-fx="stagger">
+    <span class="tag t-state">Acme HR policy assistant (RAG) · Lab 9</span>
+    <span class="tag t-model">ragas 0.4.3 · openai 3.37.0</span>
+    <span class="tag t-tool">datasketch 2.0.0 · MinHash LSH</span>
+    <span class="tag t-human">krippendorff 0.9.0 · scikit-learn 1.9.1</span>
+    <a class="cite doc" href="https://docs.ragas.io/en/stable/getstarted/rag_testset_generation/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Testset Generation for RAG</a>
+  </div>
+  <aside class="notes">Chapter 10 is Lab 9: the Acme HR policy assistant, a RAG system over the PTO, parental-leave and expense policies. We generate a synthetic eval set with ragas, then treat every generated item as a draft: it must be grounded in its contexts, it must not be answerable without retrieval, and it must not duplicate another item. The survivors get a content hash, so the eval set is frozen and the quality card can cite it. After that we decontaminate the training data against the frozen eval set with MinHash LSH, and we correct the LLM judge's pass rate with human labels. Analogy: a factory line with three inspection gates, where only the parts that pass all three get a serial number and go into the sealed box. Likely question: "Why not trust the generator and skip the gates?" Because in the lab output 11 of the 40 generated items fail a gate, and a closed-book item measures the model's memory, not your retrieval; the animation is a schematic, the real numbers come in the lab steps.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c10-chapter";
+  const Y = 170;
+  const GX = [400, 640, 880];                  // gate centres
+  const GATES = ["grounded", "closed-book", "near-dup"];
+  const GSUB = ["facts in context?", "answerable w/o RAG?", "difflib ratio>0.9"];
+  // fail gate index per card (-1 = kept): 12 cards, 1 / 2 / 1 dropped, 8 kept (schematic)
+  const FAIL = [-1, 1, -1, -1, 0, -1, 1, -1, 2, -1, -1, -1];
+  const KEPT_TOTAL = FAIL.filter((f) => f < 0).length;
+  let tl = null, P = null;
+
+  const el = (parent, tag, attrs, style, text) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (style) Object.assign(e.style, style);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  };
+  const f = (w, s) => ({ fontWeight: w, fontSize: s + "px" });
+
+  function build(svg) {
+    svg.innerHTML = "";
+    const W = (d, c, dash) => el(svg, "path", { d }, { fill: "none", stroke: c || "var(--line-2)", strokeWidth: 2.4, strokeDasharray: dash || "none" });
+    W(`M170 ${Y} H330`); W(`M470 ${Y} H570`); W(`M710 ${Y} H810`); W(`M950 ${Y} H1080`);
+    GX.forEach((x) => W(`M${x} ${Y + 52} V262`, "color-mix(in oklab, var(--risk) 55%, transparent)", "5 5"));
+
+    const cnt = el(svg, "text", { x: 0, y: 24 }, { ...f(700, 15), fill: "var(--ink-2)" }, "");
+    el(svg, "text", { x: 1300, y: 24, "text-anchor": "end" }, { ...f(500, 12), fill: "var(--muted)" }, "schematic · 12 cards");
+
+    // generator
+    el(svg, "rect", { x: 0, y: 120, width: 170, height: 100, rx: 16 }, { fill: "var(--model-soft)", stroke: "var(--model)", strokeWidth: 2.4 });
+    el(svg, "text", { x: 85, y: 162, "text-anchor": "middle" }, { ...f(700, 16), fill: "var(--ink)" }, "generator");
+    el(svg, "text", { x: 85, y: 186, "text-anchor": "middle" }, { ...f(500, 12), fill: "var(--muted)" }, "TestsetGenerator");
+
+    // gates + bins
+    const bins = [];
+    GX.forEach((x, i) => {
+      el(svg, "rect", { x: x - 70, y: Y - 52, width: 140, height: 104, rx: 16 }, { fill: "var(--state-soft)", stroke: "var(--state)", strokeWidth: 2.4 });
+      el(svg, "text", { x, y: Y - 14, "text-anchor": "middle" }, { ...f(700, 15), fill: "var(--ink)" }, GATES[i]);
+      el(svg, "text", { x, y: Y + 8, "text-anchor": "middle" }, { ...f(500, 10.5), fill: "var(--muted)" }, GSUB[i]);
+      el(svg, "text", { x: x - 54, y: Y - 64 }, { ...f(700, 12), fill: "var(--state)" }, "gate " + (i + 1));
+      el(svg, "rect", { x: x - 70, y: 262, width: 140, height: 60, rx: 12 }, { fill: "var(--risk-soft)", stroke: "var(--risk)", strokeWidth: 2, strokeDasharray: "6 5" });
+      bins.push(el(svg, "text", { x, y: 338, "text-anchor": "middle" }, { ...f(700, 12), fill: "var(--risk)" }, "dropped 0"));
+    });
+
+    // frozen eval set
+    el(svg, "rect", { x: 1080, y: 104, width: 220, height: 132, rx: 18 }, { fill: "var(--surface)", stroke: "var(--state)", strokeWidth: 3 });
+    el(svg, "text", { x: 1190, y: 140, "text-anchor": "middle" }, { ...f(700, 16), fill: "var(--ink)" }, "eval set");
+    el(svg, "text", { x: 1190, y: 160, "text-anchor": "middle" }, { ...f(500, 11.5), fill: "var(--muted)" }, "frozen · never trained on");
+    const file = el(svg, "text", { x: 1190, y: 222, "text-anchor": "middle" }, { ...f(700, 12), fill: "var(--state)" }, "hr_rag_eval_<sha>.jsonl");
+    const slots = el(svg, "g", {});
+
+    // hash stamp (pops on each kept card)
+    const stamp = el(svg, "g", {}, { opacity: 0 });
+    el(stamp, "rect", { x: 990, y: 112, width: 74, height: 26, rx: 8 }, { fill: "var(--state)" });
+    el(stamp, "text", { x: 1027, y: 130, "text-anchor": "middle" }, { ...f(700, 12), fill: "#fff" }, "sha256");
+
+    // cards
+    const cards = FAIL.map(() => {
+      const g = el(svg, "g", {}, { opacity: 0 });
+      el(g, "rect", { x: -20, y: -14, width: 40, height: 28, rx: 6 }, { fill: "var(--surface)", stroke: "var(--model)", strokeWidth: 2 });
+      el(g, "text", { x: 0, y: 4, "text-anchor": "middle" }, { ...f(700, 11), fill: "var(--model)" }, "Q/A");
+      return g;
+    });
+    P = { cnt, bins, file, slots, stamp, cards, c: { g: 0, d: [0, 0, 0], k: 0 } };
+  }
+
+  function counters() {
+    const c = P.c, dsum = c.d[0] + c.d[1] + c.d[2];
+    P.cnt.textContent = `generated ${c.g} · dropped ${dsum} · kept ${c.k}`;
+    P.bins.forEach((b, i) => { b.textContent = "dropped " + c.d[i]; });
+    P.slots.innerHTML = "";
+    for (let i = 0; i < c.k; i++) {
+      el(P.slots, "rect", { x: 1104 + (i % 8) * 23, y: 176 + Math.floor(i / 8) * 18, width: 17, height: 22, rx: 3 }, { fill: "var(--state)", opacity: 0.85 });
+    }
+  }
+  function reset() {
+    P.c = { g: 0, d: [0, 0, 0], k: 0 }; counters();
+    P.cards.forEach((g) => gsap.set(g, { x: 192, y: Y, opacity: 0, rotation: 0 }));
+    gsap.set(P.stamp, { opacity: 0 });
+  }
+  function final() {
+    P.c = { g: FAIL.length, d: [0, 1, 2].map((i) => FAIL.filter((x) => x === i).length), k: KEPT_TOTAL }; counters();
+    const used = [0, 0, 0];
+    P.cards.forEach((g, i) => {
+      const fi = FAIL[i];
+      if (fi >= 0) gsap.set(g, { x: GX[fi] - 44 + 44 * used[fi]++, y: 292, opacity: 1 });
+      else gsap.set(g, { opacity: 0 });
+    });
+  }
+
+  function play() {
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) { final(); return; }
+    reset();
+    tl = gsap.timeline({ repeat: -1, repeatDelay: 1.4 });
+    tl.call(reset, null, 0);
+    const used = [0, 0, 0];
+    FAIL.forEach((fi, i) => {
+      const g = P.cards[i], t0 = 0.4 + i * 0.7;
+      tl.set(g, { x: 192, y: Y, opacity: 0 }, t0)
+        .to(g, { opacity: 1, x: 250, duration: 0.3, ease: "power1.out" }, t0)
+        .call(() => { P.c.g++; counters(); }, null, t0 + 0.05);
+      const stop = fi >= 0 ? fi : 3;
+      let t = t0 + 0.3;
+      for (let k = 0; k < stop; k++) { tl.to(g, { x: GX[k] + 120, duration: 0.55, ease: "power1.inOut" }, t); t += 0.55; }
+      if (fi >= 0) {
+        const slot = used[fi]++;
+        tl.to(g, { x: GX[fi], duration: 0.4, ease: "power1.inOut" }, t)
+          .to(g, { x: GX[fi] - 44 + 44 * slot, y: 292, rotation: (slot % 2 ? 8 : -8), duration: 0.5, ease: "power2.in" }, t + 0.45)
+          .call(() => { P.c.d[fi]++; counters(); }, null, t + 0.95);
+      } else {
+        tl.to(P.stamp, { opacity: 1, duration: 0.12 }, t - 0.1)
+          .to(g, { x: 1190, duration: 0.45, ease: "power2.in" }, t)
+          .to(g, { opacity: 0, duration: 0.2 }, t + 0.4)
+          .to(P.stamp, { opacity: 0, duration: 0.25 }, t + 0.35)
+          .call(() => { P.c.k++; counters(); }, null, t + 0.45);
+      }
+    });
+    tl.to({}, { duration: 1.8 });
+  }
+  function stop() {
+    if (tl) { tl.kill(); tl = null; }
+    if (P) gsap.killTweensOf([...P.cards, P.stamp]);
+  }
+
+  Deck.register(ID, {
+    enter(slide) { stop(); build(slide.querySelector("#c10-ch-svg")); play(); },
+    step() {},
+    leave() { stop(); },
+  });
+})();
+</script>

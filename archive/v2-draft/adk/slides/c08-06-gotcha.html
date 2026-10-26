@@ -1,0 +1,306 @@
+<section class="slide tight" id="adk-c08-gotcha" data-tone="state" data-title="Gotcha: no cache hits">
+  <style>
+    #adk-c08-gotcha .gc-main { display: grid; grid-template-columns: 700px minmax(0, 1fr); gap: 28px; align-items: start; }
+    #adk-c08-gotcha .gc-col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+    #adk-c08-gotcha .gotcha { font-size: 16.5px; line-height: 1.4; padding: 14px 18px; grid-template-columns: 96px 1fr; gap: 6px 14px; }
+    #adk-c08-gotcha .gotcha code { font-size: 14.5px; }
+    #adk-c08-gotcha .code-wrap .code-head { padding: 7px 14px; font-size: 13.5px; }
+    #adk-c08-gotcha pre.code { font-size: 15px; line-height: 1.45; padding: 10px 14px 12px; }
+    #adk-c08-gotcha #gc-svg { display: block; width: 100%; height: auto; overflow: visible; }
+    #adk-c08-gotcha #gc-svg text { font-family: var(--f-mono); }
+    #adk-c08-gotcha .gc-cites { display: flex; flex-wrap: wrap; gap: 10px; }
+    #adk-c08-gotcha .gc-cites .cite { font-size: 13px; padding: 5px 9px 5px 7px; }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> Context cache</div>
+  <h2 class="title">cached=None on every turn: a timestamp moved the prefix</h2>
+  <div class="gc-main fill">
+    <div class="gc-col">
+      <svg id="gc-svg" viewBox="0 0 700 330" aria-label="Left: a static_instruction box holds the handbook and, at first, a timestamp chip; an instruction box below is dynamic. Right: three turn rows. With the timestamp in static_instruction, each turn has a different prefix key, A, B and C, and every turn misses the cache. When the chip moves into instruction, every turn has prefix A, turn 1 is still a miss and turns 2 and 3 hit."></svg>
+      <div class="gotcha" data-step="1">
+        <b>Symptom</b><span><code>cached=None</code> on every turn, also on turns 2 and 3.</span>
+        <b class="why">Cause</b><span>A timestamp or <code>{state}</code> sits in <code>static_instruction</code>, or the prefix is under 4,096 tokens.</span>
+        <b class="fix">Fix</b><span>Keep <code>static_instruction</code> byte-stable; put dynamic text in <code>instruction</code>.</span>
+      </div>
+    </div>
+    <div class="gc-col">
+      <div class="code-wrap good" data-step="3">
+        <div class="code-head">handbook_app.py · fixed · google-adk==2.13.0</div>
+        <pre class="code" data-lang="python" data-focus="3:7-9, 4:10-10, 5:11-13"><code>from google.adk import Agent
+from google.adk.agents.context_cache_config import ContextCacheConfig
+from google.adk.apps import App
+from google.genai import types
+HANDBOOK = open("handbook.md", encoding="utf-8").read()  # never changes
+agent = Agent(name="handbook_agent", model="gemini-3.5-flash",
+    static_instruction=types.Content(          # byte-stable prefix
+        role="user",
+        parts=[types.Part(text=HANDBOOK)]),
+    instruction="Customer: {customer_name}. Now: {now}.")  # dynamic
+app = App(name="bluefin_support", root_agent=agent,
+    context_cache_config=ContextCacheConfig(
+        min_tokens=4096, ttl_seconds=900))
+# {customer_name} and {now} come from session state</code></pre>
+      </div>
+      <div class="gc-cites" data-step="3">
+        <a class="cite repo" href="https://github.com/google/adk-python/blob/v2.13.0/src/google/adk/agents/context_cache_config.py" target="_blank" rel="noopener"><b>Repo</b>&nbsp;context_cache_config.py · v2.13.0</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">The first Bluefin failure looks like "the cache does nothing": cached=None on every turn, not only on turn 1. The animation shows why: a timestamp inside static_instruction makes the prefix different on every turn, so the cache key changes and every request misses. Move the timestamp into instruction, which ADK sends as user content after the prefix, and the prefix stays the same, so turns 2 and 3 hit; turn 1 still misses, because caching starts on turn 2, so a single-turn eval never shows a hit. Think of the cache like a photocopy master: write the date on the master and you need a new master every time. The other cause is size: the prefix must reach 4,096 tokens on Gemini 3 and 2,048 on Gemini 2.5. A likely question: "Where does {now} come from?" Write it into session state before each turn, the same way {customer_name} is set when the session is created.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c08-gotcha";
+  const NS = "http://www.w3.org/2000/svg";
+  const SLOT_A = { x: 220, y: 92 }, SLOT_B = { x: 220, y: 238 };
+  const TURN_Y = [126, 186, 246];
+  let R = null, tw = [];
+
+  function mk(tag, attrs, parent) {
+    const e = document.createElementNS(NS, tag);
+    for (const [a, v] of Object.entries(attrs)) e.setAttribute(a, v);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function txt(p, x, y, s, a) {
+    const t = mk("text", Object.assign({ x, y, "font-size": 14, fill: "var(--ink-2)" }, a || {}), p);
+    t.textContent = s; return t;
+  }
+
+  function build(svg) {
+    svg.innerHTML = "";
+    R = {};
+    // box A: static_instruction (the cacheable prefix)
+    R.boxA = mk("rect", { x: 0, y: 20, width: 390, height: 120, rx: 12, fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 2 }, svg);
+    txt(svg, 16, 44, "static_instruction · prefix", { "font-size": 15, "font-weight": 700, fill: "var(--state)" });
+    txt(svg, 16, 68, "handbook.md · 4,096+ tokens", { "font-size": 13.5, fill: "var(--ink)" });
+    [80, 94].forEach((y, i) => mk("rect", { x: 16, y, width: 180 - i * 40, height: 7, rx: 3, fill: "var(--state)", opacity: 0.25 }, svg));
+    // box B: instruction (user content after the prefix)
+    mk("rect", { x: 0, y: 166, width: 390, height: 112, rx: 12, fill: "var(--surface)", stroke: "var(--line-2)", "stroke-width": 1.6, "stroke-dasharray": "6 4" }, svg);
+    txt(svg, 16, 190, "instruction · user content", { "font-size": 15, "font-weight": 700, fill: "var(--ink-2)" });
+    txt(svg, 16, 214, "Customer: {customer_name}.", { "font-size": 13.5, fill: "var(--ink)" });
+    // the timestamp chip (frozen text; it moves from box A to box B)
+    R.chip = mk("g", {}, svg);
+    mk("rect", { x: 0, y: 0, width: 150, height: 30, rx: 15, fill: "var(--bg)", stroke: "var(--tool)", "stroke-width": 2 }, R.chip);
+    txt(R.chip, 75, 20, "Now: {now}", { "font-size": 13.5, "font-weight": 700, "text-anchor": "middle", fill: "var(--tool)" });
+    // status line
+    R.st1 = txt(svg, 430, 40, "prefix changes", { "font-size": 16, "font-weight": 800, fill: "var(--risk)" });
+    R.st2 = txt(svg, 430, 64, "every turn: cache MISS", { "font-size": 13.5, fill: "var(--risk)" });
+    txt(svg, 430, 98, "turn  prefix key  result", { "font-size": 12.5, "font-weight": 700, fill: "var(--muted)" });
+    // turn rows
+    R.rows = TURN_Y.map((y, i) => {
+      const g = mk("g", {}, svg);
+      const bg = mk("rect", { x: 420, y: y - 20, width: 280, height: 40, rx: 8, fill: "var(--surface)", stroke: "var(--line-2)", "stroke-width": 1.2 }, g);
+      txt(g, 436, y + 5, String(i + 1), { "font-size": 15, "font-weight": 800, fill: "var(--ink)" });
+      const keyBox = mk("rect", { x: 482, y: y - 13, width: 36, height: 26, rx: 6, fill: "var(--risk-soft)", stroke: "var(--risk)", "stroke-width": 1.5 }, g);
+      const key = txt(g, 500, y + 5, "A", { "font-size": 14, "font-weight": 800, "text-anchor": "middle", fill: "var(--risk)" });
+      const v = txt(g, 566, y + 5, "MISS", { "font-size": 14, "font-weight": 800, fill: "var(--risk)" });
+      return { g, bg, keyBox, key, v };
+    });
+    R.note = mk("g", {}, svg);
+    txt(R.note, 420, 296, "turn 1 never caches", { "font-size": 13.5, "font-weight": 700, fill: "var(--ink-2)" });
+    txt(R.note, 420, 318, "cache starts on turn 2", { "font-size": 12.5, fill: "var(--muted)" });
+  }
+
+  function paint(fixed) {
+    const col = fixed ? "var(--state)" : "var(--risk)";
+    R.st1.textContent = fixed ? "prefix stays the same" : "prefix changes";
+    R.st2.textContent = fixed ? "turns 2 and 3: cache HIT" : "every turn: cache MISS";
+    R.st1.setAttribute("fill", col); R.st2.setAttribute("fill", col);
+    R.boxA.setAttribute("stroke", col);
+    R.rows.forEach((r, i) => {
+      const hit = fixed && i > 0;
+      r.key.textContent = fixed ? "A" : "ABC"[i];
+      const kc = fixed ? "var(--state)" : "var(--risk)";
+      r.key.setAttribute("fill", kc); r.keyBox.setAttribute("stroke", kc);
+      r.keyBox.setAttribute("fill", fixed ? "var(--state-soft)" : "var(--risk-soft)");
+      r.v.textContent = hit ? "HIT · 8,960" : "MISS";
+      r.v.setAttribute("fill", hit ? "var(--state)" : (fixed ? "var(--ink-2)" : "var(--risk)"));
+      // outline only on turn 1, only while the slide talks about turn 1
+      const mark = fixed && i === 0;
+      r.bg.setAttribute("stroke", mark ? "var(--ink-2)" : "var(--line-2)");
+      r.bg.setAttribute("stroke-width", mark ? 2.2 : 1.2);
+    });
+    gsap.set(R.note, { opacity: fixed ? 1 : 0 });
+  }
+
+  function clear() { tw.forEach((t) => t.kill()); tw = []; if (R) gsap.killTweensOf([R.chip, R.boxA, R.note]); }
+
+  function render(slide, n, animate) {
+    const svg = slide.querySelector("#gc-svg");
+    if (!svg) return;
+    if (!R || !svg.childElementCount) build(svg);
+    clear();
+    const fixed = n >= 2;
+    const to = fixed ? SLOT_B : SLOT_A;
+    if (animate && n === 2) {
+      gsap.set(R.chip, { x: SLOT_A.x, y: SLOT_A.y });
+      paint(false);
+      tw.push(gsap.to(R.chip, { x: SLOT_B.x, y: SLOT_B.y, duration: 0.9, ease: "power3.inOut", onComplete: () => paint(true) }));
+    } else {
+      gsap.set(R.chip, { x: to.x, y: to.y });
+      paint(fixed);
+    }
+    // step 1: the broken prefix shakes once per turn row
+    if (animate && n === 1) R.rows.forEach((r, i) => tw.push(gsap.fromTo(r.keyBox, { scale: 1 }, { scale: 1.2, transformOrigin: "50% 50%", transformBox: "fill-box", duration: 0.18, yoyo: true, repeat: 1, delay: 0.2 + i * 0.25 })));
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) {
+      clear();
+      if (slide) gsap.killTweensOf(slide.querySelectorAll("#gc-svg *"));
+    },
+  });
+})();
+</script>
+<section class="slide tight" id="adk-c08-gotcha-memory" data-tone="state" data-title="Gotcha: compaction pairs, memory">
+  <style>
+    #adk-c08-gotcha-memory .gm-main { display: grid; grid-template-columns: 720px minmax(0, 1fr); gap: 28px; align-items: start; }
+    #adk-c08-gotcha-memory .gm-col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+    #adk-c08-gotcha-memory .gm-card { display: grid; grid-template-columns: 1fr 210px; gap: 14px; align-items: center; }
+    #adk-c08-gotcha-memory .gotcha { font-size: 15.5px; line-height: 1.38; padding: 12px 16px; grid-template-columns: 84px 1fr; gap: 5px 12px; }
+    #adk-c08-gotcha-memory .gotcha > b { font-size: 13px; }
+    #adk-c08-gotcha-memory .gotcha code { font-size: 13.5px; }
+    #adk-c08-gotcha-memory .em { font: 600 13.5px/1.45 var(--f-mono); color: var(--risk); }
+    #adk-c08-gotcha-memory .gm-card svg { width: 210px; height: auto; overflow: visible; }
+    #adk-c08-gotcha-memory .gm-card svg text { font-family: var(--f-mono); }
+    #adk-c08-gotcha-memory .code-wrap .code-head { padding: 7px 14px; font-size: 13.5px; }
+    #adk-c08-gotcha-memory pre.code { font-size: 15px; line-height: 1.45; padding: 10px 14px 12px; }
+    #adk-c08-gotcha-memory .gm-cites { display: flex; flex-wrap: wrap; gap: 10px; }
+    #adk-c08-gotcha-memory .gm-cites .cite { font-size: 13px; padding: 5px 9px 5px 7px; }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> Compaction and memory</div>
+  <h2 class="title">Compaction needs a full pair; memory is not persistent by default</h2>
+  <div class="gm-main fill">
+    <div class="gm-col">
+      <div class="gm-card" data-step="1">
+        <div class="gotcha">
+          <b>Symptom</b><span class="em">ValueError: token_threshold and event_retention_size must be set together.</span>
+          <b class="why">Cause</b><span>Half a trigger pair.</span>
+          <b class="fix">Fix</b><span>Set both fields; import from <code>google.adk.apps.app</code>.</span>
+        </div>
+        <svg id="gm-pair" viewBox="0 0 210 150" aria-label="Two halves of a trigger pair: token_threshold is set, event_retention_size is greyed out, and a ValueError badge appears. Then the second half fills in and the badge turns into OK."></svg>
+      </div>
+      <div class="gm-card" data-step="3">
+        <div class="gotcha">
+          <b>Symptom</b><span class="em">ValueError: Cannot add session to memory: memory service is not available.</span>
+          <b class="why">Cause</b><span>A hand-built <code>Runner</code> has no <code>memory_service</code>.</span>
+          <b class="fix">Fix</b><span>Pass <code>memory_service=VertexAiMemoryBankService(...)</code>.</span>
+        </div>
+        <svg id="gm-sock" viewBox="0 0 210 150" aria-label="A Runner box with an empty memory_service socket and a ValueError badge; then a Memory Bank plug slides into the socket."></svg>
+      </div>
+      <div class="gotcha" data-step="5">
+        <b>Symptom</b><span>Memories vanish after <code>adk web</code> restarts.</span>
+        <b class="why">Cause</b><span>Without <code>--memory_service_uri</code>, <code>adk web</code> uses <code>InMemoryMemoryService</code>.</span>
+        <b class="fix">Fix</b><span>Start it with <code>--memory_service_uri="agentengine://$AGENT_ENGINE_ID"</code>.</span>
+      </div>
+    </div>
+    <div class="gm-col">
+      <div class="code-wrap good" data-step="2">
+        <div class="code-head">support_app.py · fixed · google-adk==2.13.0</div>
+        <pre class="code" data-lang="python" data-focus="2:7-9, 4:10-15"><code>import os
+from google.adk import Runner
+from google.adk.apps.app import App, EventsCompactionConfig
+from google.adk.memory import VertexAiMemoryBankService
+from google.adk.sessions import InMemorySessionService
+agent = ...   # support_agent from Lab 8 step 2, unchanged
+app = App(name="bluefin_support", root_agent=agent,
+    events_compaction_config=EventsCompactionConfig(
+        token_threshold=20_000, event_retention_size=6))  # full pair
+memory = VertexAiMemoryBankService(
+    project=os.environ["GOOGLE_CLOUD_PROJECT"],
+    location=os.environ["GOOGLE_CLOUD_LOCATION"],
+    agent_engine_id=os.environ["AGENT_ENGINE_ID"])
+runner = Runner(app=app, session_service=InMemorySessionService(),
+                memory_service=memory)          # no service: ValueError</code></pre>
+      </div>
+      <div class="gm-cites" data-step="2">
+        <a class="cite repo" href="https://github.com/google/adk-python/blob/v2.13.0/src/google/adk/apps/_configs.py" target="_blank" rel="noopener"><b>Repo</b>&nbsp;apps/_configs.py · v2.13.0</a>
+        <a class="cite repo" href="https://github.com/google/adk-python/issues/7109" target="_blank" rel="noopener"><b>Issue</b>&nbsp;#7109: delete_session leaves memories</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Two more Bluefin failures look like "the feature does nothing". First, compaction triggers come in pairs: token_threshold with event_retention_size, or compaction_interval with overlap_size, and half a pair raises a ValueError when the App is built. EventsCompactionConfig is exported from google.adk.apps.app; importing it from the package google.adk.apps raises ImportError, because that package exports only App and ResumabilityConfig. Second, memory: a Runner that you build by hand has no memory service, so add_session_to_memory raises "memory service is not available". adk web is different: without --memory_service_uri it falls back to InMemoryMemoryService, so the callback works but every memory disappears when the server restarts. Think of it as a notebook on the desk versus a filing cabinet: the in-memory service is the notebook that goes in the bin every night. A likely question is "does deleting the session forget the customer?": no, issue 7109 showed that memories survive delete_session, so call delete_memory, new in 2.13, in the erasure path. If create_bank.py fails with "The installed Agent Platform SDK exposes Client.agent_engines rather than Client.runtimes", install google-cloud-agentplatform 2.2 or later, as on the memory lab slide. Next, recent papers show that compaction itself can become a trust problem.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c08-gotcha-memory";
+  const NS = "http://www.w3.org/2000/svg";
+  let R = null, tw = [];
+  function mk(tag, attrs, parent) {
+    const e = document.createElementNS(NS, tag);
+    for (const [a, v] of Object.entries(attrs)) e.setAttribute(a, v);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function txt(p, x, y, s, a) {
+    const t = mk("text", Object.assign({ x, y, "font-size": 12.5, fill: "var(--ink-2)" }, a || {}), p);
+    t.textContent = s; return t;
+  }
+  function badgeG(p, x, y) {
+    const g = mk("g", {}, p);
+    const r = mk("rect", { x: x - 52, y, width: 104, height: 26, rx: 13, fill: "var(--risk)" }, g);
+    const t = txt(g, x, y + 18, "ValueError", { "font-size": 12.5, "font-weight": 800, "text-anchor": "middle", fill: "#fff" });
+    g._r = r; g._t = t;
+    return g;
+  }
+  function build(slide) {
+    const A = slide.querySelector("#gm-pair"), B = slide.querySelector("#gm-sock");
+    A.innerHTML = ""; B.innerHTML = "";
+    R = {};
+    // pair graphic
+    txt(A, 0, 14, "trigger pair", { "font-size": 12.5, "font-weight": 700, fill: "var(--muted)" });
+    mk("rect", { x: 0, y: 24, width: 210, height: 34, rx: 8, fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 1.8 }, A);
+    txt(A, 105, 46, "token_threshold", { "font-size": 13, "font-weight": 700, "text-anchor": "middle", fill: "var(--ink)" });
+    R.half = mk("rect", { x: 0, y: 66, width: 210, height: 34, rx: 8, fill: "var(--surface)", stroke: "var(--line-2)", "stroke-width": 1.8, "stroke-dasharray": "5 4" }, A);
+    R.halfT = txt(A, 105, 88, "event_retention_size", { "font-size": 13, "font-weight": 700, "text-anchor": "middle", fill: "var(--muted)" });
+    R.pb = badgeG(A, 105, 114);
+    // socket graphic
+    mk("rect", { x: 0, y: 20, width: 96, height: 70, rx: 10, fill: "var(--agent-soft)", stroke: "var(--agent)", "stroke-width": 1.8 }, B);
+    txt(B, 48, 60, "Runner", { "font-size": 14, "font-weight": 700, "text-anchor": "middle", fill: "var(--ink)" });
+    mk("path", { d: "M96,44 H118 V66 H96", fill: "none", stroke: "var(--agent)", "stroke-width": 2 }, B);
+    txt(B, 0, 108, "memory_service", { "font-size": 12, "font-weight": 700, fill: "var(--muted)" });
+    R.plug = mk("g", {}, B);
+    mk("rect", { x: 130, y: 30, width: 80, height: 50, rx: 10, fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 1.8 }, R.plug);
+    mk("rect", { x: 116, y: 49, width: 14, height: 12, rx: 2, fill: "var(--state)" }, R.plug);
+    txt(R.plug, 170, 52, "Memory", { "font-size": 12, "font-weight": 700, "text-anchor": "middle", fill: "var(--state)" });
+    txt(R.plug, 170, 67, "Bank", { "font-size": 12, "font-weight": 700, "text-anchor": "middle", fill: "var(--state)" });
+    R.sb = badgeG(B, 105, 116);
+  }
+  function setBadge(b, ok) {
+    b._r.setAttribute("fill", ok ? "var(--state)" : "var(--risk)");
+    b._t.textContent = ok ? "OK" : "ValueError";
+  }
+  function clear() { tw.forEach((t) => t.kill()); tw = []; }
+  function render(slide, n, animate) {
+    if (!R || !slide.querySelector("#gm-pair").childElementCount) build(slide);
+    clear();
+    const a = (k) => animate && n === k;
+    // pair: broken at step 1, fixed at step 2 (the code shows the full pair)
+    const pairOk = n >= 2;
+    R.half.setAttribute("fill", pairOk ? "var(--state-soft)" : "var(--surface)");
+    R.half.setAttribute("stroke", pairOk ? "var(--state)" : "var(--line-2)");
+    R.half.setAttribute("stroke-dasharray", pairOk ? "none" : "5 4");
+    R.halfT.setAttribute("fill", pairOk ? "var(--ink)" : "var(--muted)");
+    setBadge(R.pb, pairOk);
+    if (a(1)) tw.push(gsap.fromTo(R.pb, { scale: 0.4, opacity: 0 }, { scale: 1, opacity: 1, transformOrigin: "50% 50%", transformBox: "fill-box", duration: 0.4, delay: 0.4, ease: "back.out(2.4)" }));
+    else gsap.set(R.pb, { scale: 1, opacity: 1 });
+    // socket: empty at step 3, plugged in at step 4 (the code passes memory_service)
+    const plugged = n >= 4;
+    setBadge(R.sb, plugged);
+    gsap.killTweensOf(R.plug);
+    if (a(4)) {
+      gsap.set(R.plug, { x: 50, opacity: 0.3 });
+      tw.push(gsap.to(R.plug, { x: 0, opacity: 1, duration: 0.7, ease: "power3.out" }));
+    } else gsap.set(R.plug, { x: plugged ? 0 : 50, opacity: plugged ? 1 : 0.3 });
+    if (a(3)) tw.push(gsap.fromTo(R.sb, { scale: 0.4, opacity: 0 }, { scale: 1, opacity: 1, transformOrigin: "50% 50%", transformBox: "fill-box", duration: 0.4, delay: 0.4, ease: "back.out(2.4)" }));
+    else gsap.set(R.sb, { scale: 1, opacity: 1 });
+  }
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { clear(); if (slide) gsap.killTweensOf(slide.querySelectorAll(".gm-card svg *")); },
+  });
+})();
+</script>

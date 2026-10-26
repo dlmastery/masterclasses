@@ -1,0 +1,138 @@
+<section class="slide chapter" id="adk-c09-chapter" data-tone="model" data-title="Ch 9: Evals that block bad deploys">
+  <style>
+    /* shared layout classes for chapter 9 (prefix c9-) */
+    .c9-split { display: grid; grid-template-columns: var(--c9l, 860px) minmax(0, 1fr); gap: 32px; align-items: start; }
+    .c9-col { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+    .c9-col > .code-wrap { align-self: stretch; }
+    .c9-cap { display: grid; }
+    .c9-cap > * { grid-area: 1 / 1; font-size: 23px; line-height: 1.42; color: var(--ink-2); margin: 0; }
+    .c9-cap b { color: var(--ink); }
+    .c9-cap code { font-size: .86em; }
+    .c9-svg { display: block; width: 100%; height: auto; overflow: visible; }
+    .c9-svg text { font-family: var(--f-mono); }
+    .c9-fig { border: 1px solid var(--line); border-radius: 16px; background: var(--surface); padding: 14px 16px; }
+    .paper.c9-paper { padding: 26px 30px; gap: 16px; }
+    .c9-paper .pid { font-size: 16px; }
+    .c9-paper h4 { font-size: 27px; line-height: 1.25; }
+    .c9-paper .find { font-size: 23px; line-height: 1.45; }
+    .c9-paper .so { font-size: 22px; line-height: 1.35; }
+    .c9-paper .so code { font-size: .86em; }
+    #adk-c09-chapter { gap: 24px; padding-bottom: 84px; }
+    #adk-c09-chapter .ch-num { font-size: 220px; top: 30px; right: 96px; }
+    #adk-c09-chapter .display { font-size: 92px; max-width: 1392px; }
+    #adk-c09-chapter .lede { max-width: 1200px; }
+  </style>
+  <div class="ch-num" data-fx="blur">09</div>
+  <svg class="c9-svg" id="c09c-svg" viewBox="0 0 1392 330" aria-label="A conversation card for order A-2040 with the tool calls lookup_order, an extra issue_refund of 820 dollars and escalate_to_human moves through three gates. Step 1: the trajectory gate passes, because IN_ORDER allows extra calls. Step 2: the LLM judge passes, because the answer sounds right. Step 3: the policy gate scores 0, stops the card, and the CI light turns red with exit 1."></svg>
+  <h2 class="display">Evals that block bad deploys</h2>
+  <p class="lede" data-fx="up">Build the Acme refund eval gate: golden cases, a code metric for the $500 rule, simulated customers and a CI exit code.</p>
+  <div class="cites" data-fx="up">
+    <a class="cite codelab" href="https://codelabs.developers.google.com/adk-eval/instructions" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;Evaluating Agents with ADK</a>
+    <a class="cite doc" href="https://adk.dev/evaluate/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;adk.dev Evaluate</a>
+  </div>
+  <i hidden data-step="1"></i><i hidden data-step="2"></i><i hidden data-step="3"></i>
+  <aside class="notes">This chapter builds one eval gate for the Acme refund desk agent, Lab 9, and every check runs from the command line on google-adk 2.13.0. The gate scores three things: the trajectory, which means the right tools in the right order; the answer, which an LLM judge compares with a golden reference; and the business rule that issue_refund never goes above 500 dollars, which is plain code and scores only 1 or 0. Click through the card for order A-2040: the extra issue_refund of 820 dollars passes the trajectory gate, because IN_ORDER allows extra calls, it sounds fine to the judge, and only the code metric stops it, so CI gets exit 1. Think of the three gates as airport security: the boarding pass check, the interview, and the metal detector, which does not care how polite you are. A likely question: "Why not ask the judge to check the 500 dollar rule too?" Because judges plateau around 77 to 82 percent on hard tool-calling cases, and a hard rule needs a check that is right every time.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "adk-c09-chapter";
+  const GX = [430, 720, 1010];         // gate centres
+  const CW = 230, CY = 96;             // card width, card top
+  const LX = 1310, LY = 168;           // CI light centre
+  const CARD_X = [0, GX[0] - CW / 2, GX[1] - CW / 2, GX[2] - CW / 2];
+  let P = null, tw = [];
+
+  const el = (parent, tag, attrs, style, text) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (style) Object.assign(e.style, style);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  };
+  const mono = (w, s) => ({ font: `${w} ${s}px var(--f-mono)` });
+
+  function chip(g, y, tone, label) {
+    el(g, "rect", { x: 12, y, width: CW - 24, height: 32, rx: 8 }, { fill: `var(--${tone}-soft)`, stroke: `var(--${tone})`, strokeWidth: 1.8 });
+    el(g, "text", { x: CW / 2, y: y + 22, "text-anchor": "middle" }, { ...mono(700, 16), fill: "var(--ink)" }, label);
+  }
+  function gate(parent, cx, tone, label, sub) {
+    const g = el(parent, "g", {});
+    const posts = [cx - 128, cx + 116].map((x) => el(g, "rect", { x, y: 78, width: 12, height: 190, rx: 6 }, { fill: `var(--${tone})` }));
+    el(g, "rect", { x: cx - 128, y: 70, width: 256, height: 12, rx: 6 }, { fill: `var(--${tone})` });
+    el(g, "text", { x: cx, y: 26, "text-anchor": "middle" }, { ...mono(700, 21), fill: `var(--${tone})` }, label);
+    el(g, "text", { x: cx, y: 54, "text-anchor": "middle" }, { ...mono(500, 16), fill: "var(--ink-2)" }, sub);
+    const mark = el(g, "text", { x: cx, y: 306, "text-anchor": "middle" }, { ...mono(800, 19), fill: "var(--state)", opacity: 0 }, "");
+    return { g, posts, mark, tone };
+  }
+
+  function build(svg) {
+    svg.innerHTML = "";
+    const root = el(svg, "g", {});
+    const defs = el(svg, "defs", {});
+    const m = el(defs, "marker", { id: "c09c-ah", viewBox: "0 0 10 10", refX: 8, refY: 5, markerWidth: 8, markerHeight: 8, orient: "auto" });
+    el(m, "path", { d: "M0,0 L10,5 L0,10 z" }, { fill: "var(--line-2)" });
+    el(root, "path", { d: "M236 176 H1254", "marker-end": "url(#c09c-ah)" }, { stroke: "var(--line-2)", strokeWidth: 2, strokeDasharray: "6 8", fill: "none" });
+    const gates = [
+      gate(root, GX[0], "tool", "trajectory", "right tools, right order"),
+      gate(root, GX[1], "model", "LLM judge", "answer vs the reference"),
+      gate(root, GX[2], "risk", "policy ≤ $500", "code: score 1 or 0"),
+    ];
+    const card = el(root, "g", {});
+    el(card, "rect", { x: 0, y: CY, width: CW, height: 160, rx: 14 }, { fill: "var(--surface)", stroke: "var(--human)", strokeWidth: 2.4 });
+    el(card, "text", { x: 14, y: CY + 28 }, { ...mono(700, 17), fill: "var(--human)" }, "A-2040 · $820");
+    chip(card, CY + 40, "tool", "lookup_order");
+    chip(card, CY + 80, "risk", "issue_refund $820");
+    chip(card, CY + 120, "tool", "escalate_to_human");
+    el(root, "text", { x: LX, y: 26, "text-anchor": "middle" }, { ...mono(700, 21), fill: "var(--ink)" }, "CI");
+    el(root, "text", { x: LX, y: 54, "text-anchor": "middle" }, { ...mono(500, 16), fill: "var(--ink-2)" }, "adk eval");
+    el(root, "rect", { x: LX - 48, y: LY - 80, width: 96, height: 160, rx: 24 }, { fill: "var(--surface)", stroke: "var(--line-2)", strokeWidth: 2 });
+    const green = el(root, "circle", { cx: LX, cy: LY - 37, r: 28 }, { fill: "var(--state)", opacity: 0.15 });
+    const red = el(root, "circle", { cx: LX, cy: LY + 37, r: 28 }, { fill: "var(--risk)", opacity: 0.15 });
+    const exit = el(root, "text", { x: LX, y: 284, "text-anchor": "middle" }, { ...mono(800, 20), fill: "var(--risk)", opacity: 0 }, "exit 1");
+    const blocked = el(root, "text", { x: LX, y: 312, "text-anchor": "middle" }, { ...mono(800, 17), fill: "var(--risk)", opacity: 0 }, "deploy blocked");
+    P = { root, gates, card, green, red, exit, blocked };
+  }
+
+  const MARKS = ["✓ extra call allowed", "✓ sounds right", "✕ score 0"];
+  function render(n, animate) {
+    tw.forEach((t) => t.kill()); tw = [];
+    const p = P;
+    const x = CARD_X[Math.min(n, 3)];
+    if (animate) tw.push(gsap.fromTo(p.card, { x: CARD_X[Math.max(0, n - 1)] }, { x, duration: 0.9, ease: "power2.inOut" }));
+    else gsap.set(p.card, { x });
+    p.gates.forEach((g, i) => {
+      const on = n >= i + 1;
+      g.mark.textContent = MARKS[i];
+      g.mark.style.fill = i === 2 ? "var(--risk)" : "var(--state)";
+      gsap.killTweensOf([g.mark, ...g.posts]);
+      const postFill = on && i === 2 ? "var(--risk)" : on ? "var(--state)" : `var(--${g.tone})`;
+      if (animate && n === i + 1) {
+        tw.push(gsap.to(g.mark, { opacity: 1, duration: 0.3, delay: 0.85 }));
+        tw.push(gsap.to(g.posts, { fill: postFill, duration: 0.25, delay: 0.85 }));
+      } else {
+        gsap.set(g.mark, { opacity: on ? 1 : 0 });
+        gsap.set(g.posts, { fill: postFill });
+      }
+    });
+    const blockedNow = n >= 3;
+    gsap.killTweensOf([p.red, p.exit, p.blocked]);
+    if (animate && n === 3) {
+      tw.push(gsap.to(p.card, { x: x - 12, duration: 0.07, yoyo: true, repeat: 5, delay: 0.9 }));
+      tw.push(gsap.to(p.red, { opacity: 1, duration: 0.3, delay: 1.3 }));
+      tw.push(gsap.to([p.exit, p.blocked], { opacity: 1, duration: 0.3, delay: 1.4 }));
+    } else {
+      gsap.set(p.red, { opacity: blockedNow ? 1 : 0.15 });
+      gsap.set([p.exit, p.blocked], { opacity: blockedNow ? 1 : 0 });
+    }
+    gsap.set(p.green, { opacity: 0.15 });
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { build(slide.querySelector("#c09c-svg")); render(step || 0, false); },
+    step(slide, n, animate) { if (!P) build(slide.querySelector("#c09c-svg")); render(n, animate); },
+    leave() { tw.forEach((t) => t.kill()); tw = []; },
+  });
+})();
+</script>

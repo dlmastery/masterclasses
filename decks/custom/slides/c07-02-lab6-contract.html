@@ -1,0 +1,228 @@
+<section class="slide" id="custom-c07-lab6-contract" data-tone="state" data-title="Lab 6: pandera claims contract">
+  <style>
+    #custom-c07-lab6-contract { gap: 22px; }
+    #custom-c07-lab6-contract .k-grid { display: grid; grid-template-columns: 650px minmax(0, 1fr); gap: 24px; min-height: 0; }
+    #custom-c07-lab6-contract .k-left, #custom-c07-lab6-contract .k-right { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    #custom-c07-lab6-contract .k-code pre.code { font-size: 16px; line-height: 1.42; padding: 12px 18px 12px; }
+    #custom-c07-lab6-contract .code-head { padding: 7px 14px; font-size: 13.5px; }
+    #custom-c07-lab6-contract .k-foot { display: flex; gap: 12px; align-items: center; font-size: 14.5px; color: var(--muted); }
+    #custom-c07-lab6-contract .k-foot .cite { font-size: 13px; white-space: nowrap; flex: none; }
+    #custom-c07-lab6-contract .k-term { margin-top: auto; }
+    #custom-c07-lab6-contract .k-term pre.code { font-size: 12.5px; line-height: 1.42; padding: 8px 16px 8px; }
+    #custom-c07-lab6-contract .k-term pre.code + pre.code { padding-top: 0; }
+    #custom-c07-lab6-contract .k-term .out { color: #b4bcdc; }
+    #custom-c07-lab6-contract .lab-head { font-size: 15px; gap: 12px; flex-wrap: nowrap; }
+    #custom-c07-lab6-contract .lab-head .run { font-size: 15px; padding: 7px 11px; white-space: nowrap; }
+    #custom-c07-lab6-contract .lab-head > span:not(.run) { font: 500 14px/1 var(--f-mono); color: var(--muted); white-space: nowrap; }
+    #custom-c07-lab6-contract .steps-rail { gap: 8px; }
+    #custom-c07-lab6-contract .steps-rail > * { font-size: 16px; line-height: 1.36; grid-template-columns: 30px minmax(0, 1fr); gap: 10px; }
+    #custom-c07-lab6-contract .steps-rail > *::before { width: 26px; height: 26px; font-size: 14px; }
+    #custom-c07-lab6-contract .steps-rail code { font-size: .88em; }
+    #custom-c07-lab6-contract pre.code, #custom-c07-lab6-contract pre.code *, #custom-c07-lab6-contract code, #custom-c07-lab6-contract .lab-head *, #custom-c07-lab6-contract svg text { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 6</span> Acme claims intake · step 1 of 5</div>
+  <h2 class="title">A pandera contract turns the claims intake rules into code</h2>
+  <div class="k-grid fill">
+    <div class="k-left">
+      <div class="code-wrap k-code">
+        <div class="code-head">claims_data/claims_contract.py · the producer repo owns it</div>
+        <pre class="code" data-lang="python" data-focus="1:6-15, 2:16-19, 3:20-22, 4:5"><code>import pandas as pd
+import pandera.pandas as pa
+from pandera.typing import Series
+
+class ClaimsContract(pa.DataFrameModel):
+    claim_id: Series[str] = pa.Field(
+        unique=True, str_matches=r"^CLM-\d{6}$")
+    policy_id: Series[str] = pa.Field(
+        str_length={"min_value": 8, "max_value": 8})
+    claim_type: Series[str] = pa.Field(
+        isin=["auto", "home", "travel", "health"])
+    amount_usd: Series[float] = pa.Field(gt=0, le=250_000)
+    incident_date: Series[pd.Timestamp] = pa.Field()
+    reported_date: Series[pd.Timestamp] = pa.Field()
+    adjuster_note: Series[str] = pa.Field(nullable=True)
+    @pa.dataframe_check(
+        error="reported_date must be on/after incident_date")
+    def reported_after_incident(cls, df) -&gt; Series[bool]:
+        return df["reported_date"] &gt;= df["incident_date"]
+    class Config:
+        strict = True   # unknown columns fail the contract
+        coerce = True   # "1200" -&gt; 1200.0, ISO str -&gt; Timestamp</code></pre>
+      </div>
+      <div class="k-foot">
+        <span>Import <code>pandera.pandas</code>: top-level <code>pandera</code> gives a FutureWarning in 0.34.1.</span>
+        <a class="cite doc" href="https://pandera.readthedocs.io/en/stable/dataframe_models.html" target="_blank" rel="noopener"><b>Docs</b>&nbsp;DataFrame Models</a>
+      </div>
+    </div>
+    <div class="k-right">
+      <div class="lab-head"><span class="run">pip install "pandera[pandas]==0.34.1"</span><span>Python &ge; 3.10 · tested on 3.12 · CPU</span></div>
+      <svg id="c07k-svg" viewBox="0 0 678 252" width="678" height="252" role="img" aria-label="The 4-row nightly batch as a table with six columns; a footnote lists the seventh column, adjuster_note. Step 1: rule pills appear over claim_id, policy_id, claim_type and amount_usd, and six cells turn red: claim_id in rows 1 and 2, and CLM-77, POL1, boat and -5 in row 3. Step 2: a row-check pill spans the two date columns and all six cells of row 3 are marked, because 2026-10-08 is before 2026-10-09: 6 plus 6 is 12 failure cases. Step 3: the quoted strings in amount_usd and the date columns change to float and Timestamp values. Step 4: row 0 turns green and rows 1, 2 and 3 turn red."></svg>
+      <div class="steps-rail">
+        <div data-step="1"><span><code>Field</code> kwargs: one rule per column. Unique, regex, length, set, range.</span></div>
+        <div data-step="2"><span><code>dataframe_check</code> compares two columns in each row.</span></div>
+        <div data-step="3"><span><code>strict</code> rejects unknown columns. <code>coerce</code> casts strings first.</span></div>
+      </div>
+      <div class="code-wrap term k-term">
+        <div class="code-head">run it Monday · no env vars</div>
+        <pre class="code" data-lang="bash"><code>$ pip install "pandera[pandas]==0.34.1" "pandas==3.0.*" "scikit-learn==1.9.1" "numpy==2.5.4"
+# base pandera wheel has no pandas · pandas 3.1.0 is 1 day old: untested
+claims_data/  claims_contract.py   nightly_batch.py   # batch = the 4 rows
+              lab6_quarantine.py   lab6_active_learning.py</code></pre>
+        <pre class="code" data-lang="bash" data-step="4"><code>$ pip show pandera | head -2
+Name: pandera
+Version: 0.34.1</code></pre>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">This is the first step of Lab 6: the claims intake rules, which used to live in a wiki page, become one pandera DataFrameModel in its own module, claims_contract.py. Walk the focus bands: each Field states one column rule, the dataframe_check compares two columns in the same row, and Config turns on strict mode and coercion, so the strings in the nightly file become floats and Timestamps before any check runs. The table on the right is the batch in nightly_batch.py: the lab's pd.DataFrame dict with 4 rows, every value a string, and adjuster_note as the seventh, nullable column. Six cells break a field rule, and row 3 also breaks the row check, which reports all 6 of its listed columns, so the report in step 2 has 6 plus 6, 12 failure cases. Install the pandas extra, or import pandera.pandas fails in a clean venv. Analogy: the class is the building code, and the producer's CI and the training job are two inspectors who read the same book. Likely question: "Why not just write asserts?" Asserts stop at the first failure and give no table; step 2 shows lazy=True returning all 12 failure cases in one report.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c07-lab6-contract";
+  const COLS = [
+    { k: "claim_id", w: 118 }, { k: "policy_id", w: 104 }, { k: "claim_type", w: 80 },
+    { k: "amount_usd", w: 106 }, { k: "incident_date", w: 118 }, { k: "reported_date", w: 118 },
+  ];
+  const IDX_W = 30, X0 = 2, PILL_Y = 28, HEAD_Y = 58, HEAD_H = 26, TYPE_Y = 98, ROW_Y = 108, ROW_H = 31;
+  const RAW = [
+    ["CLM-000101", "POL12345", "auto", "\"1200.50\"", "\"2026-10-01\"", "\"2026-10-02\""],
+    ["CLM-000102", "POL12346", "home", "\"98000\"", "\"2026-10-03\"", "\"2026-10-04\""],
+    ["CLM-000102", "POL12346", "home", "\"98000\"", "\"2026-10-03\"", "\"2026-10-04\""],
+    ["CLM-77", "POL1", "boat", "\"-5\"", "\"2026-10-09\"", "\"2026-10-08\""],
+  ];
+  const COERCED = [
+    [null, null, null, "1200.5", "2026-10-01", "2026-10-02"],
+    [null, null, null, "98000.0", "2026-10-03", "2026-10-04"],
+    [null, null, null, "98000.0", "2026-10-03", "2026-10-04"],
+    [null, null, null, "-5.0", "2026-10-09", "2026-10-08"],
+  ];
+  // field-rule failures (step 1): [row, col] - 6 cells, as in the captured report
+  const FIELD_FAIL = [[1, 0], [2, 0], [3, 0], [3, 1], [3, 2], [3, 3]];
+  const PILLS = [
+    { c0: 0, c1: 0, t: "unique · regex", step: 1 },
+    { c0: 1, c1: 1, t: "length = 8", step: 1 },
+    { c0: 2, c1: 2, t: "isin", step: 1 },
+    { c0: 3, c1: 3, t: "gt 0 · le 250k", step: 1 },
+    { c0: 4, c1: 5, t: "row check: reported >= incident", step: 2 },
+  ];
+  const CAPS = [
+    "nightly_batch.py: 4 rows, every value a string",
+    "field rules: 6 cells fail",
+    "row check fails row 3 and reports its 6 columns: 6 + 6 = 12",
+    "coerce: str -> float and Timestamp before the checks",
+    "row 0 passes · rows 1, 2, 3 fail · step 2 runs validate()",
+  ];
+  let S = null, flashes = [];
+
+  const el = (parent, tag, attrs, style, text) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (style) Object.assign(e.style, style);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  };
+  const mono = (w, s) => `${w} ${s}px var(--f-mono)`;
+  const colX = (() => { const xs = []; let x = X0 + IDX_W; COLS.forEach((c) => { xs.push(x); x += c.w; }); return xs; })();
+
+  function build(svg) {
+    svg.innerHTML = "";
+    const cap = el(svg, "text", { x: 0, y: 14 }, { font: mono(600, 13), fill: "var(--muted)" }, "");
+    // rule pills above the headers
+    const pills = PILLS.map((p) => {
+      const x = colX[p.c0] + 3, w = colX[p.c1] + COLS[p.c1].w - colX[p.c0] - 6;
+      const g = el(svg, "g", {}, { opacity: 0 });
+      el(g, "rect", { x, y: PILL_Y - 6, width: w, height: 22, rx: 11 }, { fill: "var(--state-soft)", stroke: "var(--state)", strokeWidth: 1.6 });
+      el(g, "text", { x: x + w / 2, y: PILL_Y + 9, "text-anchor": "middle" }, { font: mono(700, 11), fill: "var(--state)" }, p.t);
+      return { g, step: p.step };
+    });
+    // header row
+    el(svg, "rect", { x: X0, y: HEAD_Y, width: 674 - X0, height: HEAD_H, rx: 6 }, { fill: "var(--surface-2)", stroke: "var(--line-2)", strokeWidth: 1.2 });
+    COLS.forEach((c, i) => el(svg, "text", { x: colX[i] + 8, y: HEAD_Y + 18 }, { font: mono(700, 11.5), fill: "var(--ink)" }, c.k));
+    const types = COLS.map((c, i) => el(svg, "text", { x: colX[i] + 8, y: TYPE_Y }, { font: mono(600, 11), fill: "var(--muted)" }, "str"));
+    // data rows
+    const rows = RAW.map((r, ri) => {
+      const y = ROW_Y + ri * ROW_H;
+      const bg = el(svg, "rect", { x: X0, y, width: 674 - X0, height: ROW_H - 3, rx: 6 }, { fill: "var(--surface)", stroke: "var(--line)", strokeWidth: 1.2 });
+      el(svg, "text", { x: X0 + 10, y: y + 19 }, { font: mono(700, 12), fill: "var(--muted)" }, String(ri));
+      const cells = r.map((v, ci) => {
+        const g = el(svg, "g", {});
+        const rect = el(g, "rect", { x: colX[ci] + 2, y: y + 2, width: COLS[ci].w - 4, height: ROW_H - 7, rx: 5 }, { fill: "transparent", stroke: "transparent", strokeWidth: 1.8 });
+        const tx = el(g, "text", { x: colX[ci] + 8, y: y + 19 }, { font: mono(500, 12), fill: "var(--ink-2)" }, v);
+        return { g, rect, tx };
+      });
+      return { bg, cells, y };
+    });
+    el(svg, "text", { x: X0 + 2, y: ROW_Y + 4 * ROW_H + 14 }, { font: mono(500, 12), fill: "var(--muted)" }, "+ adjuster_note (nullable): None · roof damage · roof damage · None");
+    const frame = el(svg, "rect", { x: X0 - 1, y: ROW_Y + 3 * ROW_H - 2, width: 674 - X0 + 2, height: ROW_H + 1, rx: 7 }, { fill: "none", stroke: "var(--risk)", strokeWidth: 2.6, opacity: 0 });
+    S = { svg, cap, pills, types, rows, frame };
+  }
+
+  function stop() {
+    flashes.forEach((f) => f.kill());
+    flashes = [];
+    if (S) gsap.killTweensOf([S.frame, ...S.pills.map((p) => p.g), ...S.rows.flatMap((r) => r.cells.map((c) => c.g))]);
+  }
+
+  function render(n, animate) {
+    if (!S) return;
+    stop();
+    const anim = animate && !matchMedia("(prefers-reduced-motion: reduce)").matches;
+    S.cap.textContent = CAPS[Math.min(n, 4)];
+    // pills
+    S.pills.forEach((p) => {
+      const on = n >= p.step;
+      gsap.set(p.g, { opacity: on ? 1 : 0, y: 0 });
+      if (on && anim && n === p.step) flashes.push(gsap.fromTo(p.g, { opacity: 0, y: -8 }, { opacity: 1, y: 0, duration: 0.35, ease: "back.out(2)" }));
+    });
+    // values and dtypes (step 3 = coerce)
+    S.rows.forEach((r, ri) => r.cells.forEach((c, ci) => {
+      const coerced = n >= 3 && COERCED[ri][ci] !== null;
+      c.tx.textContent = coerced ? COERCED[ri][ci] : RAW[ri][ci];
+      c.tx.style.fontWeight = coerced ? 700 : 500;
+      c.tx.style.fill = coerced ? "var(--state)" : "var(--ink-2)";
+      gsap.set(c.g, { opacity: 1 });
+      if (coerced && anim && n === 3) flashes.push(gsap.fromTo(c.g, { opacity: 0.1 }, { opacity: 1, duration: 0.45, delay: 0.08 * ri + 0.05 * (ci - 3) }));
+    }));
+    S.types.forEach((t, ci) => {
+      const ty = n >= 3 ? (ci === 3 ? "float" : ci >= 4 ? "Timestamp" : "str") : "str";
+      t.textContent = ty;
+      t.style.fill = n >= 3 && ci >= 3 ? "var(--state)" : "var(--muted)";
+    });
+    // red cells: field failures from step 1, the whole failing row from step 2
+    const red = new Set();
+    if (n >= 1) FIELD_FAIL.forEach(([r, c]) => red.add(`${r}:${c}`));
+    if (n >= 2) COLS.forEach((_, c) => red.add(`3:${c}`));
+    S.rows.forEach((r, ri) => r.cells.forEach((c, ci) => {
+      const bad = red.has(`${ri}:${ci}`);
+      c.rect.style.fill = bad ? "var(--risk-soft)" : "transparent";
+      c.rect.style.stroke = bad ? "var(--risk)" : "transparent";
+      if (!(n >= 3 && COERCED[ri][ci] !== null)) c.tx.style.fill = bad ? "var(--risk)" : "var(--ink-2)";
+      const isNew = (n === 1 && FIELD_FAIL.some(([a, b]) => a === ri && b === ci)) ||
+                    (n === 2 && ri === 3 && !FIELD_FAIL.some(([a, b]) => a === ri && b === ci));
+      if (bad && anim && isNew) flashes.push(gsap.fromTo(c.g, { opacity: 0.15 }, { opacity: 1, duration: 0.22, repeat: 2, yoyo: true, ease: "none", delay: 0.06 * ci }));
+    }));
+    gsap.set(S.frame, { opacity: n >= 2 ? 1 : 0 });
+    if (n === 2 && anim) flashes.push(gsap.fromTo(S.frame, { opacity: 0 }, { opacity: 1, duration: 0.5 }));
+    // step 4: quarantine rows 1-3, keep row 0
+    S.rows.forEach((r, ri) => {
+      r.bg.style.fill = n >= 4 ? (ri === 0 ? "var(--state-soft)" : "var(--risk-soft)") : "var(--surface)";
+      r.bg.style.stroke = n >= 4 ? (ri === 0 ? "var(--state)" : "var(--risk)") : "var(--line)";
+    });
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) {
+      stop();
+      build(slide.querySelector("#c07k-svg"));
+      render(step || 0, false);
+    },
+    step(slide, n, animate) {
+      if (!S || !slide.contains(S.svg)) build(slide.querySelector("#c07k-svg"));
+      render(n, animate);
+    },
+    leave() { stop(); },
+  });
+})();
+</script>

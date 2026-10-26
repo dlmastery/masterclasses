@@ -1,0 +1,161 @@
+<section class="slide chapter" id="adk-interview-c04-chapter" data-tone="tool" data-title="Ch 4: Tools, protocols, security">
+  <style>
+    #adk-interview-c04-chapter { gap: 18px; }
+    #adk-interview-c04-chapter .ch-num { font-size: 240px; top: 56px; right: 100px; color: color-mix(in oklab, var(--tool) 15%, transparent); }
+    #adk-interview-c04-chapter .display { font-size: 76px; max-width: 1392px; white-space: nowrap; }
+    #adk-interview-c04-chapter .lede { max-width: 1100px; white-space: nowrap; }
+    #adk-interview-c04-chapter .c4-svg { display: block; overflow: visible; }
+    #adk-interview-c04-chapter .c4-svg text { font-family: var(--f-mono); font-variant-ligatures: none; }
+    #adk-interview-c04-chapter .nb { stroke-width: 2.5; transition: fill .4s, stroke .4s; }
+    #adk-interview-c04-chapter .nb.tool { fill: var(--tool-soft); stroke: var(--tool); }
+    #adk-interview-c04-chapter .nb.agent { fill: var(--agent-soft); stroke: var(--agent); }
+    #adk-interview-c04-chapter .nb.risk { fill: var(--risk-soft); stroke: var(--risk); }
+    #adk-interview-c04-chapter .nt { fill: var(--ink); font: 700 23px var(--f-mono); }
+    #adk-interview-c04-chapter .ns { fill: var(--muted); font: 600 17px var(--f-mono); }
+    #adk-interview-c04-chapter .ns.risk { fill: var(--risk); }
+    #adk-interview-c04-chapter .w { stroke: var(--line-2); stroke-width: 2.5; transition: stroke .4s; }
+    #adk-interview-c04-chapter .w.risk { stroke: var(--risk); stroke-width: 3.5; }
+    #adk-interview-c04-chapter .end { fill: var(--line-2); transition: fill .4s; }
+    #adk-interview-c04-chapter .end.risk { fill: var(--risk); }
+    #adk-interview-c04-chapter .pulse { fill: var(--tool); }
+    #adk-interview-c04-chapter .pulse.risk { fill: var(--risk); }
+    #adk-interview-c04-chapter .rl { fill: var(--risk); font: 700 17px var(--f-mono); }
+    #adk-interview-c04-chapter .rlb { fill: var(--bg); stroke: var(--risk); stroke-width: 1.5; }
+    #adk-interview-c04-chapter .shb { fill: var(--state); }
+    #adk-interview-c04-chapter .sht { fill: #fff; font: 700 16px var(--f-mono); }
+    #adk-interview-c04-chapter .stop { fill: #fff; stroke: var(--risk); stroke-width: 3; }
+    #adk-interview-c04-chapter .stopx { stroke: var(--risk); stroke-width: 3.5; stroke-linecap: round; }
+    #adk-interview-c04-chapter .c4-cap { display: grid; min-height: 28px; }
+    #adk-interview-c04-chapter .c4-cap > p { grid-area: 1 / 1; margin: 0; font: 600 20px/1.3 var(--f-mono); color: var(--ink); font-variant-ligatures: none; }
+    #adk-interview-c04-chapter .c4-cap b { color: var(--tool); margin-right: 12px; }
+    #adk-interview-c04-chapter .c4-cap b.r { color: var(--risk); }
+    #adk-interview-c04-chapter .c4-cap b.g { color: var(--state); }
+    #adk-interview-c04-chapter .agenda { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; margin: 0; padding: 0; list-style: none; counter-reset: ag; }
+    #adk-interview-c04-chapter .agenda li { counter-increment: ag; display: grid; grid-template-columns: 34px 1fr; gap: 10px; align-items: start; font-size: 18px; line-height: 1.3; color: var(--ink); }
+    #adk-interview-c04-chapter .agenda li::before { content: counter(ag); width: 30px; height: 30px; border-radius: 50%; background: var(--tool); color: #fff; font: 700 16px/30px var(--f-mono); text-align: center; }
+    #adk-interview-c04-chapter .prereq { font: 500 16px/1.35 var(--f-mono); color: var(--muted); font-variant-ligatures: none; }
+    #adk-interview-c04-chapter .prereq b { color: var(--ink-2); }
+  </style>
+  <div class="ch-num" data-fx="blur">04</div>
+  <svg class="c4-svg interactive" id="c04-ch-svg" viewBox="0 0 1050 270" width="1050" height="270" aria-label="refund_agent calls four tools. issue_refund is irreversible, so a before_tool_callback on its wire stops the call."></svg>
+  <div class="c4-cap">
+    <p data-until="1"><b>tools</b>refund_agent picks a tool by its description.</p>
+    <p data-step="1" data-until="2"><b class="r">risk</b>issue_refund moves money. It cannot be undone.</p>
+    <p data-step="2"><b class="g">gate</b>A before_tool_callback decides in code. The model cannot skip it.</p>
+  </div>
+  <h2 class="display">Tools, protocols and agent security</h2>
+  <p class="lede" data-fx="up">MCP or A2A? Prompt or code? How many tools?</p>
+  <ol class="agenda" data-fx="stagger">
+    <li>Tool choice, MCP vs A2A, dead sessions</li>
+    <li>Policy in code, trusted identity</li>
+    <li>Contain prompt injection</li>
+    <li>Whiteboard: MCP for 40 teams</li>
+    <li>Debug: a gate that fails open</li>
+  </ol>
+  <div class="prereq" data-fx="fade"><b>Code in this chapter:</b> pip install "google-adk[mcp,a2a,gcp]==2.13.0" · Python 3.11+ · GOOGLE_API_KEY<br><b>Model Armor</b> is a Google Cloud service, not a class: it needs a project and a template.</div>
+  <aside class="notes">
+    This chapter treats every tool in two ways: as an interface that the model must choose correctly, and as an attack surface. At first the loop shows refund_agent calling its four tools; billing is marked "MCP or A2A?" because that is the first protocol question. Click 1: the issue_refund wire turns red, because a refund moves money and cannot be undone. Click 2: a before_tool_callback lands on that wire, and the calls stop there: deterministic code, not the prompt, decides. Analogy: the model is a new clerk who reads the labels on the drawers, and the callback is the lock on the cash drawer. Likely student question: "Why not write 'ask before refunding' in the system prompt?" Because a prompt is advice that injected text can override; the security Q&amp;A gives the numbers. The chapter follows one scenario: refund_agent and its tools, the A2A billing agent, policy in code and injection containment, then an MCP tool platform for 40 teams, then a debug drill. All code uses google-adk 2.13.0.
+  </aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-interview-c04-chapter";
+  const NS = "http://www.w3.org/2000/svg";
+  const NW = 250, NH = 86;
+  const NODES = [
+    { x: 0, y: 8, t: "get_order", s: "FunctionTool" },
+    { x: 0, y: 176, t: "billing tools", s: "MCP or A2A?" },
+    { x: 800, y: 8, t: "issue_refund", s: "irreversible" },
+    { x: 800, y: 176, t: "order_status", s: "OpenAPIToolset" }
+  ];
+  const AG = { x: 360, y: 92 };
+  const RISK = 2;
+  let P = null, tl = null;
+
+  function el(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    Object.entries(attrs).forEach(([k, v]) => e.setAttribute(k, v));
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  }
+
+  function build(svg) {
+    svg.innerHTML = "";
+    const p = { wires: [], ends: [], pulses: [], boxes: [], subs: [], geo: [] };
+    // wires first so the nodes sit on top
+    NODES.forEach((n, i) => {
+      const right = n.x > AG.x;
+      const g = {
+        x0: right ? AG.x + NW : AG.x, y0: AG.y + NH / 2 + (i % 2 === 0 ? -18 : 18),
+        x1: right ? n.x : n.x + NW, y1: n.y + NH / 2
+      };
+      p.geo.push(g);
+      p.wires.push(el("line", { class: "w", x1: g.x0, y1: g.y0, x2: g.x1, y2: g.y1 }, svg));
+      p.ends.push([el("circle", { class: "end", cx: g.x0, cy: g.y0, r: 5 }, svg), el("circle", { class: "end", cx: g.x1, cy: g.y1, r: 5 }, svg)]);
+    });
+    NODES.forEach((n) => {
+      p.boxes.push(el("rect", { class: "nb tool", x: n.x, y: n.y, width: NW, height: NH, rx: 14 }, svg));
+      el("text", { class: "nt", x: n.x + 20, y: n.y + 37 }, svg, n.t);
+      p.subs.push(el("text", { class: "ns", x: n.x + 20, y: n.y + 66 }, svg, n.s));
+    });
+    el("rect", { class: "nb agent", x: AG.x, y: AG.y, width: NW, height: NH, rx: 14 }, svg);
+    el("text", { class: "nt", x: AG.x + 20, y: AG.y + 37 }, svg, "refund_agent");
+    el("text", { class: "ns", x: AG.x + 20, y: AG.y + 66 }, svg, "LlmAgent");
+    // risk label above the issue_refund wire (step 1)
+    const r = p.geo[RISK];
+    p.lab = el("g", {}, svg);
+    el("rect", { class: "rlb", x: 455, y: 10, width: 290, height: 32, rx: 8 }, p.lab);
+    el("text", { class: "rl", x: 600, y: 32, "text-anchor": "middle" }, p.lab, "irreversible: needs a gate");
+    // the callback that lands on the wire (step 2)
+    p.stopX = r.x0 + (r.x1 - r.x0) * 0.55;
+    p.stopY = r.y0 + (r.y1 - r.y0) * 0.55;
+    p.sh = el("g", {}, svg);
+    el("rect", { class: "shb", x: 490, y: 6, width: 236, height: 34, rx: 9 }, p.sh);
+    el("text", { class: "sht", x: 608, y: 29, "text-anchor": "middle" }, p.sh, "before_tool_callback");
+    el("line", { class: "stopx", x1: p.stopX, y1: 40, x2: p.stopX, y2: p.stopY - 14 }, p.sh);
+    el("circle", { class: "stop", cx: p.stopX, cy: p.stopY, r: 14 }, p.sh);
+    el("line", { class: "stopx", x1: p.stopX - 6, y1: p.stopY - 6, x2: p.stopX + 6, y2: p.stopY + 6 }, p.sh);
+    el("line", { class: "stopx", x1: p.stopX + 6, y1: p.stopY - 6, x2: p.stopX - 6, y2: p.stopY + 6 }, p.sh);
+    p.pulses = p.geo.map(() => el("circle", { class: "pulse", r: 7, opacity: 0 }, svg));
+    return p;
+  }
+
+  function loop(n) {
+    if (tl) tl.kill();
+    tl = gsap.timeline({ repeat: -1 });
+    P.geo.forEach((g, i) => {
+      const t0 = i * 0.35;
+      const blocked = i === RISK && n >= 2;
+      const end = blocked ? { cx: P.stopX - 16, cy: P.stopY - 16 * (g.y1 - g.y0) / (g.x1 - g.x0) } : { cx: g.x1, cy: g.y1 };
+      tl.fromTo(P.pulses[i], { attr: { cx: g.x0, cy: g.y0 }, opacity: 1 }, { attr: end, duration: blocked ? 0.7 : 1.1, ease: "none", immediateRender: false }, t0);
+      tl.to(P.pulses[i], { opacity: 0, duration: 0.2 }, t0 + (blocked ? 0.7 : 1.1));
+    });
+    tl.to({}, { duration: 0.8 });
+  }
+
+  function render(n, animate) {
+    if (!P) return;
+    const risk = n >= 1;
+    P.boxes[RISK].setAttribute("class", "nb " + (risk ? "risk" : "tool"));
+    P.subs[RISK].setAttribute("class", "ns" + (risk ? " risk" : ""));
+    P.wires[RISK].setAttribute("class", "w" + (risk ? " risk" : ""));
+    P.ends[RISK].forEach((c) => c.setAttribute("class", "end" + (risk ? " risk" : "")));
+    P.pulses[RISK].setAttribute("class", "pulse" + (risk ? " risk" : ""));
+    gsap.killTweensOf([P.lab, P.sh]);
+    const showLab = n === 1;
+    if (showLab && animate) gsap.fromTo(P.lab, { autoAlpha: 0, y: 8 }, { autoAlpha: 1, y: 0, duration: 0.5 });
+    else gsap.set(P.lab, { autoAlpha: showLab ? 1 : 0, y: 0 });
+    const gate = n >= 2;
+    if (gate && animate && n === 2) gsap.fromTo(P.sh, { autoAlpha: 0, y: -40 }, { autoAlpha: 1, y: 0, duration: 0.6, ease: "back.out(2)" });
+    else gsap.set(P.sh, { autoAlpha: gate ? 1 : 0, y: 0 });
+    loop(n);
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { P = build(slide.querySelector("#c04-ch-svg")); render(step || 0, false); },
+    step(slide, n, animate) { if (!P) P = build(slide.querySelector("#c04-ch-svg")); render(n, animate); },
+    leave() { if (tl) tl.kill(); tl = null; if (P) gsap.killTweensOf([P.lab, P.sh, ...P.pulses]); }
+  });
+})();
+</script>

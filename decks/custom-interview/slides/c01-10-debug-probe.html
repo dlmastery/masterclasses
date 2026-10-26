@@ -1,0 +1,142 @@
+<section class="slide" id="custom-interview-c01-debug-probe" data-tone="risk" data-title="Debug: 48-token probe">
+  <style>
+    #custom-interview-c01-debug-probe pre.code, #custom-interview-c01-debug-probe pre.code * { font-variant-ligatures: none; }
+    #custom-interview-c01-debug-probe pre.code.xs, #custom-interview-c01-debug-probe pre.code.xs code { font-size: 15.5px; line-height: 21.5px; }
+    #custom-interview-c01-debug-probe .code-wrap.bad { transition: opacity .5s; }
+    #custom-interview-c01-debug-probe .gotcha { font-size: 16px; padding: 8px 14px; gap: 2px 12px; grid-template-columns: 84px 1fr; }
+    #custom-interview-c01-debug-probe .gotcha > b { font-size: 13px; }
+    #custom-interview-c01-debug-probe .gotcha h4 { grid-column: 1 / -1; margin: 0 0 2px; font-size: 17px; color: var(--risk); }
+    #custom-interview-c01-debug-probe .ov { display: grid; }
+    #custom-interview-c01-debug-probe .ov > * { grid-area: 1 / 1; align-self: start; }
+    #custom-interview-c01-debug-probe .pay { display: flex; align-items: baseline; gap: 14px; font: 700 40px/1 var(--f-display); letter-spacing: -0.02em; color: var(--state); white-space: nowrap; }
+    #custom-interview-c01-debug-probe .pay s { color: var(--risk); text-decoration-thickness: 3px; }
+    #custom-interview-c01-debug-probe .pay span { font: 700 20px/1 var(--f-mono); color: #fff; background: var(--state); padding: 8px 12px; border-radius: 10px; }
+    #custom-interview-c01-debug-probe .roll { position: relative; height: 80px; }
+    #custom-interview-c01-debug-probe .roll .lbl { font: 600 14px/1 var(--f-mono); color: var(--muted); }
+    #custom-interview-c01-debug-probe .roll .track { position: absolute; left: 0; right: 0; top: 26px; height: 28px; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--line-2); overflow: hidden; }
+    #custom-interview-c01-debug-probe .roll .reason { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: color-mix(in oklab, var(--model) 30%, transparent); }
+    #custom-interview-c01-debug-probe .roll .boxed { position: absolute; top: 26px; height: 28px; left: 52%; width: 18%; display: grid; place-items: center; font: 700 13px/1 var(--f-mono); color: #fff; background: var(--state); border-radius: 0 8px 8px 0; opacity: 0; }
+    #custom-interview-c01-debug-probe .roll .cap { position: absolute; top: 22px; height: 38px; width: 3px; background: var(--risk); left: 12.5%; opacity: 0; }
+    #custom-interview-c01-debug-probe .roll .capl { position: absolute; top: 64px; font: 700 14px/1 var(--f-mono); color: var(--risk); white-space: nowrap; left: 12.5%; opacity: 0; }
+    #custom-interview-c01-debug-probe .take { font-size: 18px; margin: 0; }
+  </style>
+  <div class="kicker"><span class="pill">Debug this</span> RFT readiness probe</div>
+  <h2 class="title">pass@8 = 0.00. Is RFT hopeless?</h2>
+  <div class="grid fill" style="grid-template-columns: 1fr 580px; gap: 28px">
+    <div class="stack" style="gap:12px">
+      <div class="code-wrap bad">
+        <div class="code-head">probe_base.py · pip install vllm==0.32.0 · 1 GPU</div>
+        <pre class="code xs" data-lang="python" data-focus="1:12, 2:19-20"><code># probe_base.py - is RFT worth it for claim payouts?
+import re
+from vllm import LLM, SamplingParams
+from claims_data import claims_dataset   # claim prompts + gold "solution"
+
+def is_correct(text, gold):              # the payout must be in \boxed{N}
+    m = re.findall(r"\\boxed\{([\d.,]+)\}", text)
+    return bool(m) and abs(float(m[-1].replace(",", "")) - float(gold)) &lt; 0.01
+
+N, ds = 8, claims_dataset(200, seed=7)
+llm = LLM(model="Qwen/Qwen2.5-0.5B-Instruct")
+params = SamplingParams(n=N, temperature=1.0, max_tokens=48)
+outs = llm.chat([r["prompt"] for r in ds], params)
+solved = [sum(is_correct(o.text, r["solution"]) for o in out.outputs)
+          for out, r in zip(outs, ds)]
+pass_1 = sum(solved) / (N * len(ds))
+pass_n = sum(k &gt; 0 for k in solved) / len(ds)
+print(f"pass@1={pass_1:.2f}  pass@{N}={pass_n:.2f}")
+if pass_n == 0:
+    print("no correct rollout: run SFT first")
+elif pass_1 &gt; 0.95:
+    print("already solved: RFT is unnecessary")
+else:
+    print("learning signal exists: run RFT")</code></pre>
+      </div>
+      <p class="take" data-step="3"><b>Before you trust pass@k = 0:</b> check truncation, then unit-test the grader.</p>
+    </div>
+    <div class="stack" style="gap:10px">
+      <div class="ov">
+        <div class="code-wrap out" data-until="3">
+          <div class="code-head">output · illustrative</div>
+          <pre class="code xs" data-lang="bash"><code><span class="err">pass@1=0.00  pass@8=0.00</span>
+<span class="err">no correct rollout: run SFT first</span></code></pre>
+        </div>
+        <div class="pay" data-step="3" data-fx="pop"><span>pass@8</span><s>0.00</s>→ 0.64 · run RFT</div>
+      </div>
+      <div class="roll" id="dbg-roll" data-step="1">
+        <span class="lbl">one rollout: reasoning, then \boxed{8500}</span>
+        <div class="track"><div class="reason"></div></div>
+        <div class="boxed">\boxed{}</div>
+        <div class="cap"></div>
+        <div class="capl">max_tokens=48</div>
+      </div>
+      <div class="gotcha" data-step="1">
+        <h4>Bug 1: the cap is too low</h4>
+        <b>Symptom</b><span>All 1,600 rollouts fail.</span>
+        <b class="why">Cause</b><span><code>max_tokens=48</code> stops the reasoning before <code>\boxed{}</code>.</span>
+        <b class="fix">Fix</b><span>Set the cap from the length of correct answers, plus margin.</span>
+      </div>
+      <div class="gotcha" data-step="2">
+        <h4>Bug 2: truncation is not measured</h4>
+        <b>Symptom</b><span>The script says "run SFT first".</span>
+        <b class="why">Cause</b><span>It never reads <code>finish_reason</code>. Cut off looks like wrong.</span>
+        <b class="fix">Fix</b><span>Count <code>"length"</code> stops. Trust pass@k only under 10%.</span>
+      </div>
+      <div class="code-wrap good" data-step="3">
+        <div class="code-head">probe_base.py · the fix · output illustrative</div>
+        <pre class="code xs" data-lang="python"><code>params = SamplingParams(n=N, temperature=1.0, max_tokens=384)
+outs = llm.chat([r["prompt"] for r in ds], params)
+cut = sum(o.finish_reason == "length"
+          for out in outs for o in out.outputs) / (N * len(ds))
+print(f"truncated={cut:.0%}")                # truncated=3%
+assert cut &lt; 0.10, "raise max_tokens before you trust pass@k"</code></pre>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    Show the script and its output, and ask: "Do you trust this verdict?" The rule in the script is right: RFT needs at least one correct answer among several attempts, so pass@8 of zero normally means SFT first. The probe is wrong. The grader expects the final payout inside \boxed{}, because the claims prompts ask for that format, the same convention the RL trainer's accuracy reward reads. Click 1, bug 1: 48 tokens is too short for the model to reason and then write the boxed payout, so every one of the 1,600 rollouts is cut off and scored wrong. The 48 probably came from a short-answer default. Set the cap from the length of correct reference answers, for example the 95th percentile plus a margin; here that gives 384. Click 2, bug 2: the script never reads finish_reason, so a cut-off answer looks the same as a wrong answer. Count the "length" stops and trust pass@k only when fewer than 10% are cut. The same signal in GRPO training is completions/clipped_ratio. Click 3: with the fix, truncation drops to 3% and pass@8 rises to 0.64, so the decision flips to RFT. These numbers are illustrative, not a measured run. Analogy: you judge a student on an exam, but you take the paper away after the first line. Likely follow-up: "What else can fake a zero?" A reward parser that never matches, which we will see later in the course, so always unit-test the grader on a real model-style string. The claims_data module is the procedural claim generator from the main deck's RL lab.
+  </aside>
+</section>
+<script>
+(() => {
+  const ID = "custom-interview-c01-debug-probe";
+  function els(slide) {
+    const r = slide.querySelector("#dbg-roll");
+    return { reason: r.querySelector(".reason"), boxed: r.querySelector(".boxed"), cap: r.querySelector(".cap"), capl: r.querySelector(".capl"),
+      bad: slide.querySelector(".code-wrap.bad"), band: slide.querySelector(".code-wrap.bad .band") };
+  }
+  function kill(slide) {
+    const e = els(slide);
+    gsap.killTweensOf([e.reason, e.boxed, e.cap, e.capl]);
+  }
+  function render(slide, n, animate) {
+    kill(slide);
+    const e = els(slide);
+    const d = animate === false ? 0 : 1;
+    /* final frame: the BEFORE listing steps back, so the eye goes to the fix */
+    gsap.set(e.bad, { opacity: n >= 3 ? 0.5 : 1 });
+    if (e.band && n >= 3) { gsap.killTweensOf(e.band); gsap.set(e.band, { autoAlpha: 0 }); }
+    gsap.set(e.capl, { xPercent: n < 3 ? -50 : -100 });
+    if (n < 1) { gsap.set([e.boxed, e.cap, e.capl], { autoAlpha: 0 }); gsap.set(e.reason, { width: "0%" }); return; }
+    if (n < 3) {
+      // the cap at 48 of 384 tokens (12.5%) cuts the rollout; the boxed answer never appears
+      gsap.set([e.cap, e.capl], { left: "12.5%", autoAlpha: 1 });
+      gsap.set(e.boxed, { autoAlpha: 0 });
+      gsap.fromTo(e.reason, { width: "0%" }, { width: "12.5%", duration: 0.9 * d, ease: "power1.out", delay: 0.3 * d });
+      gsap.fromTo(e.cap, { scaleY: 1 }, { scaleY: 1.25, duration: 0.35, yoyo: true, repeat: -1, ease: "sine.inOut", transformOrigin: "50% 50%" });
+      e.capl.textContent = "max_tokens=48";
+    } else {
+      // the cap moves to 384 (100%): the reasoning finishes and \boxed{} is written
+      e.capl.textContent = "max_tokens=384";
+      gsap.set(e.cap, { scaleY: 1 });
+      gsap.fromTo([e.cap, e.capl], { left: "12.5%" }, { left: "99.5%", duration: 0.9 * d, ease: "power2.inOut", autoAlpha: 1 });
+      gsap.fromTo(e.reason, { width: "12.5%" }, { width: "52%", duration: 1.1 * d, ease: "power1.out", delay: 0.5 * d });
+      gsap.fromTo(e.boxed, { autoAlpha: 0, scale: 0.6 }, { autoAlpha: 1, scale: 1, duration: 0.35 * d, ease: "back.out(2)", delay: 1.5 * d });
+    }
+  }
+  Deck.register(ID, {
+    enter(slide, n) { render(slide, n, true); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { kill(slide); }
+  });
+})();
+</script>

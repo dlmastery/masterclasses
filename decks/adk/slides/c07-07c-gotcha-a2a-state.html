@@ -1,0 +1,86 @@
+<section class="slide tight" id="adk-c07-gotcha-a2a-state" data-tone="risk" data-title="Gotcha: A2A state and role">
+  <style>
+    #adk-c07-gotcha-a2a-state .gs-top { display: grid; grid-template-columns: 580px 1fr; gap: 40px; align-items: start; }
+    #adk-c07-gotcha-a2a-state .gotcha { font-size: 19px; line-height: 1.4; gap: 8px 16px; }
+    #adk-c07-gotcha-a2a-state .sc { position: relative; width: 772px; height: 320px; }
+    #adk-c07-gotcha-a2a-state .sc svg { position: absolute; inset: 0; overflow: visible; pointer-events: none; }
+    #adk-c07-gotcha-a2a-state .bx { position: absolute; top: 60px; width: 300px; height: 150px; border-radius: 14px; border: 2px solid; padding: 14px 18px; display: flex; flex-direction: column; gap: 8px; }
+    #adk-c07-gotcha-a2a-state .bx b { font: 700 21px/1.2 var(--f-mono); }
+    #adk-c07-gotcha-a2a-state .bx span { font: 500 17px/1.3 var(--f-mono); color: var(--ink-2); white-space: nowrap; }
+    #adk-c07-gotcha-a2a-state .cli { left: 0; border-color: var(--agent); background: var(--agent-soft); }
+    #adk-c07-gotcha-a2a-state .cli b { color: var(--agent); }
+    #adk-c07-gotcha-a2a-state .srv { left: 472px; border-color: var(--state); background: var(--state-soft); }
+    #adk-c07-gotcha-a2a-state .srv b { color: var(--state); }
+    #adk-c07-gotcha-a2a-state .kv { font-weight: 700 !important; }
+    #adk-c07-gotcha-a2a-state .kv.red { color: var(--risk) !important; }
+    #adk-c07-gotcha-a2a-state .kv.green { color: var(--state) !important; }
+    #adk-c07-gotcha-a2a-state .bd { stroke: var(--muted); stroke-width: 2; stroke-dasharray: 3 7; fill: none; }
+    #adk-c07-gotcha-a2a-state .bd-l { position: absolute; left: 386px; top: 8px; transform: translateX(-50%); font: 700 16px/1 var(--f-mono); color: var(--muted); white-space: nowrap; }
+    #adk-c07-gotcha-a2a-state .w { fill: none; stroke-width: 3; stroke-dasharray: 8 7; stroke: var(--line-2); }
+    #adk-c07-gotcha-a2a-state .chip { position: absolute; left: 0; top: 0; padding: 6px 12px; border-radius: 9px; font: 700 16px/1.2 var(--f-mono); color: #fff; white-space: nowrap; opacity: 0; z-index: 3; }
+    #adk-c07-gotcha-a2a-state .chip.g { background: var(--state); }
+    #adk-c07-gotcha-a2a-state .chip.r { background: var(--risk); }
+    #adk-c07-gotcha-a2a-state .x { position: absolute; left: 368px; top: 236px; font: 800 34px/1 var(--f-body); color: var(--risk); opacity: 0; }
+    #adk-c07-gotcha-a2a-state .callout { font-size: 20px; line-height: 1.4; }
+    #adk-c07-gotcha-a2a-state .cites { margin-top: auto; }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> A2A trust · state and role</div>
+  <h2 class="title">Peer state never crosses A2A, and peer replies arrive as the user</h2>
+  <div class="gs-top">
+    <div class="gotcha">
+      <b>Symptom</b><span>The remote <code>refund_agent</code> sets <code>output_key="verdict"</code>. Triage reads <code>None</code>.</span>
+      <b class="why" data-step="1">Cause</b><span data-step="1">Session state is local to each side. The peer's state deltas are not applied (#6854).</span>
+      <b class="fix" data-step="2">Fix</b><span data-step="2">Send data in the message text. Parse the reply on the triage side. Test behind a real <code>to_a2a()</code> server.</span>
+    </div>
+    <div class="sc">
+      <svg viewBox="0 0 772 320" width="772" height="320">
+        <path class="bd" d="M386 36 L386 320"/>
+        <path class="w" d="M472 254 L300 254"/>
+      </svg>
+      <span class="bd-l">A2A boundary</span>
+      <div class="bx cli"><b>support_triage</b><span>our session</span><span class="kv" id="gs-cst">state["verdict"] ?</span></div>
+      <div class="bx srv"><b>refund_agent</b><span>their session</span><span class="kv green">state["verdict"] set</span></div>
+      <span class="chip" id="gs-chip"></span>
+      <span class="x" id="gs-x">✕</span>
+    </div>
+  </div>
+  <div class="callout pitfall" data-step="3"><div><b>Open #6461.</b> A peer's reply arrives as <code>role='user'</code>, so it can answer a tool-confirmation prompt. Keep confirmation-gated tools off agents you serve over A2A.</div></div>
+  <div class="cites">
+    <a class="cite repo" href="https://github.com/google/adk-python/issues/6854" target="_blank" rel="noopener"><b>Issue</b>&nbsp;#6854 state</a>
+    <a class="cite repo" href="https://github.com/google/adk-python/issues/6461" target="_blank" rel="noopener"><b>Issue</b>&nbsp;#6461 forged confirm</a>
+  </div>
+  <aside class="notes">Two more things that do not cross an A2A boundary the way you expect. First, session state never crosses in either direction: the remote agent's output_key lands in the remote session, so triage reads None. This is by design, issue 6854, and since 2.12.0 ADK logs a warning when it drops a state-only event. Send the data in the message text or an artifact, parse the reply on the triage side, and test behind a real to_a2a server, because in one process everything appears to work. Second, issue 6461 is open: inbound A2A messages become role='user', so a peer can send confirmed true for a pending tool confirmation, adk_request_confirmation, which is how ADK asks the user to approve a tool call; the v2.8.0 guard was reverted. Keep confirmation-gated tools off agents you serve over A2A. Analogy: another department cannot read your notes, and a note from them is not a signature from your manager. A likely question: "Does a test in one process catch the state bug?" No, in-process everything works, so test behind a real to_a2a server.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c07-gotcha-a2a-state";
+  let tw = [];
+  function clear() { tw.forEach((t) => t.kill()); tw = []; }
+  // the chip rides the lane at y 254 from the remote side (x 600) toward triage
+  function render(slide, n, animate) {
+    clear();
+    const q = (s) => slide.querySelector("#" + s);
+    const chip = q("gs-chip"), x = q("gs-x"), cst = q("gs-cst");
+    n = Math.max(0, Math.min(3, n | 0));
+    cst.className = "kv" + (n === 1 || n === 2 ? " red" : n === 3 ? " red" : "");
+    cst.textContent = n === 3 ? "role='user' · confirmed" : n >= 1 ? "state[\"verdict\"] = None" : "state[\"verdict\"] ?";
+    if (n === 0) { gsap.set([chip, x], { opacity: 0 }); return; }
+    const conf = n === 3;
+    chip.className = "chip " + (conf ? "r" : "g");
+    chip.textContent = conf ? "{confirmed: true}" : "state: verdict";
+    const end = conf ? 140 : 482, y = 238;
+    gsap.set(x, { opacity: conf ? 0 : 1, scale: 1 });
+    if (animate && (n === 1 || n === 3)) {
+      gsap.set(chip, { x: 600, y, opacity: 1, xPercent: -50 });
+      const tl = gsap.timeline({ delay: 0.3 }).to(chip, { x: end, duration: 0.9, ease: conf ? "power2.inOut" : "power2.in" });
+      if (!conf) { gsap.set(x, { opacity: 0 }); tl.fromTo(x, { opacity: 0, scale: 1.8 }, { opacity: 1, scale: 1, duration: 0.35, ease: "back.out(3)" }); }
+      tw.push(tl);
+    } else gsap.set(chip, { x: end, y, opacity: 1, xPercent: -50 });
+  }
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { clear(); if (slide) gsap.killTweensOf(slide.querySelectorAll(".sc, .sc *")); },
+  });
+})();
+</script>

@@ -1,0 +1,190 @@
+<section class="slide tight" id="adk-c05-lab-resume-shell" data-tone="human" data-title="Lab 5A.4: resume from a shell">
+  <style>
+    #adk-c05-lab-resume-shell pre.code, #adk-c05-lab-resume-shell code { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #adk-c05-lab-resume-shell .term pre.code { padding: 12px 22px 14px; }
+    #adk-c05-lab-resume-shell .rs-body { display: grid; grid-template-columns: 860px minmax(0, 1fr); gap: 32px; align-items: start; }
+    #adk-c05-lab-resume-shell .rs-right { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+    #adk-c05-lab-resume-shell .rs-cap { margin: 0; font-size: 20px; line-height: 1.35; color: var(--human); font-weight: 600; }
+    #adk-c05-lab-resume-shell #rs-svg { display: block; overflow: visible; }
+    #adk-c05-lab-resume-shell #rs-svg text { font-family: var(--f-mono); }
+    #adk-c05-lab-resume-shell #rs-svg text.sans { font-family: var(--f-display); }
+  </style>
+  <div class="kicker"><span class="pill">Lab 5A</span> Acme refund approvals · step 4 of 5</div>
+  <h2 class="title">Pause today, approve tomorrow: three processes share one session</h2>
+  <div class="code-wrap term">
+    <div class="code-head">terminal · run from labs/adk/lab5a-refund-approval/</div>
+    <pre class="code" data-lang="bash" data-focus="1:1, 2:2, 3:3"><code>$ adk run refund_approval "A-2040 820" --session_id case-2040 ; echo "exit=$?"
+$ adk run refund_approval '{"approved": true, "note": "Offer 10% coupon too"}' --session_id case-2040
+$ adk run refund_approval '{"approved": true, "amount": 700}' --session_id case-2040</code></pre>
+  </div>
+  <div class="rs-body fill">
+    <svg id="rs-svg" viewBox="0 0 860 330" width="860" height="330" aria-label="Three processes resume one session: process 1 pauses with id _1 and exits 2; process 2 answers _1, the revise pass pauses again with id _2; process 3 answers _2 and the refund of $700 is issued"></svg>
+    <div class="rs-right">
+    <div class="code-wrap out" data-step="1">
+      <div class="code-head">output · illustrative</div>
+      <pre class="code sm" data-lang="none"><code><span data-step="1">Session ID: case-2040
+[refund_approval]: (Paused for input...)
+<span class="err">🚨 [PAUSED] Workflow is waiting … 🚨</span>
+<span class="err">exit=2</span></span>
+<span data-step="2"><span class="ok">Auto-resuming interrupt …_e7…_1</span>
+[draft_reply]: Dear customer, … 10% coupon
+[refund_approval]: (Paused for input...)
+<span class="err">exit=2</span></span>
+<span data-step="3"><span class="ok">Auto-resuming interrupt …_e7…_2</span>
+<span class="ok">REFUNDED $700.00 on A-2040</span>
+<span class="ok">(idempotency key refund-A-2040)</span></span></code></pre>
+    </div>
+    <p class="rs-cap" data-step="4">Each reply finds its pause by the saved interrupt id.</p>
+    </div>
+  </div>
+  <aside class="notes">This is the same refund_approval agent, run as three separate processes against one session. Monday at 10:00 the customer asks for 820 dollars, the gate pauses, adk run saves the session in SQLite under refund_approval/.adk and exits with code 2, so a script can tell "paused" from "done". On Tuesday the manager answers from a brand-new process: adk run sees the open interrupt in the session and sends the reply as a FunctionResponse with the interrupt id, printing "Auto-resuming interrupt". The note routes to revise, draft_reply writes a new draft, and the gate pauses again with a new id ending in _2, because a revise pass is a new run of the node. The third process approves 700 dollars, a partial refund, and issue_refund prints the idempotency key refund-A-2040. The last click shows the link between processes: each reply is matched to the saved interrupt by its id. Think of the session as a case folder on a shelf: any clerk on any day can pick it up and continue. A likely question: "Do I need ResumabilityConfig for this?" No: answering a pause is a new turn, and the Runner finds the paused run from the response id; ResumabilityConfig is for continuing a crashed run, in Lab 5B.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c05-lab-resume-shell";
+  const NS = "http://www.w3.org/2000/svg";
+  const CW = 9.0;                                   // px per character at 15px mono
+  const TONE = { tool: "var(--tool)", model: "var(--model)", human: "var(--human)", state: "var(--state)" };
+  const LANES = [
+    { y: 50, time: "Mon 10:00", sub: "process 1", items: [
+      { k: "node", t: "intake", tone: "tool" }, { k: "node", t: "draft_reply", tone: "model" },
+      { k: "node", t: "manager_gate", tone: "human", pause: true }, { k: "chip", t: "…_1", gap: 12 }, { k: "exit", t: "exit=2", gap: 10 } ] },
+    { y: 160, time: "Tue 09:12", sub: "process 2", items: [
+      { k: "resume", t: "answer …_1" }, { k: "node", t: "manager_gate", tone: "human" },
+      { k: "node", t: "draft_reply", tone: "model", gap: 52, label: "revise", arc: true },
+      { k: "chip", t: "…_2", gap: 12 }, { k: "exit", t: "exit=2", gap: 10 } ] },
+    { y: 280, time: "Tue 09:15", sub: "process 3", items: [
+      { k: "resume", t: "answer …_2" }, { k: "node", t: "manager_gate", tone: "human" },
+      { k: "node", t: "issue_refund", tone: "tool" }, { k: "done", t: "REFUNDED $700.00" } ] },
+  ];
+  const BAND_X = 762;
+  let els = [], tw = [];
+
+  function mk(tag, attrs, parent) {
+    const e = document.createElementNS(NS, tag);
+    for (const [a, v] of Object.entries(attrs)) e.setAttribute(a, v);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function txt(parent, x, y, s, attrs) { const t = mk("text", Object.assign({ x, y }, attrs || {}), parent); t.textContent = s; return t; }
+  function add(e, phase, ord) { e.dataset.phase = phase; e.dataset.ord = ord; els.push(e); return e; }
+
+  function build(svg) {
+    svg.innerHTML = "";
+    els = [];
+    const defs = mk("defs", {}, svg);
+    [["rs-ah", "var(--ink-2)"], ["rs-ahv", "var(--human)"], ["rs-ahg", "var(--state)"]].forEach(([id, c]) => {
+      const m = mk("marker", { id, viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto-start-reverse" }, defs);
+      mk("path", { d: "M0,0 L10,5 L0,10 z", fill: c }, m);
+    });
+    // session store band (always visible)
+    const band = mk("g", {}, svg);
+    mk("rect", { x: BAND_X, y: 14, width: 98, height: 304, rx: 14, fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 1.5 }, band);
+    txt(band, BAND_X + 49, 42, "session", { "font-size": 15, "text-anchor": "middle", fill: "var(--state)" });
+    txt(band, BAND_X + 49, 62, "case-2040", { "font-size": 15, "font-weight": 700, "text-anchor": "middle", fill: "var(--state)" });
+    const cx = BAND_X + 49;
+    mk("ellipse", { cx, cy: 140, rx: 26, ry: 8, fill: "none", stroke: "var(--state)", "stroke-width": 1.8 }, band);
+    mk("path", { d: `M${cx - 26},140 v44 a26,8 0 0 0 52,0 v-44`, fill: "none", stroke: "var(--state)", "stroke-width": 1.8 }, band);
+    mk("path", { d: `M${cx - 26},162 a26,8 0 0 0 52,0`, fill: "none", stroke: "var(--state)", "stroke-width": 1.2 }, band);
+    txt(band, cx, 274, ".adk/", { "font-size": 16, "font-weight": 700, "text-anchor": "middle", fill: "var(--state)" });
+    txt(band, cx, 294, "SQLite", { "font-size": 15, "text-anchor": "middle", fill: "var(--state)" });
+    const pulse = mk("circle", { cx, cy: 162, r: 34, fill: "none", stroke: "var(--state)", "stroke-width": 2, opacity: 0 }, band);
+    band.pulse = pulse;
+
+    const chipPos = [], resumePos = [];
+    LANES.forEach((L, li) => {
+      const phase = li + 1, y = L.y;
+      let ord = 0;
+      add(txt(svg, 0, y - 4, L.time, { class: "sans", "font-size": 18, "font-weight": 700, fill: "var(--ink)" }), phase, ord++);
+      add(txt(svg, 0, y + 16, L.sub, { "font-size": 15, fill: "var(--muted)" }), phase, ord - 1);
+      const items = [];
+      let x = 122;
+      L.items.forEach((it, i) => {
+        const w = it.t.length * CW + 20;
+        if (i > 0) x += it.gap || 18;
+        items.push({ ...it, x, w });
+        x += w;
+      });
+      const bgFill = li === 2 ? "var(--state-soft)" : "var(--human-soft)";
+      add(mk("rect", { x: 112, y: y - 27, width: x - 112 + 10, height: 54, rx: 12, fill: bgFill }, svg), phase, 0);
+      items.forEach((it, i) => {
+        if (i > 0) {
+          const p = items[i - 1];
+          add(mk("line", { x1: p.x + p.w + 1, y1: y, x2: it.x - 2, y2: y, stroke: it.label ? "var(--human)" : "var(--ink-2)", "stroke-width": it.label ? 2.2 : 1.5, "marker-end": it.label ? "url(#rs-ahv)" : "url(#rs-ah)" }, svg), phase, ord);
+          if (it.label) add(txt(svg, (p.x + p.w + it.x) / 2, y - 34, it.label, { "font-size": 15, "font-weight": 700, "text-anchor": "middle", fill: "var(--human)" }), phase, ord);
+        }
+        const g = mk("g", {}, svg);
+        if (it.k === "node") {
+          mk("rect", { x: it.x, y: y - 17, width: it.w, height: 34, rx: 8, fill: "var(--surface)", stroke: TONE[it.tone], "stroke-width": it.pause ? 2.4 : 1.8, "stroke-dasharray": it.pause ? "5 3" : "none" }, g);
+          txt(g, it.x + it.w / 2, y + 5, it.t, { "font-size": 15, "text-anchor": "middle", fill: "var(--ink)" });
+        } else if (it.k === "chip" || it.k === "resume") {
+          const filled = it.k === "resume";
+          mk("rect", { x: it.x, y: y - 15, width: it.w, height: 30, rx: 15, fill: filled ? "var(--human)" : "var(--human-soft)", stroke: "var(--human)", "stroke-width": 1.5 }, g);
+          txt(g, it.x + it.w / 2, y + 5, it.t, { "font-size": 15, "font-weight": 700, "text-anchor": "middle", fill: filled ? "#fff" : "var(--human)" });
+          (filled ? resumePos : chipPos).push({ cx: it.x + it.w / 2, y, g });
+        } else if (it.k === "exit") {
+          mk("rect", { x: it.x, y: y - 14, width: it.w, height: 28, rx: 6, fill: "var(--surface)", stroke: "var(--risk)", "stroke-width": 1.5 }, g);
+          txt(g, it.x + it.w / 2, y + 5, it.t, { "font-size": 15, "font-weight": 700, "text-anchor": "middle", fill: "var(--risk)" });
+        } else if (it.k === "done") {
+          mk("rect", { x: it.x, y: y - 16, width: it.w, height: 32, rx: 8, fill: "var(--state)" }, g);
+          txt(g, it.x + it.w / 2, y + 5, it.t, { "font-size": 15, "font-weight": 700, "text-anchor": "middle", fill: "#fff" });
+        }
+        add(g, phase, ord++);
+        if (it.arc) {                          // back-edge: draft_reply -> manager_gate asks again
+          const gate = items[i - 1];
+          const x1 = it.x + it.w / 2, x2 = gate.x + gate.w / 2;
+          add(mk("path", { d: `M${x1},${y + 17} Q${(x1 + x2) / 2},${y + 50} ${x2 + 4},${y + 19}`, fill: "none", stroke: "var(--human)", "stroke-width": 2, "marker-end": "url(#rs-ahv)" }, svg), phase, ord++);
+        }
+      });
+      const last = items[items.length - 1];
+      add(mk("line", { x1: last.x + last.w + 4, y1: y, x2: BAND_X - 3, y2: y, stroke: "var(--state)", "stroke-width": 1.8, "stroke-dasharray": "5 4", "marker-end": "url(#rs-ahg)" }, svg), phase, ord++);
+    });
+    // step 4: the reply in process k+1 matches the interrupt id saved by process k
+    chipPos.forEach((c, i) => {
+      const r = resumePos[i];
+      const yMid = i === 0 ? 100 : 236;
+      add(mk("path", { d: `M${c.cx},${c.y + 15} V${yMid} H${r.cx} V${r.y - 17}`, fill: "none", stroke: "var(--human)", "stroke-width": 2.2, "stroke-dasharray": "6 4", "marker-end": "url(#rs-ahv)" }, svg), 4, i);
+      add(txt(svg, r.cx + 14, yMid - 7, "matched by id", { "font-size": 15, "font-weight": 700, fill: "var(--human)" }), 4, i);
+    });
+    svg._chips = [...chipPos.map((c) => c.g), ...resumePos.map((r) => r.g)];
+    svg._band = band;
+  }
+
+  function clear() { tw.forEach((t) => t.kill()); tw = []; }
+
+  function render(slide, n, animate) {
+    const svg = slide.querySelector("#rs-svg");
+    if (!svg) return;
+    if (!svg.childElementCount) build(svg);
+    clear();
+    gsap.killTweensOf(els);
+    els.forEach((e) => {
+      const ph = +e.dataset.phase, ord = +e.dataset.ord;
+      const ghost = ph <= 3 ? 0.13 : 0;
+      if (ph > n) { gsap.set(e, { opacity: ghost }); return; }
+      if (animate && ph === n) tw.push(gsap.fromTo(e, { opacity: ghost }, { opacity: 1, duration: 0.35, delay: 0.15 + ord * 0.22, ease: "power2.out" }));
+      else gsap.set(e, { opacity: 1 });
+    });
+    const pulse = svg._band.pulse;
+    gsap.killTweensOf(pulse);
+    gsap.set(pulse, { opacity: 0, attr: { r: 34 } });
+    if (animate && n >= 1 && n <= 3) {
+      const d = 0.15 + LANES[n - 1].items.length * 0.22 + 0.5;
+      tw.push(gsap.fromTo(pulse, { opacity: 0.9, attr: { r: 28 } }, { opacity: 0, attr: { r: 50 }, duration: 0.8, delay: d, ease: "power2.out" }));
+    }
+    svg._chips.forEach((g) => { gsap.killTweensOf(g); gsap.set(g, { scale: 1, transformOrigin: "center" }); });
+    if (n >= 4 && animate) {
+      tw.push(gsap.fromTo(svg._chips, { scale: 1 }, { scale: 1.12, transformOrigin: "center", duration: 0.3, yoyo: true, repeat: 3, delay: 0.5, ease: "sine.inOut" }));
+    }
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) {
+      clear();
+      if (slide) gsap.killTweensOf(slide.querySelectorAll("#rs-svg *"));
+    },
+  });
+})();
+</script>

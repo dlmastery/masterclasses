@@ -1,0 +1,167 @@
+<section class="slide" id="custom-c05-lab4-config" data-tone="model" data-title="Lab 4: GRPOConfig for LoRA">
+  <style>
+    #custom-c05-lab4-config { gap: 20px; }
+    #custom-c05-lab4-config .g-cfg { display: grid; grid-template-columns: 712px 1fr; gap: 24px; min-height: 0; }
+    #custom-c05-lab4-config .cfg-code pre.code { font-size: 12px; line-height: 1.5; padding: 10px 16px 10px; }
+    #custom-c05-lab4-config .code-head { padding: 7px 14px; font-size: 13.5px; }
+    #custom-c05-lab4-config .cfg-right { display: flex; flex-direction: column; gap: 11px; min-width: 0; }
+    #custom-c05-lab4-config .lab-head { font-size: 15px; gap: 12px; }
+    #custom-c05-lab4-config .lab-head .run { font-size: 15px; padding: 7px 11px; }
+    #custom-c05-lab4-config .cfg-out pre.code { font-size: 11.5px; line-height: 1.38; padding: 9px 14px 10px; }
+    #custom-c05-lab4-config .steps-rail { gap: 7px; }
+    #custom-c05-lab4-config .steps-rail > * { font-size: 15px; line-height: 1.34; grid-template-columns: 30px 1fr; gap: 10px; }
+    #custom-c05-lab4-config .steps-rail > *::before { width: 26px; height: 26px; font-size: 14px; }
+    #custom-c05-lab4-config code { font-size: .88em; }
+    #custom-c05-lab4-config pre.code, #custom-c05-lab4-config pre.code *, #custom-c05-lab4-config code { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #c05cfg-svg text { font-family: var(--f-mono); }
+  </style>
+  <div class="kicker"><span class="pill">Lab 4</span> Acme claims payout calculator · step 2 of 5</div>
+  <h2 class="title">GRPOConfig for LoRA: 4 prompts x 8 generations, DAPO loss, no KL</h2>
+  <div class="g-cfg fill">
+    <div class="code-wrap cfg-code">
+      <div class="code-head">claims_rl/lab2_grpo_claims.py · trl 1.16.0 · peft 0.21.2</div>
+      <pre class="code" data-lang="python" data-focus="1:12-14, 2:26-27, 3:15-16, 4:17"><code>from peft import LoraConfig
+from trl import GRPOConfig, GRPOTrainer
+from trl.rewards import accuracy_reward, get_soft_overlong_punishment
+from claims_data import claims_dataset
+train = claims_dataset(2000, seed=7)
+heldout = claims_dataset(64, seed=99)          # different seed = disjoint-ish eval prompts
+lora = LoraConfig(r=16, lora_alpha=32, target_modules="all-linear", task_type="CAUSAL_LM")
+args = GRPOConfig(
+    output_dir="qwen-claims-grpo",
+    model_init_kwargs={"dtype": "bfloat16"},   # TRL default is float32 for string model ids
+    learning_rate=1e-5,                        # LoRA: ~10x the 1e-6 full-FT GRPO default
+    per_device_train_batch_size=8,
+    gradient_accumulation_steps=4,             # 32 completions per step = 4 prompts x 8
+    num_generations=8,
+    max_completion_length=256,
+    mask_truncated_completions=True,           # DAPO: do not learn from cut-off answers
+    loss_type="dapo", beta=0.0,                # the TRL defaults, written out on purpose
+    reward_weights=[1.0, 0.5],
+    max_steps=300, logging_steps=5, save_steps=100,
+    eval_strategy="steps", eval_steps=50, per_device_eval_batch_size=8,
+    log_completions=True, num_completions_to_print=2,
+    report_to="trackio",
+)
+trainer = GRPOTrainer(
+    model="Qwen/Qwen2.5-0.5B-Instruct",
+    reward_funcs=[accuracy_reward,
+                  get_soft_overlong_punishment(max_completion_len=256, soft_punish_cache=64)],
+    args=args, train_dataset=train, eval_dataset=heldout, peft_config=lora,
+)
+trainer.train()
+trainer.save_model()</code></pre>
+    </div>
+    <div class="cfg-right">
+      <div class="lab-head"><span class="run">python lab2_grpo_claims.py</span><a class="cite doc" href="https://huggingface.co/docs/trl/main/en/grpo_trainer" target="_blank" rel="noopener"><b>Docs</b>&nbsp;TRL GRPO Trainer</a></div>
+      <svg id="c05cfg-svg" viewBox="0 0 650 300" width="628" height="290" role="img" aria-label="One GRPO step: 4 claims by 8 completions"></svg>
+      <div class="steps-rail">
+        <div data-step="1"><span>1 GPU: <code>8 x 4</code> = 32 completions = 4 claims x 8. TRL raises unless this divides by <code>num_generations</code>. Two GPUs: 64.</span></div>
+        <div data-step="2"><span><code>accuracy_reward</code> (math-verify) reads only LaTeX answers, <code>\boxed{}</code> first, and scores each one 1.0 or 0.0 against <code>solution</code>.</span></div>
+        <div data-step="3"><span>Penalty: 0 up to 192 tokens, then linear to -1 at 256. Cut-off answers leave the loss.</span></div>
+        <div data-step="4"><span><code>beta=0.0</code>: no reference model, no <code>kl</code> metric. Lab 4 step 5 turns KL on.</span></div>
+      </div>
+      <div class="code-wrap out cfg-out" data-step="3">
+        <div class="code-head">output · illustrative · penalty ramp at 256 / 64</div>
+        <pre class="code" data-lang="none"><code>&gt;&gt;&gt; p = get_soft_overlong_punishment(max_completion_len=256, soft_punish_cache=64)
+&gt;&gt;&gt; p([[0]*150, [0]*224, [0]*240, [0]*256])
+<span class="ok">[0.0, -0.5, -0.75, -1.0]</span>   <span class="dim"># token counts 150, 224, 240, 256</span></code></pre>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">This is the full training script for the Acme claims payout calculator: Qwen2.5-0.5B-Instruct with a LoRA adapter, trained by GRPO in TRL 1.16.0. Step 1: one optimizer step uses 8 per device times 4 accumulation steps, which is 32 completions, that is 4 claims with 8 answers each; TRL raises an error unless this number divides by num_generations, because the advantage is computed inside each group of 8. Step 2: accuracy_reward uses math-verify and accepts only LaTeX answers, so the system prompt asks for \boxed{}; when the gold answer cannot be parsed the reward is None and the row is skipped, not scored 0. Step 3: the soft overlong penalty is 0 up to 192 tokens and falls linearly to -1 at 256, and mask_truncated_completions removes answers that hit the cap from the loss. Step 4: loss_type dapo and beta 0.0 are the defaults, so no reference model is loaded and there is no kl metric. Analogy: the 8 answers per claim are 8 students on the same exam question, and only the differences between them give a learning signal. Likely question: why is the learning rate 1e-5? Because a LoRA adapter has few parameters, it usually needs about 10 times the 1e-6 full fine-tuning default.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c05-lab4-config";
+  // illustrative batch: 10 / 32 correct (0.31), 2 / 32 hit the cap (0.06), mean length 141.2
+  const LEN = [[118, 112, 96, 256, 131, 205, 120, 104], [130, 140, 233, 120, 139, 256, 152, 130],
+               [102, 121, 95, 140, 214, 133, 109, 127], [137, 112, 119, 99, 128, 198, 125, 117]];
+  const OK = [[1, 0, 0, 0, 1, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [1, 1, 0, 1, 0, 1, 0, 0], [1, 0, 1, 1, 0, 0, 1, 0]];
+  const X0 = 84, Y0 = 40, W = 56, H = 42, GX = 8, PY = 52;
+  const pen = (L) => (L <= 192 ? 0 : (192 - L) / 64);
+  let S = null;
+
+  function mk(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  }
+
+  function build(slide) {
+    const svg = slide.querySelector("#c05cfg-svg");
+    if (svg._S) return svg._S;
+    svg.innerHTML = "";
+    const defs = mk("defs", {}, svg);
+    const pat = mk("pattern", { id: "c05cfg-hatch", width: 8, height: 8, patternUnits: "userSpaceOnUse", patternTransform: "rotate(45)" }, defs);
+    mk("rect", { width: 8, height: 8, fill: "var(--risk-soft)" }, pat);
+    mk("line", { x1: 0, y1: 0, x2: 0, y2: 8, stroke: "var(--risk)", "stroke-width": 3, opacity: .5 }, pat);
+
+    const s = { slots: [], tallies: [], heads: [] };
+    s.heads[0] = mk("text", { x: 0, y: 18, "font-size": 15, "font-weight": 700, fill: "var(--muted)" }, svg, "one optimizer step · generation batch");
+    s.heads[1] = mk("text", { x: 0, y: 18, "font-size": 15, "font-weight": 700, fill: "var(--model)", opacity: 0 }, svg, "32 completions = 4 claims x 8 generations");
+    s.heads[2] = mk("text", { x: 0, y: 18, "font-size": 15, "font-weight": 700, fill: "var(--state)", opacity: 0 }, svg, "accuracy_reward: 10 / 32 correct = 0.31");
+    s.heads[3] = mk("text", { x: 0, y: 18, "font-size": 15, "font-weight": 700, fill: "var(--tool)", opacity: 0 }, svg, "> 192 tokens: penalty · 256: masked");
+    s.heads[4] = mk("text", { x: 0, y: 18, "font-size": 15, "font-weight": 700, fill: "var(--muted)", opacity: 0 }, svg, "loss = dapo · no KL term");
+
+    for (let r = 0; r < 4; r++) {
+      const y = Y0 + r * PY;
+      mk("text", { x: 0, y: y + 26, "font-size": 13, fill: "var(--ink-2)" }, svg, "claim " + (r + 1));
+      for (let c = 0; c < 8; c++) {
+        const x = X0 + c * (W + GX), L = LEN[r][c], ok = OK[r][c];
+        const g = mk("g", {}, svg);
+        mk("rect", { x, y, width: W, height: H, rx: 7, fill: "none", stroke: "var(--line-2)", "stroke-dasharray": "4 4" }, g);
+        const fillR = mk("rect", { x, y, width: W, height: H, rx: 7, fill: "var(--model-soft)", stroke: "var(--model)", "stroke-width": 1.5, opacity: 0 }, g);
+        const ambR = mk("rect", { x, y, width: W, height: H, rx: 7, fill: "var(--tool-soft)", stroke: "var(--tool)", "stroke-width": 2, opacity: 0 }, g);
+        const hatR = mk("rect", { x, y, width: W, height: H, rx: 7, fill: "url(#c05cfg-hatch)", stroke: "var(--risk)", "stroke-width": 2, opacity: 0 }, g);
+        const len = mk("text", { x: x + W / 2 - 5, y: y + 21, "text-anchor": "middle", "font-size": 13.5, "font-weight": 600, fill: "var(--ink)", opacity: 0 }, g, String(L));
+        const mark = mk("text", { x: x + W - 7, y: y + 13, "text-anchor": "middle", "font-size": 12, "font-weight": 700, fill: ok ? "var(--state)" : "var(--risk)", opacity: 0 }, g, ok ? "✓" : "✕");
+        const sub = L === 256 ? "masked" : L > 192 ? pen(L).toFixed(2) : "";
+        const pt = mk("text", { x: x + W / 2, y: y + 36, "text-anchor": "middle", "font-size": 11, "font-weight": 700, fill: L === 256 ? "var(--risk)" : "var(--tool)", opacity: 0 }, g, sub);
+        s.slots.push({ fillR, ambR, hatR, len, mark, pt, L, i: r * 8 + c });
+      }
+      const k = OK[r].reduce((a, b) => a + b, 0);
+      s.tallies.push(mk("text", { x: 600, y: y + 26, "font-size": 14, "font-weight": 700, fill: k === 0 ? "var(--risk)" : "var(--state)", opacity: 0 }, svg, k + "/8"));
+    }
+    // policy and (not loaded) reference model, 80 px apart
+    const pol = mk("g", {}, svg);
+    mk("rect", { x: 0, y: 252, width: 280, height: 44, rx: 10, fill: "var(--model-soft)", stroke: "var(--model)", "stroke-width": 1.5 }, pol);
+    mk("text", { x: 140, y: 279, "text-anchor": "middle", "font-size": 13.5, "font-weight": 700, fill: "var(--model)" }, pol, "policy · Qwen2.5-0.5B + LoRA r=16");
+    s.ref = mk("g", { opacity: 0 }, svg);
+    mk("rect", { x: 360, y: 252, width: 290, height: 44, rx: 10, fill: "var(--surface)", stroke: "var(--faint)", "stroke-width": 1.5, "stroke-dasharray": "6 5" }, s.ref);
+    mk("text", { x: 505, y: 271, "text-anchor": "middle", "font-size": 13.5, "font-weight": 700, fill: "var(--muted)", "text-decoration": "line-through" }, s.ref, "reference model");
+    mk("text", { x: 505, y: 288, "text-anchor": "middle", "font-size": 12, fill: "var(--muted)" }, s.ref, "beta=0.0 -> not loaded");
+    svg._S = s;
+    return s;
+  }
+
+  function render(s, n, animate) {
+    const to = (el, v, d) => (animate ? gsap.to(el, { opacity: v, duration: .35, delay: d || 0, ease: "power2.out" }) : gsap.set(el, { opacity: v }));
+    s.heads.forEach((h, k) => to(h, k === Math.min(n, 4) ? 1 : 0));
+    s.slots.forEach((o) => {
+      const d = animate ? o.i * 0.018 : 0;
+      const amber = n >= 3 && o.L > 192 && o.L < 256, hatch = n >= 3 && o.L === 256;
+      to(o.fillR, n >= 1 && !amber && !hatch ? 1 : 0, n === 1 ? d : 0);
+      to(o.len, n >= 1 ? 1 : 0, n === 1 ? d : 0);
+      to(o.mark, n >= 2 ? 1 : 0, n === 2 ? d : 0);
+      to(o.ambR, amber ? 1 : 0);
+      to(o.hatR, hatch ? 1 : 0);
+      to(o.pt, n >= 3 && o.L > 192 ? 1 : 0);
+    });
+    s.tallies.forEach((t, r) => to(t, n >= 2 ? 1 : 0, n === 2 ? .5 + r * .08 : 0));
+    to(s.ref, n >= 4 ? 1 : 0);
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { S = build(slide); render(S, step, false); },
+    step(slide, n, animate) { S = build(slide); render(S, n, animate); },
+    leave(slide) {
+      const svg = slide.querySelector("#c05cfg-svg");
+      if (svg) gsap.killTweensOf(svg.querySelectorAll("*"));
+    }
+  });
+})();
+</script>

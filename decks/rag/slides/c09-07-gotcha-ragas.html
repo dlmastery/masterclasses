@@ -1,0 +1,218 @@
+<section class="slide tight" id="rag-c09-gotcha-ragas" data-tone="human" data-title="Gotcha: ragas NaN rows and coverage">
+  <style>
+    #rag-c09-gotcha-ragas .gr-main { display: grid; grid-template-columns: 780px 1fr; gap: 26px; align-items: start; }
+    #rag-c09-gotcha-ragas .gr-left, #rag-c09-gotcha-ragas .gr-right { gap: 12px; min-width: 0; }
+    #rag-c09-gotcha-ragas .code-wrap .code-head { padding: 7px 14px; font-size: 13.5px; }
+    #rag-c09-gotcha-ragas pre.code.gr-c { font-size: 12px; line-height: 1.42; padding: 9px 14px 10px; }
+    #rag-c09-gotcha-ragas .gotcha { font-size: 13.6px; line-height: 1.34; padding: 9px 13px; grid-template-columns: 66px 1fr; gap: 3px 10px; }
+    #rag-c09-gotcha-ragas .gotcha > b { font-size: 11px; }
+    #rag-c09-gotcha-ragas .gotcha .gh { grid-column: 1 / -1; font: 700 12.5px/1.3 var(--f-mono); color: var(--ink); letter-spacing: .03em; margin-bottom: 2px; }
+    #rag-c09-gotcha-ragas .gotcha code { font-size: .84em; }
+    #rag-c09-gotcha-ragas .gotcha .er { font: 600 11.4px/1.35 var(--f-mono); color: var(--risk); }
+    #rag-c09-gotcha-ragas .callout { font-size: 14px; line-height: 1.36; padding: 9px 13px; }
+    #rag-c09-gotcha-ragas .gr-cites { display: flex; flex-wrap: wrap; gap: 8px; }
+    #rag-c09-gotcha-ragas .gr-cites .cite { font-size: 12.5px; padding: 4px 9px 4px 7px; }
+    #rag-c09-gotcha-ragas .gr-svg { display: block; overflow: visible; }
+    #rag-c09-gotcha-ragas .gr-svg text { font-family: var(--f-mono); }
+    #rag-c09-gotcha-ragas .gr-svg .pn { fill: var(--surface); stroke: var(--line-2); stroke-width: 1; }
+    #rag-c09-gotcha-ragas .gr-svg .hd { font-size: 11.5px; font-weight: 700; fill: var(--muted); letter-spacing: .04em; }
+    #rag-c09-gotcha-ragas .gr-svg .chip { fill: var(--state-soft); stroke: var(--state); stroke-width: 1.5; }
+    #rag-c09-gotcha-ragas .gr-svg .chip.lo { fill: var(--risk-soft); stroke: var(--risk); }
+    #rag-c09-gotcha-ragas .gr-svg .chip.nan { fill: var(--surface-2); stroke: var(--muted); stroke-dasharray: 4 3; }
+    #rag-c09-gotcha-ragas .gr-svg .cv { font-size: 14px; font-weight: 700; fill: var(--ink); }
+    #rag-c09-gotcha-ragas .gr-svg .cv.nan { fill: var(--muted); }
+    #rag-c09-gotcha-ragas .gr-svg .lb { font-size: 12px; font-weight: 600; fill: var(--ink-2); }
+    #rag-c09-gotcha-ragas .gr-svg .trk { fill: var(--surface-2); stroke: var(--line-2); stroke-width: 1; }
+    #rag-c09-gotcha-ragas .gr-svg .bf { fill: var(--state); }
+    #rag-c09-gotcha-ragas .gr-svg .bf.bad { fill: var(--risk); }
+    #rag-c09-gotcha-ragas .gr-svg .bv { font-size: 13px; font-weight: 700; fill: var(--ink-2); }
+    #rag-c09-gotcha-ragas .gr-svg .bv.bad { fill: var(--risk); }
+    #rag-c09-gotcha-ragas .gr-svg .stamp rect { fill: var(--surface-2); stroke: var(--risk); stroke-width: 2.2; }
+    #rag-c09-gotcha-ragas .gr-svg .stamp text { font-size: 12px; font-weight: 800; fill: var(--risk); letter-spacing: .06em; }
+    #rag-c09-gotcha-ragas .gr-svg .vd { font-size: 12.5px; font-weight: 700; fill: var(--risk); }
+    #rag-c09-gotcha-ragas .gr-svg .ill { font-size: 10.5px; fill: var(--faint); }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> ragas 0.4.3</div>
+  <h2 class="title">Failed rows raise your faithfulness score: report coverage with it</h2>
+  <div class="gr-main fill">
+    <div class="stack gr-left">
+      <div class="code-wrap good">
+        <div class="code-head">shopco_eval/gate_value.py · NaN-safe faithfulness for the release gate</div>
+        <pre class="code gr-c" data-lang="python" data-focus="1:5, 2:6-7, 3:8, 4:12, 5:13-16"><code>import asyncio, math
+# faith = Faithfulness(llm=judge): built in Lab 8, step 1
+
+def gate_value(results) -&gt; tuple[float, float]:
+    vals = [r.value for r in results]
+    coverage = sum(not math.isnan(v) for v in vals) / len(vals)
+    assert coverage &gt;= 0.95, f"only {coverage:.1%} rows scored: the judge broke, not the bot"
+    strict = sum(0.0 if math.isnan(v) else v for v in vals) / len(vals)   # NaN counts as 0
+    return strict, coverage
+
+async def score_answered(run: list[dict], gold: dict, faith) -&gt; tuple[float, float]:
+    answered = [r for r in run if r["response"].strip()]  # "" -&gt; ValueError
+    results = await asyncio.gather(*(           # ascore, never score(), inside a loop
+        faith.ascore(user_input=gold[r["id"]]["question"], response=r["response"],
+                     retrieved_contexts=r["retrieved_contexts"])
+        for r in answered))
+    return gate_value(results)</code></pre>
+      </div>
+      <svg class="gr-svg" id="gr-svg" viewBox="0 0 780 232" width="780" height="232" aria-label="Two scoreboards. System A scores all four rows and its mean is 0.50. In System B two low rows error out and turn into NaN, and its ragas mean rises from 0.375 to 0.75. Then a coverage bar shows B at 50 percent with a coverage below 0.95 stamp, and the strict score with NaN counted as 0 puts B at 0.375, below A."></svg>
+      <div class="gr-cites">
+        <a class="cite repo" href="https://github.com/vibrantlabsai/ragas/issues/3028" target="_blank" rel="noopener"><b>Issue</b>&nbsp;ragas#3028</a>
+        <a class="cite repo" href="https://github.com/vibrantlabsai/ragas/issues/3004" target="_blank" rel="noopener"><b>Issue</b>&nbsp;ragas#3004</a>
+        <a class="cite repo" href="https://github.com/vibrantlabsai/ragas" target="_blank" rel="noopener"><b>Repo</b>&nbsp;vibrantlabsai/ragas v0.4.3</a>
+      </div>
+    </div>
+    <div class="stack gr-right">
+      <div class="gotcha" data-step="1">
+        <span class="gh">1 · failed rows leave the denominator · #3028 (open)</span>
+        <b>Symptom</b><span>System B loses its two weak rows to API errors and its mean rises to <code>0.75</code>. System A scores all four rows: <code>0.50</code>.</span>
+        <b class="why">Cause</b><span><code>raise_exceptions=False</code> turns errors into NaN. <code>safe_nanmean</code> removes NaN rows from the denominator: "The headline faithfulness number goes up as more rows fail."</span>
+        <b class="fix">Fix</b><span>Report coverage (non-NaN rows) next to every metric. Assert <code>coverage &gt;= 0.95</code> (the gate's 5% NaN limit). Count NaN as 0 in release gates.</span>
+      </div>
+      <div class="gotcha" data-step="4">
+        <span class="gh">2 · an abstention is not a response</span>
+        <b>Symptom</b><span><span class="er">ValueError: response is missing. Please add response to the test sample.</span> The bot abstained with an empty string. NaN when no statements can be extracted.</span>
+        <b class="why">Cause</b><span>Faithfulness first splits the response into statements. An empty answer gives it nothing to check.</span>
+        <b class="fix">Fix</b><span>Store abstentions as text ("I don't know..."). Score them in the canary slice.</span>
+      </div>
+      <div class="gotcha" data-step="5">
+        <span class="gh">3 · 0.2/0.3 call styles fail on 0.4</span>
+        <b>Symptom</b><span><span class="er">RuntimeError: Cannot call sync score() from an async context. Use ascore() instead.</span> (Jupyter)<br><span class="er">ValueError: llm_factory() requires a client instance. Text-only mode has been removed.</span></span>
+        <b class="why">Cause</b><span><code>.score()</code> inside a running event loop. Old code calls <code>llm_factory("gpt-4o-mini")</code>.</span>
+        <b class="fix">Fix</b><span><code>await metric.ascore(...)</code> in notebooks and CI. Pass <code>client=</code> to <code>llm_factory</code>.</span>
+      </div>
+      <div class="callout pitfall" data-step="5"><span>The repo moved to <code>vibrantlabsai/ragas</code>. The last release is 0.4.3 (2026-01-13). Issue #3004 asks if it is still maintained. Pin it and own your eval code.</span></div>
+    </div>
+  </div>
+  <aside class="notes">
+    This is the ragas gotcha that makes a broken run look like a better bot. With raise_exceptions=False, every judge error becomes NaN, and safe_nanmean drops those rows from the denominator, so in the animation System B loses its two weak rows and its headline rises from 0.375 to 0.75 while it is really the worse system. The fix in gate_value is two numbers: coverage, asserted at 0.95 or more to match the gate's 5 percent NaN limit, and a strict score that counts NaN as 0; with both, B shows 50 percent coverage and 0.375. Analogy: a class average that only counts the students who handed in their exam always looks good. The other two cards are the errors you hit when you wire this into the ShopCo gate: an empty abstention is not a response, and score() inside an event loop must become ascore(). A likely question is "should we leave ragas?": not right away, but pin 0.4.3, keep this wrapper in your own repo, and do not wait on upstream fixes. Next: three recent papers on what else the gate must score, starting with the canaries.
+  </aside>
+</section>
+<script>
+(() => {
+  const ID = "rag-c09-gotcha-ragas";
+  const NS = "http://www.w3.org/2000/svg";
+  // illustrative rows: A answers all 4; B's two low rows error out (NaN)
+  const ROWS = [[1, 0, 1, 0], [1, 0, 0.5, 0]];
+  const FAIL = [1, 3];
+  const BX = [0, 400], CW = 80, TX = 156, TW = 160;
+  const LABELS = ["ragas mean", "coverage", "strict NaN=0"];
+  let R = null, prev = -1, tweens = [];
+  const mk = (tag, attrs, parent, text) => {
+    const el = document.createElementNS(NS, tag);
+    for (const k in attrs) el.setAttribute(k, attrs[k]);
+    if (text !== undefined) el.textContent = text;
+    parent.appendChild(el);
+    return el;
+  };
+  function build(slide) {
+    const svg = slide.querySelector("#gr-svg");
+    if (svg._R) { R = svg._R; return; }
+    svg.innerHTML = "";
+    R = { boards: [] };
+    ROWS.forEach((rows, b) => {
+      const ox = BX[b];
+      const g = mk("g", {}, svg);
+      mk("rect", { x: ox, y: 0, width: 380, height: 206, rx: 12, class: "pn" }, g);
+      mk("text", { x: ox + 14, y: 22, class: "hd" }, g, b ? "SYSTEM B · 2 ROWS ERROR OUT" : "SYSTEM A · SCORES ALL 4 ROWS");
+      const chips = rows.map((v, i) => {
+        const x = ox + 14 + i * (CW + 7);
+        const r = mk("rect", { x, y: 34, width: CW, height: 34, rx: 8, class: "chip" + (v < 0.8 ? " lo" : "") }, g);
+        const t = mk("text", { x: x + CW / 2, y: 56, "text-anchor": "middle", class: "cv" }, g, v.toFixed(2));
+        return { r, t, v };
+      });
+      const bars = LABELS.map((lab, j) => {
+        const y = 88 + j * 40;
+        const row = mk("g", {}, g);
+        mk("text", { x: ox + 14, y: y + 14, class: "lb" }, row, lab);
+        mk("rect", { x: ox + TX, y, width: TW, height: 18, rx: 5, class: "trk" }, row);
+        const f = mk("rect", { x: ox + TX, y, width: 0, height: 18, rx: 5, class: "bf" }, row);
+        const vt = mk("text", { x: ox + TX + TW + 8, y: y + 14, class: "bv" }, row, "");
+        return { row, f, vt };
+      });
+      R.boards.push({ chips, bars });
+    });
+    R.stamp = mk("g", { class: "stamp" }, svg);
+    mk("rect", { x: 546, y: 118, width: 168, height: 26, rx: 4 }, R.stamp);
+    mk("text", { x: 630, y: 136, "text-anchor": "middle" }, R.stamp, "COVERAGE < 0.95");
+    R.verdict = mk("text", { x: 556, y: 198, class: "vd" }, svg, "B is worse than A");
+    mk("text", { x: 780, y: 226, "text-anchor": "end", class: "ill" }, svg, "illustrative rows · same math as safe_nanmean");
+    svg._R = R;
+  }
+  const W = (v) => v * TW;
+  function setBar(bar, v, text, bad, dur, delay) {
+    bar.f.setAttribute("class", "bf" + (bad ? " bad" : ""));
+    bar.vt.setAttribute("class", "bv" + (bad ? " bad" : ""));
+    bar.vt.textContent = text;
+    if (dur) tweens.push(gsap.to(bar.f, { attr: { width: W(v) }, duration: dur, delay: delay || 0, ease: "power2.out" }));
+    else bar.f.setAttribute("width", W(v));
+  }
+  function setChip(c, nan) {
+    c.r.setAttribute("class", "chip" + (nan ? " nan" : c.v < 0.8 ? " lo" : ""));
+    c.t.setAttribute("class", "cv" + (nan ? " nan" : ""));
+    c.t.textContent = nan ? "NaN" : c.v.toFixed(2);
+  }
+  function render(n, animate) {
+    if (!R) return;
+    tweens.forEach((t) => t.kill()); tweens = [];
+    const fwd = animate && n === prev + 1;
+    const [A, B] = R.boards;
+    // System A never changes
+    setBar(A.bars[0], 0.5, "0.50", false);
+    setBar(A.bars[1], 1, "100%", false);
+    setBar(A.bars[2], 0.5, "0.50", false);
+    // B rows and headline mean
+    B.chips.forEach((c, i) => setChip(c, n >= 1 && FAIL.includes(i)));
+    setBar(B.bars[0], n >= 1 ? 0.75 : 0.375, n >= 1 ? "0.75 ↑" : "0.375", n >= 1);
+    setBar(B.bars[1], 0.5, "50%", true);
+    setBar(B.bars[2], 0.375, "0.375", true);
+    // visibility of the coverage and strict rows
+    const vis = (els, on) => gsap.set(els, { opacity: on ? 1 : 0 });
+    vis([A.bars[1].row, B.bars[1].row], n >= 2);
+    vis([A.bars[2].row, B.bars[2].row], n >= 3);
+    vis(R.stamp, n >= 2);
+    vis(R.verdict, n >= 3);
+    gsap.set(R.stamp, { rotation: -6, scale: 1, svgOrigin: "630 131" });
+    gsap.set(R.verdict, { y: 0 });
+    gsap.set(B.bars[0].vt, { scale: 1 });
+    gsap.set(B.chips.map((c) => c.r), { opacity: 1 });
+    if (fwd && n === 1) {
+      // rows fail one by one; the mean climbs 0.375 -> 0.50 -> 0.75
+      B.chips.forEach((c, i) => setChip(c, false));
+      setBar(B.bars[0], 0.375, "0.375", false);
+      const tl = gsap.timeline({ delay: 0.3 });
+      tl.call(() => { setChip(B.chips[1], true); setBar(B.bars[0], 0.375, "0.50 ↑", true); })
+        .fromTo(B.chips[1].r, { opacity: 0.2 }, { opacity: 1, duration: 0.35 })
+        .to(B.bars[0].f, { attr: { width: W(0.5) }, duration: 0.5, ease: "power2.out" }, "<")
+        .call(() => { setChip(B.chips[3], true); B.bars[0].vt.textContent = "0.75 ↑"; }, null, "+=0.5")
+        .fromTo(B.chips[3].r, { opacity: 0.2 }, { opacity: 1, duration: 0.35 })
+        .to(B.bars[0].f, { attr: { width: W(0.75) }, duration: 0.5, ease: "power2.out" }, "<")
+        .fromTo(B.bars[0].vt, { scale: 1.3, svgOrigin: "724 116" }, { scale: 1, duration: 0.4, ease: "back.out(2)" });
+      tweens.push(tl);
+    }
+    if (fwd && n === 2) {
+      [A.bars[1], B.bars[1]].forEach((b, i) => {
+        b.f.setAttribute("width", 0);
+        tweens.push(gsap.fromTo(b.row, { opacity: 0 }, { opacity: 1, duration: 0.3, delay: i * 0.15 }));
+        tweens.push(gsap.to(b.f, { attr: { width: W(i ? 0.5 : 1) }, duration: 0.6, delay: 0.2 + i * 0.15, ease: "power2.out" }));
+      });
+      tweens.push(gsap.fromTo(R.stamp, { opacity: 0, scale: 2.4 }, { opacity: 1, scale: 1, duration: 0.4, delay: 1, ease: "back.out(1.6)", svgOrigin: "630 131" }));
+    }
+    if (fwd && n === 3) {
+      [A.bars[2], B.bars[2]].forEach((b, i) => {
+        b.f.setAttribute("width", W(i ? 0.75 : 0.5));
+        tweens.push(gsap.fromTo(b.row, { opacity: 0 }, { opacity: 1, duration: 0.3, delay: i * 0.15 }));
+      });
+      tweens.push(gsap.to(B.bars[2].f, { attr: { width: W(0.375) }, duration: 0.8, delay: 0.5, ease: "power2.inOut" }));
+      tweens.push(gsap.fromTo(R.verdict, { opacity: 0, y: 8 }, { opacity: 1, y: 0, duration: 0.4, delay: 1.2 }));
+    }
+    prev = n;
+  }
+  Deck.register(ID, {
+    enter(slide, step) { prev = -1; build(slide); render(step || 0, false); },
+    step(slide, n, animate) { if (!R) return; render(n, animate); },
+    leave() { tweens.forEach((t) => t.kill()); tweens = []; prev = -1; }
+  });
+})();
+</script>

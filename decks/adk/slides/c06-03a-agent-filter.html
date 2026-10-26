@@ -1,0 +1,129 @@
+<section class="slide" id="adk-c06-agent-filter" data-tone="tool" data-title="Lab 6.2a: tool_filter and prefix">
+  <style>
+    #adk-c06-agent-filter .ma-grid { display: grid; grid-template-columns: 820px 1fr; gap: 36px; align-items: start; }
+    #adk-c06-agent-filter .lab-head .pins { font: 500 18px/1.3 var(--f-mono); color: var(--muted); }
+    #adk-c06-agent-filter .pl { position: relative; width: 536px; height: 540px; }
+    #adk-c06-agent-filter .pl-box { position: absolute; left: 0; width: 536px; border-radius: 14px; border: 2.5px solid; }
+    #adk-c06-agent-filter .pl-box .bl { position: absolute; left: 14px; top: 12px; font: 700 17px/1.2 var(--f-mono); }
+    #adk-c06-agent-filter .pl-srv { top: 0; height: 112px; border-color: var(--tool); background: var(--tool-soft); }
+    #adk-c06-agent-filter .pl-srv .bl { color: var(--tool); }
+    #adk-c06-agent-filter .pl-conn { position: absolute; right: 14px; top: 12px; font: 600 16px/1.2 var(--f-mono); color: var(--ink-2); opacity: 0; }
+    #adk-c06-agent-filter .pl-list { top: 384px; height: 156px; border-color: var(--model); background: var(--model-soft); }
+    #adk-c06-agent-filter .pl-list .bl { color: var(--model); }
+    #adk-c06-agent-filter .pl-cnt { position: absolute; right: 14px; top: 12px; font: 700 17px/1.2 var(--f-mono); color: var(--model); opacity: 0; }
+    #adk-c06-agent-filter .pl-card { position: absolute; left: 0; top: 0; height: 38px; border-radius: 9px; z-index: 3;
+      display: flex; align-items: center; padding: 0 12px; font: 600 17px/1 var(--f-mono); color: var(--ink);
+      background: var(--bg); border: 2px solid var(--tool); white-space: nowrap; }
+    #adk-c06-agent-filter .pl-card.orig { opacity: 0; z-index: 2; border-style: dashed; }
+    #adk-c06-agent-filter .pl-card b { color: var(--model); }
+    #adk-c06-agent-filter .pl-card.danger { border-color: var(--risk); color: var(--risk); }
+    #adk-c06-agent-filter .pl-card.stopped { text-decoration: line-through; background: var(--risk-soft); }
+    #adk-c06-agent-filter .pl-gate { position: absolute; left: 0; top: 196px; width: 536px; height: 14px; border-radius: 7px; background: var(--line-2); }
+    #adk-c06-agent-filter .pl-gate.on { background: var(--risk); }
+    #adk-c06-agent-filter .pl-lbl { position: absolute; font: 700 17px/1 var(--f-mono); color: var(--muted); white-space: nowrap; }
+    #adk-c06-agent-filter .pl-lbl.on { color: var(--ink); }
+    #adk-c06-agent-filter .pl-ring { position: absolute; left: 228px; top: 268px; width: 80px; height: 80px; border-radius: 50%;
+      border: 3px dashed var(--line-2); display: grid; place-items: center; font: 700 16px/1 var(--f-mono); color: var(--muted); background: var(--bg); z-index: 1; }
+    #adk-c06-agent-filter .pl-ring.on { border-color: var(--model); color: var(--model); }
+  </style>
+  <div class="kicker"><span class="pill">Lab 6</span> Acme claims desk · step 2 of 4 · filter</div>
+  <h2 class="title">tool_filter and a prefix decide which tools the model sees</h2>
+  <div class="lab-head"><span class="run">adk web .</span><span class="pins">prompt: "What is the status of CLM-1002?"</span></div>
+  <div class="ma-grid fill">
+    <div class="code-wrap">
+      <div class="code-head">labs/adk/lab6-acme-claims-desk/claims_agent/agent.py · excerpt</div>
+      <pre class="code" data-lang="python" data-focus="1:6-9, 2:10, 3:11, 4:10-11"><code>import pathlib, sys
+from google.adk.tools.mcp_tool import McpToolset, StdioConnectionParams
+from mcp import StdioServerParameters
+SERVER = pathlib.Path(__file__).parent / "claims_server.py"
+claims_tools = McpToolset(
+    connection_params=StdioConnectionParams(
+        server_params=StdioServerParameters(
+            command=sys.executable, args=[str(SERVER)]),  # same venv
+        timeout=10.0),                          # default 5.0 s
+    tool_filter=["get_claim", "approve_claim"],  # no purge_claim
+    tool_name_prefix="claims",                  # claims_get_claim
+)
+# root_agent = LlmAgent(..., tools=[claims_tools]): next slide</code></pre>
+    </div>
+    <div class="pl" id="ma-pl">
+      <div class="pl-box pl-srv"><span class="bl">claims_server.py</span><span class="pl-conn">sys.executable · 10.0 s</span></div>
+      <span class="pl-lbl" data-k="gate" style="left:0;top:168px">tool_filter</span>
+      <div class="pl-gate"></div>
+      <div class="pl-ring">claims_</div>
+      <span class="pl-lbl" data-k="ring" style="left:324px;top:300px">tool_name_prefix</span>
+      <div class="pl-box pl-list"><span class="bl">model's tool list</span><span class="pl-cnt">2 of 3 tools</span></div>
+      <div class="pl-card orig" data-k="get-o" style="transform:translate(16px,56px)">get_claim</div>
+      <div class="pl-card orig" data-k="app-o" style="transform:translate(186px,56px)">approve_claim</div>
+      <div class="pl-card danger" data-k="purge">purge_claim</div>
+      <div class="pl-card" data-k="get">get_claim</div>
+      <div class="pl-card" data-k="app">approve_claim</div>
+    </div>
+  </div>
+  <aside class="notes">This is step 2 of the Acme claims desk: the agent connects to the claims MCP server from step 1 and gets only the tools it needs. Step 1: use StdioConnectionParams so you can set the timeout to 10 seconds; its default is 5.0 seconds, and a bare StdioServerParameters has no timeout at all. sys.executable starts the server in the agent's own virtual environment, so mcp is importable; a bare "python" on Windows often finds a different interpreter. Step 2: tool_filter matches the server's original names, so purge_claim stops at the bar and never reaches the model. Step 3: tool_name_prefix renames the rest, and the model calls claims_get_claim and claims_approve_claim; two servers can no longer collide on a name. Step 4: the model's list holds 2 of the 3 server tools. Think of a hotel key card: it opens two doors, and each door has a name plate. A likely question: "Does the filter use the prefixed name?" No, the filter runs first on the server's names, and ADK adds the prefix afterwards.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c06-agent-filter";
+  let tw = [];
+  function clear() { tw.forEach((t) => t.kill()); tw = []; }
+  const SRV = { get: [16, 56], app: [186, 56], purge: [376, 56] };
+  const STOP = [376, 152];                          // purge_claim rests on the gate
+  const WAIT = { get: [16, 226], app: [186, 226] }; // passed the gate, before the prefix
+  const LIST = { get: [16, 428], app: [16, 480] };
+  const RING_Y = 289;
+
+  function render(slide, n, animate) {
+    clear();
+    const q = (s) => slide.querySelector(s);
+    const card = (k) => q(`.pl-card[data-k="${k}"]`);
+    const get = card("get"), app = card("app"), pur = card("purge");
+    const gate = q(".pl-gate"), ring = q(".pl-ring"), conn = q(".pl-conn"), cnt = q(".pl-cnt"), srv = q(".pl-srv");
+    const lGate = q('.pl-lbl[data-k="gate"]'), lRing = q('.pl-lbl[data-k="ring"]');
+    const label = (el, base, on) => { el.innerHTML = on ? `<b>claims_</b>${base}` : base; };
+
+    gsap.set(conn, { opacity: n >= 1 ? 1 : 0 });
+    gsap.set([card("get-o"), card("app-o")], { opacity: n >= 2 ? 0.4 : 0 });
+    srv.style.boxShadow = n === 1 ? "0 0 0 5px color-mix(in oklab, var(--tool) 30%, transparent)" : "none";
+    gate.classList.toggle("on", n >= 2);
+    lGate.classList.toggle("on", n >= 2);
+    pur.classList.toggle("stopped", n >= 2);
+    ring.classList.toggle("on", n >= 3);
+    lRing.classList.toggle("on", n >= 3);
+    gsap.set(cnt, { opacity: n >= 4 ? 1 : 0 });
+    if (animate && n === 4) tw.push(gsap.fromTo(cnt, { scale: 1.3 }, { scale: 1, duration: 0.4, ease: "back.out(2)" }));
+
+    const pos = (k) => (n >= 3 ? LIST[k] : n >= 2 ? WAIT[k] : SRV[k]);
+    if (animate && n === 2) {
+      label(get, "get_claim", false); label(app, "approve_claim", false);
+      gsap.set(get, { x: SRV.get[0], y: SRV.get[1] }); gsap.set(app, { x: SRV.app[0], y: SRV.app[1] });
+      gsap.set(pur, { x: SRV.purge[0], y: SRV.purge[1] });
+      tw.push(gsap.timeline().to(pur, { y: STOP[1] + 8, duration: 0.5, ease: "power2.in" }).to(pur, { y: STOP[1], duration: 0.25, ease: "back.out(3)" }));
+      ["get", "app"].forEach((k, i) => tw.push(gsap.to(k === "get" ? get : app, { x: WAIT[k][0], y: WAIT[k][1], duration: 0.7, delay: 0.5 + i * 0.3, ease: "power2.inOut" })));
+    } else if (animate && n === 3) {
+      gsap.set(pur, { x: STOP[0], y: STOP[1] });
+      ["get", "app"].forEach((k, i) => {
+        const el = k === "get" ? get : app, base = k === "get" ? "get_claim" : "approve_claim";
+        label(el, base, false);
+        gsap.set(el, { x: WAIT[k][0], y: WAIT[k][1] });
+        const w = el.offsetWidth;
+        tw.push(gsap.timeline({ delay: i * 0.6 })
+          .to(el, { x: 268 - w / 2, y: RING_Y, duration: 0.45, ease: "power2.inOut" })
+          .call(() => label(el, base, true))
+          .fromTo(el, { scale: 1.15 }, { scale: 1, duration: 0.3, ease: "back.out(3)" })
+          .to(el, { x: LIST[k][0], y: LIST[k][1], duration: 0.5, ease: "power2.inOut" }));
+      });
+    } else {
+      label(get, "get_claim", n >= 3); label(app, "approve_claim", n >= 3);
+      const p = pos("get"), a = pos("app");
+      gsap.set(get, { x: p[0], y: p[1] }); gsap.set(app, { x: a[0], y: a[1] });
+      gsap.set(pur, { x: n >= 2 ? STOP[0] : SRV.purge[0], y: n >= 2 ? STOP[1] : SRV.purge[1] });
+    }
+  }
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { clear(); if (slide) gsap.killTweensOf(slide.querySelectorAll(".pl *")); },
+  });
+})();
+</script>

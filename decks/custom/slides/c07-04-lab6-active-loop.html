@@ -1,0 +1,241 @@
+<section class="slide" id="custom-c07-lab6-active-loop" data-tone="state" data-title="Lab 6: margin sampling loop">
+  <style>
+    #custom-c07-lab6-active-loop { gap: 20px; }
+    #custom-c07-lab6-active-loop .a-grid { display: grid; grid-template-columns: 680px 1fr; gap: 26px; min-height: 0; }
+    #custom-c07-lab6-active-loop .a-left, #custom-c07-lab6-active-loop .a-right { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    #custom-c07-lab6-active-loop .lab-head { font-size: 15px; gap: 12px; }
+    #custom-c07-lab6-active-loop .lab-head .run { font-size: 15px; padding: 7px 11px; }
+    #custom-c07-lab6-active-loop .code-head { padding: 7px 14px; font-size: 13.5px; }
+    #custom-c07-lab6-active-loop .a-code pre.code { font-size: 11.5px; line-height: 1.36; padding: 8px 14px 10px; }
+    #custom-c07-lab6-active-loop .a-out pre.code { font-size: 11.5px; line-height: 1.38; padding: 8px 14px 10px; }
+    #custom-c07-lab6-active-loop .steps-rail { gap: 7px; }
+    #custom-c07-lab6-active-loop .steps-rail > * { font-size: 15px; line-height: 1.34; grid-template-columns: 30px 1fr; gap: 10px; }
+    #custom-c07-lab6-active-loop .steps-rail > *::before { width: 26px; height: 26px; font-size: 14px; }
+    #custom-c07-lab6-active-loop .steps-rail code { font-size: .84em; }
+    #custom-c07-lab6-active-loop .a-bottom { display: grid; grid-template-columns: 296px 1fr; gap: 14px; align-items: start; }
+    #custom-c07-lab6-active-loop .a-bottom > .stack { gap: 10px; }
+    #custom-c07-lab6-active-loop .gotcha { grid-template-columns: 74px 1fr; gap: 4px 10px; padding: 11px 14px; font-size: 14px; line-height: 1.36; }
+    #custom-c07-lab6-active-loop .gotcha > b { font-size: 12px; }
+    #custom-c07-lab6-active-loop .gotcha code { display: block; font-size: 12px; line-height: 1.4; padding: 4px 8px; white-space: normal; overflow-wrap: anywhere; }
+    #custom-c07-lab6-active-loop .a-bottom > * { min-width: 0; }
+    #custom-c07-lab6-active-loop .a-bottom .cite, #custom-c07-lab6-active-loop .a-bottom .tag { font-size: 13px; }
+    #custom-c07-lab6-active-loop .lab-head > span:not(.run) { font: 500 14px/1 var(--f-mono); color: var(--muted); font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #custom-c07-lab6-active-loop .cites { display: flex; gap: 8px; flex-wrap: wrap; }
+    #custom-c07-lab6-active-loop pre.code, #custom-c07-lab6-active-loop pre.code *, #custom-c07-lab6-active-loop code, #custom-c07-lab6-active-loop .lab-head, #custom-c07-lab6-active-loop .lab-head *, #custom-c07-lab6-active-loop .tag, #custom-c07-lab6-active-loop svg text { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #c07a-svg text { font-family: var(--f-mono); }
+    #custom-c07-lab6-active-loop #c07a-svg { align-self: center; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 6</span> Acme claims intake · step 3 of 4</div>
+  <h2 class="title">Margin sampling: label the 100 claims the model is least sure about</h2>
+  <div class="a-grid fill">
+    <div class="a-left">
+      <div class="lab-head"><span class="run">python lab6_active_learning.py</span><span>~7 s · scikit-learn==1.9.1 · numpy==2.5.4</span></div>
+      <div class="code-wrap a-code">
+        <div class="code-head">claims_data/lab6_active_learning.py</div>
+        <pre class="code" data-lang="python" data-focus="1:15-20, 2:11-13, 3:19-21, 4:25-27"><code>import numpy as np
+from sklearn.datasets import make_classification
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import average_precision_score
+from sklearn.model_selection import train_test_split
+X, y = make_classification(n_samples=20_000, n_features=30, n_informative=8,
+                           weights=[0.9, 0.1], flip_y=0.02, class_sep=0.8, random_state=0)
+X_pool, X_test, y_pool, y_test = train_test_split(X, y, test_size=0.25,
+                                                  stratify=y, random_state=0)
+SEED_SIZE, BATCH, ROUNDS = 100, 100, 8      # adjuster time: 100 claims per day
+def margin_scores(model, X_unlabeled):   # small top-2 gap = model is unsure
+    p = np.sort(model.predict_proba(X_unlabeled), axis=1)
+    return p[:, -1] - p[:, -2]
+def run(strategy, seed=0):
+    rng = np.random.default_rng(seed)
+    labeled = rng.choice(len(X_pool), SEED_SIZE, replace=False)
+    curve = []
+    for _ in range(ROUNDS + 1):
+        model = LogisticRegression(max_iter=1_000, class_weight="balanced")
+        model.fit(X_pool[labeled], y_pool[labeled])  # y_pool = the adjuster's answers
+        curve.append(average_precision_score(y_test, model.predict_proba(X_test)[:, 1]))
+        unlabeled = np.setdiff1d(np.arange(len(X_pool)), labeled)
+        if strategy == "margin":
+            pick = unlabeled[np.argsort(margin_scores(model, X_pool[unlabeled]))[:BATCH]]
+        else:
+            pick = rng.choice(unlabeled, BATCH, replace=False)
+        labeled = np.concatenate([labeled, pick])
+    return np.array(curve)
+rand = np.mean([run("random", s) for s in range(5)], axis=0)
+marg = np.mean([run("margin", s) for s in range(5)], axis=0)
+print(f"{'labels':>7} {'random PR-AUC':>14} {'margin PR-AUC':>14}")
+for r, (a, b) in enumerate(zip(rand, marg)):
+    print(f"{SEED_SIZE + r * BATCH:>7} {a:>14.3f} {b:>14.3f}")</code></pre>
+      </div>
+    </div>
+    <div class="a-right">
+      <svg id="c07a-svg" viewBox="0 0 700 300" width="644" height="276" role="img" aria-label="A 2-D sketch of the claims pool, 400 grey dots, 1 dot for about 10 claims. Step 1: 10 seed dots get adjuster labels and a first decision boundary appears. Step 2: a band around the boundary marks the 10 dots with the smallest margin. Step 3: those dots get labels, the boundary moves, and the counter goes from round 1, 100 labels, to round 2, 200 labels. Step 4: 10 random picks appear as ghost rings, mostly far from the boundary."></svg>
+      <div class="steps-rail">
+        <div data-step="1"><span>Seed: 100 random claims, about 10 positive. <code>class_weight="balanced"</code> stops an all-"auto-approve" model.</span></div>
+        <div data-step="2"><span>Margin = p(top-1) − p(top-2). Smallest margin = least sure. The same code works for K classes.</span></div>
+        <div data-step="3"><span>Retrain from scratch each round. Score on a fixed test set that never enters the pool.</span></div>
+        <div data-step="4"><span>Same budget, random picks: PR-AUC 0.548 vs 0.599 at 200 labels. Next: the full curve.</span></div>
+      </div>
+      <div class="a-bottom">
+        <div class="stack">
+          <div class="code-wrap out a-out" data-step="4">
+            <div class="code-head">output · captured · 5 seeds</div>
+            <pre class="code" data-lang="none"><code> labels  random PR-AUC  margin PR-AUC
+    100          0.546          0.546
+    200          0.548          <span class="ok">0.599</span>
+    300          0.570          <span class="ok">0.620</span></code></pre>
+          </div>
+          <div class="cites" data-step="5">
+            <a class="cite repo" href="https://scikit-activeml.github.io/" target="_blank" rel="noopener"><b>Lib</b>&nbsp;scikit-activeml 1.0.1</a>
+            <span class="tag t-risk">modAL: no release since 2023-06</span>
+          </div>
+        </div>
+        <div class="gotcha" data-step="5">
+          <b>Symptom</b><span><code>ValueError: This solver needs samples of at least 2 classes in the data, but the data contains only one class: 0</code></span>
+          <b class="why">Cause</b><span>The random seed has no positives. Likely below 2% prevalence.</span>
+          <b class="fix">Fix</b><span>Seed with a stratified sample, or add known positives from rules.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">This is step 3 of Lab 6: senior adjusters label only 100 claims per day, so we let the model choose which 100. Step 1: the seed is 100 random claims, which hold only about 10 positives, so class_weight="balanced" is what stops the first model from predicting auto-approve for everything. Step 2: the margin is the gap between the top two class probabilities; a small gap means the model is unsure, and the same code works for K classes. Step 3: each round we retrain from scratch and score PR-AUC on a fixed test set that never enters the pool, because queried items are hard by construction and would bias the estimate. Step 4: random picks with the same budget land mostly far from the boundary, and at 200 labels random scores 0.548 while margin scores 0.599. Analogy: a teacher who reviews only the exam answers where the student hesitated. Likely question: which library in production? scikit-activeml 1.0.1, released on 15 October 2026; modAL has had no release since June 2023.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c07-lab6-active-loop";
+  const PX0 = 10, PX1 = 690, PY0 = 32, PY1 = 292;
+  // deterministic pseudo-random numbers (no Math.random)
+  const fr = (v) => v - Math.floor(v);
+  const h = (i, k) => fr(Math.sin(i * 127.1 + k * 311.7) * 43758.5453);
+  const g = (i, k) => Math.sqrt(-2 * Math.log(Math.max(1e-6, h(i, k)))) * Math.cos(2 * Math.PI * h(i, k + 7));
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const DOTS = Array.from({ length: 400 }, (_, i) => {
+    const pos = i >= 360;   // ~10% need an adjuster
+    const cx = pos ? 520 + 55 * g(i, 1) : 250 + 105 * g(i, 1);
+    const cy = pos ? 140 + 40 * g(i, 2) : 175 + 55 * g(i, 2);
+    return { x: clamp(cx, PX0 + 8, PX1 - 8), y: clamp(cy, PY0 + 8, PY1 - 8), pos };
+  });
+  // boundaries: round 1 (fit on the seed) and round 2 (after the margin batch)
+  const B1 = { x: 372, y: 165, t: Math.atan2(270, 40) + 0.42 };
+  const B2 = { x: 438, y: 150, t: Math.atan2(270, 40) };
+  const dist = (b, d) => (d.x - b.x) * Math.sin(b.t) - (d.y - b.y) * Math.cos(b.t);
+  const SEED = Array.from({ length: 10 }, (_, k) => (k * 41 + 7) % 400);           // 1 dot ~ 10 claims
+  const unl = DOTS.map((_, i) => i).filter((i) => !SEED.includes(i));
+  const MARGIN = unl.slice().sort((a, b) => Math.abs(dist(B1, DOTS[a])) - Math.abs(dist(B1, DOTS[b]))).slice(0, 10);
+  const BAND = Math.abs(dist(B1, DOTS[MARGIN[9]])) + 3;
+  const RANDOM = [];
+  for (let k = 0; RANDOM.length < 10; k++) { const i = (k * 43 + 19) % 400; if (!SEED.includes(i) && !MARGIN.includes(i) && !RANDOM.includes(i)) RANDOM.push(i); }
+  let S = null;
+
+  function mk(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  }
+  const ends = (b, L) => [b.x - Math.cos(b.t) * L, b.y - Math.sin(b.t) * L, b.x + Math.cos(b.t) * L, b.y + Math.sin(b.t) * L];
+  function setLine(el, b) { const [x1, y1, x2, y2] = ends(b, 400); el.setAttribute("x1", x1); el.setAttribute("y1", y1); el.setAttribute("x2", x2); el.setAttribute("y2", y2); }
+  function bandPts(b, w) {
+    const nx = Math.sin(b.t), ny = -Math.cos(b.t), [x1, y1, x2, y2] = ends(b, 400);
+    return [[x1 + nx * w, y1 + ny * w], [x2 + nx * w, y2 + ny * w], [x2 - nx * w, y2 - ny * w], [x1 - nx * w, y1 - ny * w]].map((p) => p.join(",")).join(" ");
+  }
+
+  function build(slide) {
+    const svg = slide.querySelector("#c07a-svg");
+    if (svg._S) return svg._S;
+    svg.innerHTML = "";
+    const s = { prev: 0, b: { ...B1 } };
+    const defs = mk("defs", {}, svg);
+    const cp = mk("clipPath", { id: "c07a-clip" }, defs);
+    mk("rect", { x: PX0, y: PY0, width: PX1 - PX0, height: PY1 - PY0, rx: 10 }, cp);
+    mk("rect", { x: PX0, y: PY0, width: PX1 - PX0, height: PY1 - PY0, rx: 10, fill: "var(--surface)", stroke: "var(--line-2)", "stroke-width": 1 }, svg);
+    // legend
+    const lg = mk("g", {}, svg);
+    mk("circle", { cx: 16, cy: 14, r: 5, fill: "var(--risk)", stroke: "var(--human)", "stroke-width": 2 }, lg);
+    mk("text", { x: 26, y: 18, "font-size": 11.5, fill: "var(--ink-2)" }, lg, "needs adjuster");
+    mk("circle", { cx: 140, cy: 14, r: 5, fill: "var(--state)", stroke: "var(--human)", "stroke-width": 2 }, lg);
+    mk("text", { x: 150, y: 18, "font-size": 11.5, fill: "var(--ink-2)" }, lg, "auto-approve");
+    mk("circle", { cx: 256, cy: 14, r: 4, fill: "var(--muted)", opacity: .35 }, lg);
+    mk("text", { x: 266, y: 18, "font-size": 11.5, fill: "var(--ink-2)" }, lg, "unlabelled · 1 dot ≈ 10 claims");
+    s.counter = mk("text", { x: PX1, y: 18, "text-anchor": "end", "font-size": 13, "font-weight": 700, fill: "var(--human)", opacity: 0 }, svg, "round 1 · 100 labels");
+    const plot = mk("g", { "clip-path": "url(#c07a-clip)" }, svg);
+    s.band = mk("polygon", { points: bandPts(B1, BAND), fill: "var(--human-soft)", stroke: "var(--human)", "stroke-width": 1, "stroke-dasharray": "4 4", opacity: 0 }, plot);
+    s.ghostLine = mk("line", { stroke: "var(--model)", "stroke-width": 1.5, "stroke-dasharray": "3 5", opacity: 0 }, plot);
+    setLine(s.ghostLine, B1);
+    s.line = mk("line", { stroke: "var(--model)", "stroke-width": 3, "stroke-linecap": "round", "stroke-dasharray": 800, "stroke-dashoffset": 800 }, plot);
+    setLine(s.line, B1);
+    s.dots = DOTS.map((d) => mk("circle", { cx: d.x, cy: d.y, r: 4, fill: "var(--muted)", opacity: .35 }, plot));
+    s.rings = MARGIN.map((i) => mk("circle", { cx: DOTS[i].x, cy: DOTS[i].y, r: 10, fill: "none", stroke: "var(--human)", "stroke-width": 2, "stroke-dasharray": "3 3", opacity: 0 }, plot));
+    s.ghosts = RANDOM.map((i) => mk("circle", { cx: DOTS[i].x, cy: DOTS[i].y, r: 10, fill: "none", stroke: "var(--ink-2)", "stroke-width": 1.8, "stroke-dasharray": "2 3", opacity: 0 }, plot));
+    s.lb = mk("text", { x: 0, y: 0, "font-size": 12, "font-weight": 700, fill: "var(--model)", opacity: 0 }, svg, "boundary");
+    s.bandLabel = mk("text", { x: PX1 - 10, y: PY0 + 20, "text-anchor": "end", "font-size": 12, "font-weight": 700, fill: "var(--human)", opacity: 0 }, svg, "10 smallest margins = label next");
+    s.ghostLabel = mk("text", { x: PX0 + 10, y: PY1 - 12, "text-anchor": "start", "font-size": 12, "font-weight": 700, fill: "var(--ink-2)", opacity: 0 }, svg, "dashed rings: 10 random picks, same budget");
+    svg._S = s;
+    return s;
+  }
+
+  function placeLabel(s) {
+    // label where the line crosses the top of the plot
+    const t = (PY0 + 18 - s.b.y) / Math.sin(s.b.t);
+    const lx = s.b.x + Math.cos(s.b.t) * t, ly = s.b.y + Math.sin(s.b.t) * t;
+    s.lb.setAttribute("x", lx + 8); s.lb.setAttribute("y", ly + 4);
+  }
+
+  function dotState(s, i, labelled) {
+    const d = DOTS[i], c = s.dots[i];
+    if (labelled) { c.setAttribute("fill", d.pos ? "var(--risk)" : "var(--state)"); c.setAttribute("stroke", "var(--human)"); c.setAttribute("stroke-width", 2); c.setAttribute("r", 5.5); c.setAttribute("opacity", 1); }
+    else { c.setAttribute("fill", "var(--muted)"); c.setAttribute("stroke", "none"); c.setAttribute("r", 4); c.setAttribute("opacity", .35); }
+  }
+
+  function render(s, n, animate) {
+    const all = [s.counter, s.band, s.ghostLine, s.line, s.lb, s.bandLabel, s.ghostLabel, s.b, ...s.rings, ...s.ghosts, ...s.dots];
+    gsap.killTweensOf(all);
+    const op = (el, v, d) => (animate ? gsap.to(el, { opacity: v, duration: .4, delay: d || 0 }) : gsap.set(el, { opacity: v }));
+    // labels
+    DOTS.forEach((_, i) => dotState(s, i, (n >= 1 && SEED.includes(i)) || (n >= 3 && MARGIN.includes(i))));
+    if (animate && n === 1 && s.prev < 1) gsap.from(SEED.map((i) => s.dots[i]), { attr: { r: 0 }, duration: .5, stagger: .06, ease: "back.out(3)" });
+    if (animate && n === 3 && s.prev < 3) gsap.from(MARGIN.map((i) => s.dots[i]), { attr: { r: 0 }, duration: .5, stagger: .05, delay: .2, ease: "back.out(3)" });
+    // counter
+    op(s.counter, n >= 1 ? 1 : 0);
+    s.counter.textContent = n >= 3 ? "round 2 · 200 labels" : "round 1 · 100 labels";
+    // boundary: draws at step 1, moves at step 3
+    const tgt = n >= 3 ? B2 : B1;
+    if (animate && n === 3 && s.prev < 3) {
+      Object.assign(s.b, B1);
+      gsap.to(s.b, { x: B2.x, y: B2.y, t: B2.t, duration: 1.4, delay: .5, ease: "power2.inOut", onUpdate: () => { setLine(s.line, s.b); placeLabel(s); } });
+    } else { Object.assign(s.b, tgt); }
+    setLine(s.line, s.b); placeLabel(s);
+    if (n >= 1) {
+      if (animate && s.prev < 1) gsap.to(s.line, { attr: { "stroke-dashoffset": 0 }, duration: 1.1, delay: .6, ease: "power2.out" });
+      else gsap.set(s.line, { attr: { "stroke-dashoffset": 0 } });
+    } else gsap.set(s.line, { attr: { "stroke-dashoffset": 800 } });
+    op(s.lb, n >= 1 ? 1 : 0, n === 1 && animate ? 1.4 : 0);
+    op(s.ghostLine, n >= 3 ? .8 : 0);
+    // step 2: margin band + rings (until the batch is labelled)
+    op(s.band, n === 2 ? 1 : 0);
+    op(s.bandLabel, n === 2 ? 1 : 0);
+    s.rings.forEach((r, k) => {
+      if (n === 2 && animate && s.prev < 2) gsap.fromTo(r, { opacity: 0, attr: { r: 18 } }, { opacity: 1, attr: { r: 10 }, duration: .45, delay: .3 + k * .07 });
+      else gsap.set(r, { opacity: n === 2 ? 1 : 0, attr: { r: 10 } });
+    });
+    // step 4: random picks as ghost rings
+    s.ghosts.forEach((r, k) => {
+      if (n >= 4 && animate && s.prev < 4) gsap.fromTo(r, { opacity: 0, attr: { r: 18 } }, { opacity: 1, attr: { r: 10 }, duration: .45, delay: .1 + k * .07 });
+      else gsap.set(r, { opacity: n >= 4 ? 1 : 0, attr: { r: 10 } });
+    });
+    op(s.ghostLabel, n >= 4 ? 1 : 0, n >= 4 && animate ? .8 : 0);
+    s.prev = n;
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { S = build(slide); render(S, step, false); },
+    step(slide, n, animate) { S = build(slide); render(S, n, animate); },
+    leave(slide) {
+      const svg = slide.querySelector("#c07a-svg");
+      if (svg) gsap.killTweensOf(svg.querySelectorAll("*"));
+      if (svg && svg._S) gsap.killTweensOf(svg._S.b);
+    }
+  });
+})();
+</script>

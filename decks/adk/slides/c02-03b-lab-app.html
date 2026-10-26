@@ -1,0 +1,66 @@
+<section class="slide tight" id="adk-c02-lab-app" data-tone="state" data-title="Lab 2.2: the App">
+  <style>
+    #adk-c02-lab-app .c02a-grid { display: grid; grid-template-columns: 790px 1fr; gap: 30px; align-items: start; }
+    #adk-c02-lab-app .c02a-left, #adk-c02-lab-app .c02a-right { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+    #adk-c02-lab-app .group.hot { border-style: solid; background: color-mix(in oklab, var(--state) 12%, transparent); box-shadow: 0 0 0 3px color-mix(in oklab, var(--state) 22%, transparent); }
+    #adk-c02-lab-app .out { align-self: stretch; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 2</span> Acme claims API · step 2 of 3</div>
+  <h2 class="title">An App bundles the agent and its plugins into one deployable unit</h2>
+  <div class="c02a-grid fill">
+    <div class="c02a-left">
+      <div class="code-wrap">
+        <div class="code-head">labs/adk/lab2-claims-api/agents/claims_api/agent.py · excerpt</div>
+        <pre class="code c17" data-lang="python" data-focus="1:6-12, 2:15-16, 3:14"><code>from google.adk import Agent
+from google.adk.apps import App
+from google.adk.plugins import LoggingPlugin
+# ... lookup_policy and AuditPlugin from the previous slide
+
+root_agent = Agent(
+    name="claims_assistant",
+    model="gemini-3.5-flash",
+    instruction=("Answer coverage questions. "
+                 "Always call lookup_policy first."),
+    tools=[lookup_policy],
+)
+
+# adk run / web / api_server use a variable named `app` when it exists
+app = App(name="claims_api", root_agent=root_agent,
+          plugins=[LoggingPlugin(), AuditPlugin()])</code></pre>
+      </div>
+      <div class="c02-cap">
+        <p data-until="1">The App is what you run and deploy: one agent tree plus its plugins.</p>
+        <p data-step="1" data-until="2"><code>root_agent</code> answers coverage questions with one tool.</p>
+        <p data-step="2" data-until="3"><code>App</code> takes <code>name</code>, <code>root_agent</code> and <code>plugins</code>. A wrong kwarg raises.</p>
+        <p data-step="3">The CLI loads <code>app</code> if it exists. Else it wraps <code>root_agent</code>.</p>
+      </div>
+    </div>
+    <div class="c02a-right">
+      <div class="diagram" style="width:572px;height:356px" data-wires="c02a-agent>c02a-tool:rl [tool call]">
+        <div class="group g-state" style="left:0;top:16px;width:572px;height:340px" data-on="2:hot"><span class="gl">App(name="claims_api")</span></div>
+        <div class="group g-tool" style="left:22px;top:62px;width:528px;height:122px"><span class="gl">plugins=[…]</span></div>
+        <div class="node n-tool ghost" id="c02a-log" style="left:40px;top:88px;width:222px"><span class="nt">LoggingPlugin</span><span class="ns">logs each hook</span></div>
+        <div class="node n-tool ghost" id="c02a-audit" style="left:304px;top:88px;width:228px"><span class="nt">AuditPlugin</span><span class="ns">audit_log</span></div>
+        <div class="node n-agent" id="c02a-agent" style="left:40px;top:238px;width:206px" data-on="1:hot"><span class="nt">claims_assistant</span><span class="ns">root_agent</span></div>
+        <div class="node n-tool" id="c02a-tool" style="left:372px;top:238px;width:168px"><span class="nt">lookup_policy</span><span class="ns">tool</span></div>
+      </div>
+      <div class="code-wrap out" data-step="3">
+        <div class="code-head">output · illustrative</div>
+        <pre class="code sm" data-lang="output"><code><span class="dim">$ adk run agents/claims_api</span>
+[user]: What is my collision deductible on POL-448120?
+<span class="ok">[claims_assistant]: Your collision deductible is $500.</span></code></pre>
+      </div>
+      <div class="cites push"><a class="cite doc" href="https://adk.dev/apps/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Apps</a><a class="cite doc" href="https://adk.dev/plugins/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Plugins</a></div>
+    </div>
+  </div>
+  <aside class="notes">Same file, bottom half. Click 1: root_agent is the claims assistant with one tool. Click 2: the App holds the agent and the plugins as one deployable unit. App is a pydantic model that rejects unknown fields, so App(agent=...) fails: the field is root_agent. It has three more config fields (events compaction, context cache, resumability) that later chapters use. Click 3: adk run, adk web and adk api_server share one loader. It imports agent.py through __init__.py ("from . import agent"); if the module has a variable named app it uses that App and its plugins, otherwise it wraps root_agent. Put the .env file with GOOGLE_API_KEY in agents/claims_api/. The audit log is visible in the adk web State tab, or through the session GET two slides later. Analogy: the App is a shipping container: the agent is the cargo, and the plugins travel in the same box. Never pass plugins to the Runner: that is deprecated, and with app= it raises.</aside>
+</section>
+<script>
+(() => {
+  Deck.register("adk-c02-lab-app", {
+    enter(slide, n) { if (window.c02Focus) window.c02Focus(slide, n || 0); },
+    step(slide, n) { if (window.c02Focus) window.c02Focus(slide, n); },
+    leave() {},
+  });
+})();
+</script>

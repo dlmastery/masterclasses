@@ -1,0 +1,42 @@
+<section class="slide" id="adk-c09-lab-ci" data-tone="model" data-title="Lab 9.11: GitHub Actions gate">
+  <style>
+    #adk-c09-lab-ci .c9-split { --c9l: 800px; }
+    #adk-c09-lab-ci .c9-cap { min-height: 100px; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 9</span> Acme refund eval gate · step 11 of 15</div>
+  <h2 class="title">CI reads only the exit code, so the workflow stays short</h2>
+  <div class="c9-split fill">
+    <div class="code-wrap">
+      <div class="code-head">labs/adk/lab9-refund-eval/ci/eval.yml · excerpt</div>
+      <pre class="code" data-lang="yaml" data-focus="1:11, 2:12-14, 3:15"><code>jobs:
+  eval:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: labs/adk/lab9-refund-eval
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - run: pip install "google-adk[eval]==2.13.0"
+      - env:
+          GOOGLE_GENAI_USE_ENTERPRISE: "FALSE"
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+        run: bash ci/eval_gate.sh</code></pre>
+    </div>
+    <div class="c9-col">
+      <div class="diagram" style="width:560px;height:430px" data-wires="pr>job:tb {human}; job>red@3:bend-40 [a case failed]{risk}; job>green@3:bend40 [all passed]{state}">
+        <div class="node n-human" id="pr" style="left:150px;top:0;width:260px"><span class="nt">pull request</span><span class="ns">on: [pull_request]</span></div>
+        <div class="node n-tool" id="job" style="left:150px;top:150px;width:260px" data-on="1:hot"><span class="nt">eval-gate job</span><span class="ns">bash ci/eval_gate.sh</span></div>
+        <div class="node n-risk" id="red" style="left:0;top:330px;width:220px" data-step="3"><span class="nt">exit 1</span><span class="ns">merge blocked</span></div>
+        <div class="node n-state" id="green" style="left:340px;top:330px;width:220px" data-step="3"><span class="nt">exit 0</span><span class="ns">merge allowed</span></div>
+      </div>
+      <div class="c9-cap">
+        <p data-step="1" data-until="2">Pin the version CI installs. It must match the lab.</p>
+        <p data-step="2" data-until="3">The API key comes from a repository secret, never from the repo.</p>
+        <p data-step="3">The gate script adds the checks that <code>adk eval</code> skips. See the gotcha slide.</p>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Step eleven: the GitHub Actions workflow is short because CI needs only the exit code. Pin google-adk with the eval extra to the same 2.13.0 the lab uses, put the API key in a repository secret, run from the lab folder, and call ci/eval_gate.sh. The script runs adk eval, and since 2.13.0 a failed case gives exit 1, so the job fails and branch protection blocks the merge; when every case passes, the job exits 0. The script also adds three checks that adk eval does not do for you: it fails on a missing config file, on a wrong case count and on a known-bad case that passes; the gotcha slides explain why. Analogy: a bouncer who reads one thing, the wristband colour. A likely question: "Where does the copy of this file go?" Copy ci/eval.yml to .github/workflows/eval.yml at the repository root.</aside>
+</section>

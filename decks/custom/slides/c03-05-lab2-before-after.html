@@ -1,0 +1,157 @@
+<section class="slide" id="custom-c03-lab2-before-after" data-tone="model" data-title="Lab 2 · before vs after">
+  <div class="kicker"><span class="pill">Lab 2</span> Acme claims extractor · step 4 of 4</div>
+  <h2 class="title">Same NF4 weights, adapter off vs on</h2>
+  <div class="grid fill ba-grid">
+    <div class="code-wrap ba-code">
+      <div class="code-head">lab4_eval_before_after.py · peft 0.21.2 · transformers 5.20.2</div>
+      <pre class="code" data-lang="python" data-focus="1:5-10, 2:15-18, 3:25-26, 4:27-30"><code># omitted above: imports; tok; test = claims_test.jsonl (200 rows);
+# base = Qwen3-4B in NF4 with the same bnb and DT as lab3_qlora_claims.py
+model = PeftModel.from_pretrained(base, ADAPTER).eval()
+FIELDS = ["loss_type", "severity", "needs_adjuster", "policy_section"]
+def generate(msgs):
+    enc = tok.apply_chat_template(msgs, add_generation_prompt=True,
+                                  return_tensors="pt", return_dict=True).to(model.device)
+    with torch.no_grad():
+        out = model.generate(**enc, max_new_tokens=96, do_sample=False)
+    return tok.decode(out[0, enc["input_ids"].shape[1]:], skip_special_tokens=True)
+def score():
+    valid, hits = 0, dict.fromkeys(FIELDS, 0)
+    for ex in test:
+        gold = json.loads(ex["completion"][0]["content"])
+        try:
+            pred = json.loads(generate(ex["prompt"]))
+        except json.JSONDecodeError:      # prose after the JSON: invalid
+            continue
+        if isinstance(pred, dict):
+            valid += 1
+            for f in FIELDS:
+                hits[f] += pred.get(f) == gold[f]
+    n = len(test)
+    return {"json_valid": valid / n, **{f"acc_{f}": hits[f] / n for f in FIELDS}}
+with model.disable_adapter():          # BEFORE: same weights, LoRA off
+    before = score()
+after = score()                        # AFTER: same weights, LoRA on
+for k in before:
+    print(f"{k:20s} base={before[k]:.3f} tuned={after[k]:.3f}"
+          f" delta={after[k] - before[k]:+.3f}")</code></pre>
+    </div>
+
+    <div class="stack ba-right">
+      <div class="lab-head"><span class="run">python lab4_eval_before_after.py | tee eval_report.txt</span></div>
+      <svg id="ba-svg" viewBox="0 0 620 256" width="620" height="256" aria-label="A switch labelled adapter OFF, then ON, over five metrics. At step 3 grey bars show the base scores with the adapter off. At step 4 the switch turns on and coral bars grow to the tuned scores with green delta badges."></svg>
+      <div class="ba-ci" data-step="5">n=200: 95% interval ≈ ±0.07 at a score near 0.6. Full intervals in chapter 11.</div>
+      <div class="code-wrap out" data-step="4" data-fx="fade">
+        <div class="code-head">output · illustrative · n=200</div>
+        <pre class="code" data-lang="none"><code>json_valid           base=0.615 tuned=<span class="ok">0.995</span> delta=<span class="ok">+0.380</span>
+acc_loss_type        base=0.540 tuned=<span class="ok">0.930</span> delta=<span class="ok">+0.390</span>
+acc_severity         base=0.385 tuned=<span class="ok">0.840</span> delta=<span class="ok">+0.455</span>
+acc_needs_adjuster   base=0.470 tuned=<span class="ok">0.905</span> delta=<span class="ok">+0.435</span>
+acc_policy_section   base=0.290 tuned=<span class="ok">0.810</span> delta=<span class="ok">+0.520</span></code></pre>
+      </div>
+      <div class="steps-rail ba-rail">
+        <div data-step="1"><span><code>do_sample=False</code> overrides Qwen's <code>generation_config</code> (sampling, temperature 0.7, top_p 0.8). Decode only the new tokens.</span></div>
+        <div data-step="2"><span><code>JSONDecodeError: Extra data</code> on the base is expected: it adds prose. The row counts as invalid.</span></div>
+        <div data-step="3"><span><code>disable_adapter()</code> runs the same NF4 weights with LoRA off. Quantization noise is the same in both arms.</span></div>
+        <div data-step="4"><span>Adapter on, same test set. The delta now isolates the adapter.</span></div>
+      </div>
+    </div>
+  </div>
+  <style>
+    #custom-c03-lab2-before-after .ba-grid { grid-template-columns: 744px minmax(0, 1fr); gap: 26px; align-items: start; }
+    #custom-c03-lab2-before-after .ba-code pre.code { font-size: 13.5px; line-height: 19px; padding: 10px 16px 12px; }
+    #custom-c03-lab2-before-after .code-head { font-size: 13px; padding: 8px 14px; }
+    #custom-c03-lab2-before-after .ba-right { gap: 10px; min-width: 0; }
+    #custom-c03-lab2-before-after #ba-svg { width: 100%; height: auto; }
+    #custom-c03-lab2-before-after .lab-head .run { font-size: 14px; }
+    #custom-c03-lab2-before-after .out pre.code { font-size: 12.5px; line-height: 17px; padding: 7px 14px 9px; }
+    #custom-c03-lab2-before-after .ba-rail { gap: 6px; }
+    #custom-c03-lab2-before-after .ba-rail > * { font-size: 15px; line-height: 1.32; grid-template-columns: 30px 1fr; gap: 10px; }
+    #custom-c03-lab2-before-after .ba-rail > *::before { width: 26px; height: 26px; font-size: 13px; }
+    #custom-c03-lab2-before-after .ba-rail code { font-size: .84em; }
+    #custom-c03-lab2-before-after .ba-ci { font: 700 14px/1.3 var(--f-mono); color: var(--tool); padding: 7px 12px; border: 1.5px solid var(--tool); border-radius: 8px; background: color-mix(in oklab, var(--tool) 10%, transparent); }
+  </style>
+  <aside class="notes">This is the honest test: one model object, the same 4-bit NF4 weights, and the adapter switched off for the "before" run with disable_adapter. Walk the code in order. First, generation is greedy: Qwen3-4B-Instruct-2507 ships a generation_config that samples, with temperature 0.7 and top_p 0.8, so do_sample=False makes the metric reproducible, and we decode only the new tokens so the prompt never reaches json.loads. Second, a JSONDecodeError on the base model is expected, because it adds prose after the JSON, and that row counts as invalid. Third, disable_adapter gives the "before" scores on the same weights, so quantization noise is identical in both arms. Fourth, the "after" run gives the delta, and all four keys, including the free-text policy_section, are scored. The numbers are illustrative on 200 notes. With n=200 and a score near 0.6, the 95% interval is about plus or minus 0.07 (normal approximation), so a delta of 0.38 is far outside the noise; chapter 11 adds proper intervals and a slice table. Also run a general-capability regression on both arms, because forgetting is the main SFT cost; the forgetting slide (NB-LoRA) shows how large it can be. If the adapter fails to load with "Target modules ... not found in the base model", the adapter was trained on a different base: load the base named in adapter_config.json. Likely question: "Why not compare against the base loaded separately in bf16?" Because then you also measure quantization, and you cannot tell which change moved the score.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ROWS = [
+    { k: "json_valid", b: 0.615, t: 0.995, d: "+0.380" },
+    { k: "loss_type", b: 0.540, t: 0.930, d: "+0.390" },
+    { k: "severity", b: 0.385, t: 0.840, d: "+0.455" },
+    { k: "needs_adjuster", b: 0.470, t: 0.905, d: "+0.435" },
+    { k: "policy_section", b: 0.290, t: 0.810, d: "+0.520" }
+  ];
+  const X0 = 150, W = 340, Y0 = 70, RH = 38;
+  let svg, knob, track, swTxt, rows = [], tweens = [];
+  const mk = (tag, a, p) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); p.appendChild(e); return e; };
+  const tx = (s, a, p) => { const e = mk("text", a, p); e.textContent = s; return e; };
+  const mono = "font-family:var(--f-mono)";
+
+  function build(slide) {
+    svg = slide.querySelector("#ba-svg");
+    svg.innerHTML = ""; rows = [];
+    track = mk("rect", { x: 0, y: 4, width: 72, height: 34, rx: 17, fill: "var(--faint)" }, svg);
+    knob = mk("circle", { cx: 17, cy: 21, r: 13, fill: "#fff", stroke: "var(--line-2)", "stroke-width": 1 }, svg);
+    swTxt = tx("adapter OFF", { x: 84, y: 28, "font-size": 18, "font-weight": 700, fill: "var(--muted)", style: mono }, svg);
+    tx("same NF4 weights", { x: 236, y: 27, "font-size": 14, fill: "var(--muted)", style: mono }, svg);
+    [0, 0.5, 1].forEach((v) => {
+      mk("line", { x1: X0 + v * W, x2: X0 + v * W, y1: Y0 - 10, y2: Y0 + ROWS.length * RH - 8, stroke: "var(--line)", "stroke-width": 1 }, svg);
+      tx(v.toFixed(1), { x: X0 + v * W, y: Y0 - 14, "text-anchor": "middle", "font-size": 12, fill: "var(--muted)", style: mono }, svg);
+    });
+    ROWS.forEach((r, i) => {
+      const y = Y0 + i * RH;
+      tx(r.k, { x: X0 - 12, y: y + 18, "text-anchor": "end", "font-size": 15, "font-weight": 600, fill: "var(--ink-2)", style: mono }, svg);
+      const bb = mk("rect", { x: X0, y, width: 0, height: 13, rx: 3, fill: "var(--faint)" }, svg);
+      const bt = tx("", { x: X0 + 6, y: y + 11, "font-size": 12, fill: "var(--muted)", style: mono }, svg);
+      const tb = mk("rect", { x: X0, y: y + 16, width: 0, height: 13, rx: 3, fill: "var(--model)" }, svg);
+      const tt = tx("", { x: X0 + 6, y: y + 27, "font-size": 12, "font-weight": 700, fill: "var(--model)", style: mono }, svg);
+      const dg = mk("g", { opacity: 0 }, svg);
+      mk("rect", { x: X0 + W + 54, y: y + 1, width: 72, height: 26, rx: 7, fill: "var(--state-soft)" }, dg);
+      tx(r.d, { x: X0 + W + 90, y: y + 19, "text-anchor": "middle", "font-size": 14, "font-weight": 700, fill: "var(--state)", style: mono }, dg);
+      rows.push({ r, bb, bt, tb, tt, dg, cb: { v: 0 }, ct: { v: 0 } });
+    });
+  }
+
+  function setBar(rect, label, v, dx) {
+    rect.setAttribute("width", v * W);
+    label.textContent = v > 0 ? v.toFixed(3) : "";
+    label.setAttribute("x", X0 + v * W + dx);
+  }
+
+  function kill() { tweens.forEach((t) => t.kill()); tweens = []; }
+
+  function render(slide, n, animate) {
+    if (!svg) build(slide);
+    kill();
+    const off = n >= 3, on = n >= 4;
+    const knobX = on ? 55 : 17;
+    if (animate && n === 4) tweens.push(gsap.to(knob, { attr: { cx: knobX }, duration: 0.45, ease: "power3.inOut" }));
+    else knob.setAttribute("cx", knobX);
+    track.setAttribute("fill", on ? "var(--model)" : "var(--faint)");
+    swTxt.textContent = on ? "adapter ON" : "adapter OFF";
+    swTxt.setAttribute("fill", on ? "var(--model)" : "var(--muted)");
+    rows.forEach((x, i) => {
+      const bv = off ? x.r.b : 0, tv = on ? x.r.t : 0;
+      if (animate && n === 3) {
+        x.cb.v = 0;
+        tweens.push(gsap.to(x.cb, { v: bv, duration: 0.9, delay: 0.15 + i * 0.15, ease: "power2.out", onUpdate: () => setBar(x.bb, x.bt, x.cb.v, 8) }));
+      } else setBar(x.bb, x.bt, bv, 8);
+      if (animate && n === 4) {
+        x.ct.v = 0; setBar(x.tb, x.tt, 0, 8);
+        tweens.push(gsap.to(x.ct, { v: tv, duration: 1.0, delay: 0.5 + i * 0.15, ease: "power2.out", onUpdate: () => setBar(x.tb, x.tt, x.ct.v, 8) }));
+        tweens.push(gsap.fromTo(x.dg, { opacity: 0, scale: 0.6, transformOrigin: "center" }, { opacity: 1, scale: 1, duration: 0.4, delay: 1.5 + i * 0.15, ease: "back.out(2)" }));
+      } else {
+        setBar(x.tb, x.tt, tv, 8);
+        gsap.set(x.dg, { opacity: on ? 1 : 0, scale: 1 });
+      }
+    });
+  }
+
+  Deck.register("custom-c03-lab2-before-after", {
+    enter(slide, step) { build(slide); render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { kill(); if (svg) gsap.killTweensOf([knob].concat(rows.map((x) => x.dg), rows.map((x) => x.cb), rows.map((x) => x.ct))); }
+  });
+})();
+</script>

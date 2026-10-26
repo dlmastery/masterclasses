@@ -1,0 +1,228 @@
+<section class="slide tight" id="rag-c06-lab5-verifier" data-tone="agent" data-title="Lab 5: verifier gate">
+  <style>
+    #rag-c06-lab5-verifier .vf-grid { display: grid; grid-template-columns: 740px 628px; gap: 24px; align-items: start; }
+    #rag-c06-lab5-verifier .vf-left, #rag-c06-lab5-verifier .vf-right { gap: 10px; min-width: 0; }
+    #rag-c06-lab5-verifier .code-wrap .code-head { padding: 9px 14px; font-size: 13.5px; }
+    #rag-c06-lab5-verifier pre.code.vf-c { font-size: 14px; line-height: 1.44; padding: 14px 20px 16px; }
+    #rag-c06-lab5-verifier pre.code.vf-o { font-size: 11.5px; line-height: 1.38; padding: 8px 14px 10px; }
+    #rag-c06-lab5-verifier pre.code.vf-o .ln { display: block; }
+    #rag-c06-lab5-verifier .lab-head { gap: 10px; flex-wrap: nowrap; }
+    #rag-c06-lab5-verifier .lab-head .run { font-size: 14px; flex: none; }
+    #rag-c06-lab5-verifier .lab-head .tag { font-size: 13px; padding: 5px 9px; }
+    #rag-c06-lab5-verifier .lab-head .cite { flex: none; white-space: nowrap; font-size: 13px; padding: 5px 10px 5px 8px; }
+    #rag-c06-lab5-verifier .vf-rail { position: relative; height: 46px; }
+    #rag-c06-lab5-verifier .vf-rail > p { position: absolute; left: 0; right: 0; top: 0; margin: 0; font-size: 16px; line-height: 1.36; }
+    #rag-c06-lab5-verifier .vf-rail code { font-size: .88em; }
+    #rag-c06-lab5-verifier .vf-cites { display: flex; gap: 8px; flex-wrap: wrap; }
+    #rag-c06-lab5-verifier .vf-cites .cite { font-size: 13px; padding: 5px 10px 5px 8px; }
+    #rag-c06-lab5-verifier .vf-svg { display: block; overflow: visible; }
+    #rag-c06-lab5-verifier .vf-svg text { font-family: var(--f-mono); font-size: 13px; fill: var(--ink); }
+    #rag-c06-lab5-verifier .vf-svg .hd { font-size: 11.5px; font-weight: 700; letter-spacing: .05em; }
+    #rag-c06-lab5-verifier .vf-svg .st { fill: var(--state); }
+    #rag-c06-lab5-verifier .vf-svg .ag { fill: var(--agent); }
+    #rag-c06-lab5-verifier .vf-svg .hu { fill: var(--human); }
+    #rag-c06-lab5-verifier .vf-svg .rk { fill: var(--risk); }
+    #rag-c06-lab5-verifier .vf-svg .tl { fill: var(--tool); }
+    #rag-c06-lab5-verifier .vf-svg .mu { fill: var(--muted); }
+    #rag-c06-lab5-verifier .vf-svg .b { font-weight: 700; }
+    #rag-c06-lab5-verifier .vf-svg .sm { font-size: 12px; }
+    #rag-c06-lab5-verifier .vf-svg .big { font-size: 16px; font-weight: 700; }
+    #rag-c06-lab5-verifier .vf-svg .wh { fill: #fff; font-weight: 700; font-size: 13px; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 5</span> Northwind helpdesk · step 3 of 4</div>
+  <h2 class="title">The answer reaches the user only after a separate verifier agrees</h2>
+  <div class="vf-grid fill">
+    <div class="stack vf-left">
+      <div class="lab-head">
+        <span class="run">python lab5_helpdesk.py</span>
+        <span class="tag t-tool">google-adk==2.13.0</span>
+        <a class="cite repo" href="https://github.com/google/adk-python/tree/v2.13.0/contributing/samples/workflows/route" target="_blank" rel="noopener"><b>Repo</b>&nbsp;ADK Workflow Routing Sample</a>
+      </div>
+      <div class="code-wrap">
+        <div class="code-head">lab5_helpdesk.py · step 3: the HR chain</div>
+        <pre class="code vf-c" data-lang="python" data-focus="1:2-4, 2:6-9, 3:11-13, 4:14-16"><code># Agent, Event, MODEL and Verdict come from step 1
+answerer = Agent(name="answerer", model=MODEL, output_key="draft",
+                 instruction="Answer: {question}\nUse ONLY this evidence and "
+                             "cite ids like [PTO-2026]:\n{evidence}")
+
+verifier = Agent(name="verifier", model=MODEL, output_schema=Verdict,
+                 output_key="verdict",
+                 instruction="Evidence:\n{evidence}\n\nDraft:\n{draft}\n\n"
+                             "Check each claim of the draft against the evidence.")
+
+def gate(node_input: Verdict, draft: str):
+    if node_input.supported:
+        yield Event(message=f"VERIFIED: {draft}")
+    else:
+        yield Event(message="Opened HR ticket; could not verify: "
+                            f"{node_input.unsupported_claims}")</code></pre>
+      </div>
+      <div class="code-wrap out" data-step="1">
+        <div class="code-head">output · illustrative · run 2 plants an unsupported claim</div>
+        <pre class="code vf-o" data-lang="output"><code><span class="ln">User &gt; How many PTO days can I carry over into 2027?</span><span class="ln">[router]: {"category": "hr_policy"}</span><span class="ln">[answerer]: You can carry over at most 5 unused PTO days into the next year [PTO-2026].</span><span class="ln" data-step="2">[verifier]: {"supported": true, "unsupported_claims": []}</span><span class="ln ok" data-step="3">[gate]: VERIFIED: You can carry over at most 5 unused PTO days into the next year [PTO-2026].</span><span class="ln err" data-step="4">[answerer]: ... 5 unused PTO days [PTO-2026], and 3 more days with manager approval.</span><span class="ln err" data-step="4">[verifier]: {"supported": false, "unsupported_claims": ["3 more days with manager approval"]}</span><span class="ln err" data-step="4">[gate]: Opened HR ticket; could not verify: ['3 more days with manager approval']</span></code></pre>
+      </div>
+    </div>
+    <div class="stack vf-right">
+      <svg class="vf-svg" id="vf-svg" viewBox="0 0 628 480" width="628" height="480" aria-label="The answerer writes a draft with a PTO-2026 citation; the verifier links the claim to the evidence sentence and the gate opens; in a second run a planted claim has no evidence, the gate stays shut and an HR ticket opens"></svg>
+      <div class="steps-rail vf-rail">
+        <p data-step="1" data-until="2"><span><code>output_key="draft"</code> writes the answer. <code>{evidence}</code> reads state.</span></p>
+        <p data-step="2" data-until="3"><span>The verifier sees only evidence and draft: the node default is <code>include_contents='none'</code>.</span></p>
+        <p data-step="3" data-until="4"><span><code>gate</code> gets the Verdict as <code>node_input</code> and the draft by name.</span></p>
+        <p data-step="4"><span>One unsupported claim keeps the gate shut. Verify with a different model. Log how often the router picks each branch.</span></p>
+      </div>
+      <div class="vf-cites" data-step="4">
+        <a class="cite paper" href="https://arxiv.org/abs/2609.35774" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2609.35774 Post-generation verification</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2607.24010" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2607.24010 When should Active RAG retrieve?</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    This is step 3 of Lab 5: the three nodes that the HR-chain edge from step 2 names after retrieve_hr. The answerer writes its text to state["draft"] through output_key, and its {question} and {evidence} placeholders read state. The verifier is a separate agent that sees only {evidence} and {draft}, because a workflow node defaults to include_contents='none', and it returns a Verdict; gate reads that Verdict as node_input and the draft by parameter name, so only verified text reaches the employee, which is the check_identity pattern of the agent_in_workflow sample. In the last step the draft carries a planted claim, "and 3 more days with manager approval", that no evidence sentence supports, so the gate stays shut and an HR ticket opens. Analogy: the answerer writes the memo, the verifier is the colleague who reads only the memo and the policy page, never the chat. Likely question: "Why not let the answerer check itself?" A separate agent, ideally on a different model, does not share the writer's blind spots; arXiv 2609.35774 found a post-generation completeness check (d = +0.48) beats agentic search tweaks, and 2607.24010 says to log how often the router picks each branch, because router quality changes with the traffic mix. Next, step 4 replaces the it_agent placeholder with a real IT triage agent.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  let B = null, prev = -1, tweens = [];
+  const mk = (p, tag, attrs, cls, txt) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (cls) e.setAttribute("class", cls);
+    if (txt !== undefined) e.textContent = txt;
+    p.appendChild(e); return e;
+  };
+  const box = (p, x, y, w, h, tone, sw) => mk(p, "rect", { x, y, width: w, height: h, rx: 12, fill: `var(--${tone}-soft)`, stroke: `var(--${tone})`, "stroke-width": sw || 1.6 });
+  const arrow = (p, x1, y1, x2, y2, tone) => {
+    const g = mk(p, "g");
+    mk(g, "line", { x1, y1, x2, y2, stroke: `var(--${tone})`, "stroke-width": 2.2 });
+    const dx = Math.sign(x2 - x1), dy = Math.sign(y2 - y1);
+    const pts = dx ? `${x2},${y2} ${x2 - 9 * dx},${y2 - 5} ${x2 - 9 * dx},${y2 + 5}` : `${x2},${y2} ${x2 - 5},${y2 - 9 * dy} ${x2 + 5},${y2 - 9 * dy}`;
+    mk(g, "polygon", { points: pts, fill: `var(--${tone})` });
+    return g;
+  };
+  const badge = (p, cx, cy, tone, ch) => {
+    const g = mk(p, "g");
+    mk(g, "circle", { cx, cy, r: 12, fill: `var(--${tone})` });
+    mk(g, "text", { x: cx, y: cy + 4.5, "text-anchor": "middle" }, "wh", ch);
+    return g;
+  };
+  function build(slide) {
+    const svg = slide.querySelector("#vf-svg");
+    svg.innerHTML = "";
+    const defs = mk(svg, "defs");
+    const cp = mk(defs, "clipPath", { id: "vf-door-clip" });
+    mk(cp, "rect", { x: 484, y: 370, width: 120, height: 100, rx: 10 });
+    // evidence card (state, written by retrieve_hr)
+    const ev = mk(svg, "g");
+    box(ev, 0, 0, 628, 112, "state");
+    mk(ev, "text", { x: 16, y: 24 }, "hd st", "STATE['EVIDENCE'] · FROM RETRIEVE_HR");
+    const hl = mk(ev, "rect", { x: 98, y: 63, width: 452, height: 21, rx: 5, fill: "var(--state)", opacity: 0 });
+    const e1 = mk(ev, "text", { x: 16, y: 52 });
+    mk(e1, "tspan", {}, "st b", "[PTO-2026]");
+    mk(e1, "tspan", {}, "", " Full-time staff accrue 1.75 PTO days per month.");
+    mk(ev, "text", { x: 104, y: 78 }, "", "At most 5 unused PTO days carry over into the next year.");
+    mk(ev, "text", { x: 16, y: 102 }, "mu", "[...] second hit, k=2");
+    // draft card (answerer -> state['draft'])
+    const dr = mk(svg, "g");
+    box(dr, 0, 170, 400, 120, "agent");
+    mk(dr, "text", { x: 16, y: 194 }, "hd ag", "STATE['DRAFT'] · FROM ANSWERER");
+    mk(dr, "text", { x: 16, y: 222 }, "", "You can carry over at most 5 unused");
+    mk(dr, "text", { x: 16, y: 246 }, "", "PTO days into the next year");
+    mk(dr, "rect", { x: 244, y: 231, width: 94, height: 21, rx: 6, fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 1.4 });
+    mk(dr, "text", { x: 252, y: 246 }, "st b", "[PTO-2026]");
+    const d3 = mk(dr, "text", { x: 16, y: 274 }, "rk b", "+ and 3 more days with manager approval.");
+    // verifier node
+    const vr = mk(svg, "g");
+    mk(vr, "rect", { x: 460, y: 170, width: 168, height: 120, rx: 12, fill: "var(--surface-2)", stroke: "var(--agent)", "stroke-width": 2.2 });
+    mk(vr, "text", { x: 476, y: 200 }, "big ag", "verifier");
+    mk(vr, "text", { x: 476, y: 222 }, "sm mu", "Agent → Verdict");
+    mk(vr, "text", { x: 476, y: 248 }, "sm", "sees only:");
+    mk(vr, "text", { x: 476, y: 268 }, "sm ag b", "evidence + draft");
+    const a1 = arrow(svg, 402, 230, 458, 230, "agent");
+    // claim -> evidence links
+    const c1 = mk(svg, "path", { d: "M190,170 C190,138 238,122 246,88", fill: "none", stroke: "var(--state)", "stroke-width": 2.6 });
+    const t1 = badge(svg, 206, 136, "state", "✓");
+    const c2 = mk(svg, "path", { d: "M330,170 C330,148 392,140 420,114", fill: "none", stroke: "var(--risk)", "stroke-width": 2.6, "stroke-dasharray": "6 5" });
+    const t2 = badge(svg, 372, 140, "risk", "✕");
+    // verdict chips
+    const vdT = mk(svg, "g"); box(vdT, 460, 304, 168, 34, "state"); mk(vdT, "text", { x: 474, y: 326 }, "st b", "supported: true");
+    const vdF = mk(svg, "g"); box(vdF, 460, 304, 168, 34, "risk"); mk(vdF, "text", { x: 474, y: 326 }, "rk b", "supported: false");
+    const a2 = arrow(svg, 544, 340, 544, 366, "agent");
+    // gate door (function node, tool colour)
+    const gl = mk(svg, "text", { x: 410, y: 406 }, "sm tl b", "gate()");
+    mk(svg, "rect", { x: 484, y: 370, width: 120, height: 100, rx: 10, fill: "var(--state-soft)", stroke: "var(--tool)", "stroke-width": 2 });
+    mk(svg, "text", { x: 544, y: 426, "text-anchor": "middle" }, "big st", "OPEN");
+    const doors = mk(svg, "g", { "clip-path": "url(#vf-door-clip)" });
+    const door = (x, lbl, ax) => {
+      const g = mk(doors, "g");
+      mk(g, "rect", { x, y: 370, width: 60, height: 100, fill: "var(--surface)" });
+      mk(g, "rect", { x, y: 370, width: 60, height: 100, fill: "var(--tool-soft)", stroke: "var(--tool)", "stroke-width": 1.6 });
+      mk(g, "text", { x: ax, y: 426, "text-anchor": lbl === "SH" ? "end" : "start" }, "big tl", lbl);
+      return g;
+    };
+    const dl = door(484, "SH", 542), drr = door(544, "UT", 546);
+    mk(doors, "rect", { x: 484, y: 370, width: 120, height: 100, fill: "none" });
+    const a3 = arrow(svg, 482, 420, 404, 420, "state");
+    const a3r = arrow(svg, 482, 420, 404, 420, "risk");
+    // user reply / HR ticket
+    const rp = mk(svg, "g");
+    box(rp, 0, 370, 400, 100, "human");
+    mk(rp, "text", { x: 16, y: 394 }, "hd hu", "THE EMPLOYEE SEES");
+    mk(rp, "text", { x: 16, y: 418 }, "st b", "VERIFIED: You can carry over at most 5");
+    mk(rp, "text", { x: 16, y: 440 }, "", "unused PTO days into the next year");
+    mk(rp, "text", { x: 16, y: 462 }, "st b", "[PTO-2026].");
+    const tk = mk(svg, "g");
+    box(tk, 0, 370, 400, 100, "risk", 2);
+    mk(tk, "text", { x: 16, y: 396 }, "big rk", "HR ticket opened");
+    mk(tk, "text", { x: 16, y: 422 }, "", "could not verify:");
+    mk(tk, "text", { x: 16, y: 446 }, "rk b", "'3 more days with manager approval'");
+    B = { ev, hl, dr, d3, vr, a1, c1, t1, c2, t2, vdT, vdF, a2, gl, dl, drr, a3, a3r, rp, tk };
+  }
+  function render(slide, n, animate) {
+    if (!B) build(slide);
+    tweens.forEach((t) => t.kill()); tweens = [];
+    const fwd = animate && n === prev + 1;
+    const A = (el, to, opt) => { if (fwd) tweens.push(gsap.to(el, { ...to, ...opt })); else gsap.set(el, to); };
+    const draw = (p, on, delay) => {
+      const len = p.getTotalLength();
+      if (fwd && on && +gsap.getProperty(p, "opacity") < 0.5) tweens.push(gsap.fromTo(p, { opacity: 1, strokeDasharray: len, strokeDashoffset: len }, { strokeDashoffset: 0, duration: 0.7, delay, ease: "power2.out", onComplete: () => p === B.c2 && gsap.set(p, { strokeDasharray: "6 5" }) }));
+      else gsap.set(p, { opacity: on ? 1 : 0, strokeDasharray: p === B.c2 ? "6 5" : "none", strokeDashoffset: 0 });
+    };
+    const run2 = n >= 4;
+    // step 0: evidence is in state; the verifier waits
+    gsap.set(B.ev, { opacity: 1 });
+    A(B.vr, { opacity: n >= 2 ? 1 : 0.4 }, { duration: 0.3 });
+    // step 1: the answerer writes the draft
+    if (fwd && n === 1) tweens.push(gsap.fromTo(B.dr, { opacity: 0, x: -40 }, { opacity: 1, x: 0, duration: 0.6, ease: "power3.out" }));
+    else gsap.set(B.dr, { opacity: n >= 1 ? 1 : 0, x: 0 });
+    A(B.d3, { opacity: run2 ? 1 : 0 }, { duration: 0.4 });
+    // step 2: the verifier links each claim to evidence
+    A(B.a1, { opacity: n >= 2 ? 1 : 0 }, { duration: 0.3 });
+    draw(B.c1, n >= 2, 0.2);
+    A(B.t1, { opacity: n >= 2 ? 1 : 0 }, { duration: 0.3, delay: n === 2 ? 0.8 : 0 });
+    A(B.hl, { opacity: n >= 2 ? 0.16 : 0 }, { duration: 0.4, delay: n === 2 ? 0.7 : 0 });
+    draw(B.c2, run2, 0.5);
+    A(B.t2, { opacity: run2 ? 1 : 0 }, { duration: 0.3, delay: n === 4 ? 1.1 : 0 });
+    A(B.vdT, { opacity: n >= 2 && !run2 ? 1 : 0 }, { duration: 0.3, delay: n === 2 ? 1 : 0 });
+    A(B.vdF, { opacity: run2 ? 1 : 0 }, { duration: 0.3, delay: n === 4 ? 1.3 : 0 });
+    // step 3: the gate opens and the employee gets the verified text
+    A(B.a2, { opacity: n >= 3 ? 1 : 0 }, { duration: 0.3 });
+    A(B.gl, { opacity: n >= 3 ? 1 : 0 }, { duration: 0.3 });
+    const open = n === 3;
+    A(B.dl, { x: open ? -60 : 0 }, { duration: 0.7, delay: open ? 0.3 : 0.2, ease: "power2.inOut" });
+    A(B.drr, { x: open ? 60 : 0 }, { duration: 0.7, delay: open ? 0.3 : 0.2, ease: "power2.inOut" });
+    A(B.a3, { opacity: open ? 1 : 0 }, { duration: 0.3, delay: open ? 0.8 : 0 });
+    A(B.rp, { opacity: open ? 1 : 0 }, { duration: 0.4, delay: open ? 0.9 : 0 });
+    // step 4: a planted claim has no evidence: the door stays shut, a ticket drops
+    A(B.a3r, { opacity: run2 ? 1 : 0 }, { duration: 0.3, delay: n === 4 ? 1.5 : 0 });
+    if (fwd && n === 4) tweens.push(gsap.fromTo(B.tk, { opacity: 0, y: -60 }, { opacity: 1, y: 0, duration: 0.6, delay: 1.6, ease: "bounce.out" }));
+    else gsap.set(B.tk, { opacity: run2 ? 1 : 0, y: 0 });
+    prev = n;
+  }
+  Deck.register("rag-c06-lab5-verifier", {
+    enter(slide, step) { prev = -1; B = null; render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { tweens.forEach((t) => t.kill()); tweens = []; prev = -1; }
+  });
+})();
+</script>

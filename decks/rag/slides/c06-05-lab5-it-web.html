@@ -1,0 +1,114 @@
+<section class="slide tight" id="rag-c06-lab5-it-web" data-tone="agent" data-title="Lab 5: IT branch, KB then web">
+  <style>
+    #rag-c06-lab5-it-web .iw-main { display: grid; grid-template-columns: 812px 556px; gap: 24px; align-items: start; }
+    #rag-c06-lab5-it-web .iw-col { gap: 10px; min-width: 0; }
+    #rag-c06-lab5-it-web .code-wrap .code-head { padding: 7px 14px; font-size: 13.5px; }
+    #rag-c06-lab5-it-web pre.code.iw-c { font-size: 11.8px; line-height: 1.31; padding: 8px 14px 9px; }
+    #rag-c06-lab5-it-web .code-wrap.out pre.code { font-size: 12px; line-height: 1.38; padding: 8px 12px 10px; }
+    #rag-c06-lab5-it-web .code-wrap.out pre.code code { white-space: pre-wrap; overflow-wrap: anywhere; }
+    #rag-c06-lab5-it-web .code-wrap.out pre.code .ln { display: block; }
+    #rag-c06-lab5-it-web .lab-head { gap: 8px; flex-wrap: wrap; }
+    #rag-c06-lab5-it-web .lab-head .run { font-size: 14.5px; white-space: nowrap; flex: none; }
+    #rag-c06-lab5-it-web .lab-head .tag { font-size: 12.5px; padding: 5px 9px 5px 7px; flex: none; }
+    #rag-c06-lab5-it-web .cites { gap: 8px; flex-wrap: nowrap; }
+    #rag-c06-lab5-it-web .cites .cite { flex: none; white-space: nowrap; font-size: 13px; padding: 5px 10px 5px 8px; gap: 8px; }
+    #rag-c06-lab5-it-web .cites .cite::before { width: 18px; height: 18px; }
+    #rag-c06-lab5-it-web .diagram .node { padding: 10px 12px; gap: 2px; }
+    #rag-c06-lab5-it-web .diagram .node .nt { font-size: 17px; }
+    #rag-c06-lab5-it-web .diagram .node .ns { font-size: 11.5px; }
+    #rag-c06-lab5-it-web .diagram .node .tag { font-size: 11px; padding: 3px 7px 3px 6px; align-self: flex-start; margin-top: 3px; }
+    #rag-c06-lab5-it-web .iw-chip { position: absolute; z-index: 3; font: 600 12.5px/1 var(--f-mono); padding: 6px 9px; border-radius: 8px; white-space: nowrap; }
+    #rag-c06-lab5-it-web .iw-chip.ok { color: var(--state); background: var(--state-soft); border: 1px solid color-mix(in oklab, var(--state) 45%, transparent); }
+    #rag-c06-lab5-it-web .iw-chip.none { color: var(--muted); background: var(--surface-2); border: 1px dashed var(--line-2); }
+    #rag-c06-lab5-it-web .iw-chip.gr { color: var(--model); background: var(--model-soft); border: 1px solid color-mix(in oklab, var(--model) 45%, transparent); }
+    #rag-c06-lab5-it-web .iw-cap { position: absolute; z-index: 2; font: italic 500 14px/1.3 var(--f-body); color: var(--ink-2); width: 170px; }
+    #rag-c06-lab5-it-web .iw-rail { position: relative; height: 72px; }
+    #rag-c06-lab5-it-web .iw-rail > p { position: absolute; left: 0; right: 0; top: 0; margin: 0; font-size: 16px; line-height: 1.38; }
+    #rag-c06-lab5-it-web .iw-rail > p::before { counter-increment: none; }
+    #rag-c06-lab5-it-web .iw-rail > p:nth-child(1)::before { content: "1"; }
+    #rag-c06-lab5-it-web .iw-rail > p:nth-child(2)::before { content: "2"; }
+    #rag-c06-lab5-it-web .iw-rail > p:nth-child(3)::before { content: "3"; }
+    #rag-c06-lab5-it-web .iw-rail > p:nth-child(4)::before { content: "4"; }
+    #rag-c06-lab5-it-web .iw-rail code, #rag-c06-lab5-it-web .callout code { font-size: .86em; }
+    #rag-c06-lab5-it-web .callout { font-size: 15px; line-height: 1.35; padding: 9px 14px; gap: 10px; }
+    #rag-c06-lab5-it-web .callout::before { width: 22px; height: 22px; font-size: 13px; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 5</span> Northwind helpdesk · step 4 of 4</div>
+  <h2 class="title">IT branch: search the known-issues KB first, Google Search second</h2>
+  <div class="iw-main fill">
+    <div class="code-wrap">
+      <div class="code-head">lab5_it_triage.py · step 4: the IT branch</div>
+      <pre class="code iw-c" data-lang="python" data-focus="1:12-21, 2:22, 3:23-27, 4:35-37"><code>import asyncio, os, re
+from google.adk import Agent
+from google.adk.runners import InMemoryRunner
+from google.adk.tools.google_search_agent_tool import GoogleSearchAgentTool, create_google_search_agent
+MODEL = os.getenv("MODEL", "gemini-3.8-flash")
+KNOWN_ISSUES = {
+    "KI-311": "Okta SSO login loop after a password reset. Fix: clear the stale session cookie "
+              "and re-sync the SAML clock skew. Queue: identity. Severity P2.",
+    "KI-207": "Claim PDF upload fails for files over 20 MB. Fix: compress or split the PDF. "
+              "Queue: claims-tools. Severity P3.",
+}
+def search_known_issues(query: str) -> dict:
+    """Searches Northwind's internal known-issues knowledge base.
+    Args:
+      query: Keywords from the ticket, e.g. error text and product area.
+    Returns:
+      A dict with 'results': a list of {'id', 'text'} for matching known issues."""
+    words = set(re.findall(r"[a-z0-9]+", query.lower()))
+    hits = [{"id": k, "text": v} for k, v in KNOWN_ISSUES.items()
+            if len(words &amp; set(re.findall(r"[a-z0-9]+", v.lower()))) >= 2]
+    return {"status": "ok", "results": hits}            # [] is an answer, not an error
+web_search = GoogleSearchAgentTool(create_google_search_agent(MODEL))   # tool name: google_search_agent
+it_triage = Agent(name="it_triage", model=MODEL, tools=[search_known_issues, web_search],
+    instruction="""You triage Northwind IT tickets. Ticket: {question?}
+1. ALWAYS call search_known_issues first.
+2. Call google_search_agent ONLY if no internal issue matches (e.g. a vendor outage).
+3. Reply exactly: Severity: P1-P4 | Queue: ... | Why: ... with citations [KI-xxx] or the web page title.""")
+async def main():
+    runner = InMemoryRunner(agent=it_triage, app_name="it_triage")
+    for i, t in enumerate(["I'm stuck in an Okta login loop since my password reset",
+                           "Zoom will not start for anyone in the office, is Zoom down today?"]):
+        for e in await runner.run_debug(t, session_id=f"t{i}", quiet=True):
+            if e.author == "it_triage" and e.content and e.content.parts and e.content.parts[0].text:
+                print("ANSWER:", e.content.parts[0].text)
+            if e.grounding_metadata and e.grounding_metadata.grounding_chunks:
+                for c in e.grounding_metadata.grounding_chunks:
+                    if c.web: print("  web source:", c.web.title)
+if __name__ == "__main__": asyncio.run(main())   # import-safe for lab5_helpdesk.py</code></pre>
+    </div>
+    <div class="iw-col stack">
+      <div class="lab-head"><span class="run">python lab5_it_triage.py</span><span class="tag t-agent">google-adk==2.13.0</span><span class="tag t-model">gemini-3.8-flash</span></div>
+      <div class="cites">
+        <a class="cite repo" href="https://github.com/google/adk-python/tree/v2.13.0/contributing/samples/tools/agent_tool_with_grounding_metadata" target="_blank" rel="noopener"><b>Repo</b>&nbsp;agent_tool_with_grounding_metadata</a>
+        <a class="cite doc" href="https://adk.dev/integrations/google-search/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Google Search</a>
+      </div>
+      <div class="diagram" style="width:556px;height:262px"
+           data-wires="iw-tk>iw-agent:rl:flow{human}; iw-agent>iw-kb@1:rl:flow{state} [1st: KB]; iw-agent>iw-web@3:rl:dash:flow{tool} [2nd: web]">
+        <div class="node n-human pill" id="iw-tk" style="left:0;top:100px;width:110px"><span class="nt">Ticket</span></div>
+        <div class="iw-cap" style="left:0;top:166px" data-until="3">“Okta login loop since my password reset”</div>
+        <div class="iw-cap" style="left:0;top:166px" data-step="3">“Zoom will not start. Is Zoom down today?”</div>
+        <div class="node n-agent" id="iw-agent" style="left:190px;top:92px;width:120px"><span class="nt">it_triage</span><span class="ns">Agent</span></div>
+        <div class="node n-tool" id="iw-kb" style="left:390px;top:0;width:166px" data-step="1" data-fx="pop" data-on="1:hot"><span class="nt">Known issues</span><span class="ns">search_known_issues</span></div>
+        <div class="iw-chip ok" style="left:390px;top:84px" data-step="1" data-until="3">results: [KI-311]</div>
+        <div class="iw-chip none" style="left:390px;top:84px" data-step="3">results: [ ]</div>
+        <div class="node n-tool" id="iw-web" style="left:390px;top:156px;width:166px" data-step="2" data-fx="pop" data-on="3:hot"><span class="nt">Web search</span><span class="ns">google_search_agent</span><span class="tag t-model">Gemini · grounding</span></div>
+        <div class="iw-chip gr" style="left:196px;top:224px" data-step="4" data-fx="left">← grounding_chunks</div>
+      </div>
+      <div class="steps-rail iw-rail">
+        <p data-step="1" data-until="2"><span>A plain function is a tool. ADK reads its signature and docstring. No match returns <code>results: []</code>, not an error.</span></p>
+        <p data-step="2" data-until="3"><span><code>google_search</code> cannot share a request with function tools. The wrapper sets <code>propagate_grounding_metadata=True</code>.</span></p>
+        <p data-step="3" data-until="4"><span>The instruction fixes the order: KB first, web only on no match. Then <code>lab5_helpdesk.py</code> imports it: <code>"it_support": it_triage</code>.</span></p>
+        <p data-step="4"><span>Web sources arrive in <code>grounding_chunks[i].web.title</code>. Show the Search suggestions (<code>renderedContent</code>).</span></p>
+      </div>
+      <div class="code-wrap out" data-step="1">
+        <div class="code-head">output · illustrative</div>
+        <pre class="code" data-lang="out"><code><span class="ln ok">ANSWER: Severity: P2 | Queue: identity | Why: matches [KI-311] (login loop after password reset); clear the stale session cookie.</span><span class="ln" data-step="3">ANSWER: Severity: P2 | Queue: vendor | Why: the vendor status page reports an ongoing incident.</span><span class="ln dim" data-step="4">  web source: &lt;page title&gt;</span></code></pre>
+      </div>
+      <div class="callout tip" data-step="4"><span>Keep the web branch in its own sub-agent: rate-limit it, log it, switch it off per tenant.</span></div>
+    </div>
+  </div>
+  <aside class="notes">
+    This is step 4 of Lab 5, the last lab step before the build: the IT branch gets a real triage agent, and the Workflow route map now says "it_support": it_triage instead of it_agent. Step 1: search_known_issues is a plain Python function; ADK builds the tool declaration from its signature and Google-style docstring, and it returns an explicit empty list when nothing matches, so the model sees "no match", not an error. Step 2: google_search is a Gemini built-in that cannot share a request with function tools, so GoogleSearchAgentTool wraps it in a search-only sub-agent and carries the grounding metadata back up. Think of a librarian who checks the in-house binder first and phones the outside reference desk only when the binder is silent. Step 4: the code prints web.title from the grounding chunks, and production UIs must also render the Search suggestions. The {question?} placeholder gives it the ticket from state when it runs as a Workflow node, and renders empty when you run this file alone. Likely question: "Why not put google_search straight into the tools list?" Because the docs say it can only be used by itself; the wrapper also gives you one sub-agent that you can rate-limit, log and switch off per tenant. That completes the three branches; the next slide makes the HR branch retry a weak search.
+  </aside>
+</section>

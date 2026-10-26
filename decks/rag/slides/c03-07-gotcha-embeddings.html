@@ -1,0 +1,224 @@
+<section class="slide tight" id="rag-c03-gotcha-embeddings" data-tone="state" data-title="Gotcha: embedding traps">
+  <style>
+    #rag-c03-gotcha-embeddings .ge-main { display: grid; grid-template-columns: 820px 1fr; gap: 28px; align-items: start; }
+    #rag-c03-gotcha-embeddings .ge-left, #rag-c03-gotcha-embeddings .ge-right { gap: 12px; min-width: 0; }
+    #rag-c03-gotcha-embeddings .ge-left > .code-wrap { width: 820px; }
+    #rag-c03-gotcha-embeddings .gotcha { font-size: 14.6px; line-height: 1.36; padding: 10px 15px; grid-template-columns: 74px 1fr; gap: 3px 10px; }
+    #rag-c03-gotcha-embeddings .gotcha > b { font-size: 12px; }
+    #rag-c03-gotcha-embeddings .gotcha .gh { grid-column: 1 / -1; font: 700 12.5px/1.3 var(--f-mono); color: var(--ink); letter-spacing: .03em; margin-bottom: 2px; }
+    #rag-c03-gotcha-embeddings .gotcha q { font-style: italic; color: var(--ink); }
+    #rag-c03-gotcha-embeddings .code-wrap .code-head { padding: 8px 14px; font-size: 14px; }
+    #rag-c03-gotcha-embeddings pre.code.ge-c { font-size: 12.4px; line-height: 1.42; padding: 10px 16px 12px; }
+    #rag-c03-gotcha-embeddings .ge-svg text { font-family: var(--f-mono); }
+    #rag-c03-gotcha-embeddings .ge-svg .pn { fill: var(--surface); stroke: var(--line-2); stroke-width: 1; }
+    #rag-c03-gotcha-embeddings .ge-svg .hd { font-size: 11.5px; font-weight: 700; fill: var(--muted); letter-spacing: .04em; }
+    #rag-c03-gotcha-embeddings .ge-svg .sm { font-size: 11.5px; fill: var(--ink-2); }
+    #rag-c03-gotcha-embeddings .ge-svg .chip rect { fill: var(--surface-2); stroke-width: 1.4; }
+    #rag-c03-gotcha-embeddings .ge-svg .chip text { font-size: 11.5px; font-weight: 600; fill: var(--ink); }
+    #rag-c03-gotcha-embeddings .ge-svg .box { fill: var(--model-soft, var(--surface-2)); stroke: var(--model); stroke-width: 1.6; }
+    #rag-c03-gotcha-embeddings .ge-svg .boxt { font-size: 12px; font-weight: 700; fill: var(--model); }
+    #rag-c03-gotcha-embeddings .ge-svg .vbad { fill: var(--risk); }
+    #rag-c03-gotcha-embeddings .ge-svg .vgood { fill: var(--state); }
+    #rag-c03-gotcha-embeddings .ge-svg .err { font-size: 11.5px; font-weight: 700; fill: var(--risk); }
+    #rag-c03-gotcha-embeddings .ge-svg .ok { font-size: 11.5px; font-weight: 700; fill: var(--state); }
+    #rag-c03-gotcha-embeddings .ge-svg line.trk:not(#ge-nf) { stroke: var(--line-2); } #rag-c03-gotcha-embeddings .ge-svg .trk { stroke-width: 10; stroke-linecap: round; }
+    #rag-c03-gotcha-embeddings .ge-svg .tick { stroke: var(--ink-2); stroke-width: 1.5; stroke-dasharray: 3 3; }
+    #rag-c03-gotcha-embeddings .ge-svg .cell { fill: var(--state-soft, var(--surface-2)); stroke: var(--state); stroke-width: 1; }
+    #rag-c03-gotcha-embeddings .ge-svg .cut { stroke: var(--risk); stroke-width: 2.5; }
+    #rag-c03-gotcha-embeddings .ge-svg .arr { stroke: var(--ink-2); stroke-width: 1.6; fill: none; }
+    #rag-c03-gotcha-embeddings .ge-cites { display: flex; flex-wrap: wrap; gap: 8px; }
+    #rag-c03-gotcha-embeddings .ge-cites .cite { font-size: 13px; padding: 5px 10px 5px 8px; }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> Embeddings</div>
+  <h2 class="title">Embedding traps: one vector per batch, no norm, silent truncation</h2>
+  <div class="ge-main fill">
+    <div class="stack ge-left">
+      <div class="code-wrap good">
+        <div class="code-head">northwind_index/embed_checks.py · three asserts at write time</div>
+        <pre class="code ge-c" data-lang="python" data-focus="1:9-12, 2:14-18, 3:20-25"><code>import json
+import numpy as np
+from google import genai
+from google.genai import types
+from sentence_transformers import SentenceTransformer
+client = genai.Client()                                           # GEMINI_API_KEY
+texts = ["Refund not received", "Duplicate premium charge", "Claim PDF upload fails"]
+
+res = client.models.embed_content(model="gemini-embedding-2",       # no task_type
+    contents=[types.Content(parts=[types.Part.from_text(text=t)]) for t in texts],
+    config=types.EmbedContentConfig(output_dimensionality=768))     # 2 auto-normalises
+assert len(res.embeddings) == len(texts), "inputs were aggregated into one vector"
+
+resp_001 = client.models.embed_content(model="gemini-embedding-001", contents=texts,
+    config=types.EmbedContentConfig(task_type="RETRIEVAL_DOCUMENT", output_dimensionality=768))
+v = np.asarray([e.values for e in resp_001.embeddings], dtype=np.float32)
+v /= np.linalg.norm(v, axis=1, keepdims=True)                       # 001 below 3072 dims
+assert np.allclose(np.linalg.norm(v, axis=1), 1.0, atol=1e-3)
+
+model = SentenceTransformer("Qwen/Qwen3-Embedding-0.6B", truncate_dim=256)
+model.max_seq_length = 1024                                         # the Lab 3 step 2 cap
+chunks = [json.loads(l)["text"] for l in open("out/claims_chunks.jsonl", encoding="utf-8")]
+too_long = [i for i, c in enumerate(chunks)
+            if len(model.tokenizer(c, add_special_tokens=True)["input_ids"]) > model.max_seq_length]
+assert not too_long, f"{len(too_long)} chunks will be truncated"</code></pre>
+      </div>
+      <svg class="ge-svg" viewBox="0 0 820 150" width="820" height="150" aria-label="Three animations: three inputs give one vector then three, a norm gauge moves from 0.83 to 1.00, a chunk tail past token 256 is cut">
+        <g id="ge-p1">
+          <rect class="pn" x="0" y="0" width="264" height="150" rx="12"/>
+          <text class="hd" x="12" y="20">1 · ONE VECTOR PER INPUT</text>
+          <g id="ge-chips"></g>
+          <rect class="box" x="104" y="38" width="64" height="84" rx="10"/>
+          <text class="boxt" x="136" y="84" text-anchor="middle">embed</text>
+          <g id="ge-outs"></g>
+          <text class="err" id="ge-e1" x="252" y="140" text-anchor="end">len 1 ≠ 3</text>
+          <text class="ok" id="ge-ok1" x="252" y="140" text-anchor="end">assert 3 == 3 ✓</text>
+        </g>
+        <g id="ge-p2">
+          <rect class="pn" x="278" y="0" width="264" height="150" rx="12"/>
+          <text class="hd" x="290" y="20">2 · UNIT NORM · 001 AT 768-D</text>
+          <text class="sm" id="ge-nv" x="290" y="50">‖v‖ = 0.83</text>
+          <text class="sm" x="290" y="66" style="fill:var(--muted)">example vector</text>
+          <line class="trk" x1="298" y1="88" x2="520" y2="88"/>
+          <line class="trk" id="ge-nf" x1="298" y1="88" x2="298" y2="88" stroke="var(--risk)"/>
+          <line class="tick" x1="483" y1="72" x2="483" y2="104"/>
+          <text class="sm" x="475" y="66">1.0</text>
+          <text class="sm" id="ge-div" x="290" y="122">v /= norm(v, axis=1)</text>
+          <text class="ok" id="ge-ok2" x="290" y="140">dot == cosine ✓</text>
+        </g>
+        <g id="ge-p3">
+          <rect class="pn" x="556" y="0" width="264" height="150" rx="12"/>
+          <text class="hd" x="568" y="20">3 · TRUNCATED AT 256 TOKENS</text>
+          <g id="ge-cells"></g>
+          <line class="cut" id="ge-cut" x1="688" y1="30" x2="688" y2="66"/>
+          <text class="err" id="ge-cutl" x="694" y="64">tail dropped</text>
+          <text class="sm" id="ge-in1" x="568" y="94">encode(text)</text>
+          <text class="sm" id="ge-in2" x="568" y="122">encode(text + text)</text>
+          <path class="arr" id="ge-a1" d="M 662 90 C 710 90, 730 106, 772 106"/>
+          <path class="arr" id="ge-a2" d="M 704 118 C 736 118, 750 108, 772 106"/>
+          <circle id="ge-dot" cx="782" cy="106" r="8" style="fill:var(--risk)"/>
+          <text class="err" id="ge-same" x="700" y="142">same vector</text>
+        </g>
+      </svg>
+    </div>
+    <div class="stack ge-right">
+      <div class="gotcha" data-step="1">
+        <span class="gh">gemini-embedding-2 · llama_index#21658</span>
+        <b>Symptom</b><span><code>get_text_embedding_batch(["a","b","c"])</code> returns one embedding. Ingest fails with a length mismatch or stores wrong vectors.</span>
+        <b class="why">Cause</b><span>Gemini docs: <q>Adding multiple inputs directly to the contents parameter produces one aggregated embedding for all inputs.</q></span>
+        <b class="fix">Fix</b><span>One <code>types.Content</code> per input. Assert the count. No <code>task_type</code>: use prefixes (<code>task: search result | query: …</code>).</span>
+      </div>
+      <div class="gotcha" data-step="2">
+        <span class="gh">gemini-embedding-001 · output_dimensionality &lt; 3072</span>
+        <b>Symptom</b><span>Cosine and dot-product rankings disagree.</span>
+        <b class="why">Cause</b><span><q>you must manually normalize non-3072 dimensions</q>. <code>gemini-embedding-2</code> auto-normalizes truncated dims.</span>
+        <b class="fix">Fix</b><span>Normalise and assert unit norm at write time. gemini-embedding-001 and gemini-embedding-2 vectors are not compatible: re-embed everything.</span>
+      </div>
+      <div class="gotcha" data-step="3">
+        <span class="gh">sentence-transformers#4060 · open</span>
+        <b>Symptom</b><span><code>encode(text)</code> and <code>encode(text + text)</code> return the same vector.</span>
+        <b class="why">Cause</b><span>Sentence Transformers always passes <code>max_length</code> with <code>truncation="longest_first"</code>, so no warning fires. all-MiniLM-L6-v2 stops at 256 tokens, our Qwen3 model at the 1,024 cap.</span>
+        <b class="fix">Fix</b><span>Count tokens per chunk. Keep a "truncated %" ingest metric at 0.</span>
+      </div>
+      <div class="ge-cites">
+        <a class="cite doc" href="https://ai.google.dev/gemini-api/docs/embeddings" target="_blank" rel="noopener"><b>Doc</b>&nbsp;Gemini API · Embeddings</a>
+        <a class="cite repo" href="https://github.com/run-llama/llama_index/issues/21658" target="_blank" rel="noopener"><b>Repo</b>&nbsp;llama_index#21658</a>
+        <a class="cite repo" href="https://github.com/huggingface/sentence-transformers/issues/4060" target="_blank" rel="noopener"><b>Repo</b>&nbsp;sentence-transformers#4060</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    Three embedding bugs that raise no error and quietly damage the Northwind Mutual index. First: gemini-embedding-2 aggregates a plain list of strings into one vector, so wrap each ticket in its own types.Content and assert that the count of vectors equals the count of inputs. Second: gemini-embedding-001 below 3072 dimensions is not normalised, so dot product is not cosine until you divide by the norm; and never mix 001 and 2 vectors in one index. Third: Sentence Transformers truncates at max_seq_length with no warning, so the tail of a long claims chunk becomes unsearchable; count tokens at ingest and keep the truncated percentage at zero. Analogy: a scale that always reads a number, even when nothing is on it, so you must check it with a known weight. Likely question: "Why not simply trust the library defaults?" Because each default here is correct for one model and wrong for the next, and three asserts cost microseconds. Hand-off: the vectors are now correct; the next slide checks the index settings that store and search them.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const LABELS = ["refund", "charge", "upload"];
+  const TX = (v) => 298 + (v / 1.2) * 222;          // norm gauge: 0..1.2 over 222 px
+  let B = null, prev = -1, tl = null;
+  const el = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; };
+  function build(slide) {
+    const q = (s) => slide.querySelector(s);
+    const chips = q("#ge-chips"), outs = q("#ge-outs"), cells = q("#ge-cells");
+    chips.innerHTML = outs.innerHTML = cells.innerHTML = "";
+    const b = { p: [q("#ge-p1"), q("#ge-p2"), q("#ge-p3")], chips: [], chipRects: [], good: [], cells: [] };
+    LABELS.forEach((s, i) => {
+      const g = el("g", { class: "chip" }, chips);
+      b.chipRects.push(el("rect", { x: 12, y: 36 + i * 32, width: 72, height: 24, rx: 6, stroke: "var(--line-2)" }, g));
+      const t = el("text", { x: 48, y: 52 + i * 32, "text-anchor": "middle" }, g); t.textContent = s;
+      b.chips.push(g);
+    });
+    b.bad = el("rect", { class: "vbad", x: 184, y: 75, width: 66, height: 10, rx: 3 }, outs);
+    for (let i = 0; i < 3; i++) b.good.push(el("rect", { class: "vgood", x: 184, y: 45 + i * 30, width: 66, height: 10, rx: 3 }, outs));
+    for (let i = 0; i < 16; i++) b.cells.push(el("rect", { class: "cell", x: 568 + i * 15, y: 34, width: 12, height: 28, rx: 3 }, cells));
+    ["#ge-e1", "#ge-ok1", "#ge-nv", "#ge-nf", "#ge-div", "#ge-ok2", "#ge-cut", "#ge-cutl", "#ge-in1", "#ge-in2", "#ge-a1", "#ge-a2", "#ge-dot", "#ge-same"]
+      .forEach((s) => (b[s.slice(4)] = q(s)));
+    return b;
+  }
+  const all = () => [...B.p, ...B.chips, ...B.chipRects, B.bad, ...B.good, ...B.cells, B.e1, B.ok1, B.nv, B.nf, B.div, B.ok2, B.cut, B.cutl, B.in1, B.in2, B.a1, B.a2, B.dot, B.same];
+  const kill = () => { if (tl) { tl.kill(); tl = null; } if (B) gsap.killTweensOf(all()); };
+  const setNorm = (v) => { gsap.set(B.nf, { attr: { x2: TX(v) } }); B.nv.textContent = "‖v‖ = " + v.toFixed(2); };
+  function render(slide, n, animate) {
+    kill();
+    const fwd = animate && n === prev + 1;
+    B.p.forEach((p, i) => gsap.set(p, { opacity: n >= i + 1 ? 1 : 0.28 }));
+    // ---- panel 1: three inputs -> one vector (bad) -> wrapped -> three vectors (good)
+    gsap.set(B.chips, { x: 0, opacity: 1 });
+    gsap.set(B.chipRects, { attr: { stroke: n >= 1 ? "var(--state)" : "var(--line-2)" } });
+    gsap.set(B.bad, { opacity: 0, x: 0 }); gsap.set(B.e1, { opacity: 0 });
+    gsap.set(B.good, { opacity: n >= 1 ? 1 : 0, x: 0 }); gsap.set(B.ok1, { opacity: n >= 1 ? 1 : 0 });
+    // ---- panel 2: norm 0.83 -> 1.00
+    setNorm(n >= 2 ? 1 : 0.83);
+    gsap.set(B.nf, { attr: { stroke: n >= 2 ? "var(--state)" : "var(--risk)" } });
+    gsap.set([B.div, B.ok2], { opacity: n >= 2 ? 1 : 0 });
+    // ---- panel 3: tail past token 256 is dropped, two inputs land on one vector
+    B.cells.forEach((c, i) => gsap.set(c, { opacity: n >= 3 && i >= 8 ? 0.18 : 1 }));
+    gsap.set([B.cut, B.cutl, B.in1, B.in2, B.dot, B.same], { opacity: n >= 3 ? 1 : 0 });
+    gsap.set(B.dot, { scale: 1, transformOrigin: "center" }); gsap.set(B.cut, { attr: { y1: 30 } });
+    gsap.set([B.a1, B.a2], { strokeDasharray: 140, strokeDashoffset: n >= 3 ? 0 : 140 });
+    if (fwd && n === 1) {
+      gsap.set(B.good, { opacity: 0 }); gsap.set(B.ok1, { opacity: 0 }); gsap.set(B.chipRects, { attr: { stroke: "var(--line-2)" } });
+      tl = gsap.timeline()
+        .to(B.chips, { x: 70, opacity: 0, duration: 0.5, stagger: 0.08, ease: "power2.in" }, 0.2)
+        .fromTo(B.bad, { opacity: 0, x: -20 }, { opacity: 1, x: 0, duration: 0.35 })
+        .to(B.e1, { opacity: 1, duration: 0.25 })
+        .to(B.bad, { x: 4, duration: 0.07, repeat: 5, yoyo: true })
+        .set(B.chips, { x: 0 }, "+=0.3")
+        .set(B.chipRects, { attr: { stroke: "var(--state)" } })
+        .to(B.chips, { opacity: 1, duration: 0.3 })
+        .to([B.bad, B.e1], { opacity: 0, duration: 0.25 }, "<")
+        .to(B.chips, { x: 70, opacity: 0, duration: 0.5, stagger: 0.08, ease: "power2.in" }, "+=0.2")
+        .fromTo(B.good, { opacity: 0, x: -20 }, { opacity: 1, x: 0, duration: 0.35, stagger: 0.12, ease: "back.out(2)" })
+        .to(B.ok1, { opacity: 1, duration: 0.3 })
+        .set(B.chips, { x: 0 })
+        .to(B.chips, { opacity: 1, duration: 0.3 });
+    } else if (fwd && n === 2) {
+      setNorm(0); gsap.set(B.nf, { attr: { stroke: "var(--risk)" } }); gsap.set([B.div, B.ok2], { opacity: 0 });
+      const p = { v: 0 };
+      tl = gsap.timeline()
+        .to(p, { v: 0.83, duration: 0.8, ease: "power2.out", onUpdate: () => setNorm(p.v) })
+        .to(B.div, { opacity: 1, duration: 0.3 }, "+=0.3")
+        .set(B.nf, { attr: { stroke: "var(--state)" } })
+        .to(p, { v: 1, duration: 0.6, ease: "power1.inOut", onUpdate: () => setNorm(p.v) })
+        .to(B.ok2, { opacity: 1, duration: 0.3 });
+    } else if (fwd && n === 3) {
+      gsap.set([B.cut, B.cutl, B.in1, B.in2, B.dot, B.same], { opacity: 0 });
+      gsap.set(B.cells, { opacity: 0 }); gsap.set([B.a1, B.a2], { strokeDashoffset: 140 });
+      tl = gsap.timeline()
+        .to(B.cells, { opacity: 1, duration: 0.2, stagger: 0.04 })
+        .fromTo(B.cut, { opacity: 0, attr: { y1: 10 } }, { opacity: 1, attr: { y1: 30 }, duration: 0.3, ease: "back.out(2)" })
+        .to(B.cells.slice(8), { opacity: 0.18, duration: 0.5, stagger: 0.03 })
+        .to(B.cutl, { opacity: 1, duration: 0.25 }, "<")
+        .to([B.in1, B.in2], { opacity: 1, duration: 0.3, stagger: 0.15 })
+        .to([B.a1, B.a2], { strokeDashoffset: 0, duration: 0.5, stagger: 0.15 })
+        .fromTo(B.dot, { opacity: 0, scale: 0.3, transformOrigin: "center" }, { opacity: 1, scale: 1, duration: 0.35, ease: "back.out(3)" })
+        .to(B.same, { opacity: 1, duration: 0.3 });
+    }
+    prev = n;
+  }
+  Deck.register("rag-c03-gotcha-embeddings", {
+    enter(slide, step) { if (!B) B = build(slide); prev = -1; render(slide, step, false); },
+    step(slide, n, animate) { if (!B) B = build(slide); render(slide, n, animate); },
+    leave() { kill(); prev = -1; }
+  });
+})();
+</script>

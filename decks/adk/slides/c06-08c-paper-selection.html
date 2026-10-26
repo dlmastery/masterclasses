@@ -1,0 +1,89 @@
+<section class="slide" id="adk-c06-paper-selection" data-tone="tool" data-title="Paper: what decides tool selection">
+  <style>
+    #adk-c06-paper-selection .pp-grid { display: grid; grid-template-columns: 600px 1fr; gap: 48px; align-items: start; }
+    #adk-c06-paper-selection .pp-left { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+    #adk-c06-paper-selection .paper { padding: 22px 26px; gap: 14px; }
+    #adk-c06-paper-selection .paper .pid { font-size: 16px; }
+    #adk-c06-paper-selection .paper h4 { font-size: 23px; line-height: 1.3; }
+    #adk-c06-paper-selection .paper .find { font-size: 20px; line-height: 1.45; }
+    #adk-c06-paper-selection .paper .find code { font-size: .85em; }
+    #adk-c06-paper-selection .paper .so { font-size: 19px; line-height: 1.4; }
+    #adk-c06-paper-selection svg { overflow: visible; display: block; }
+    #adk-c06-paper-selection svg text { font-family: var(--f-mono); }
+    #adk-c06-paper-selection .nm { fill: var(--ink); font-size: 21px; font-weight: 700; }
+    #adk-c06-paper-selection .sub { fill: var(--muted); font-size: 18px; }
+    #adk-c06-paper-selection .lbl { fill: var(--ink); font-size: 19px; font-weight: 700; }
+    #adk-c06-paper-selection .card { fill: var(--surface-2); stroke: var(--tool); stroke-width: 2.5; }
+    #adk-c06-paper-selection .card.bad { stroke: var(--risk); fill: var(--risk-soft); }
+  </style>
+  <div class="kicker"><span class="pill">arXiv</span> Oct 2026</div>
+  <h2 class="title">The parameter schema, not the name, decides which tool is picked</h2>
+  <div class="pp-grid fill">
+    <div class="pp-left">
+      <div class="paper" data-step="1">
+        <div class="pid">arXiv 2610.14334 <span>2026-10-09</span></div>
+        <h4>Which Metadata Matters for LLM Tool Selection in MCP?</h4>
+        <div class="find">Flat params were chosen <b>93.3-100%</b> on Create Issue. Renaming <code>to</code> to <code>recipient_id</code> cut selection to <b>1-10%</b>. With names-only differences, the first-listed tool won <b>92-100%</b>.</div>
+        <div class="so" data-step="4">Use flat, well-named params. Dedupe near-duplicate tools with tool_filter. Shuffle tool order in evals.</div>
+      </div>
+      <div class="cites" data-step="1"><a class="cite paper" href="https://arxiv.org/abs/2610.14334" target="_blank" rel="noopener"><b>Paper</b>&nbsp;arXiv 2610.14334</a></div>
+    </div>
+    <svg id="ps-svg" viewBox="0 0 740 470" width="740" height="470" aria-label="Two equal email tools. Renaming one parameter to recipient_id drops its selection rate to 1 to 10 percent. Then a spotlight shows that when only names differ, the first-listed tool wins.">
+      <rect class="card" x="0" y="20" width="340" height="120" rx="14"/>
+      <text class="nm" x="170" y="70" text-anchor="middle">send_email</text>
+      <text class="sub" x="170" y="108" text-anchor="middle">{"to": str}</text>
+      <rect class="card" id="ps-cb" x="400" y="20" width="340" height="120" rx="14"/>
+      <text class="nm" x="570" y="70" text-anchor="middle">send_email</text>
+      <text class="sub" id="ps-param" x="570" y="108" text-anchor="middle">{"to": str}</text>
+      <rect id="ps-spot" x="-10" y="10" width="360" height="140" rx="20" style="fill:none;stroke:var(--human);stroke-width:5" opacity="0"/>
+      <text class="sub" x="0" y="214">2nd tool picked</text>
+      <text class="lbl" id="ps-bv" x="740" y="214" text-anchor="end">even split</text>
+      <rect x="0" y="230" width="740" height="40" rx="8" style="fill:var(--line)"/>
+      <rect id="ps-bar" x="0" y="230" width="370" height="40" rx="8" style="fill:var(--tool)"/>
+      <text class="lbl" id="ps-sl" x="0" y="350" opacity="0">names only differ: first listed wins 92-100%</text>
+      <text class="sub" x="0" y="440" style="font-size:16px">schematic · bar end = the paper's 1-10% range</text>
+    </svg>
+  </div>
+  <aside class="notes">The third paper asks what makes a model pick one MCP tool over another when two look alike. Step 1: it varied one metadata factor at a time. Flat, top-level parameters were chosen 93.3 to 100% of the time on a Create Issue task. Step 2: the parameter schema is the strongest lever: renaming the parameter "to" to "recipient_id" cut the selection of an otherwise equal tool to 1 to 10%. Step 3: when only the names differ, list order decides: the first-listed tool won 92 to 100% of the time. Step 4: what to change on Monday: design flat, well-named parameters, remove near-duplicate tools with tool_filter, and shuffle tool order in your evals so order does not hide a bad schema. Think of two identical doors: people take the one with the clearer handle, and if the handles match, the one nearest to them. A likely question: "Does the docstring not matter?" It does, but in this study the schema moved selection more than the description.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c06-paper-selection";
+  let tw = null;
+  const clamp = (x) => Math.max(0, Math.min(1, x));
+  const q = (s, sel) => s.querySelector(sel);
+  // a: rename and bar drop (step 2), b: spotlight sweep (step 3)
+  function draw(s, a, b) {
+    const m = clamp(a / 0.3);
+    q(s, "#ps-param").textContent = m >= 1 ? '{"recipient_id": str}' : '{"to": str}';
+    q(s, "#ps-param").style.fill = m >= 1 ? "var(--risk)" : "";
+    q(s, "#ps-cb").setAttribute("class", m >= 1 ? "card bad" : "card");
+    const g = clamp((a - 0.35) / 0.65);
+    q(s, "#ps-bar").setAttribute("width", (370 - (370 - 41) * g).toFixed(1));
+    q(s, "#ps-bar").style.fill = g >= 1 ? "var(--risk)" : "";
+    q(s, "#ps-bv").textContent = g >= 1 ? "recipient_id: 1-10%" : g > 0 ? "dropping" : "even split";
+    const sw = clamp(b / 0.8);
+    const x = sw < 0.5 ? -10 + 400 * (sw * 2) : 390 - 400 * ((sw - 0.5) * 2);
+    q(s, "#ps-spot").setAttribute("x", x.toFixed(1));
+    q(s, "#ps-spot").setAttribute("opacity", b > 0 ? "1" : "0");
+    q(s, "#ps-sl").setAttribute("opacity", String(clamp((b - 0.8) / 0.2)));
+  }
+  function stop() { if (tw) tw.kill(); tw = null; }
+  function build(s, n, animate) {
+    stop();
+    const st = { a: n >= 2 ? 1 : 0, b: n >= 3 ? 1 : 0 };
+    if (animate && n === 2) st.a = 0;
+    if (animate && n === 3) st.b = 0;
+    draw(s, st.a, st.b);
+    if (animate && (n === 2 || n === 3)) {
+      const key = n === 2 ? "a" : "b";
+      tw = gsap.to(st, { [key]: 1, duration: 2.2, ease: "power1.inOut", delay: 0.2, onUpdate: () => draw(s, st.a, st.b) });
+    }
+  }
+  Deck.register(ID, {
+    enter(slide, n) { build(slide, n || 0, false); },
+    step(slide, n, animate) { build(slide, n, animate); },
+    leave() { stop(); },
+  });
+})();
+</script>

@@ -1,0 +1,166 @@
+<section class="slide" id="custom-c05-rl-checklist" data-tone="model" data-title="RL run checklist">
+  <div class="kicker">Best practices</div>
+  <h2 class="title">RL run checklist: ten checks before and during every GRPO job</h2>
+  <div class="grid fill" style="grid-template-columns:1fr 540px;gap:32px">
+    <div class="stack" style="gap:20px">
+      <div class="rc-cols">
+        <div class="stack" style="gap:10px" data-step="1">
+          <h4 class="rc-h">Before launch</h4>
+          <ul class="checks rc-list" data-fx="stagger">
+            <li><span><b>Unit-test each reward on a hack.</b><span class="rc-why">A known hack must score 0.</span></span></li>
+            <li><span><b>Keep prompts with 0 &lt; pass &lt; 1.</b><span class="rc-why">Probe the base 8x; keep 0.08 to 0.90.</span></span></li>
+            <li><span><b><code>bfloat16</code>, whole groups per batch.</b><span class="rc-why">Default is float32. 32 = 4 x 8.</span></span></li>
+            <li><span><b><code>beta=0.0</code> for a verifiable reward.</b><span class="rc-why">Judge reward: beta &gt; 0.</span></span></li>
+            <li><span><b>Rollouts: <code>top_p=1.0, top_k=-1</code>.</b><span class="rc-why">Else the IS ratio is biased (TRL #6789).</span></span></li>
+          </ul>
+        </div>
+        <div class="stack" style="gap:10px" data-step="2">
+          <h4 class="rc-h">During the run</h4>
+          <ul class="checks rc-list" data-fx="stagger">
+            <li><span><b>Log each reward channel.</b><span class="rc-why">Stop when accuracy falls and total rises.</span></span></li>
+            <li><span><b><code>clipped_ratio</code> &lt; 10%, or mask.</b><span class="rc-why">Cut-off answers score as wrong.</span></span></li>
+            <li><span><b>Gold-audit a sample every N steps.</b><span class="rc-why">41-66% of proxy gain is rent (2610.19832).</span></span></li>
+            <li><span><b>Watchdog on <code>global_step</code>.</b><span class="rc-why">Stalled vLLM hangs, no error (TRL #6973).</span></span></li>
+            <li class="no"><span><b>Do not score timeouts as 0.</b><span class="rc-why">Refill the group (ThinkingBox).</span></span></li>
+          </ul>
+        </div>
+      </div>
+      <div class="rc-bottom">
+        <div class="panel k-model tight" style="padding:12px 16px">
+          <svg id="rc-preflight" viewBox="0 0 430 200" width="430" height="200" aria-label="Pre-flight panel: six switches flip green as the checks appear, then the launch button turns green."></svg>
+        </div>
+        <div class="steps-rail rc-rail">
+          <div data-step="3"><span>Load in bf16. 8 per device x 4 accumulation = 32 completions = 4 prompts x 8.</span></div>
+          <div data-step="4"><span>No KL for an exact verifier. Truncated answers give no gradient.</span></div>
+          <div data-step="5"><span>Z-score each reward in its group. Log completions for the audit.</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="stack" style="gap:14px">
+      <div class="code-wrap" data-step="3" data-fx="right">
+        <div class="code-head">safe GRPOConfig · Lab 4 · trl 1.16.0</div>
+        <pre class="code xs" data-lang="python" data-focus="3:5-8, 4:10-12, 5:13-16"><code>from trl import GRPOConfig
+
+args = GRPOConfig(
+    output_dir="claims-kl0.0",
+    model_init_kwargs={"dtype": "bfloat16"},
+    per_device_train_batch_size=8,
+    gradient_accumulation_steps=4,  # 32 = 4 x 8
+    num_generations=8,
+    max_completion_length=384,
+    loss_type="dapo",
+    beta=0.0,                       # exact verifier
+    mask_truncated_completions=True,
+    reward_weights=[1.0, 0.3],      # accuracy, brevity
+    multi_objective_aggregation="normalize_then_sum",
+    logging_steps=5,
+    log_completions=True,
+    report_to="trackio",
+)</code></pre>
+      </div>
+      <div class="row rc-cites" style="gap:6px;flex-wrap:wrap">
+        <a class="cite doc" href="https://huggingface.co/docs/trl/main/en/grpo_trainer" target="_blank" rel="noopener"><b>TRL</b>&nbsp;GRPO docs</a>
+        <a class="cite repo" href="https://github.com/huggingface/trl/issues/6789" target="_blank" rel="noopener"><b>Issue</b>&nbsp;#6789</a>
+        <a class="cite repo" href="https://github.com/huggingface/trl/issues/6973" target="_blank" rel="noopener"><b>Issue</b>&nbsp;#6973</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2610.19832" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.19832</a>
+        <a class="cite doc" href="https://huggingface.co/blog/microsoft/thinkingbox-training" target="_blank" rel="noopener"><b>Blog</b>&nbsp;ThinkingBox</a>
+      </div>
+    </div>
+  </div>
+  <style>
+    #custom-c05-rl-checklist .rc-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+    #custom-c05-rl-checklist .rc-h { margin: 0; color: var(--model); }
+    #custom-c05-rl-checklist .rc-list { gap: 12px; }
+    #custom-c05-rl-checklist .rc-list li { font-size: 18px; line-height: 1.3; }
+    #custom-c05-rl-checklist .rc-list b { display: block; color: var(--ink); font-weight: 600; }
+    #custom-c05-rl-checklist .rc-list code { font-size: .86em; }
+    #custom-c05-rl-checklist .rc-why { display: block; font-size: 15.5px; color: var(--muted); }
+    #custom-c05-rl-checklist .rc-bottom { display: grid; grid-template-columns: 464px 1fr; gap: 22px; align-items: start; }
+    #custom-c05-rl-checklist .rc-rail > * { font-size: 16px; line-height: 1.38; }
+    #custom-c05-rl-checklist .rc-cites .cite { flex: none; white-space: nowrap; }
+    #custom-c05-rl-checklist .rc-cites .cite.paper { flex-direction: row; gap: 10px; padding: 8px 14px 8px 10px; border: 1px solid var(--line); border-radius: 10px; }
+  </style>
+  <aside class="notes">Read this as the pre-flight list for every GRPO job, and every line maps to a bug from this chapter or from the TRL issue tracker. The left column runs before you spend a GPU hour: test the rewards against a known hack, drop prompts the base always or never solves, load in bf16 with whole groups per batch, keep beta at zero for an exact verifier, and sample rollouts with top_p 1 and top_k minus 1. The right column runs while the job trains: watch each reward channel and the tripwire, keep the clipped ratio under 10 percent, audit against gold, put a watchdog on the step counter, and refill infrastructure timeouts instead of scoring them as wrong. Think of a pilot's checklist: nobody skips it because the last flight was fine. A likely question: "Why not always keep a KL term to be safe?" Answer: with an exact verifier there is no proxy to over-optimize, so KL only slows learning; add it when the reward is a learned model or a judge.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c05-rl-checklist";
+  // toggle i turns on at step ON[i]: 0-2 match "Before launch" (step 1), 3-5 match "During the run" (step 2)
+  const TOG = [
+    { t: "rewards tested", on: 1 }, { t: "0 < pass < 1", on: 1 }, { t: "bf16 · 32 % 8 = 0", on: 1 },
+    { t: "tripwire armed", on: 2 }, { t: "clipped < 10%", on: 2 }, { t: "step watchdog", on: 2 }
+  ];
+  const LAUNCH = 5;
+  let tg = [], btn, btnTxt, glow, built = false, cur = [];
+  const mk = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); parent.appendChild(e); return e; };
+
+  function build(slide) {
+    const svg = slide.querySelector("#rc-preflight");
+    svg.innerHTML = ""; tg = []; cur = TOG.map(() => false);
+    const t = mk("text", { x: 0, y: 16, "font-size": 13, fill: "var(--muted)", style: "font-family:var(--f-mono);letter-spacing:.06em" }, svg);
+    t.textContent = "PRE-FLIGHT · CLAIMS GRPO";
+    TOG.forEach((d, i) => {
+      const x = Math.floor(i / 3) * 222, y = 48 + (i % 3) * 38;
+      const track = mk("rect", { x, y: y - 11, width: 40, height: 22, rx: 11, fill: "var(--line-2)" }, svg);
+      const knob = mk("circle", { cx: x + 11, cy: y, r: 8, fill: "#fff" }, svg);
+      const lab = mk("text", { x: x + 52, y: y + 5, "font-size": 15, fill: "var(--muted)", style: "font-family:var(--f-mono)" }, svg);
+      lab.textContent = d.t;
+      tg.push({ track, knob, lab, x });
+    });
+    glow = mk("rect", { x: 0, y: 150, width: 430, height: 44, rx: 11, fill: "none", stroke: "var(--state)", "stroke-width": 3, opacity: 0 }, svg);
+    btn = mk("rect", { x: 3, y: 153, width: 424, height: 38, rx: 9, fill: "var(--line-2)" }, svg);
+    btnTxt = mk("text", { x: 215, y: 177, "font-size": 15, "font-weight": 700, "text-anchor": "middle", fill: "var(--muted)", style: "font-family:var(--f-mono)" }, svg);
+    built = true;
+  }
+
+  function setTog(i, on) {
+    const g = tg[i];
+    g.track.setAttribute("fill", on ? "var(--state)" : "var(--line-2)");
+    g.knob.setAttribute("cx", g.x + (on ? 29 : 11));
+    g.lab.setAttribute("fill", on ? "var(--ink)" : "var(--muted)");
+  }
+
+  function render(slide, n, animate) {
+    if (!built) build(slide);
+    kill();
+    let k = 0;
+    TOG.forEach((d, i) => {
+      const on = n >= d.on;
+      if (animate && on && !cur[i]) {
+        const g = tg[i];
+        gsap.to(g.knob, { attr: { cx: g.x + 29 }, duration: 0.3, delay: 0.3 + k * 0.35, ease: "back.out(2)",
+          onStart: () => { g.track.setAttribute("fill", "var(--state)"); g.lab.setAttribute("fill", "var(--ink)"); } });
+        k++;
+      } else setTog(i, on);
+      cur[i] = on;
+    });
+    const count = TOG.filter((d) => n >= d.on).length;
+    const go = n >= LAUNCH;
+    btn.setAttribute("fill", go ? "var(--state)" : "var(--line-2)");
+    btnTxt.setAttribute("fill", go ? "#fff" : "var(--muted)");
+    btnTxt.textContent = go ? "LAUNCH  python lab4_kl_length.py 0.0"
+      : count < TOG.length ? `locked · ${count} / ${TOG.length} checks` : "6 / 6 checks · write the config";
+    glow.setAttribute("opacity", 0);
+    if (go) {
+      if (animate) gsap.fromTo(btn, { attr: { opacity: 0.3 } }, { attr: { opacity: 1 }, duration: 0.5, delay: 0.3 });
+      else btn.setAttribute("opacity", 1);
+      gsap.fromTo(glow, { attr: { opacity: 0 } }, { attr: { opacity: 0.8 }, duration: 0.9, delay: animate ? 0.8 : 0, repeat: -1, yoyo: true, ease: "sine.inOut" });
+    } else btn.setAttribute("opacity", 1);
+  }
+
+  function kill() {
+    if (!built) return;
+    gsap.killTweensOf(tg.map((g) => g.knob).concat([btn, glow]));
+    // finish any interrupted toggle at its target state
+    tg.forEach((g, i) => setTog(i, cur[i]));
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { build(slide); render(slide, step, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { kill(); if (glow) glow.setAttribute("opacity", 0); }
+  });
+})();
+</script>

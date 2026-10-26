@@ -1,0 +1,82 @@
+<section class="slide chapter" id="custom-c01-chapter" data-tone="agent" data-title="Ch 1: Choose the lever">
+  <style>
+    #custom-c01-chapter .ch-num { font-size: 160px; top: 30px; right: 56px; }
+    #custom-c01-chapter .ch-wrap { position: relative; width: 1392px; height: 386px; margin-bottom: 18px; }
+    #custom-c01-chapter .ch-split { position: absolute; left: 0; top: 0; transform: scale(1.3); transform-origin: 0 0; }
+    #custom-c01-chapter .ch-split .ns { white-space: normal; }
+    #custom-c01-chapter .tok { position: absolute; left: 0; top: 0; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%; background: var(--risk); box-shadow: 0 0 16px var(--risk); z-index: 4; opacity: 0; pointer-events: none; }
+    #custom-c01-chapter .tok.t-fact { background: var(--agent); box-shadow: 0 0 16px var(--agent); }
+    #custom-c01-chapter .tok.t-fmt { background: var(--model); box-shadow: 0 0 16px var(--model); }
+    #custom-c01-chapter .node.run { box-shadow: 0 0 0 5px color-mix(in oklab, var(--nc) 30%, transparent), 0 0 36px -6px var(--nc); }
+  </style>
+  <div class="ch-num" data-fx="blur">01</div>
+  <div class="ch-wrap">
+    <div class="diagram ch-split" style="width:1030px;height:296px"
+         data-wires="fail>eval@1:flow{risk}; eval>fact@2:flow{agent} [knowledge]; eval>fmt@2:flow{model} [behaviour]; fact>rag@3:rl:flow{agent}; fmt>sft@3:rl:flow{model}">
+      <div class="node n-risk" id="fail" style="left:0;top:100px;width:176px" data-fx="pop"><span class="nt">Refund answer wrong</span><span class="ns">Acme refunds assistant</span></div>
+      <div class="node n-state" id="eval" style="left:236px;top:96px;width:200px" data-step="1" data-fx="pop"><span class="nt">Eval first</span><span class="ns">20+ cases; re-run after every fix</span></div>
+      <div class="node n-agent" id="fact" style="left:520px;top:0;width:200px" data-step="2" data-fx="pop"><span class="nt">Missing fact</span><span class="ns">says 14-day window; policy is 30</span></div>
+      <div class="node n-model" id="fmt" style="left:520px;top:200px;width:200px" data-step="2" data-fx="pop"><span class="nt">Wrong behaviour</span><span class="ns">no refund_amount field in the JSON</span></div>
+      <div class="node n-agent" id="rag" style="left:800px;top:0;width:230px" data-step="3" data-fx="pop"><span class="nt">RAG / context</span><span class="ns">retrieval-augmented generation</span></div>
+      <div class="node n-model" id="sft" style="left:800px;top:200px;width:230px" data-step="3" data-fx="pop"><span class="nt">SFT / RL</span><span class="ns">supervised fine-tuning, reinforcement learning</span></div>
+      <div class="tok" id="c01-tok-a"></div>
+      <div class="tok" id="c01-tok-b"></div>
+    </div>
+  </div>
+  <h2 class="display">Choose the lever</h2>
+  <p class="lede" data-step="4" data-fx="up">Facts → context. Behaviour → weights. Eval decides.</p>
+  <aside class="notes">
+    This chapter makes one decision before anyone rents a GPU: which lever fixes which failure. Press through the diagram. The Acme refunds assistant gives a wrong answer, and the first step is not a fix: it is an eval of 20 or more real cases, with each failure tagged. A missing fact, such as "14-day window" when the policy says 30 days, is a knowledge failure, so it goes to context and RAG (retrieval-augmented generation). A missing refund_amount field is a behaviour failure, so it goes to SFT (supervised fine-tuning on example answers) or RL (reinforcement learning against a reward score). After each fix you re-run the same eval. Analogy: a new support agent who does not know the refund policy needs the handbook; one who knows the policy but writes messy replies needs coaching. Likely student question: "Can one fine-tune fix both?" It can try, but slide 6 shows that SFT on new facts raises hallucination, so facts stay in retrieval. Next: the ladder shows the order in which to try the levers.
+  </aside>
+</section>
+<script>
+(() => {
+  let tl = null;
+  const kill = (slide) => {
+    if (tl) { tl.kill(); tl = null; }
+    if (!slide) return;
+    slide.querySelectorAll("#custom-c01-chapter .tok").forEach((t) => { gsap.killTweensOf(t); gsap.set(t, { opacity: 0 }); t.classList.remove("t-fact", "t-fmt"); });
+    slide.querySelectorAll(".ch-split .node").forEach((nd) => nd.classList.remove("run"));
+  };
+  const inP = (el) => ({ x: el.offsetLeft - 6, y: el.offsetTop + el.offsetHeight / 2 });
+  const outP = (el) => ({ x: el.offsetLeft + el.offsetWidth + 6, y: el.offsetTop + el.offsetHeight / 2 });
+  const build = (slide, n) => {
+    kill(slide);
+    const q = (id) => slide.querySelector("#" + id);
+    const a = q("c01-tok-a"), b = q("c01-tok-b");
+    // step 0: failure pulses; 1: to the eval; 2: split by failure type; 3+: to the levers
+    const m = Math.min(n, 3) + 1;
+    const pa = ["fail", "eval", "fact", "rag"].slice(0, m);
+    const pb = ["fail", "eval", "fmt", "sft"].slice(0, m);
+    tl = gsap.timeline({ repeat: -1, repeatDelay: 0.5, delay: 0.5 });
+    const p0 = outP(q("fail"));
+    tl.set([a, b], { x: p0.x, y: p0.y, opacity: 1, scale: 1 });
+    tl.call(() => q("fail").classList.add("run"));
+    tl.to([a, b], { scale: 1.5, duration: 0.25, yoyo: true, repeat: 1 });
+    for (let k = 1; k < pa.length; k++) {
+      const ea = q(pa[k]), eb = q(pb[k]), ca = inP(ea), cb = inP(eb);
+      if (k === 2) tl.call(() => { a.classList.add("t-fact"); b.classList.add("t-fmt"); });
+      tl.to(a, { x: ca.x, y: ca.y, duration: 0.8, ease: "power2.inOut" }, ">");
+      tl.to(b, { x: cb.x, y: cb.y, duration: 0.8, ease: "power2.inOut" }, "<");
+      tl.call(() => { ea.classList.add("run"); eb.classList.add("run"); });
+      if (k < pa.length - 1) {
+        tl.to([a, b], { opacity: 0, duration: 0.15 });
+        tl.set(a, { x: outP(ea).x, y: outP(ea).y });
+        tl.set(b, { x: outP(eb).x, y: outP(eb).y });
+        tl.to([a, b], { opacity: 1, duration: 0.15, delay: 0.2 });
+      } else tl.to({}, { duration: 0.3 });
+    }
+    tl.to([a, b], { opacity: 0, duration: 0.3 });
+    tl.call(() => {
+      slide.querySelectorAll(".ch-split .node").forEach((nd) => nd.classList.remove("run"));
+      a.classList.remove("t-fact"); b.classList.remove("t-fmt");
+    });
+    tl.to({}, { duration: 0.3 });
+  };
+  Deck.register("custom-c01-chapter", {
+    enter(slide, step) { build(slide, step); },
+    step(slide, n) { build(slide, n); },
+    leave(slide) { kill(slide); }
+  });
+})();
+</script>

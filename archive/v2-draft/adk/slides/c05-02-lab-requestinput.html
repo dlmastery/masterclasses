@@ -1,0 +1,170 @@
+<section class="slide tight" id="adk-c05-lab-requestinput" data-tone="human" data-title="Lab 5.1: RequestInput gate">
+  <style>
+    #adk-c05-lab-requestinput pre.code, #adk-c05-lab-requestinput code { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #adk-c05-lab-requestinput .lab-head { gap: 12px; flex-wrap: nowrap; }
+    #adk-c05-lab-requestinput .lab-head .run { font-size: 15px; white-space: nowrap; }
+    #adk-c05-lab-requestinput .lab-head .cite { font-size: 13px; padding: 4px 9px; white-space: nowrap; }
+    #adk-c05-lab-requestinput .lab-head .cite:first-of-type { margin-left: auto; }
+    #adk-c05-lab-requestinput .ri-setup { display: flex; gap: 18px; align-items: center; font: 500 14px/1.3 var(--f-mono); color: var(--ink-2); margin-top: -4px; }
+    #adk-c05-lab-requestinput .ri-setup b { color: var(--human); font-weight: 700; }
+    #adk-c05-lab-requestinput .ri-setup .ok { color: var(--state); }
+    #adk-c05-lab-requestinput .ri-body { display: grid; grid-template-columns: 724px 1fr; gap: 24px; align-items: start; }
+    #adk-c05-lab-requestinput .ri-right { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    #adk-c05-lab-requestinput .code-head { padding: 7px 14px; font-size: 13.5px; }
+    #adk-c05-lab-requestinput .code-head .cite { margin-left: auto; font-size: 12.5px; padding: 3px 8px; }
+    #adk-c05-lab-requestinput .ri-code pre.code { font-size: 13px; line-height: 1.36; padding: 8px 14px 10px; }
+    #adk-c05-lab-requestinput .ri-out pre.code { font-size: 13.5px; line-height: 1.45; padding: 8px 14px 10px; }
+    #adk-c05-lab-requestinput .ri-diag .node { padding: 10px 14px; }
+    #adk-c05-lab-requestinput .ri-diag .node .nt { font-size: 18px; }
+    #adk-c05-lab-requestinput .ri-diag .node .ns { font-size: 13.5px; }
+    #adk-c05-lab-requestinput .ri-rail { grid-template-columns: 1fr 1fr; gap: 8px 16px; }
+    #adk-c05-lab-requestinput .ri-rail > * { font-size: 14.5px; line-height: 1.32; grid-template-columns: 26px 1fr; gap: 8px; }
+    #adk-c05-lab-requestinput .ri-rail > *::before { width: 24px; height: 24px; font-size: 12.5px; border-radius: 7px; }
+    #adk-c05-lab-requestinput .ri-rail code { font-size: 13px; }
+    #adk-c05-lab-requestinput .ri-chips { display: grid; }
+    #adk-c05-lab-requestinput .ri-chip { grid-area: 1 / 1; padding: 7px 12px; border-radius: 10px;
+      font: 600 13.5px/1.5 var(--f-mono); color: var(--ink); background: var(--human-soft); border: 1.5px solid var(--human); }
+    #adk-c05-lab-requestinput .ri-chip b { color: var(--human); }
+    #adk-c05-lab-requestinput .ri-tok { position: absolute; z-index: 4; left: 0; top: 0; height: 26px; padding: 0 10px; border-radius: 13px;
+      display: grid; place-items: center; font: 700 14px/1 var(--f-mono); color: #fff; background: var(--human);
+      box-shadow: 0 0 0 3px var(--bg), 0 0 14px var(--human); opacity: 0; pointer-events: none; white-space: nowrap; }
+    #adk-c05-lab-requestinput .ri-tok.ghost { background: var(--bg); color: var(--state); border: 2px dashed var(--state); box-shadow: none; }
+    #adk-c05-lab-requestinput .ri-pause { position: absolute; z-index: 5; left: 618px; top: 16px; width: 34px; height: 34px; border-radius: 50%;
+      background: var(--human); display: flex; gap: 4px; align-items: center; justify-content: center; opacity: 0; box-shadow: 0 0 0 3px var(--bg); }
+    #adk-c05-lab-requestinput .ri-pause i { width: 4px; height: 13px; border-radius: 1px; background: #fff; }
+    #adk-c05-lab-requestinput .ri-rev { position: absolute; left: 0; top: 0; overflow: visible; z-index: 0; }
+    #adk-c05-lab-requestinput .ri-rev text { font: 600 14px var(--f-mono); fill: var(--human); }
+  </style>
+  <div class="kicker"><span class="pill">Lab 5</span> Acme refunds and payouts · step 1 of 4</div>
+  <h2 class="title">RequestInput pauses the refund graph until a manager answers</h2>
+  <div class="lab-head">
+    <span class="run">pip install "google-adk==2.13.0"</span>
+    <span class="run">adk run refund_approval "A-2040 820" --session_id case-2040</span>
+    <a class="cite doc" href="https://adk.dev/graphs/human-input/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;adk.dev Human input</a>
+    <a class="cite repo" href="https://github.com/google/adk-python/tree/v2.13.0/contributing/samples/workflows/request_input_rerun" target="_blank" rel="noopener"><b>Repo</b>&nbsp;request_input_rerun</a>
+  </div>
+  <div class="ri-setup"><b>run it Monday</b><span>refund_approval/ = __init__.py (<span class="ok">from . import agent</span>) + agent.py + .env</span><span>.env: <span class="ok">GOOGLE_GENAI_USE_ENTERPRISE=FALSE</span> <span class="ok">GOOGLE_API_KEY=</span>&lt;AI Studio key&gt;</span></div>
+  <div class="ri-body fill">
+    <div class="code-wrap ri-code">
+      <div class="code-head">refund_approval/agent.py · part 1 (issue_refund, notify_rejected, edges: step 2)</div>
+      <pre class="code" data-lang="python" data-focus="1:11-15, 2:18-19, 3:16-26, 4:27-30"><code>from typing import Optional
+from google.adk import Agent, Context, Event, Workflow
+from google.adk.events import RequestInput
+from google.adk.workflow import node
+from pydantic import BaseModel
+AUTO_APPROVE_LIMIT = 500.0
+class ManagerDecision(BaseModel):
+  approved: bool
+  amount: Optional[float] = None          # partial refund
+  note: str = ""
+def intake(node_input: str):               # "A-2040 820"
+  order_id, amount = node_input.split()[:2]
+  yield Event(state={"order_id": order_id, "amount": float(amount), "note": ""})
+draft_reply = Agent(name="draft_reply", output_key="draft",   # -> state["draft"]
+    instruction="Write a refund email for ${amount} on {order_id}. Note: {note?}")
+@node(rerun_on_resume=True)
+def manager_gate(ctx: Context, amount: float, draft: str):    # args = state keys
+  if amount &lt;= AUTO_APPROVE_LIMIT:
+    yield Event(route="approved", state={"final_amount": amount}); return
+  iid = f"refund_approval_{ctx.invocation_id}_{ctx.run_id}"
+  answer = ctx.resume_inputs.get(iid)
+  if answer is None:
+    yield RequestInput(interrupt_id=iid, response_schema=ManagerDecision,
+                       payload={"amount": amount, "draft": draft},
+                       message=f"Refund ${amount:.2f} needs approval.\n---\n{draft}")
+    return
+  d = ManagerDecision.model_validate(answer)
+  if not d.approved: yield Event(route="rejected")
+  elif d.note: yield Event(state={"note": d.note}, route="revise")
+  else: yield Event(state={"final_amount": d.amount or amount}, route="approved")</code></pre>
+    </div>
+    <div class="ri-right">
+      <div class="diagram ri-diag" style="width:644px;height:218px"
+           data-wires="intake>draft; draft>gate [draft]; gate>issue:tb{state} [approved]; gate>notify@4:bt{risk} [rejected]">
+        <svg class="ri-rev" width="644" height="218" viewBox="0 0 644 218" data-step="4" data-fx="draw" aria-label="revise back-edge from manager_gate to draft_reply">
+          <path d="M520 36 C 520 0, 330 0, 330 30" fill="none" style="stroke:var(--human);stroke-width:2.8" />
+          <path d="M330 36 L323 23 L337 23 Z" style="fill:var(--human)" />
+          <rect x="390" y="0" width="70" height="22" rx="11" style="fill:var(--bg);stroke:var(--human);stroke-width:1.5" />
+          <text x="425" y="16" text-anchor="middle">revise</text>
+        </svg>
+        <div class="node n-tool" id="intake" style="left:0;top:36px;width:170px"><span class="nt">intake</span><span class="ns">→ state amount</span></div>
+        <div class="node n-model" id="draft" style="left:230px;top:36px;width:190px"><span class="nt">draft_reply</span><span class="ns">→ state draft</span></div>
+        <div class="node n-human" id="gate" style="left:480px;top:36px;width:164px" data-on="3:hot"><span class="nt">manager_gate</span><span class="ns">@node</span></div>
+        <div class="node n-tool" id="notify" style="left:0;top:156px;width:200px" data-step="4" data-fx="pop"><span class="nt">notify_rejected</span><span class="ns">FunctionNode</span></div>
+        <div class="node n-tool" id="issue" style="left:466px;top:156px;width:178px"><span class="nt">issue_refund</span><span class="ns">FunctionNode</span></div>
+        <div class="ri-pause" aria-hidden="true"><i></i><i></i></div>
+        <div class="ri-tok" aria-hidden="true">$820</div>
+      </div>
+      <div class="ri-chips">
+        <div class="ri-chip" data-step="3" data-until="4"><b>run 1</b> · resume_inputs.get(iid) → None → RequestInput, pause<br><b>run 2</b> · resume_inputs.get(iid) → {"approved": …} → route</div>
+        <div class="ri-chip" data-step="4"><b>invocation_id</b> = this run of case-2040 (e7…)<br><b>run_id</b> = this node's pass: 1, then 2 after a revise</div>
+      </div>
+      <div class="steps-rail ri-rail">
+        <div data-step="1"><span><code>intake</code> and <code>draft_reply</code> write state. The gate gets <code>amount</code> and <code>draft</code> by name.</span></div>
+        <div data-step="2"><span>If the amount were $320 (≤ the limit), the gate would route straight to <code>issue_refund</code>.</span></div>
+        <div data-step="3"><span><code>rerun_on_resume=True</code>: after the reply, the function runs again and finds the answer.</span></div>
+        <div data-step="4"><span>The answer routes on. A revise pass gets a new <code>run_id</code>, so a new <code>iid</code>.</span></div>
+      </div>
+      <div class="code-wrap out ri-out" data-step="4">
+        <div class="code-head">output · illustrative</div>
+        <pre class="code" data-lang="text"><code>[draft_reply]: Dear customer, we are processing your refund of $820.0 …
+<span class="ok">[refund_approval]: (Paused for input...)</span>
+<span class="dim"># wire: FunctionCall(name="adk_request_input", id="…_e7…_1")</span></code></pre>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">This is step 1 of the Acme refunds lab: refunds up to $500 go straight through, and larger ones stop at manager_gate. Walk the four focus steps. First the data: intake splits "A-2040 820" and writes amount to state, draft_reply is an LLM Agent whose output_key writes draft, and manager_gate receives both as arguments because the parameter names match the state keys. Second, the limit: a $320 refund would route straight to issue_refund, which the dashed token shows. Third, the re-entry pattern: with rerun_on_resume=True the gate asks the question, the run pauses, and after the reply the whole function runs again from the top; this time resume_inputs.get(iid) finds the answer, because the id is built from invocation_id and run_id and both stay the same on a resume. With the default rerun_on_resume=False, the hand-off pattern, the reply itself becomes the node output and a next node must read it. Fourth, the answer routes to approved, rejected or revise; a revise pass runs the node again inside the same invocation, so run_id goes from 1 to 2 and the gate asks with a new id. Think of the gate as a sticky note on a form: the note keeps the same number, so when the form comes back the clerk finds the answer under that number. The .env line uses GOOGLE_GENAI_USE_ENTERPRISE, the current name; the older GOOGLE_GENAI_USE_VERTEXAI still works but raises a DeprecationWarning, and the key comes from AI Studio. A likely question: "Where are issue_refund and the edges?" On the next slide, which completes the file and answers this pause from a later shell process.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c05-lab-requestinput";
+  let tl = null, pulse = null;
+  const ctr = (d, id, dy) => {
+    const e = d.querySelector("#" + id);
+    return { x: e.offsetLeft + e.offsetWidth / 2, y: e.offsetTop + (dy === undefined ? e.offsetHeight / 2 : dy) };
+  };
+  function clear(slide) {
+    if (tl) tl.kill(); tl = null;
+    if (pulse) pulse.kill(); pulse = null;
+    if (slide) gsap.killTweensOf(slide.querySelectorAll(".ri-tok, .ri-pause"));
+  }
+  function place(tok, p) { gsap.set(tok, { x: p.x - tok.offsetWidth / 2, y: p.y - tok.offsetHeight / 2 }); }
+
+  function render(slide, n, animate) {
+    clear(slide);
+    const d = slide.querySelector(".ri-diag");
+    const tok = d.querySelector(".ri-tok"), pause = d.querySelector(".ri-pause");
+    gsap.set(pause, { opacity: 0, scale: 1 });
+    if (n <= 0) { gsap.set(tok, { opacity: 0 }); return; }
+    const ghost = n === 2;
+    tok.classList.toggle("ghost", ghost);
+    tok.textContent = ghost ? "if $320" : "$820";
+    const path = ghost ? [ctr(d, "gate", -16), ctr(d, "issue", -14)]
+                       : [ctr(d, "intake", -16), ctr(d, "draft", -16), ctr(d, "gate", -16)];
+    const last = path[path.length - 1];
+    if (animate && (n === 1 || n === 2)) {
+      tl = gsap.timeline();
+      place(tok, path[0]);
+      tl.set(tok, { opacity: 1 }, 0.15);
+      path.slice(1).forEach((p) => tl.to(tok, { x: p.x - tok.offsetWidth / 2, y: p.y - tok.offsetHeight / 2, duration: 0.5, ease: "power1.inOut" }));
+    } else {
+      place(tok, last);
+      gsap.set(tok, { opacity: 1 });
+    }
+    if (n >= 3) startPause(pause, animate && n === 3);
+  }
+  function startPause(pause, animate) {
+    gsap.set(pause, { opacity: 1, scale: animate ? 0.3 : 1 });
+    const t = gsap.timeline();
+    if (animate) t.to(pause, { scale: 1, duration: 0.3, ease: "back.out(3)" });
+    t.add(() => { pulse = gsap.to(pause, { scale: 1.2, duration: 0.6, yoyo: true, repeat: -1, ease: "sine.inOut" }); });
+    tl = t;
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { clear(slide); },
+  });
+})();
+</script>

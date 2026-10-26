@@ -1,0 +1,194 @@
+<section class="slide tight" id="adk-c04-gotcha" data-tone="agent" data-title="Gotcha: dynamic nodes">
+  <style>
+    #adk-c04-gotcha .gd-body { display: grid; grid-template-columns: 740px 1fr; gap: 26px; align-items: start; }
+    #adk-c04-gotcha .gd-left { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    #adk-c04-gotcha .gd-right { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    #adk-c04-gotcha .gotcha { grid-template-columns: 92px 1fr; gap: 4px 12px; padding: 11px 16px; font-size: 15.5px; line-height: 1.38; }
+    #adk-c04-gotcha .gotcha > b { font-size: 12.5px; line-height: 1.75; }
+    #adk-c04-gotcha .gotcha .gd-n { grid-column: 1 / -1; font: 700 13px/1 var(--f-mono); color: var(--risk); letter-spacing: .05em; text-transform: uppercase; margin-bottom: 2px; }
+    #adk-c04-gotcha .gotcha .gd-err { font: 500 13px/1.45 var(--f-mono); color: var(--risk); }
+    #adk-c04-gotcha .gotcha .gd-src { color: var(--muted); font-size: 13px; }
+    #adk-c04-gotcha .code-head { padding: 7px 14px; font-size: 13.5px; }
+    #adk-c04-gotcha pre.code { font-size: 12px; line-height: 1.5; padding: 9px 14px 11px; }
+    #adk-c04-gotcha .gd-foot { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    #adk-c04-gotcha .gd-foot .panel { padding: 10px 14px; font-size: 15px; line-height: 1.38; }
+    #adk-c04-gotcha .gd-foot .panel b { display: block; font: 700 12.5px/1.5 var(--f-mono); text-transform: uppercase; letter-spacing: .05em; color: var(--tool); margin-bottom: 2px; }
+    #adk-c04-gotcha .gd-foot p { margin: 0; font-size: 15px; }
+    #adk-c04-gotcha .gd-cites { display: flex; gap: 8px; flex-wrap: wrap; }
+    #adk-c04-gotcha .gd-cites .cite { font-size: 12.5px; padding: 4px 9px; }
+    #adk-c04-gotcha .gd-fig { border: 1px solid var(--line); border-radius: 14px; background: var(--surface); padding: 6px 8px; }
+    #adk-c04-gotcha .gd-fig svg { display: block; width: 100%; height: auto; overflow: visible; }
+    #adk-c04-gotcha svg text { font-family: var(--f-mono); }
+    #adk-c04-gotcha .gd-h { fill: var(--ink); font-size: 13.5px; font-weight: 700; }
+    #adk-c04-gotcha .gd-par { fill: var(--agent-soft); stroke: var(--agent); stroke-width: 2; }
+    #adk-c04-gotcha .gd-par.bad { fill: var(--risk-soft); stroke: var(--risk); stroke-width: 3; }
+    #adk-c04-gotcha .gd-pt { fill: var(--ink); font-size: 13px; font-weight: 700; }
+    #adk-c04-gotcha .gd-wire { fill: none; stroke: var(--line-2); stroke-width: 2.5; stroke-dasharray: 6 5; }
+    #adk-c04-gotcha .gd-kid { stroke-width: 2.5; }
+    #adk-c04-gotcha .gd-kt { font-size: 12px; font-weight: 700; }
+    #adk-c04-gotcha .gd-log { fill: var(--muted); font-size: 12px; }
+    #adk-c04-gotcha .gd-alarm { fill: var(--risk); font-size: 12.5px; font-weight: 700; }
+    #adk-c04-gotcha .gd-div { stroke: var(--line); stroke-width: 1.5; }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> Dynamic graphs</div>
+  <h2 class="title sm">Dynamic nodes need rerun_on_resume and use_sub_branch to stay correct</h2>
+  <div class="gd-body fill">
+    <div class="gd-left">
+      <div class="gotcha" data-step="1">
+        <span class="gd-n">1 · the parent cannot resume</span>
+        <b>Symptom</b><span class="gd-err">ValueError: A node must have rerun_on_resume=True. Reason is that dynamically scheduled nodes might be interrupted, and the workflow wakes-up/re-runs the parent node, so it can get the child node response.</span>
+        <b class="why">Cause</b><span>The parent calls <code>ctx.run_node</code> with the default <code>rerun_on_resume=False</code>. <span class="gd-src">_dynamic_node_scheduler.py:769-774</span></span>
+        <b class="fix">Fix</b><span><code>@node(rerun_on_resume=True)</code> on every parent. Nested parents need it too.</span>
+      </div>
+      <div class="gotcha" data-step="2">
+        <span class="gd-n">2 · the workers read each other</span>
+        <b>Symptom</b><span>Interleaved, garbled events across children. The hotel auditor's context holds the dinner auditor's "line 1" output.</span>
+        <b class="why">Cause</b><span><code>use_sub_branch</code> was left <code>False</code>. Before 2.12, a shared-event-list bug did the same (#7488).</span>
+        <b class="fix">Fix</b><span><code>use_sub_branch=True</code> on every gathered call. Upgrade to <code>google-adk&gt;=2.12</code>.</span>
+      </div>
+      <div class="gotcha" data-step="3">
+        <span class="gd-n">3 · a child fails without a sound</span>
+        <b>Symptom</b><span>A child fails and nothing reports it.</span>
+        <b class="why">Cause</b><span><code>asyncio.create_task</code>: "errors are silently swallowed". <span class="gd-src">agents/context.py:453-456</span></span>
+        <b class="fix">Fix</b><span>Await the child directly or through <code>asyncio.gather</code>.</span>
+      </div>
+      <div class="gd-foot" data-step="5">
+        <div class="panel k-tool"><b>run_id</b><p>A custom <code>run_id="1"</code> collides with auto ids. Use <code>f"line-{i}"</code>.</p></div>
+        <div class="panel k-tool"><b>return value</b><p>A sync generator node discards <code>return value</code>. Yield <code>Event(output=...)</code>.</p></div>
+      </div>
+      <div class="gd-cites">
+        <a class="cite doc" href="https://adk.dev/graphs/dynamic/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;adk.dev/graphs/dynamic</a>
+        <a class="cite repo" href="https://github.com/google/adk-python/issues/7488" target="_blank" rel="noopener"><b>Repo</b>&nbsp;adk-python #7488</a>
+      </div>
+    </div>
+    <div class="gd-right">
+      <div class="code-wrap good">
+        <div class="code-head">expense_audit/agent.py · google-adk 2.13.0</div>
+        <pre class="code" data-lang="python" data-focus="1:11-12, 2:15-16, 3:14-18, 5:17-19"><code>import asyncio
+from google.adk import Agent, Context, Event, Workflow
+from google.adk.workflow import node
+
+auditor = Agent(
+    name="auditor", model="gemini-3.5-flash",
+    instruction=("You audit one expense line from the user message: "
+                 "meals &lt;= $75/person, no alcohol, hotels &lt;= $250/night."),
+)
+
+@node(rerun_on_resume=True)               # fix 1: every caller
+async def orchestrate(ctx: Context, node_input: str):
+  lines = [l.strip() for l in node_input.split(";") if l.strip()]
+  raw = await asyncio.gather(*[            # fix 3: never create_task
+      ctx.run_node(auditor, node_input=l,
+                   use_sub_branch=True,    # fix 2: one branch each
+                   run_id=f"line-{i}")     # not run_id="1"
+      for i, l in enumerate(lines)])
+  yield Event(output=raw)                  # not: return raw
+
+root_agent = Workflow(name="expense_audit", edges=[("START", orchestrate)])</code></pre>
+      </div>
+      <div class="gd-fig" data-step="3">
+        <svg id="gd-svg" viewBox="0 0 620 150" aria-label="A create_task child fails silently; a gathered child raises to the parent">
+          <text class="gd-h" x="14" y="20">asyncio.create_task</text>
+          <text class="gd-h" id="gd-hb" x="330" y="20">asyncio.gather</text>
+          <line class="gd-div" x1="312" y1="8" x2="312" y2="142"/>
+          <path class="gd-wire" d="M164 58 L226 58"/>
+          <path class="gd-wire" id="gd-wb" d="M480 58 L542 58"/>
+          <rect class="gd-par" id="gd-pa" x="14" y="38" width="150" height="40" rx="10"/>
+          <text class="gd-pt" x="89" y="63" text-anchor="middle">orchestrate</text>
+          <g id="gd-pbg"><rect class="gd-par" id="gd-pb" x="330" y="38" width="150" height="40" rx="10"/>
+          <text class="gd-pt" x="405" y="63" text-anchor="middle">orchestrate</text></g>
+          <g id="gd-ka"><circle class="gd-kid" cx="250" cy="58" r="24"/><text class="gd-kt" x="250" y="62" text-anchor="middle">line-1</text></g>
+          <g id="gd-dust"></g>
+          <g id="gd-kb"><circle class="gd-kid" cx="566" cy="58" r="24"/><text class="gd-kt" x="566" y="62" text-anchor="middle">line-1</text></g>
+          <circle id="gd-spark" r="7" style="fill:var(--risk)"/>
+          <text class="gd-log" id="gd-loga" x="14" y="112">log: (no line)</text>
+          <text class="gd-log" x="14" y="132" id="gd-logs">parent never hears</text>
+          <text class="gd-alarm" id="gd-logb" x="330" y="112">child error raised</text>
+          <text class="gd-log" id="gd-logb2" x="330" y="132">the error reaches the parent</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">These three bugs bite the orchestrator from the Northwind expense audit, and each one has a one-line fix in the code on the right. First, any node that calls ctx.run_node must set rerun_on_resume=True, because on resume ADK re-runs the parent from the top and replays the finished children from history; without it you get the ValueError shown, and nested parents need the flag too. Second, set use_sub_branch=True on every gathered call so each auditor sees only its own events; before 2.12 a shared event list leaked one worker's output into another, so upgrade as well. Third, never start children with asyncio.create_task: the animation shows that child dying without a log line, while the same child under gather raises in the parent. Think of create_task as sending a junior adjuster out with no phone: if the car breaks down, the office never hears. A likely question: "Why must run_id contain a letter?" Numeric ids collide with the ids ADK generates, so use f"line-{i}". Next: two papers that measure what these graph shapes cost.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c04-gotcha";
+  const NS = "http://www.w3.org/2000/svg";
+  const KA = [250, 58], KB = [566, 58], PB = [480, 58];
+  const N_DUST = 16;
+  let tl = null;
+  const clamp = (x) => Math.max(0, Math.min(1, x));
+  const q = (s, sel) => s.querySelector(sel);
+  // deterministic dust directions
+  const DUST = Array.from({ length: N_DUST }, (_, i) => {
+    const a = (i / N_DUST) * Math.PI * 2 + (i % 3) * 0.21;
+    const d = 34 + ((i * 37) % 30);
+    return [Math.cos(a) * d * 0.85, Math.sin(a) * d * 0.7 + 10, 2 + (i % 3)];
+  });
+
+  function ensure(s) {
+    const g = q(s, "#gd-dust");
+    if (g.childNodes.length) return;
+    DUST.forEach((p) => {
+      const c = document.createElementNS(NS, "circle");
+      c.setAttribute("r", p[2]);
+      c.style.fill = "var(--faint)";
+      g.appendChild(c);
+    });
+  }
+  function kid(g, red) {
+    const c = g.querySelector("circle"), t = g.querySelector("text");
+    c.style.fill = red ? "var(--risk-soft)" : "var(--agent-soft)";
+    c.style.stroke = red ? "var(--risk)" : "var(--agent)";
+    t.style.fill = red ? "var(--risk)" : "var(--agent)";
+  }
+  // a in [0,1]: create_task child fails, then turns to grey dust; no log line
+  function renderA(s, a) {
+    ensure(s);
+    const ka = q(s, "#gd-ka");
+    kid(ka, a > 0.15);
+    ka.setAttribute("opacity", String(1 - clamp((a - 0.35) / 0.2)));
+    const burst = clamp((a - 0.35) / 0.6);
+    q(s, "#gd-dust").querySelectorAll("circle").forEach((c, i) => {
+      const p = DUST[i];
+      c.setAttribute("cx", KA[0] + p[0] * burst);
+      c.setAttribute("cy", KA[1] + p[1] * burst + 16 * burst * burst);
+      c.setAttribute("opacity", a < 0.35 ? "0" : String(0.9 - 0.65 * burst));
+    });
+    q(s, "#gd-loga").setAttribute("opacity", String(clamp((a - 0.75) / 0.25)));
+    q(s, "#gd-logs").setAttribute("opacity", String(clamp((a - 0.85) / 0.15)));
+  }
+  // b in [0,1]: gathered child fails, the error travels up, the parent turns red
+  function renderB(s, b, shown) {
+    ["#gd-hb", "#gd-wb", "#gd-pbg", "#gd-kb"].forEach((sel) => q(s, sel).setAttribute("opacity", shown ? "1" : "0.18"));
+    kid(q(s, "#gd-kb"), shown && b > 0.15);
+    const m = clamp((b - 0.3) / 0.45);
+    const sp = q(s, "#gd-spark");
+    sp.setAttribute("cx", KB[0] - 24 + (PB[0] - KB[0] + 24) * m);
+    sp.setAttribute("cy", KB[1]);
+    sp.setAttribute("opacity", shown && b > 0.3 && b < 0.8 ? "1" : "0");
+    q(s, "#gd-pb").classList.toggle("bad", shown && b >= 0.75);
+    q(s, "#gd-logb").setAttribute("opacity", shown ? String(clamp((b - 0.75) / 0.2)) : "0");
+    q(s, "#gd-logb2").setAttribute("opacity", shown ? String(clamp((b - 0.85) / 0.15)) : "0");
+  }
+  function stop() { if (tl) tl.kill(); tl = null; }
+  function build(s, n, animate) {
+    stop();
+    const A = { a: n >= 3 ? 1 : 0 }, B = { b: n >= 4 ? 1 : 0 };
+    if (animate && n === 3) A.a = 0;
+    if (animate && n === 4) B.b = 0;
+    renderA(s, A.a); renderB(s, B.b, n >= 4);
+    if (animate && (n === 3 || n === 4)) {
+      tl = gsap.timeline({ delay: 0.5 });
+      if (n === 3) tl.to(A, { a: 1, duration: 2.0, ease: "power1.inOut", onUpdate: () => renderA(s, A.a) });
+      else tl.to(B, { b: 1, duration: 1.8, ease: "power1.inOut", onUpdate: () => renderB(s, B.b, true) });
+    }
+  }
+  Deck.register(ID, {
+    enter(slide, n) { if (!tl) build(slide, n || 0, false); },
+    step(slide, n, animate) { build(slide, n, animate); },
+    leave() { stop(); }
+  });
+})();
+</script>

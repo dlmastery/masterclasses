@@ -1,0 +1,46 @@
+<section class="slide" id="adk-c09-contracts-test" data-tone="model" data-title="Build: wire and test the plugin">
+  <style>
+    #adk-c09-contracts-test .c9-split { --c9l: 820px; }
+    #adk-c09-contracts-test .c9-cap { min-height: 132px; }
+  </style>
+  <div class="kicker">Build · Lab 9 add-on · google-adk 2.13.0</div>
+  <h2 class="title">Wire the plugin into the App, then unit-test it with pytest</h2>
+  <div class="c9-split fill">
+    <div class="c9-col">
+      <div class="code-wrap">
+        <div class="code-head">labs/adk/lab9-refund-eval/refund_agent/agent.py · last lines</div>
+        <pre class="code" data-lang="python" data-focus="1:1-2"><code>app = App(name="refund_agent", root_agent=root_agent,
+          plugins=[OutcomeContractPlugin()])</code></pre>
+      </div>
+      <div class="code-wrap" data-step="2">
+        <div class="code-head">labs/adk/lab9-refund-eval/test_contract.py · excerpt</div>
+        <pre class="code" data-lang="python" data-focus="2:6, 3:7-9, 4:10-11"><code>import asyncio
+from types import SimpleNamespace
+from refund_agent.agent import OutcomeContractPlugin
+
+def test_negative_amount_becomes_error():
+    bad = {"status": "success", "order_id": "A-1001", "amount": -79.0}
+    out = asyncio.run(OutcomeContractPlugin().after_tool_callback(
+        tool=SimpleNamespace(name="lookup_order"), tool_args={},
+        tool_context=None, result=bad))
+    assert out["status"] == "error"
+    assert out["recovery_tools"] == ["escalate_to_human"]</code></pre>
+      </div>
+    </div>
+    <div class="c9-col">
+      <div class="code-wrap out" data-step="4">
+        <div class="code-head">output · illustrative</div>
+        <pre class="code" data-lang="none"><code>$ pytest -q test_contract.py
+<span class="ok">..</span>
+<span class="ok">2 passed in 0.41s</span></code></pre>
+      </div>
+      <div class="c9-cap">
+        <p data-step="1" data-until="2"><code>adk eval</code> and <code>adk web</code> load <code>app</code> from agent.py before <code>root_agent</code>.</p>
+        <p data-step="2" data-until="3">Feed the callback the bad dict. No broken API needed.</p>
+        <p data-step="3" data-until="4">A stub with a <code>name</code> is enough for <code>tool</code>.</p>
+        <p data-step="4">The second test checks that a good amount returns <code>None</code>.</p>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Wire the plugin into an App in agent.py: adk eval, adk web and adk api_server look for app before root_agent there, so the eval gate now runs with the contract on. Passing plugins to a Runner directly is deprecated in 2.x; the warning says to use the app argument. Then test the contract without a broken API: call after_tool_callback directly with the bad dict, a SimpleNamespace that has only a name stands in for the tool, and assert that the result is an error with escalate_to_human as the recovery tool. The lab file has a second test that a good amount, 79.0, returns None. The pytest output is illustrative. Analogy: you test a fuse with a test current, not by setting the house on fire. A likely question: "Does the plugin fix the value?" No: it only makes the failure loud and names the next tool; the model still decides, so keep the eval gate next to it.</aside>
+</section>

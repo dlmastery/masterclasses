@@ -1,0 +1,139 @@
+<section class="slide" id="adk-c08-lab-memory-write" data-tone="state" data-title="Lab 8.2b: write memories">
+  <style>
+    #adk-c08-lab-memory-write .mw-grid { display: grid; grid-template-columns: 770px 1fr; gap: 44px; align-items: start; }
+    #adk-c08-lab-memory-write .mw-col { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+    #adk-c08-lab-memory-write #mw-svg { display: block; width: 578px; height: 392px; overflow: visible; }
+    #adk-c08-lab-memory-write #mw-svg text { font-family: var(--f-mono); }
+    #adk-c08-lab-memory-write .caps { display: grid; }
+    #adk-c08-lab-memory-write .caps > p { grid-area: 1 / 1; font-size: 22px; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 8</span> Acme support · memory · 2 of 3</div>
+  <h2 class="title">after_agent_callback writes each turn into Memory Bank</h2>
+  <div class="lab-head"><span class="run">python support_memory.py day1</span></div>
+  <div class="mw-grid fill">
+    <div class="mw-col">
+      <div class="code-wrap">
+        <div class="code-head">labs/adk/c08-memory-bank/support_memory.py · excerpt</div>
+        <pre class="code" data-lang="python" data-focus="1:1-2, 2:7-10, 3:11-13"><code>async def save_to_memory(callback_context) -&gt; None:
+    await callback_context.add_session_to_memory()
+
+agent = Agent(name="support_agent", model="gemini-3.5-flash",
+    instruction="Acme support. Use remembered preferences.",
+    tools=[preload_memory], after_agent_callback=save_to_memory)
+memory = VertexAiMemoryBankService(
+    project=os.environ["GOOGLE_CLOUD_PROJECT"],
+    location=os.environ["GOOGLE_CLOUD_LOCATION"],
+    agent_engine_id=os.environ["AGENT_ENGINE_ID"])
+runner = Runner(agent=agent, app_name="acme_support",
+    session_service=InMemorySessionService(),
+    memory_service=memory, auto_create_session=True)</code></pre>
+      </div>
+      <div class="caps">
+        <p data-step="1" data-until="2">The callback runs after every turn and sends the session.</p>
+        <p data-step="2" data-until="3">The service points at the bank by <code>AGENT_ENGINE_ID</code>.</p>
+        <p data-step="3">Without <code>memory_service</code>, the callback raises a <code>ValueError</code>.</p>
+      </div>
+    </div>
+    <div class="mw-col">
+      <svg id="mw-svg" viewBox="0 0 578 392" aria-label="Day 1. The user says Family 4-line, SMS only. The model answers. After the agent turn, after_agent_callback sends the session to the Memory Bank inside the Agent Runtime, and two fact chips, Family 4-line and SMS only, move into the bank."></svg>
+      <div class="code-wrap out" data-step="3">
+        <div class="code-head">output · illustrative</div>
+        <pre class="code" data-lang="text"><code><span class="ok">[day1] agent&gt; Got it: Family 4-line, and SMS only.</span></code></pre>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Day one: the customer, cust-42, tells Acme support once that she is on the Family 4-line plan and wants SMS only. Press once: save_to_memory is an after_agent_callback; it runs after every agent turn and calls add_session_to_memory, which sends the session so far to the memory service. Press again: VertexAiMemoryBankService points at the bank by project, location and the AGENT_ENGINE_ID from the setup slide. Press again: the Runner must get memory_service=memory, or the callback raises "Cannot add session to memory: memory service is not available"; auto_create_session=True creates session "day1" on first use. Then the two facts move into the bank; Memory Bank extracts them asynchronously on the service side. Think of it as the notes a good call-centre agent writes after a call. A likely question: "Does it store the whole chat?" It sends the session, and Memory Bank extracts and consolidates facts from it; the next slide reads them back.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c08-lab-memory-write";
+  const NS = "http://www.w3.org/2000/svg";
+  const CX = 458, CT = 120, CB = 230, RX = 92, RY = 18, CW = 164;
+  const IN = [{ x: CX - CW / 2, y: 140 }, { x: CX - CW / 2, y: 182 }];
+  const FROM = { x: 60, y: 238 };
+  let R = null, tw = [];
+  function mk(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text !== undefined) e.textContent = text;
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function box(p, x, y, w, h, tone, l1, l2) {
+    const g = mk("g", {}, p);
+    mk("rect", { x, y, width: w, height: h, rx: 12, fill: `var(--${tone}-soft)`, stroke: `var(--${tone})`, "stroke-width": 2 }, g);
+    mk("text", { x: x + w / 2, y: y + (l2 ? h / 2 - 4 : h / 2 + 6), "text-anchor": "middle", "font-size": 16, "font-weight": 700, fill: "var(--ink)" }, g, l1);
+    if (l2) mk("text", { x: x + w / 2, y: y + h / 2 + 18, "text-anchor": "middle", "font-size": 16, "font-weight": 700, fill: "var(--ink)" }, g, l2);
+    return g;
+  }
+  function arrow(p, d, color, dash) {
+    return mk("path", { d, fill: "none", stroke: color, "stroke-width": 2.6, "stroke-linecap": "round", "stroke-dasharray": dash || "none", "marker-end": `url(#mw-ah-${color === "var(--state)" ? "s" : "g"})` }, p);
+  }
+  function chip(p, label) {
+    const g = mk("g", {}, p);
+    mk("rect", { x: 0, y: 0, width: CW, height: 30, rx: 15, fill: "var(--bg)", stroke: "var(--state)", "stroke-width": 2 }, g);
+    mk("text", { x: CW / 2, y: 20.5, "text-anchor": "middle", "font-size": 15, "font-weight": 700, fill: "var(--state)" }, g, label);
+    return g;
+  }
+  function build(svg) {
+    svg.innerHTML = "";
+    R = {};
+    const defs = mk("defs", {}, svg);
+    [["mw-ah-s", "var(--state)"], ["mw-ah-g", "var(--line-2)"]].forEach(([id, c]) => {
+      const m = mk("marker", { id, viewBox: "0 0 10 10", refX: 8, refY: 5, markerWidth: 6, markerHeight: 6, orient: "auto-start-reverse" }, defs);
+      mk("path", { d: "M0,0 L10,5 L0,10 z", fill: c }, m);
+    });
+    mk("text", { x: 0, y: 18, "font-size": 16, "font-weight": 700, fill: "var(--muted)" }, svg, "day1 · session \"day1\"");
+    R.u = box(svg, 0, 34, 290, 64, "human", "user> Family 4-line,", "SMS only please");
+    R.w1 = arrow(svg, "M145,102 V128", "var(--line-2)");
+    R.m = box(svg, 40, 134, 210, 50, "model", "model call");
+    R.w2 = arrow(svg, "M145,188 V214", "var(--line-2)");
+    R.a = box(svg, 0, 220, 290, 56, "agent", "agent> Got it");
+    // runtime frame + bank
+    R.bank = mk("g", {}, svg);
+    mk("rect", { x: 352, y: 34, width: 224, height: 258, rx: 16, fill: "none", stroke: "var(--state)", "stroke-width": 2, "stroke-dasharray": "7 5" }, R.bank);
+    mk("text", { x: 464, y: 62, "text-anchor": "middle", "font-size": 16, "font-weight": 800, fill: "var(--state)" }, R.bank, "Agent Runtime");
+    mk("path", { d: `M${CX - RX},${CT} V${CB} A${RX},${RY} 0 0 0 ${CX + RX},${CB} V${CT}`, fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 2.2 }, R.bank);
+    mk("ellipse", { cx: CX, cy: CT, rx: RX, ry: RY, fill: "var(--surface)", stroke: "var(--state)", "stroke-width": 2.2 }, R.bank);
+    mk("text", { x: CX, y: 278, "text-anchor": "middle", "font-size": 17, "font-weight": 800, fill: "var(--state)" }, R.bank, "Memory Bank");
+    R.cb = arrow(R.bank, "M294,248 C 320,248 330,200 362,200", "var(--state)", "7 5");
+    R.cbl = mk("text", { x: 0, y: 330, "font-size": 16, "font-weight": 700, fill: "var(--state)" }, svg, "after_agent_callback");
+    R.cbl2 = mk("text", { x: 0, y: 356, "font-size": 15, fill: "var(--ink-2)" }, svg, "→ add_session_to_memory()");
+    R.plug = mk("text", { x: 578, y: 330, "text-anchor": "end", "font-size": 16, "font-weight": 700, fill: "var(--ink-2)" }, svg, "Runner(memory_service=memory)");
+    R.chips = ["Family 4-line", "SMS only"].map((f) => chip(svg, f));
+  }
+  function clear() { tw.forEach((t) => t.kill()); tw = []; }
+  function show(el, on, animate, delay) {
+    gsap.killTweensOf(el);
+    if (!on) { gsap.set(el, { opacity: 0 }); return; }
+    if (animate) tw.push(gsap.fromTo(el, { opacity: 0 }, { opacity: 1, duration: 0.4, delay: delay || 0 }));
+    else gsap.set(el, { opacity: 1 });
+  }
+  function render(slide, n, animate) {
+    const svg = slide.querySelector("#mw-svg");
+    if (!R || !svg.childElementCount) build(svg);
+    clear();
+    const a = (k) => animate && n === k;
+    gsap.set(R.u, { opacity: 1 });
+    [R.w1, R.m, R.w2, R.a].forEach((el, i) => show(el, n >= 1, a(1), i * 0.2));
+    show(R.cbl, n >= 1, a(1), 0.9); show(R.cbl2, n >= 1, a(1), 1.0);
+    show(R.bank, n >= 2, a(2));
+    gsap.set(R.cb, { opacity: n >= 3 ? 1 : 0 });
+    show(R.plug, n >= 3, a(3));
+    R.chips.forEach((c, i) => {
+      gsap.killTweensOf(c);
+      if (n < 3) { gsap.set(c, { x: IN[i].x, y: IN[i].y, opacity: 0 }); return; }
+      if (a(3)) {
+        gsap.set(c, { x: FROM.x, y: FROM.y, opacity: 0 });
+        tw.push(gsap.to(c, { opacity: 1, duration: 0.2, delay: 0.4 + i * 0.25 }));
+        tw.push(gsap.to(c, { x: IN[i].x, y: IN[i].y, duration: 0.9, delay: 0.5 + i * 0.25, ease: "power2.inOut" }));
+      } else gsap.set(c, { x: IN[i].x, y: IN[i].y, opacity: 1 });
+    });
+  }
+  Deck.register(ID, {
+    enter(slide, step) { R = null; render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { clear(); if (slide) gsap.killTweensOf(slide.querySelectorAll("#mw-svg *")); },
+  });
+})();
+</script>

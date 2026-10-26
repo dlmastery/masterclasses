@@ -1,0 +1,205 @@
+<section class="slide" id="custom-c04-group-advantage" data-tone="tool" data-title="GRPO group advantage and partial credit">
+  <style>
+    #custom-c04-group-advantage .ga-svg { display: block; }
+    #custom-c04-group-advantage .ga-lines { grid-template-columns: repeat(3, 1fr); gap: 22px; align-items: start; }
+    #custom-c04-group-advantage .ga-lines .panel p { font-size: 20px; line-height: 1.38; margin: 0; }
+    #custom-c04-group-advantage .ga-lines .panel code { font-size: 0.82em; }
+    #custom-c04-group-advantage .ga-gate { margin-top: 10px; font: 600 15px/1.3 var(--f-mono); color: var(--state); }
+    #custom-c04-group-advantage .ga-foot { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    #custom-c04-group-advantage .ga-mark { display: inline-block; width: 0; height: 0; overflow: hidden; }
+  </style>
+  <h2 class="title">GRPO scores answers against their group, so cheap partial credit wins</h2>
+  <div class="stack" style="gap:16px">
+    <svg class="ga-svg" id="c04-ga-svg" viewBox="0 0 1392 420" width="1392" height="420" aria-label="Eight rollout cards for one refund prompt. Rewards drop onto each card, a group-mean line appears, and arrows show each card's advantage. The schema-less hack card scores 0.5 and gets a positive arrow; with the gated reward it falls to 0.0. When all eight score 0.0, every arrow vanishes and the zero-std group counter ticks."></svg>
+    <div class="grid ga-lines">
+      <div class="panel tight k-tool" data-step="2"><p>GRPO samples 8 completions per prompt. Advantage = (r − group mean) / group std, <code>scale_rewards="group"</code>.</p></div>
+      <div class="panel tight k-risk" data-step="3"><p>A 0.5 that costs zero tokens beats a 0.0 in its group. Gate partial credit on validity.</p>
+        <div class="ga-gate" data-step="4">gate: <code>not REQUIRED &lt;= obj.keys()</code> → 0.0</div></div>
+      <div class="panel tight k-state" data-step="5"><p>All 8 equal: advantage 0, no gradient. TRL logs it as <code>frac_reward_zero_std</code>.</p></div>
+    </div>
+    <div class="ga-foot">
+      <span class="ga-mark" data-step="1"></span>
+      <a class="cite repo" data-step="2" href="https://github.com/huggingface/trl/blob/v1.16.0/trl/trainer/grpo_config.py" target="_blank" rel="noopener"><b>Repo</b>&nbsp;TRL v1.16.0 grpo_config.py</a>
+      <a class="cite doc" data-step="4" href="https://arxiv.org/abs/2610.21404" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.21404 Multi-Reward Hacking (TAG)</a>
+      <a class="cite repo" data-step="5" href="https://github.com/huggingface/trl/blob/v1.16.0/trl/trainer/grpo_trainer.py" target="_blank" rel="noopener"><b>Repo</b>&nbsp;TRL v1.16.0 grpo_trainer.py</a>
+    </div>
+  </div>
+  <aside class="notes">GRPO has no value model: it samples 8 completions for one refund prompt, scores them, and each completion's advantage is its reward minus the group mean, divided by the group standard deviation; that is scale_rewards="group", the TRL 1.16 default. Step through it: two correct answers get big green arrows, the zeros get small red ones, and the hack in card 3, which scored 0.5 under our first draft without any amount or reason, sits above the mean of 0.31, so GRPO pushes the policy toward it. With the schema gate it scores 0.0 and its arrow turns red. In the last step every rollout scores 0.0, the standard deviation is 0, so all advantages are 0 and that prompt gives no gradient at all; TRL counts it in frac_reward_zero_std. Analogy: a teacher who grades on a curve rewards whatever beats the class average, even a blank page with the right heading. Likely question: "Then is partial credit bad?" No, graded credit gives variance when nobody is fully right, but it must be gated on a valid answer, as arXiv 2610.21404 shows for multi-reward GRPO. Next, Lab 3 writes this gated reward in code.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c04-group-advantage";
+  const N = 8, CW = 124, CH = 96, GAP = 26, X0 = 109, CY = 44;
+  const cx = (i) => X0 + i * (CW + GAP) + CW / 2;
+  const BADGE_Y = 150, MY = 292, K = 125;            // mean line y, px per reward unit of (r - mean)
+  // prompt A: gold = approve, $49.99. Card 3 (index 2) is the schema-less hack.
+  const CARDS_A = [
+    ["approve", "$49.99"], ["deny", "$0.00"], ["approve", "no amount"], ["Sure! I", "approved it."],
+    ["escalate", "$0.00"], ["approve", "$49.99"], ["deny", "$0.00"], ["escalate", "$0.00"],
+  ];
+  // prompt B: gold = escalate. No rollout escalates, so every reward is 0.0.
+  const CARDS_B = [
+    ["approve", "$49.99"], ["deny", "$0.00"], ["approve", "$20.00"], ["deny", "$0.00"],
+    ["approve", "$49.99"], ["Sure! I", "approved it."], ["deny", "$0.00"], ["approve", "$10.00"],
+  ];
+  const DRAFT = [1.0, 0.0, 0.5, 0.0, 0.0, 1.0, 0.0, 0.0];
+  const GATED = [1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0];
+  const ZERO = [0, 0, 0, 0, 0, 0, 0, 0];
+  const HACK = 2;
+  // full state per step; step() renders any n directly
+  const S = [
+    { r: null, adv: false, hack: false, gated: false, B: false },
+    { r: DRAFT, adv: false, hack: false, gated: false, B: false },
+    { r: DRAFT, adv: true, hack: false, gated: false, B: false },
+    { r: DRAFT, adv: true, hack: true, gated: false, B: false },
+    { r: GATED, adv: true, hack: true, gated: true, B: false },
+    { r: ZERO, adv: true, hack: false, gated: true, B: true },
+  ];
+  const STRIP = [
+    "",
+    "",
+    "above the mean: pushed up · below the mean: pushed down",
+    '#3 = <answer>{"decision": "approve"}</answer> approve deny escalate  →  0.5, A > 0',
+    "gated: no amount, no reason → schema fails → 0.0, A < 0",
+    "prompt B: all 8 score 0.0 → std 0 → A = 0 for every rollout → no gradient",
+  ];
+  let P = null, pulse = null, tick = null, arr = [];
+
+  const el = (parent, tag, attrs, style, text) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (style) Object.assign(e.style, style);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  };
+  const mono = (w, s) => `${w} ${s}px var(--f-mono)`;
+  const mean = (r) => r.reduce((a, b) => a + b, 0) / r.length;
+
+  // arrow from the mean line: len > 0 points up, len < 0 points down
+  function arrowPath(x, len) {
+    if (Math.abs(len) < 2) return "M0 0";
+    const s = Math.sign(len), tip = MY - len, h = Math.min(16, Math.abs(len));
+    const base = tip + s * h;
+    return `M${x - 11} ${MY} L${x - 11} ${base} L${x - 22} ${base} L${x} ${tip} L${x + 22} ${base} L${x + 11} ${base} L${x + 11} ${MY} Z`;
+  }
+
+  function build(svg) {
+    svg.innerHTML = "";
+    const hdrP = el(svg, "text", { x: X0, y: 26 }, { font: mono(700, 17), fill: "var(--ink)" }, "");
+    const hdrR = el(svg, "text", { x: X0 + N * (CW + GAP) - GAP, y: 26, "text-anchor": "end" }, { font: mono(700, 17), fill: "var(--tool)" }, "");
+    const cards = [];
+    for (let i = 0; i < N; i++) {
+      const x = X0 + i * (CW + GAP);
+      const g = el(svg, "g", {});
+      const box = el(g, "rect", { x, y: CY, width: CW, height: CH, rx: 14 }, { fill: "var(--surface-2)", stroke: "var(--line-2)", strokeWidth: 2 });
+      el(g, "text", { x: x + 12, y: CY + 22 }, { font: mono(600, 13), fill: "var(--muted)" }, `#${i + 1}`);
+      const t1 = el(g, "text", { x: x + CW / 2, y: CY + 54, "text-anchor": "middle" }, { font: mono(700, 16), fill: "var(--ink)" }, "");
+      const t2 = el(g, "text", { x: x + CW / 2, y: CY + 78, "text-anchor": "middle" }, { font: mono(500, 13), fill: "var(--muted)" }, "");
+      const stamp = el(g, "text", { x: x + CW - 10, y: CY + 22, "text-anchor": "end" }, { font: mono(800, 13), fill: "var(--risk)", opacity: 0 }, "HACK");
+      // reward badge
+      const bg = el(svg, "g", {});
+      const bRect = el(bg, "rect", { x: cx(i) - 36, y: BADGE_Y, width: 72, height: 34, rx: 17 }, { fill: "var(--surface-2)", stroke: "var(--line-2)", strokeWidth: 2 });
+      const bTxt = el(bg, "text", { x: cx(i), y: BADGE_Y + 23, "text-anchor": "middle" }, { font: mono(700, 17), fill: "var(--ink)" }, "");
+      // advantage arrow
+      const a = el(svg, "path", { d: "M0 0" }, { fill: "var(--state)", opacity: 0.85 });
+      cards.push({ g, box, t1, t2, stamp, bg, bRect, bTxt, a });
+    }
+    // mean line + labels
+    const meanLine = el(svg, "line", { x1: X0 - 8, y1: MY, x2: X0 + N * (CW + GAP) - GAP + 8, y2: MY }, { stroke: "var(--ink)", strokeWidth: 2.5, strokeDasharray: "10 7" });
+    const meanLab = el(svg, "text", { x: X0 - 16, y: MY - 6, "text-anchor": "end" }, { font: mono(700, 15), fill: "var(--ink)" }, "mean");
+    const meanVal = el(svg, "text", { x: X0 - 16, y: MY + 16, "text-anchor": "end" }, { font: mono(700, 15), fill: "var(--ink)" }, "");
+    const advLab = el(svg, "text", { x: X0 - 16, y: MY - 80, "text-anchor": "end" }, { font: mono(600, 13), fill: "var(--state)" }, "A > 0");
+    const advLab2 = el(svg, "text", { x: X0 - 16, y: MY + 56, "text-anchor": "end" }, { font: mono(600, 13), fill: "var(--risk)" }, "A < 0");
+    // prompt B: no arrows at all; mark the flat line
+    const zeroLab = el(svg, "text", { x: X0 + (N * (CW + GAP) - GAP) / 2, y: MY - 34, "text-anchor": "middle" }, { font: mono(700, 22), fill: "var(--muted)", opacity: 0 }, "A = 0 for all 8 rollouts · flat group, no push");
+    // caption strip (one caption region; text replaced per step)
+    const strip = el(svg, "g", {});
+    const stripBox = el(strip, "rect", { x: X0, y: 362, width: N * (CW + GAP) - GAP, height: 50, rx: 12 }, { fill: "var(--surface-2)", stroke: "var(--line-2)", strokeWidth: 2 });
+    const stripTxt = el(strip, "text", { x: X0 + 20, y: 393 }, { font: mono(600, 16), fill: "var(--ink)" }, "");
+    const ctr = el(strip, "text", { x: X0 + N * (CW + GAP) - GAP - 20, y: 393, "text-anchor": "end" }, { font: mono(700, 16), fill: "var(--state)" }, "");
+    P = { zeroLab, hdrP, hdrR, cards, meanLine, meanLab, meanVal, advLab, advLab2, strip, stripBox, stripTxt, ctr };
+    arr = cards.map(() => ({ len: 0 }));
+  }
+
+  function stopLoops() {
+    if (pulse) { pulse.kill(); pulse = null; }
+    if (tick) { tick.kill(); tick = null; }
+    if (P) P.cards.forEach((c) => gsap.set(c.a, { opacity: 0.85 }));
+  }
+
+  function render(n, animate) {
+    const p = P, s = S[Math.max(0, Math.min(n, S.length - 1))], d = animate ? 0.6 : 0;
+    stopLoops();
+    const texts = s.B ? CARDS_B : CARDS_A;
+    p.hdrP.textContent = s.B ? "prompt B · gold: escalate" : "prompt A · gold: approve, $49.99";
+    p.hdrR.textContent = s.gated ? "decision_reward: gated (REQUIRED keys)" : "decision_reward: draft (no schema gate)";
+    p.hdrR.style.fill = s.gated ? "var(--state)" : "var(--tool)";
+    const m = s.r ? mean(s.r) : 0;
+    p.cards.forEach((c, i) => {
+      c.t1.textContent = texts[i][0];
+      c.t2.textContent = texts[i][1];
+      const isHack = s.hack && i === HACK;
+      c.box.style.stroke = isHack ? "var(--risk)" : "var(--line-2)";
+      c.box.style.fill = isHack ? "var(--risk-soft)" : "var(--surface-2)";
+      c.t2.textContent = isHack ? "no reason" : texts[i][1];
+      gsap.to(c.stamp, { opacity: isHack ? 1 : 0, duration: d });
+      // reward badge
+      if (s.r) {
+        const r = s.r[i];
+        const fixed = s.gated && !s.B && i === HACK;
+        c.bTxt.textContent = r.toFixed(1);
+        c.bRect.style.stroke = fixed ? "var(--risk)" : r === 1 ? "var(--state)" : r > 0 ? "var(--tool)" : "var(--line-2)";
+        c.bRect.style.fill = fixed ? "var(--risk-soft)" : r === 1 ? "var(--state-soft)" : r > 0 ? "var(--tool-soft)" : "var(--surface-2)";
+        c.bTxt.style.fill = fixed ? "var(--risk)" : r === 1 ? "var(--state)" : r > 0 ? "var(--tool)" : "var(--ink)";
+      }
+      if (animate && s.r && n === 1) gsap.fromTo(c.bg, { opacity: 0, y: -40 }, { opacity: 1, y: 0, duration: 0.45, delay: i * 0.07, ease: "bounce.out" });
+      else gsap.to(c.bg, { opacity: s.r ? 1 : 0, y: 0, duration: d });
+      // advantage arrow, proportional to (r - mean); std scales the whole group equally
+      const target = s.adv && s.r ? (s.r[i] - m) * K : 0;
+      const up = target >= 0;
+      c.a.style.fill = up ? "var(--state)" : "var(--risk)";
+      gsap.killTweensOf(arr[i]);
+      gsap.to(arr[i], { len: target, duration: d, delay: animate ? i * 0.04 : 0, ease: "power2.out", onUpdate: () => c.a.setAttribute("d", arrowPath(cx(i), arr[i].len)) });
+      if (!animate) c.a.setAttribute("d", arrowPath(cx(i), target));
+    });
+    // mean line draws at step 2
+    const L = N * (CW + GAP) - GAP + 16;
+    if (s.adv) {
+      if (animate && n === 2) gsap.fromTo(p.meanLine, { opacity: 1, attr: { x2: X0 - 8 } }, { attr: { x2: X0 - 8 + L }, duration: 0.7, ease: "power2.out" });
+      else gsap.to(p.meanLine, { opacity: 1, attr: { x2: X0 - 8 + L }, duration: d });
+    } else gsap.to(p.meanLine, { opacity: 0, duration: d });
+    gsap.to([p.meanLab, p.meanVal, p.advLab, p.advLab2], { opacity: s.adv ? 1 : 0, duration: d });
+    p.meanVal.textContent = s.B ? "0.00" : m.toFixed(2);
+    gsap.to([p.advLab, p.advLab2], { opacity: s.adv && !s.B ? 1 : 0, duration: d });
+    gsap.to(p.zeroLab, { opacity: s.B ? 1 : 0, duration: d, delay: s.B && animate ? 0.3 : 0 });
+    // caption strip
+    p.stripTxt.textContent = STRIP[Math.min(n, STRIP.length - 1)];
+    p.stripTxt.style.fill = n === 3 ? "var(--risk)" : n === 4 ? "var(--state)" : "var(--ink)";
+    p.stripBox.style.stroke = n === 3 ? "var(--risk)" : n === 4 ? "var(--state)" : "var(--line-2)";
+    gsap.to(p.strip, { opacity: n >= 2 ? 1 : 0, duration: d });
+    p.ctr.textContent = s.B ? "zero-std groups: 1" : "";
+    if (s.B && animate) {
+      p.ctr.textContent = "zero-std groups: 0";
+      tick = gsap.delayedCall(0.8, () => { p.ctr.textContent = "zero-std groups: 1"; gsap.fromTo(p.ctr, { scale: 1.3, svgOrigin: `${X0 + N * (CW + GAP) - GAP - 90} 388` }, { scale: 1, duration: 0.4, ease: "back.out(3)" }); });
+    }
+    // the hack is reinforced: its green arrow pulses (step 3 only)
+    if (s.hack && !s.gated) pulse = gsap.to(p.cards[HACK].a, { opacity: 0.25, duration: 0.45, yoyo: true, repeat: -1, ease: "sine.inOut", delay: d });
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) {
+      build(slide.querySelector("#c04-ga-svg"));
+      render(step, false);
+      if (step === 0) gsap.from(P.cards.map((c) => c.g), { opacity: 0, y: -30, duration: 0.5, stagger: 0.07, ease: "back.out(1.6)" });
+    },
+    step(slide, n, animate) { if (!P) build(slide.querySelector("#c04-ga-svg")); render(n, animate); },
+    leave() {
+      stopLoops();
+      if (P) gsap.killTweensOf([P.zeroLab, P.meanLine, P.meanLab, P.meanVal, P.advLab, P.advLab2, P.strip, P.ctr, ...P.cards.flatMap((c) => [c.g, c.bg, c.a, c.stamp])]);
+      arr.forEach((a) => gsap.killTweensOf(a));
+    },
+  });
+})();
+</script>

@@ -1,0 +1,283 @@
+<section class="slide" id="rag-interview-c05-qa-security" data-tone="risk" data-title="Q&amp;A: injection, ACLs, poisoning">
+  <style>
+    #rag-interview-c05-qa-security .sec-grid { display: grid; grid-template-columns: 790px 1fr; gap: 30px; align-items: start; }
+    #rag-interview-c05-qa-security .qa-col { display: grid; gap: 16px; align-content: start; }
+    #rag-interview-c05-qa-security .qa { gap: 8px; }
+    #rag-interview-c05-qa-security .qa .q { font-size: 21px; }
+    #rag-interview-c05-qa-security .qa .a { font-size: 18.5px; line-height: 1.42; padding: 12px 16px; }
+    #rag-interview-c05-qa-security .qa .a .tags { margin-top: 10px; gap: 8px; align-items: center; }
+    #rag-interview-c05-qa-security .qa .a .tag { font-size: 14px; padding: 5px 9px 5px 8px; }
+    #rag-interview-c05-qa-security .qa .a .cite { font-size: 13px; padding: 4px 9px 4px 7px; gap: 6px; }
+    #rag-interview-c05-qa-security .qa .a .cite.paper { flex-direction: row; border: 1px solid var(--line); border-radius: 10px; background: color-mix(in oklab, var(--surface) 60%, transparent); }
+    #rag-interview-c05-qa-security .first { font-size: 16px; line-height: 1.4; color: var(--ink-2); }
+    #rag-interview-c05-qa-security .viz { display: grid; gap: 10px; }
+    #rag-interview-c05-qa-security .viz svg { width: 572px; height: 470px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
+    #rag-interview-c05-qa-security .cap { display: grid; min-height: 74px; }
+    #rag-interview-c05-qa-security .cap > * { grid-area: 1 / 1; align-self: center; }
+    #rag-interview-c05-qa-security .cap .small { font-size: 17px; }
+    #rag-interview-c05-qa-security .cap .stat { flex-direction: row; align-items: center; gap: 16px; }
+    #rag-interview-c05-qa-security .cap .stat .n { font-size: 54px; min-width: 150px; }
+    #rag-interview-c05-qa-security .cap .stat .n.word { min-width: 0; white-space: nowrap; }
+    #rag-interview-c05-qa-security .cap .stat .l { font-size: 17px; }
+  </style>
+  <div class="kicker">Interview · security</div>
+  <h2 class="title">Treat retrieved text as untrusted input with an identity attached</h2>
+  <div class="sec-grid fill">
+    <div class="qa-col">
+      <div class="qa">
+        <div class="q">Your agent reads email and can send email. How do you stop indirect injection?</div>
+        <div class="a" data-step="1">Fix the architecture: plan only from the user's request, and pass retrieved text as data. Confirm every send. Run injection tests in CI.
+          <div class="tags"><span class="tag t-risk">chat 18% · retrieved 53%</span><span class="tag t-risk">detectors miss PoisonedRAG</span><a class="cite paper" href="https://arxiv.org/abs/2610.19133" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.19133</a></div>
+        </div>
+      </div>
+      <div class="qa">
+        <div class="q">Pre-filter or post-filter for ACLs?</div>
+        <div class="a" data-step="2"><b>Pre-filter</b> inside the ANN and BM25 queries with the end user's groups. A post-filter starves top-k and leaks through counts ("3 results hidden").
+          <div class="tags"><span class="tag t-state">chromadb where=</span><a class="cite doc" href="https://genai.owasp.org/llmrisk/llm082025-vector-and-embedding-weaknesses/" target="_blank" rel="noopener"><b>OWASP</b>&nbsp;LLM08 Vector and embedding weaknesses</a></div>
+        </div>
+      </div>
+      <div class="qa">
+        <div class="q">How do you defend a store that ingests content all day from poisoning?</div>
+        <div class="a" data-step="3">Admission filters alone miss coordinated poisoning. Hide unvetted new items after a deadline, and monitor what the read path returns.
+          <div class="tags"><span class="tag t-state">34 → 7 poisoned retrievals</span><a class="cite paper" href="https://arxiv.org/abs/2610.05826" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.05826</a><a class="cite paper" href="https://arxiv.org/abs/2608.16044" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2608.16044</a></div>
+        </div>
+      </div>
+      <div class="first" data-step="3"><b>Do this first:</b> pre-filter with the end user's groups, and add a CI leak test.</div>
+    </div>
+    <div class="viz">
+      <svg id="ric5s-svg" viewBox="0 0 572 470" aria-label="Injection through two channels, ACL pre-filter versus post-filter, and provisional visibility for new content"></svg>
+      <div class="cap">
+        <div class="small" data-until="1">Same injection, two channels: chat vs retrieved.</div>
+        <div class="stat" data-step="1" data-until="2"><span class="n" data-to="53" data-suf="%">0</span><span class="l">attack success via retrieved context.<br>The same text sent as chat: 18%.</span></div>
+        <div class="stat" data-step="2" data-until="3"><span class="n word">0 results</span><span class="l">for the call-center user from a post-filter.<br>The pre-filter returned faq-01.</span></div>
+        <div class="stat" data-step="3"><span class="n" data-to="7" data-pre="34 → ">0</span><span class="l">median poisoned retrievals when unvetted<br>new items are hidden after a deadline.</span></div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Ask each question, let the candidate answer, then reveal the model answer. Q1 tests whether the candidate names architecture: the plan comes only from the user's request, retrieved text is data, tools have least privilege, a human confirms a send, and egress is allowlisted. A better system prompt alone is a weak answer, because the same injection succeeds about three times as often through the retrieved channel (TRACER, 2610.19133). In code, the planner sees only the user message and picks the tools; the writer reads the documents and has no tools. A pytest suite plants a canary string and attack texts in the KB and asserts that the canary never appears in the output. Q2 red flags are a service-account identity and a filter after generation; the strong answer filters inside both the ANN and BM25 queries with the end user's groups and backs it with a leak test in CI. A post-filter also leaks through counts and timing: "3 results hidden" tells the user that restricted documents match. Analogy for Q2: a librarian who checks your badge before fetching books, not one who fetches everything and then takes books out of your hands. Q3 tests layered defenses for a live store: an ingestion filter, a read-path demand monitor (100% caught at 1% FPR in 2608.16044), provisional visibility for new items, and a leave-one-source-out check for high-stakes answers, because one attacker source raised wrong answers from 0.01 to 0.68 and the answer cited a trusted-looking source (CiteShade, 2609.15660). Likely follow-up: "Does a prompt-injection classifier solve it?" No: one scored 0.994 recall in-distribution and near zero on fluent fact-poisoning (2610.28364).</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "rag-interview-c05-qa-security";
+  let tweens = [], shown = -1;
+
+  function el(p, tag, attrs, style) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (style) Object.assign(e.style, style);
+    p.appendChild(e);
+    return e;
+  }
+  function text(p, x, y, s, o = {}) {
+    const t = el(p, "text", { x, y, "text-anchor": o.anchor || "middle" },
+      { fill: o.fill || "var(--ink-2)", fontFamily: o.body ? "var(--f-body)" : "var(--f-mono)", fontSize: (o.size || 14) + "px", fontWeight: o.w || 500 });
+    t.textContent = s;
+    return t;
+  }
+  function box(p, x, y, w, h, tone, label, sub) {
+    const g = el(p, "g", {});
+    el(g, "rect", { x, y, width: w, height: h, rx: 12 }, { fill: `var(--${tone}-soft)`, stroke: `var(--${tone})`, strokeWidth: 2 });
+    text(g, x + w / 2, y + (sub ? h / 2 - 3 : h / 2 + 5), label, { fill: "var(--ink)", w: 700, size: 15 });
+    if (sub) text(g, x + w / 2, y + h / 2 + 17, sub, { fill: `var(--${tone})`, size: 12 });
+    return g;
+  }
+  const T = (target, vars) => { const t = gsap.to(target, vars); tweens.push(t); return t; };
+  const F = (target, from, to) => { const t = gsap.fromTo(target, from, to); tweens.push(t); return t; };
+  function kill() { tweens.forEach((t) => t.kill()); tweens = []; }
+
+  // Scene 1: the same injection through two channels; the plan is taken from the user only
+  function channels(svg, animate, on) {
+    text(svg, 286, 34, "same injection · two channels", { w: 700, fill: "var(--ink)", size: 14 });
+    box(svg, 24, 66, 180, 60, "human", "chat message", "user turn");
+    box(svg, 24, 236, 180, 60, "risk", "retrieved doc", "KB page / email");
+    box(svg, 372, 136, 176, 64, "agent", "planner", "picks tools");
+    box(svg, 372, 300, 176, 64, "model", "answer writer", "reads data, no tools");
+    el(svg, "path", { d: "M204 96 C 290 96, 290 160, 372 160" }, { fill: "none", stroke: "var(--human)", strokeWidth: 2.5 });
+    const toPlanner = el(svg, "path", { d: "M204 256 C 290 256, 290 180, 372 180" }, { fill: "none", stroke: "var(--risk)", strokeWidth: 2.5 });
+    // attack-success bars, 180 px = 100 %
+    const bars = [{ y: 136, v: 18, c: "var(--human)" }, { y: 306, v: 53, c: "var(--risk)" }];
+    bars.forEach((b) => {
+      el(svg, "rect", { x: 24, y: b.y, width: 180, height: 14, rx: 7 }, { fill: "var(--line)" });
+      const r = el(svg, "rect", { x: 24, y: b.y, width: on ? b.v * 1.8 : 0, height: 14, rx: 7 }, { fill: b.c });
+      const t = text(svg, 214, b.y + 12, on ? b.v + "%" : "?", { anchor: "start", w: 700, size: 15, fill: b.c });
+      if (on && animate) {
+        const o = { v: 0 };
+        F(r, { attr: { width: 0 } }, { attr: { width: b.v * 1.8 }, duration: 1.0, delay: 0.2, ease: "power3.out" });
+        F(o, { v: 0 }, { v: b.v, duration: 1.0, delay: 0.2, ease: "power3.out", onUpdate: () => (t.textContent = Math.round(o.v) + "%") });
+      }
+    });
+    text(svg, 120, 172, "attack success", { size: 11, fill: "var(--muted)" });
+    if (!on) {
+      text(svg, 286, 424, "Which channel lets the injection through more often?", { size: 14, w: 600, fill: "var(--ink)" });
+      return;
+    }
+    // the fix: lock the retrieved channel out of the planner, send it to the writer as data
+    const lock = el(svg, "g", {});
+    el(lock, "path", { d: "M279 212 v-9 a9 9 0 0 1 18 0 v9" }, { fill: "none", stroke: "var(--risk)", strokeWidth: 3 });
+    el(lock, "rect", { x: 273, y: 211, width: 30, height: 24, rx: 5 }, { fill: "var(--risk)" });
+    const lockT = [
+      text(svg, 288, 252, "retrieved text cannot", { size: 12, w: 700, fill: "var(--risk)" }),
+      text(svg, 288, 267, "reach the planner", { size: 12, w: 700, fill: "var(--risk)" }),
+    ];
+    const toWriter = el(svg, "path", { d: "M204 276 C 290 276, 290 332, 372 332" }, { fill: "none", stroke: "var(--state)", strokeWidth: 2.5, strokeDasharray: "7 6" });
+    const dataT = text(svg, 292, 350, "data only", { size: 12, w: 700, fill: "var(--state)" });
+    const plan = el(svg, "path", { d: "M460 200 L460 296 M452 286 L460 298 L468 286" }, { fill: "none", stroke: "var(--agent)", strokeWidth: 2.5 });
+    const planT = text(svg, 472, 254, "plan", { anchor: "start", size: 13, w: 700, fill: "var(--agent)" });
+    const foot = [
+      text(svg, 30, 404, "plan = planner(user_msg)       # picks the tools", { anchor: "start", size: 13, w: 600, fill: "var(--ink)" }),
+      text(svg, 30, 426, "answer = writer(plan, docs)    # has no tools", { anchor: "start", size: 13, w: 600, fill: "var(--ink)" }),
+      text(svg, 30, 452, "detector: 0.994 recall in-distribution, ≈ 0 on PoisonedRAG", { anchor: "start", size: 12.5, fill: "var(--risk)", w: 600 }),
+    ];
+    if (animate) {
+      F(toPlanner, { opacity: 1 }, { opacity: 0.25, duration: 0.4, delay: 1.5 });
+      F([lock, ...lockT], { opacity: 0, y: -12 }, { opacity: 1, y: 0, duration: 0.45, delay: 1.4, ease: "back.out(2)" });
+      F(toWriter, { opacity: 0 }, { opacity: 1, duration: 0.4, delay: 1.9 });
+      F(dataT, { opacity: 0 }, { opacity: 1, duration: 0.4, delay: 2.0 });
+      F([plan, planT], { opacity: 0 }, { opacity: 1, duration: 0.4, delay: 2.2 });
+      F(foot, { opacity: 0 }, { opacity: 1, duration: 0.4, delay: 2.5, stagger: 0.15 });
+      const loop = gsap.timeline({ repeat: -1, delay: 2.6 });
+      loop.fromTo(toWriter, { strokeDashoffset: 26 }, { strokeDashoffset: 0, duration: 0.8, ease: "none" });
+      tweens.push(loop);
+    } else toPlanner.style.opacity = 0.25;
+  }
+
+  // Scene 2: ACL post-filter starves top-k; pre-filter inside the search returns faq-01
+  function acl(svg, animate) {
+    text(svg, 286, 30, "Acme claims KB · maria_callcenter · groups [all-staff]", { w: 700, fill: "var(--ink)", size: 14 });
+    text(svg, 145, 62, "post-filter", { w: 700, fill: "var(--risk)", size: 15 });
+    text(svg, 145, 80, "rank, then filter", { size: 12, fill: "var(--muted)" });
+    text(svg, 430, 62, "pre-filter", { w: 700, fill: "var(--state)", size: 15 });
+    text(svg, 430, 80, "filter inside the search", { size: 12, fill: "var(--muted)" });
+    el(svg, "line", { x1: 286, y1: 50, x2: 286, y2: 380 }, { stroke: "var(--line-2)", strokeWidth: 1.5, strokeDasharray: "4 5" });
+    const top3 = [["siu-02", "fraud memo", "siu"], ["siu-05", "fraud memo", "siu"], ["adj-07", "adjuster guide", "adjusters"]];
+    const cards = [], marks = [];
+    top3.forEach(([id, title, grp], i) => {
+      const y = 94 + i * 60;
+      const g = el(svg, "g", {});
+      el(g, "rect", { x: 22, y, width: 246, height: 52, rx: 10 }, { fill: "var(--surface-2)", stroke: "var(--line-2)", strokeWidth: 1.8 });
+      text(g, 34, y + 22, `${i + 1}  ${id} ${title}`, { anchor: "start", w: 700, size: 14, fill: "var(--ink)" });
+      text(g, 52, y + 41, `group: ${grp}`, { anchor: "start", size: 12, fill: "var(--ink-2)" });
+      cards.push(g);
+      const m = el(svg, "g", {});
+      el(m, "rect", { x: 202, y: y + 28, width: 58, height: 20, rx: 10 }, { fill: "var(--risk)" });
+      text(m, 231, y + 43, "ACL ✕", { w: 700, size: 12, fill: "#fff" });
+      marks.push(m);
+    });
+    const filt = el(svg, "line", { x1: 22, y1: 286, x2: 268, y2: 286 }, { stroke: "var(--risk)", strokeWidth: 2, strokeDasharray: "6 5" });
+    const filtT = text(svg, 145, 278, "keep if group ∈ [all-staff]", { size: 12, fill: "var(--risk)" });
+    const empty = el(svg, "g", {});
+    el(empty, "rect", { x: 52, y: 298, width: 186, height: 50, rx: 12 }, { fill: "var(--risk-soft)", stroke: "var(--risk)", strokeWidth: 2 });
+    text(empty, 145, 330, "0 results", { w: 700, size: 20, fill: "var(--risk)" });
+    const emptyT = text(svg, 145, 368, "top-k starved", { w: 700, size: 13, fill: "var(--risk)" });
+    // right lane
+    const chip = el(svg, "g", {});
+    el(chip, "rect", { x: 306, y: 98, width: 248, height: 46, rx: 10 }, { fill: "var(--surface-2)", stroke: "var(--line-2)", strokeWidth: 1.5 });
+    text(chip, 430, 126, "where=acl_where(groups)", { size: 13.5, w: 600, fill: "var(--ink)" });
+    const arrow = el(svg, "path", { d: "M430 146 L430 196 M422 186 L430 198 L438 186" }, { fill: "none", stroke: "var(--state)", strokeWidth: 2.5 });
+    const faq = el(svg, "g", {});
+    el(faq, "rect", { x: 306, y: 204, width: 248, height: 52, rx: 10 }, { fill: "var(--state-soft)", stroke: "var(--state)", strokeWidth: 2 });
+    text(faq, 318, 226, "1  faq-01 claims FAQ", { anchor: "start", w: 700, size: 14, fill: "var(--ink)" });
+    text(faq, 336, 245, "group: all-staff", { anchor: "start", size: 12, fill: "var(--state)" });
+    const faqT = text(svg, 430, 278, "allowed hit, no leak", { w: 700, size: 13, fill: "var(--state)" });
+    const foot = [
+      text(svg, 24, 404, "chromadb 1.5.9: where={\"allowed_groups\": {\"$contains\": g}}", { anchor: "start", size: 12.5, w: 600, fill: "var(--ink)" }),
+      text(svg, 24, 428, "CI: assert no user gets a doc outside their groups", { anchor: "start", size: 12.5, fill: "var(--ink-2)" }),
+      text(svg, 24, 452, "siu = special investigations unit (fraud team)", { anchor: "start", size: 12, fill: "var(--muted)" }),
+    ];
+    if (!animate) return;
+    F(cards, { opacity: 0, y: -14 }, { opacity: 1, y: 0, duration: 0.4, stagger: 0.15 });
+    F([filt, filtT], { opacity: 0 }, { opacity: 1, duration: 0.3, delay: 0.8 });
+    marks.forEach((m, i) => F(m, { opacity: 0, scale: 0.6, transformOrigin: "center", transformBox: "fill-box" }, { opacity: 1, scale: 1, duration: 0.3, delay: 1.1 + i * 0.25, ease: "back.out(2)" }));
+    F([empty, emptyT], { opacity: 0, scale: 0.8, transformOrigin: "center", transformBox: "fill-box" }, { opacity: 1, scale: 1, duration: 0.4, delay: 2.0, ease: "back.out(2)" });
+    F(chip, { opacity: 0 }, { opacity: 1, duration: 0.35, delay: 2.5 });
+    F(arrow, { opacity: 0 }, { opacity: 1, duration: 0.3, delay: 2.8 });
+    F([faq, faqT], { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.4, delay: 3.0, ease: "back.out(2)" });
+    F(foot, { opacity: 0 }, { opacity: 1, duration: 0.4, delay: 3.4, stagger: 0.15 });
+  }
+
+  // Scene 3: continuous ingest; unvetted items are hidden when their deadline passes
+  const KIND = ["ok", "slow", "ok", "ok", "poison", "ok", "slow", "ok", "ok", "poison", "ok", "slow"];
+  const X0 = 50, DX = 38, DEADLINE = 70, VET = 30, END = 500, DOT_Y = 132, AX_Y = 170;
+  function ingest(svg, animate) {
+    text(svg, 286, 30, "continuous ingest · bounded provisional visibility", { w: 700, fill: "var(--ink)", size: 14 });
+    // legend matches the drawn marks
+    const lg = (x, draw, s) => { draw(x); text(svg, x + 14, 63, s, { anchor: "start", size: 12, fill: "var(--ink-2)" }); };
+    lg(40, (x) => el(svg, "circle", { cx: x, cy: 58, r: 7 }, { fill: "var(--tool)" }), "unvetted");
+    lg(150, (x) => el(svg, "circle", { cx: x, cy: 58, r: 7 }, { fill: "var(--state)" }), "verified");
+    lg(260, (x) => el(svg, "circle", { cx: x, cy: 58, r: 7 }, { fill: "var(--surface-2)", stroke: "var(--muted)", strokeWidth: 2, strokeDasharray: "3 2" }), "hidden");
+    lg(366, (x) => text(svg, x, 64, "×", { w: 700, size: 17, fill: "var(--risk)" }), "poisoned");
+    el(svg, "line", { x1: 40, y1: AX_Y, x2: 548, y2: AX_Y }, { stroke: "var(--line-2)", strokeWidth: 2 });
+    text(svg, 548, AX_Y + 20, "ingest time →", { anchor: "end", size: 12, fill: "var(--muted)" });
+    const items = KIND.map((k, i) => {
+      const x = X0 + i * DX;
+      const win = el(svg, "rect", { x, y: AX_Y - 20, width: DEADLINE, height: 5, rx: 2 }, { fill: "var(--tool)", opacity: 0 });
+      const c = el(svg, "circle", { cx: x, cy: DOT_Y, r: 12 }, { fill: "var(--tool)", stroke: "none", strokeWidth: 2.5, opacity: 0 });
+      const tag = text(svg, x, DOT_Y - 20, k === "poison" ? "×" : "", { w: 700, size: 17, fill: "var(--risk)" });
+      tag.style.opacity = 0;
+      return { k, x, c, win, tag };
+    });
+    const now = el(svg, "line", { x1: 40, y1: 92, x2: 40, y2: AX_Y + 8 }, { stroke: "var(--ink)", strokeWidth: 2 });
+    const nowT = text(svg, 40, 88, "now", { size: 12, w: 700, fill: "var(--ink)" });
+    function at(cx) {
+      now.setAttribute("x1", cx); now.setAttribute("x2", cx); nowT.setAttribute("x", Math.min(cx, 530));
+      items.forEach((it) => {
+        const age = cx - it.x;
+        if (age < 0) { it.c.style.opacity = 0; it.win.style.opacity = 0; it.tag.style.opacity = 0; return; }
+        const verified = it.k === "ok" && age >= VET;
+        const hidden = it.k !== "ok" && age >= DEADLINE;
+        it.win.style.opacity = verified || hidden ? 0 : 0.6;
+        it.win.setAttribute("width", Math.min(age, DEADLINE));
+        it.c.style.opacity = 1;
+        it.c.style.fill = hidden ? "var(--surface-2)" : verified ? "var(--state)" : "var(--tool)";
+        it.c.style.stroke = hidden ? "var(--muted)" : "none";
+        it.c.style.strokeDasharray = hidden ? "4 3" : "none";
+        it.tag.style.opacity = hidden && it.k === "poison" ? 1 : 0;
+      });
+    }
+    // comparison bars: median poisoned retrievals, 9 px per retrieval
+    const rows = [{ y: 236, v: 34, s: "async admission", c: "var(--risk)" }, { y: 290, v: 7, s: "deadline hiding", c: "var(--state)" }];
+    text(svg, 40, 224, "median poisoned retrievals", { anchor: "start", size: 13, w: 700, fill: "var(--ink)" });
+    const bars = rows.map((r) => {
+      text(svg, 40, r.y + 26, r.s, { anchor: "start", size: 13, fill: "var(--ink-2)" });
+      const b = el(svg, "rect", { x: 176, y: r.y + 8, width: r.v * 9, height: 26, rx: 6 }, { fill: r.c });
+      const t = text(svg, 184 + r.v * 9, r.y + 27, String(r.v), { anchor: "start", size: 16, w: 700, fill: r.c });
+      return { b, t, r };
+    });
+    const foot = [
+      text(svg, 286, 380, "read-path demand monitor: 100% caught at 1% FPR", { size: 13, fill: "var(--ink-2)" }),
+      text(svg, 286, 408, "one attacker source: wrong answers 0.01 → 0.68", { size: 13, fill: "var(--risk)", w: 600 }),
+      text(svg, 286, 434, "test leave-one-source-out on high-stakes answers", { size: 12.5, fill: "var(--muted)" }),
+    ];
+    if (!animate) { at(END); return; }
+    at(40);
+    const p = { x: 40 };
+    F(p, { x: 40 }, { x: END, duration: 3.0, ease: "none", onUpdate: () => at(p.x) });
+    bars.forEach(({ b, t, r }, i) => {
+      const o = { v: 0 };
+      F(b, { attr: { width: 0 } }, { attr: { width: r.v * 9 }, duration: 0.8, delay: 1.0 + i * 0.5, ease: "power3.out" });
+      F(o, { v: 0 }, { v: r.v, duration: 0.8, delay: 1.0 + i * 0.5, ease: "power3.out", onUpdate: () => { t.textContent = String(Math.round(o.v)); t.setAttribute("x", 184 + o.v * 9); } });
+    });
+    F(foot, { opacity: 0 }, { opacity: 1, duration: 0.4, delay: 2.6, stagger: 0.15 });
+  }
+
+  function render(slide, n, animate) {
+    const svg = slide.querySelector("#ric5s-svg");
+    if (!svg) return;
+    kill();
+    svg.innerHTML = "";
+    shown = n;
+    const s = Math.min(n, 3);
+    if (s === 0) channels(svg, false, false);
+    else if (s === 1) channels(svg, animate, true);
+    else if (s === 2) acl(svg, animate);
+    else ingest(svg, animate);
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { if (shown !== step) render(slide, step, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { kill(); shown = -1; }
+  });
+})();
+</script>

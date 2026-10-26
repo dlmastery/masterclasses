@@ -1,0 +1,114 @@
+<section class="slide tight" id="adk-c04-paper" data-tone="human" data-title="Paper: handoffs drop facts">
+  <style>
+    #adk-c04-paper .pa-grid { display: grid; grid-template-columns: 520px 1fr; gap: 28px; align-items: start; }
+    #adk-c04-paper .paper { padding: 24px 26px; gap: 14px; }
+    #adk-c04-paper .paper .pid { font-size: 16px; }
+    #adk-c04-paper .paper h4 { font-size: 23px; line-height: 1.3; margin: 0; }
+    #adk-c04-paper .paper .find { font-size: 20px; line-height: 1.45; }
+    #adk-c04-paper .paper .so { font-size: 19px; line-height: 1.4; }
+    #adk-c04-paper .paper .so code { font-size: .88em; }
+    #adk-c04-paper .pa-right { display: flex; flex-direction: column; gap: 18px; }
+    #adk-c04-paper .cites .cite { font-size: 14px; }
+    #adk-c04-paper svg text { font-family: var(--f-mono); }
+    #adk-c04-paper .pa-h { fill: var(--ink); font-size: 18px; font-weight: 700; }
+    #adk-c04-paper .pa-sub { fill: var(--muted); font-size: 16px; }
+    #adk-c04-paper .pa-lane { fill: var(--ink); font-size: 18px; font-weight: 700; }
+    #adk-c04-paper .pa-track { stroke: var(--line-2); stroke-width: 2; stroke-dasharray: 5 6; }
+    #adk-c04-paper .pa-run { fill: var(--agent-soft); stroke: var(--agent); stroke-width: 2.5; }
+    #adk-c04-paper .pa-rl { fill: var(--agent); font-size: 15px; font-weight: 700; }
+    #adk-c04-paper .pa-baton rect { stroke-width: 2; }
+    #adk-c04-paper .pa-baton text { font-size: 15px; font-weight: 700; }
+    #adk-c04-paper .pa-res { font-size: 34px; font-weight: 800; }
+  </style>
+  <div class="kicker"><span class="pill">arXiv</span> Aug 2026</div>
+  <h2 class="title">Every handoff between agents is a chance to drop a policy fact</h2>
+  <div class="pa-grid fill">
+    <div class="paper">
+      <div class="pid">arXiv 2608.16055 <span>2026-08-17</span></div>
+      <h4>Governance at the Boundary: How Agent Decomposition Degrades Policy Compliance</h4>
+      <div class="find" data-step="1">Fiducia-bench, 626 KYC/AML episodes. With a 32B open model, a policy fact was lost in <b>0%</b> (single loop), <b>56%</b> (pipeline) and <b>85%</b> (orchestrator + subagents). gpt-4.1-mini lost <b>3-6%</b>.</div>
+      <div class="so" data-step="3">Pass policy facts as typed state: <code>output_schema</code> + <code>output_key</code>. End with a deterministic check node.</div>
+    </div>
+    <div class="pa-right">
+      <svg id="pa-relay" viewBox="0 0 844 400" width="844" height="400" aria-label="Relay race: the PEP match baton drops at handoffs in the pipeline and orchestrator lanes; facts lost 0%, 56%, 85% with a 32B model">
+        <text class="pa-h" x="0" y="22">one policy fact, passed hand to hand · schematic</text>
+        <text class="pa-sub" x="844" y="22" text-anchor="end">lost · 32B model</text>
+        <g id="pa-lanes"></g>
+      </svg>
+      <div class="cites">
+        <a class="cite paper" href="https://arxiv.org/abs/2608.16055" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2608.16055</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Governance at the Boundary puts a number on the cost of decomposing an agent. The authors ran 626 KYC and AML episodes in their Fiducia benchmark. With a 32B open model, a policy fact such as a PEP match, a politically exposed person, never reached the component that had to act on it in 0% of single-loop runs, 56% of pipeline runs and 85% of orchestrator-plus-subagent runs; gpt-4.1-mini lost only 3 to 6%. The animation is a relay race: every handoff is a chance to drop the baton, and a single runner cannot drop it. The lanes are schematic; the numbers on the right are the paper's. The change for Acme on Monday: pass policy facts as typed state, with output_schema and output_key, for example a risk_flags list, and end the graph with a deterministic check node that reads that state. With small models, keep compliance-critical paths in one agent. A likely question: "So should I never use an orchestrator?" Use one when the eval says it pays, but measure fact loss at each boundary.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c04-paper";
+  const NS = "http://www.w3.org/2000/svg";
+  const X0 = 210, X1 = 700;
+  // lanes: name, runner x positions + labels, drop x (null = never drops), lost %
+  const LANES = [
+    { name: "single loop", y: 110, runs: [[X0, "agent"]], drop: null, lost: "0%" },
+    { name: "pipeline", y: 220, runs: [[X0, "screen"], [380, "assess"], [550, "decide"]], drop: 270, lost: "56%" },
+    { name: "orchestrator", y: 330, runs: [[X0, "orch"], [340, "sub"], [470, "sub"], [600, "orch"]], drop: 256, lost: "85%" },
+  ];
+  let tl = null;
+  const clamp = (x) => Math.max(0, Math.min(1, x));
+  const q = (s, sel) => s.querySelector(sel);
+  const el = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); Object.entries(attrs).forEach(([k, v]) => e.setAttribute(k, v)); parent.appendChild(e); return e; };
+  function ensure(s) {
+    const g = q(s, "#pa-lanes");
+    if (g.childNodes.length) return;
+    LANES.forEach((L, i) => {
+      el("text", { class: "pa-lane", x: 0, y: L.y + 6 }, g).textContent = L.name;
+      el("line", { class: "pa-track", x1: X0, y1: L.y, x2: X1, y2: L.y }, g);
+      L.runs.forEach(([x, lab]) => {
+        el("circle", { class: "pa-run", cx: x, cy: L.y, r: 17 }, g);
+        el("text", { class: "pa-rl", x: x, y: L.y + 40, "text-anchor": "middle" }, g).textContent = lab;
+      });
+      const b = el("g", { class: "pa-baton", id: "pa-bt" + i }, g);
+      el("rect", { x: -54, y: -14, width: 108, height: 28, rx: 8 }, b);
+      el("text", { x: 0, y: 5, "text-anchor": "middle" }, b).textContent = "PEP match";
+      el("text", { class: "pa-res", id: "pa-res" + i, x: 790, y: L.y + 12, "text-anchor": "middle" }, g).textContent = L.lost;
+    });
+  }
+  // t in [0,1]: the baton runs from start to finish; it falls at the lane's drop point
+  function renderRelay(s, t, showRes) {
+    ensure(s);
+    LANES.forEach((L, i) => {
+      const b = q(s, "#pa-bt" + i);
+      const x = X0 + (X1 - X0) * t;
+      let bx = x, by = L.y - 36, rot = 0, lost = false;
+      if (L.drop !== null && x > L.drop) {
+        lost = true;
+        const f = clamp((x - L.drop) / 120);
+        bx = L.drop + 20 * f; by = L.y - 36 + 26 * f * f; rot = 28 * f;
+      }
+      b.setAttribute("transform", `translate(${bx},${by}) rotate(${rot})`);
+      const r = b.querySelector("rect"), tx = b.querySelector("text");
+      r.style.fill = lost ? "var(--surface-2)" : "var(--risk-soft)";
+      r.style.stroke = lost ? "var(--faint)" : "var(--risk)";
+      tx.style.fill = lost ? "var(--faint)" : "var(--risk)";
+      b.setAttribute("opacity", lost ? String(1 - 0.5 * clamp((x - L.drop) / 200)) : "1");
+      const res = q(s, "#pa-res" + i);
+      res.setAttribute("opacity", showRes ? "1" : "0");
+      res.style.fill = L.drop === null ? "var(--state)" : "var(--risk)";
+    });
+  }
+  function stop() { if (tl) tl.kill(); tl = null; }
+  function build(s, n, animate) {
+    stop();
+    const R = { t: n >= 1 ? 1 : 0 };
+    if (animate && n === 1) R.t = 0;
+    renderRelay(s, R.t, n >= 2);
+    if (animate && n === 1) tl = gsap.timeline({ delay: 0.5 }).to(R, { t: 1, duration: 2.8, ease: "none", onUpdate: () => renderRelay(s, R.t, false) });
+    if (animate && n === 2) tl = gsap.timeline().fromTo(s.querySelectorAll(".pa-res"), { scale: 0.4, transformOrigin: "50% 50%", opacity: 0 }, { scale: 1, opacity: 1, duration: 0.4, stagger: 0.2, ease: "back.out(2.5)" });
+  }
+  Deck.register(ID, {
+    enter(slide, n) { build(slide, n || 0, false); },
+    step(slide, n, animate) { build(slide, n, animate); },
+    leave() { stop(); }
+  });
+})();
+</script>

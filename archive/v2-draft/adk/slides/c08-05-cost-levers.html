@@ -1,0 +1,235 @@
+<section class="slide tight" id="adk-c08-cost-levers" data-tone="state" data-title="Cache TTL and compaction levers">
+  <style>
+    #adk-c08-cost-levers .cl-main { display: grid; grid-template-columns: 700px minmax(0, 1fr); gap: 26px; align-items: start; }
+    #adk-c08-cost-levers .cl-col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    #adk-c08-cost-levers .code-wrap .code-head { padding: 7px 14px; font-size: 13.5px; }
+    #adk-c08-cost-levers pre.code { font-size: 15px; line-height: 1.45; padding: 9px 14px 10px; }
+    #adk-c08-cost-levers #cl-svg { display: block; width: 100%; height: auto; overflow: visible; }
+    #adk-c08-cost-levers #cl-svg text { font-family: var(--f-mono); }
+    #adk-c08-cost-levers .cl-rail { gap: 8px; }
+    #adk-c08-cost-levers .cl-rail > * { font-size: 15px; line-height: 1.35; grid-template-columns: 28px 1fr; gap: 10px; }
+    #adk-c08-cost-levers .cl-rail > *::before { width: 24px; height: 24px; font-size: 12.5px; border-radius: 6px; }
+    #adk-c08-cost-levers .cl-rail code { font-size: 13px; }
+    #adk-c08-cost-levers .cl-cites { display: flex; flex-wrap: wrap; gap: 10px; }
+    #adk-c08-cost-levers .cl-cites .cite { font-size: 13px; padding: 5px 9px 5px 7px; }
+  </style>
+  <div class="kicker">Build</div>
+  <h2 class="title sm">Match cache TTL to real pauses and compact before the window fills</h2>
+  <div class="cl-main fill">
+    <div class="cl-col">
+      <div class="code-wrap bad">
+        <div class="code-head">handbook_app.py · Lab 8 step 1 · tuned for a 3-turn demo</div>
+        <pre class="code" data-lang="python" data-focus="1:4-4"><code># agent = handbook_agent from Lab 8 step 1 (static_instruction=HANDBOOK)
+app = App(name="bluefin_support", root_agent=agent,
+    context_cache_config=ContextCacheConfig(
+        min_tokens=4096, ttl_seconds=900, cache_intervals=10))</code></pre>
+      </div>
+      <div class="code-wrap good" data-step="2">
+        <div class="code-head">handbook_app.py · production settings (Uber levers)</div>
+        <pre class="code" data-lang="python" data-focus="2:7-9, 3:10-12"><code>from google.adk.agents.context_cache_config import ContextCacheConfig
+from google.adk.apps.app import App, EventsCompactionConfig
+agent = ...   # handbook_agent from Lab 8 step 1, unchanged
+app = App(
+    name="bluefin_support", root_agent=agent,
+    context_cache_config=ContextCacheConfig(
+        min_tokens=4096,      # Gemini 3 minimum (Gemini 2.5: 2048)
+        ttl_seconds=3600,     # Uber: interactive TTL 5 min -> 1 h
+        cache_intervals=10),  # invocations per cache (1..100)
+    events_compaction_config=EventsCompactionConfig(
+        token_threshold=400_000,   # Uber compacts at 400K on 1M models
+        event_retention_size=10),  # keep the last 10 raw events
+)</code></pre>
+      </div>
+    </div>
+    <div class="cl-col">
+      <svg id="cl-svg" viewBox="0 0 628 402" aria-label="Idle-gap timeline for one chat: turns 1 and 2 at minutes 0 and 2, turn 3 at minute 14 and turn 4 at minute 40. Cache bars start at turn 2. TTL 300 seconds misses turns 3 and 4, TTL 900 seconds hits turn 3 and misses turn 4, and TTL 3600 seconds hits both. A token meter for turn 4 shows 9,480 tokens re-sent after a miss against 8,960 cached plus 520 fresh after a hit. A context gauge fills to 400K tokens and folds into a summary plus the last 10 raw events."></svg>
+      <div class="steps-rail cl-rail">
+        <div data-step="1"><span>A pause longer than the TTL drops the cached prefix. The next turn re-sends the whole handbook.</span></div>
+        <div data-step="2"><span>TTL counts from cache creation on turn 2: 900 s ends at minute 17, 3600 s at minute 62.</span></div>
+        <div data-step="3"><span>Set one full pair: <code>token_threshold</code> + <code>event_retention_size</code>, or <code>compaction_interval</code> + <code>overlap_size</code>. Half a pair raises <code>ValueError</code>. If you set both pairs, the token pair wins for that turn.</span></div>
+        <div data-step="4"><span>Measure: <code>ADK_EXPERIMENTAL_TELEMETRY_FEATURES=context_cache,compaction,token_usage</code> adds cache and compaction counters to the ADK telemetry spans.</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="cl-cites">
+    <a class="cite doc" href="https://uber.com/us/en/blog/efficient-software-factory" target="_blank" rel="noopener"><b>Post</b>&nbsp;Running a Software Factory Efficiently at Uber Scale</a>
+    <a class="cite repo" href="https://github.com/google/adk-python/blob/v2.13.0/src/google/adk/apps/_configs.py" target="_blank" rel="noopener"><b>Repo</b>&nbsp;apps/_configs.py · v2.13.0</a>
+  </div>
+  <aside class="notes">The step-1 lab was tuned for a three-turn demo, but real Bluefin customers go quiet while they look for a bill or make coffee. The timeline shows one chat with turns at minutes 0, 2, 14 and 40, and the cache is created on turn 2, so each TTL counts from minute 2: a 5-minute TTL, which Uber used before, misses both long pauses, the lab's 900 seconds survives the 12-minute pause but not the 26-minute one, and 3600 seconds keeps both turns a hit, so the next turn does not re-send the whole handbook. The trade-off is storage: a longer TTL bills more storage-hours while the customer is idle, so pick about the 90th-percentile pause, not the longest one. Think of the TTL like a parking meter: pay for the time your customers really stay. Uber also compacts at 400K tokens even on 1M-context models, so compact well before the window is full, and remember that compaction triggers come in pairs or you get a ValueError. The config classes are pydantic models with extra="forbid", so a typo such as ttl_second raises a validation error instead of being ignored. A likely question is "how do I know it works?": turn on the experimental telemetry features context_cache, compaction and token_usage and watch the counters, and note that turn 1 is never a hit. The Uber numbers come from the Uber case at the end of this chapter. Next, the Bluefin failures that make cache, compaction or memory seem to do nothing.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c08-cost-levers";
+  const NS = "http://www.w3.org/2000/svg";
+  const X0 = 128, X1 = 560, TMAX = 45;
+  const X = (t) => X0 + (Math.min(t, TMAX) * (X1 - X0)) / TMAX;
+  const GAPS = [12, 26];                       // idle gaps before turn 3 and turn 4
+  const ROWS = [
+    { ttl: 5, y: 132, label: "ttl 300 s", sub: "Uber, before", step: 0 },
+    { ttl: 15, y: 178, label: "ttl 900 s", sub: "lab step 1", step: 1 },
+    { ttl: 60, y: 224, label: "ttl 3600 s", sub: "after", step: 2 },
+  ];
+  const MW = 400;                              // meter width for 9,480 tokens
+  const CACHED = Math.round((8960 / 9480) * MW);
+  const GX = X0, GW = X1 - X0, GY = 352;       // context gauge (1M window)
+  let R = null, tw = [];
+
+  function mk(tag, attrs, parent) {
+    const e = document.createElementNS(NS, tag);
+    for (const [a, v] of Object.entries(attrs)) e.setAttribute(a, v);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function txt(p, x, y, s, a) {
+    const t = mk("text", Object.assign({ x, y, "font-size": 12.5, fill: "var(--ink-2)" }, a || {}), p);
+    t.textContent = s; return t;
+  }
+  function badge(p, x, y, hit) {
+    const g = mk("g", {}, p);
+    mk("rect", { x: x - 24, y: y - 11, width: 48, height: 22, rx: 11, fill: hit ? "var(--state)" : "var(--risk)", stroke: "var(--bg)", "stroke-width": 2 }, g);
+    txt(g, x, y + 4.5, hit ? "HIT" : "MISS", { "font-size": 11.5, "font-weight": 800, "text-anchor": "middle", fill: "#fff" });
+    return g;
+  }
+
+  function build(svg) {
+    svg.innerHTML = "";
+    R = { rows: [] };
+    txt(svg, 0, 14, "one Bluefin chat · minutes since turn 1", { "font-size": 12.5, "font-weight": 700, fill: "var(--muted)" });
+    // turn markers: turns 1 and 2 share one marker (minutes 0 and 2)
+    [[0, 2, "1·2", "0·2"], [14, 14, "3", "14"], [40, 40, "4", "40"]].forEach(([a, b, lab, t]) => {
+      const cx = (X(a) + X(b)) / 2, w = lab.length > 1 ? 42 : 22;
+      [a, b].filter((v, i, arr) => arr.indexOf(v) === i).forEach((v) => mk("line", { x1: X(v), y1: 104, x2: X(v), y2: 240, stroke: "var(--line-2)", "stroke-width": 1, "stroke-dasharray": "3 4" }, svg));
+      mk("rect", { x: cx - w / 2, y: 26, width: w, height: 22, rx: 11, fill: "var(--human-soft)", stroke: "var(--human)", "stroke-width": 1.8 }, svg);
+      txt(svg, cx, 41.5, lab, { "font-size": 12, "font-weight": 800, "text-anchor": "middle", fill: "var(--human)" });
+      txt(svg, cx, 66, t, { "font-size": 11.5, "text-anchor": "middle", fill: "var(--muted)" });
+    });
+    txt(svg, X0 - 34, 41.5, "turn", { "font-size": 11.5, "text-anchor": "end", fill: "var(--muted)" });
+    txt(svg, X0 - 34, 66, "min", { "font-size": 11.5, "text-anchor": "end", fill: "var(--muted)" });
+    // idle-gap brackets: labels above the bracket, ticks stay below
+    [[2, 14], [14, 40]].forEach(([a, b], i) => {
+      const y = 98;
+      txt(svg, (X(a) + X(b)) / 2, y - 10, `${GAPS[i]} min idle`, { "font-size": 12, "font-weight": 700, "text-anchor": "middle", fill: "var(--tool)" });
+      mk("path", { d: `M${X(a) + 4},${y - 4} V${y} H${X(b) - 4} V${y - 4}`, fill: "none", stroke: "var(--tool)", "stroke-width": 1.6 }, svg);
+    });
+    // TTL rows
+    ROWS.forEach((r) => {
+      const o = {};
+      o.lab = mk("g", {}, svg);
+      txt(o.lab, 0, r.y, r.label, { "font-size": 13, "font-weight": 700, fill: "var(--ink)" });
+      txt(o.lab, 0, r.y + 15, r.sub, { "font-size": 11.5, fill: "var(--muted)" });
+      o.w = X(2 + r.ttl) - X(2);
+      o.bar = mk("rect", { x: X(2), y: r.y - 13, width: o.w, height: 18, rx: 5, fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 1.6 }, svg);
+      if (2 + r.ttl < TMAX) {
+        o.cap = mk("g", {}, svg);
+        const ex = X(2 + r.ttl);
+        mk("line", { x1: ex, y1: r.y - 16, x2: ex, y2: r.y + 8, stroke: "var(--risk)", "stroke-width": 3, "stroke-linecap": "round" }, o.cap);
+      } else {
+        o.cap = mk("path", { d: `M${X1 - 2},${r.y - 13} l12,9 l-12,9 z`, fill: "var(--state)" }, svg);
+      }
+      o.b = GAPS.map((g, i) => badge(svg, X([14, 40][i]), r.y - 4, g <= r.ttl));
+      R.rows.push(o);
+    });
+    // takeaway at the end of the 3600 s lane
+    R.take = txt(svg, X1 + 16, ROWS[2].y - 8, "both pauses", { "font-size": 12.5, "font-weight": 800, fill: "var(--state)" });
+    R.take2 = txt(svg, X1 + 16, ROWS[2].y + 8, "stay hits", { "font-size": 12.5, "font-weight": 800, fill: "var(--state)" });
+    // storage trade-off
+    R.store = txt(svg, X0, 256, "longer TTL = more storage-hours billed · pick ~p90 pause, not the max", { "font-size": 11.5, "font-weight": 600, fill: "var(--muted)" });
+    // turn-4 token meter
+    R.mH = txt(svg, X0, 282, "turn 4 prompt tokens · same size as turn 3 · illustrative", { "font-size": 11.5, "font-weight": 700, fill: "var(--muted)" });
+    R.mA = mk("g", {}, svg);
+    txt(R.mA, 0, 304, "ttl 900 s", { "font-size": 13, "font-weight": 700, "fill": "var(--ink)" });
+    R.mAbar = mk("rect", { x: X0, y: 290, width: MW, height: 20, rx: 4, fill: "var(--tool)" }, R.mA);
+    txt(R.mA, X0 + 10, 304.5, "9,480 tokens re-sent", { "font-size": 12, "font-weight": 700, fill: "#fff" });
+    R.mB = mk("g", {}, svg);
+    txt(R.mB, 0, 330, "ttl 3600 s", { "font-size": 13, "font-weight": 700, fill: "var(--ink)" });
+    R.mBc = mk("rect", { x: X0, y: 316, width: CACHED, height: 20, rx: 4, fill: "var(--state)" }, R.mB);
+    R.mBf = mk("rect", { x: X0 + CACHED, y: 316, width: MW - CACHED, height: 20, rx: 2, fill: "var(--tool)" }, R.mB);
+    txt(R.mB, X0 + 10, 330.5, "8,960 cached", { "font-size": 12, "font-weight": 700, fill: "#fff" });
+    txt(R.mB, X0 + MW + 8, 330.5, "+520 fresh", { "font-size": 12, "font-weight": 700, fill: "var(--tool)" });
+    // context gauge: compaction at 400K of a 1M window
+    R.g = mk("g", {}, svg);
+    txt(R.g, 0, GY + 30, "context", { "font-size": 13, "font-weight": 700, fill: "var(--ink)" });
+    txt(R.g, 0, GY + 45, "1M window", { "font-size": 11.5, fill: "var(--muted)" });
+    mk("rect", { x: GX, y: GY + 18, width: GW, height: 20, rx: 5, fill: "none", stroke: "var(--line-2)", "stroke-width": 1.6 }, R.g);
+    R.gRaw = mk("rect", { x: GX, y: GY + 18, width: 0, height: 20, rx: 5, fill: "var(--tool)", opacity: 0.85 }, R.g);
+    R.gSum = mk("rect", { x: GX, y: GY + 18, width: 0, height: 20, rx: 5, fill: "var(--state)" }, R.g);
+    const mx = GX + GW * 0.4;
+    mk("line", { x1: mx, y1: GY + 12, x2: mx, y2: GY + 44, stroke: "var(--risk)", "stroke-width": 2, "stroke-dasharray": "4 3" }, R.g);
+    txt(R.g, mx, GY + 6, "token_threshold 400K", { "font-size": 12, "font-weight": 700, "text-anchor": "middle", fill: "var(--risk)" });
+    R.gLab = txt(R.g, GX + 74, GY + 33, "summary + last 10 raw events", { "font-size": 12, "font-weight": 700, fill: "var(--state)" });
+  }
+
+  function clear() { tw.forEach((t) => t.kill()); tw = []; }
+  function vis(el, on, animate, delay) {
+    gsap.killTweensOf(el);
+    if (!on) { gsap.set(el, { opacity: 0 }); return; }
+    if (animate) tw.push(gsap.fromTo(el, { opacity: 0 }, { opacity: 1, duration: 0.4, delay: delay || 0 }));
+    else gsap.set(el, { opacity: 1 });
+  }
+  function grow(rect, w, on, animate, delay) {
+    gsap.killTweensOf(rect);
+    if (!on) { gsap.set(rect, { opacity: 0, attr: { width: 0 } }); return; }
+    if (animate) tw.push(gsap.fromTo(rect, { opacity: 1, attr: { width: 0 } }, { attr: { width: w }, duration: 0.8, delay: delay || 0, ease: "power2.out" }));
+    else gsap.set(rect, { opacity: 1, attr: { width: w } });
+  }
+  function pop(g, on, animate, delay) {
+    gsap.killTweensOf(g);
+    if (!on) { gsap.set(g, { opacity: 0 }); return; }
+    if (animate) tw.push(gsap.fromTo(g, { opacity: 0, scale: 0.4, transformOrigin: "50% 50%" }, { opacity: 1, scale: 1, duration: 0.4, delay: delay || 0, ease: "back.out(2.2)" }));
+    else gsap.set(g, { opacity: 1, scale: 1 });
+  }
+
+  function render(slide, n, animate) {
+    const svg = slide.querySelector("#cl-svg");
+    if (!svg) return;
+    if (!R || !svg.childElementCount) build(svg);
+    clear();
+    const a = (k) => animate && n === k;
+    // rows: the 300 s lane is there from the start; 900 s at step 1; 3600 s at step 2
+    ROWS.forEach((r, i) => {
+      const o = R.rows[i], on = n >= r.step, an = r.step > 0 && a(r.step);
+      vis(o.lab, on, an, 0);
+      grow(o.bar, o.w, on, an, 0);
+      vis(o.cap, on, an, 0.8);
+      o.b.forEach((b, j) => pop(b, on, an, 0.9 + j * 0.25));
+    });
+    vis(R.take, n >= 2, a(2), 1.5); vis(R.take2, n >= 2, a(2), 1.5);
+    vis(R.store, n >= 2, a(2), 1.8);
+    // meters: turn 4 tokens after a miss (step 1) and after a hit (step 2)
+    vis(R.mH, n >= 1, a(1), 1.4);
+    vis(R.mA, n >= 1, a(1), 1.4);
+    grow(R.mAbar, MW, n >= 1, a(1), 1.4);
+    vis(R.mB, n >= 2, a(2), 1.2);
+    grow(R.mBc, CACHED, n >= 2, a(2), 1.2);
+    grow(R.mBf, MW - CACHED, n >= 2, a(2), 2.0);
+    // compaction gauge: fill to 400K, then fold into summary + 10 raw events
+    vis(R.g, n >= 3, a(3));
+    gsap.killTweensOf([R.gRaw, R.gSum, R.gLab]);
+    const fold = { sum: 34, raw: 30 };
+    if (n < 3) {
+      gsap.set(R.gRaw, { attr: { x: GX, width: 0 } }); gsap.set(R.gSum, { attr: { width: 0 } }); gsap.set(R.gLab, { opacity: 0 });
+    } else if (a(3)) {
+      gsap.set(R.gRaw, { attr: { x: GX, width: 0 } }); gsap.set(R.gSum, { attr: { width: 0 } }); gsap.set(R.gLab, { opacity: 0 });
+      const tl = gsap.timeline({ delay: 0.3 });
+      tl.to(R.gRaw, { attr: { width: GW * 0.4 }, duration: 1.4, ease: "none" })
+        .to(R.gRaw, { attr: { x: GX + fold.sum, width: fold.raw }, duration: 0.7, ease: "power3.inOut" }, "+=0.2")
+        .to(R.gSum, { attr: { width: fold.sum }, duration: 0.7, ease: "power3.inOut" }, "<")
+        .to(R.gLab, { opacity: 1, duration: 0.3 });
+      tw.push(tl);
+    } else {
+      gsap.set(R.gRaw, { attr: { x: GX + fold.sum, width: fold.raw } }); gsap.set(R.gSum, { attr: { width: fold.sum } }); gsap.set(R.gLab, { opacity: 1 });
+    }
+    // step 4: the after-row hits pulse once
+    if (a(4)) R.rows[2].b.forEach((b, j) => tw.push(gsap.fromTo(b, { scale: 1 }, { scale: 1.2, transformOrigin: "50% 50%", duration: 0.2, yoyo: true, repeat: 1, delay: 0.2 + j * 0.15 })));
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) {
+      clear();
+      if (slide) gsap.killTweensOf(slide.querySelectorAll("#cl-svg *"));
+    },
+  });
+})();
+</script>

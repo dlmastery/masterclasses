@@ -1,0 +1,254 @@
+<section class="slide" id="rag-interview-c03-qa-hybrid" data-tone="agent" data-title="Q&amp;A: hybrid search and RRF">
+  <style>
+    #rag-interview-c03-qa-hybrid .hy-grid { display: grid; grid-template-columns: 590px 1fr; gap: 34px; }
+    #rag-interview-c03-qa-hybrid .qa-col { display: grid; gap: 22px; align-content: start; }
+    #rag-interview-c03-qa-hybrid .qa { gap: 10px; transition: opacity .35s; }
+    #rag-interview-c03-qa-hybrid .qa .q { font-size: 22px; }
+    #rag-interview-c03-qa-hybrid .qa .a { font-size: 22px; line-height: 1.4; padding: 12px 16px; }
+    #rag-interview-c03-qa-hybrid .right { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    #rag-interview-c03-qa-hybrid .fig-slot { position: relative; height: 566px; }
+    #rag-interview-c03-qa-hybrid .fig-slot > * { position: absolute; inset: 0; }
+    #rag-interview-c03-qa-hybrid svg text { font-family: var(--f-mono); }
+    #rag-interview-c03-qa-hybrid pre.code.xs { font-size: 13px; line-height: 1.45; padding: 10px 16px 12px; }
+    #rag-interview-c03-qa-hybrid .code-wrap .code-head { padding: 7px 14px; font-size: 13.5px; }
+    #rag-interview-c03-qa-hybrid .cites { gap: 8px; }
+    #rag-interview-c03-qa-hybrid .cite { font-size: 13px; flex-direction: row; align-items: center; gap: 8px; padding: 6px 10px 6px 8px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); white-space: nowrap; }
+  </style>
+  <div class="kicker">Interview · hybrid search</div>
+  <h2 class="title">Hybrid search: fuse ranks, pin the defaults, watch the fusion tax</h2>
+  <div class="hy-grid fill">
+    <div class="qa-col">
+      <div class="qa" data-on="2:dim">
+        <div class="q">Why RRF instead of averaging Northwind's BM25 and cosine scores?</div>
+        <div class="a" data-step="1">The scales differ. RRF uses ranks only: <b>Σ 1/(k + rank)</b>, <b>k = 60</b>. Then tune one weight on labels.</div>
+      </div>
+      <div class="qa" data-on="3:dim">
+        <div class="q">Can hybrid search be worse than dense alone?</div>
+        <div class="a" data-step="2"><b>Yes</b>, on <b>8–21%</b> of queries. Print the per-query “got worse” list, not only the mean.</div>
+      </div>
+      <div class="qa">
+        <div class="q">You moved hybrid into Qdrant and BM25 into bm25s. Quality changed. What do you check?</div>
+        <div class="a" data-step="3">Silent defaults. Qdrant's k is <b>2</b>: pin <b>k = 61</b> (= paper 60). bm25s drops the “E” in E-4012: normalise codes.</div>
+      </div>
+    </div>
+
+    <div class="right">
+      <div class="fig-slot">
+        <!-- step 1: two rank lists fuse by RRF -->
+        <svg class="interactive" id="c03h-fig1" data-step="1" data-until="2" data-fx="fade" viewBox="0 0 760 470" width="760" height="470">
+          <g style="font-weight:700;font-size:19px">
+            <text x="95" y="28" text-anchor="middle" style="fill:var(--tool)">BM25 rank</text>
+            <text x="305" y="28" text-anchor="middle" style="fill:var(--state)">Dense rank</text>
+            <text x="605" y="28" text-anchor="middle" style="fill:var(--agent)">RRF score, k = 60</text>
+          </g>
+          <g id="c03h-lists" style="font-weight:600;font-size:18px"></g>
+          <g id="c03h-rrf" style="font-weight:600;font-size:18px"></g>
+          <g style="font-size:15px">
+            <rect x="20" y="368" width="16" height="16" rx="4" style="fill:var(--agent-soft);stroke:var(--agent);stroke-width:2"/>
+            <text x="44" y="381" style="fill:var(--ink-2)">in both lists</text>
+            <rect x="190" y="368" width="16" height="16" rx="4" style="fill:var(--surface-2);stroke:var(--line-2);stroke-width:1.5"/>
+            <text x="214" y="381" style="fill:var(--ink-2)">in one list</text>
+            <text x="740" y="381" text-anchor="end" style="fill:var(--muted)">ranks illustrative</text>
+          </g>
+          <text class="c03h-f" x="380" y="420" text-anchor="middle" style="font-weight:700;font-size:22px;fill:var(--ink)">c12 = 1/(60+2) + 1/(60+3) = 0.0320</text>
+          <text class="c03h-f" x="380" y="454" text-anchor="middle" style="font-size:16px;fill:var(--ink-2)">weighted: w/(k+r_bm25) + (1−w)/(k+r_dense) · grid-search w on labels</text>
+        </svg>
+
+        <!-- step 2: per-query delta histogram -->
+        <div id="c03h-fig2" data-step="2" data-until="3" data-fx="fade" class="stack" style="gap:12px">
+          <svg class="interactive" viewBox="0 0 760 300" width="760" height="300">
+            <text x="380" y="22" text-anchor="middle" style="font-weight:700;font-size:17px;fill:var(--ink)">Sketch: illustrative distribution, per query</text>
+            <text x="380" y="44" text-anchor="middle" style="font-size:15px;fill:var(--ink-2)">nDCG@5 hybrid − nDCG@5 dense</text>
+            <text x="16" y="150" transform="rotate(-90 16 150)" text-anchor="middle" style="font-size:14px;fill:var(--muted)">queries</text>
+            <g class="c03h-bars"></g>
+            <line x1="40" y1="236" x2="740" y2="236" style="stroke:var(--line-2);stroke-width:2"/>
+            <g style="font-size:15px;fill:var(--muted)">
+              <text x="82" y="258" text-anchor="middle">−0.25</text><text x="390" y="258" text-anchor="middle">0</text><text x="698" y="258" text-anchor="middle">+0.25</text>
+            </g>
+            <g class="c03h-tail">
+              <path d="M58 150 L58 138 L350 138 L350 150" style="fill:none;stroke:var(--risk);stroke-width:2.5"/>
+              <text x="204" y="128" text-anchor="middle" style="font-weight:700;font-size:18px;fill:var(--risk)">worse than dense</text>
+              <text x="560" y="128" text-anchor="middle" style="font-weight:700;font-size:18px;fill:var(--state)">mean: small gain</text>
+            </g>
+            <text x="380" y="290" text-anchor="middle" style="font-size:16px;fill:var(--ink-2)">paper range: 8–21% of queries worse · arXiv 2610.30612</text>
+          </svg>
+          <div class="code-wrap">
+            <div class="code-head">fusion_tax.py · uses kb.py, evalkit.py, lab3_hybrid.py</div>
+            <pre class="code xs" data-lang="python"><code>from kb import QUERIES                    # qid -&gt; (text, gold chunk ids)
+from evalkit import ndcg_at_k
+from lab3_hybrid import dense_search, hybrid_search
+
+def nd(search, text, gold): return ndcg_at_k(search(text), gold, 5)
+hurt = [qid for qid, (text, gold) in QUERIES.items()
+        if nd(hybrid_search, text, gold) &lt; nd(dense_search, text, gold)]
+print(f"{len(hurt)}/{len(QUERIES)} queries hurt:", hurt)</code></pre>
+          </div>
+        </div>
+
+        <!-- step 3: silent defaults and the E-4012 token -->
+        <div id="c03h-fig3" data-step="3" data-fx="fade" class="stack" style="gap:10px">
+          <svg class="interactive" viewBox="0 0 760 160" width="760" height="160">
+            <g class="c03h-chip">
+              <rect x="0" y="2" width="372" height="46" rx="12" style="fill:var(--tool-soft);stroke:var(--tool);stroke-width:2"/>
+              <text x="186" y="31" text-anchor="middle" style="font-weight:700;font-size:17px;fill:var(--ink)">Qdrant: default k = 2 → pin 61</text>
+            </g>
+            <g class="c03h-chip">
+              <rect x="388" y="2" width="372" height="46" rx="12" style="fill:var(--tool-soft);stroke:var(--tool);stroke-width:2"/>
+              <text x="574" y="31" text-anchor="middle" style="font-weight:700;font-size:17px;fill:var(--ink)">bm25s: pattern \b\w\w+\b</text>
+            </g>
+            <g style="font-weight:700;font-size:20px">
+              <g class="c03h-tok">
+                <rect x="0" y="70" width="120" height="46" rx="10" style="fill:var(--human-soft);stroke:var(--human);stroke-width:1.5"/>
+                <text x="60" y="100" text-anchor="middle" style="fill:var(--ink)">E-4012</text>
+              </g>
+              <path class="c03h-ar" d="M128 93 h34 m-9 -7 l9 7 l-9 7" style="fill:none;stroke:var(--ink-2);stroke-width:2.5"/>
+              <g class="c03h-tok">
+                <text x="172" y="100" style="fill:var(--ink)">[</text>
+                <text x="192" y="100" style="fill:var(--risk)">'E'</text>
+                <line x1="190" y1="93" x2="232" y2="93" style="stroke:var(--risk);stroke-width:3"/>
+                <text x="238" y="100" style="fill:var(--ink)">, '4012']</text>
+                <text x="172" y="140" style="font-weight:500;font-size:15px;fill:var(--risk)">dropped: tokens under 2 chars</text>
+              </g>
+              <path class="c03h-ar" d="M452 93 h34 m-9 -7 l9 7 l-9 7" style="fill:none;stroke:var(--ink-2);stroke-width:2.5"/>
+              <g class="c03h-tok">
+                <rect x="496" y="70" width="98" height="46" rx="10" style="fill:var(--state-soft);stroke:var(--state);stroke-width:2"/>
+                <text x="545" y="100" text-anchor="middle" style="fill:var(--ink)">E4012</text>
+                <text x="604" y="100" style="fill:var(--state)">['e4012']</text>
+                <text x="496" y="140" style="font-weight:500;font-size:15px;fill:var(--state)">normalised: one token</text>
+              </g>
+            </g>
+          </svg>
+          <div class="code-wrap good">
+            <div class="code-head">pin_defaults.py · qdrant-client==1.20.0 · bm25s==0.3.15</div>
+            <pre class="code xs" data-lang="python"><code>import re
+import bm25s
+from qdrant_client import QdrantClient, models
+from kb import IDS, TEXT
+CODE = re.compile(r"\b([A-Z]{1,4})-(\d{2,6})\b", re.I)  # extend to your code grammar
+def normalise(text: str) -&gt; str:                       # at index AND query time
+    return CODE.sub(r"\1\2", text)                     # E-4012 -&gt; E4012
+corpus_tokens = bm25s.tokenize([normalise(TEXT[i]) for i in IDS], stopwords="en")
+client = QdrantClient(url="http://localhost:6333")
+def qdrant_hybrid(q: str, q_vec: list[float]) -&gt; list[str]:
+    res = client.query_points(
+        collection_name="northwind_kb",                # built in lab4_qdrant.py
+        prefetch=[models.Prefetch(query=models.TextQuery(text=normalise(q)),
+                                  using="text", limit=75),
+                  models.Prefetch(query=q_vec, using="dense", limit=75)],
+        query=models.RrfQuery(rrf=models.Rrf(k=61)),  # 1/(rank+k-1): 61 == paper 60
+        limit=30)
+    return [p.payload["chunk_id"] for p in res.points]</code></pre>
+          </div>
+        </div>
+      </div>
+      <div class="cites push">
+        <a class="cite paper" href="https://arxiv.org/abs/2610.30612" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.30612 Fusion Tax</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2610.24341" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.24341 WRRF</a>
+        <a class="cite repo" href="https://github.com/qdrant/qdrant-client/blob/v1.20.0/qdrant_client/hybrid/fusion.py" target="_blank" rel="noopener"><b>Repo</b>&nbsp;qdrant-client fusion.py</a>
+        <a class="cite doc" href="https://qdrant.tech/documentation/concepts/hybrid-queries/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Qdrant hybrid</a>
+        <a class="cite repo" href="https://github.com/xhluca/bm25s" target="_blank" rel="noopener"><b>Repo</b>&nbsp;bm25s</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Ask each question, wait 20 seconds, then reveal the answer. Q1: BM25 is unbounded and cosine is −1..1, so a strong answer fuses ranks with RRF, k = 60, and walks the c12 example: in both lists beats rank 2 in one list. With labels, tune one static weight w first (weighted RRF: w for BM25, 1 − w for dense, grid-searched on the labelled set); the Thomson Reuters study (arXiv 2610.24341) found optimal weights form intervals, and 74 of 128 per-query methods beat plain RRF, so a static weight is the cheap first step. Q2 is the counter-intuitive 2026 result: the Fusion Tax paper finds the best fusion still ranks relevant documents below dense-only on 8-21% of queries, and RRF wins only when the two retrievers are balanced; the histogram is a sketch, the range is the paper's. Q3 tests production habits: qdrant-client fusion.py sets DEFAULT_RANKING_CONSTANT_K = 2 and scores 1/(rank + k − 1), so k = 61 reproduces the paper's k = 60; bm25s's default pattern \b\w\w+\b drops the one-letter "E" in "E-4012", so normalise codes with one function at index and query time. Weaviate has the same class of trap: its hybrid alpha default depends on the client, so set it explicitly. Analogy: two judges score on different scales, so compare their rankings, not their points. Likely follow-up: "When would you drop hybrid?" When dense clearly leads on your labelled set and the hurt list is long. Next: a reranker that returns almost nothing.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "rag-interview-c03-qa-hybrid";
+  const BM = ["c11", "c12", "c13", "c05", "c02"], DE = ["c11", "c14", "c12", "c13", "c03"];
+  const SHARED = new Set(["c11", "c12", "c13"]);
+  const RRF = [["c11", 0.0328], ["c12", 0.0320], ["c13", 0.0315], ["c14", 0.0161], ["c05", 0.0156]];
+  const HIST = [3, 6, 9, 15, 27, 150, 42, 27, 18, 9, 6];
+  const live = [];
+  const add = (t) => { live.push(t); return t; };
+  const killAll = () => live.splice(0).forEach((t) => t.kill());
+  const el = (p, tag, a, st) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); if (st) e.setAttribute("style", st); p.appendChild(e); return e; };
+  const tx = (p, x, y, s, st, anchor) => { const t = el(p, "text", { x, y, "text-anchor": anchor || "start" }, st); t.textContent = s; return t; };
+  let built = false;
+
+  function build(slide) {
+    if (built) return;
+    const lists = slide.querySelector("#c03h-lists"), rrf = slide.querySelector("#c03h-rrf");
+    [[BM, 20], [DE, 230]].forEach(([L, x]) => L.forEach((id, i) => {
+      const y = 46 + i * 62, sh = SHARED.has(id);
+      const g = el(lists, "g", { class: "c03h-cell" });
+      el(g, "rect", { x, y, width: 150, height: 48, rx: 10 }, sh ? "fill:var(--agent-soft);stroke:var(--agent);stroke-width:2.5" : "fill:var(--surface-2);stroke:var(--line-2);stroke-width:1.5");
+      tx(g, x + 16, y + 31, (i + 1) + "", "fill:var(--muted)");
+      tx(g, x + 52, y + 31, id, sh ? "fill:var(--ink);font-weight:700" : "fill:var(--ink-2)");
+    }));
+    RRF.forEach(([id, v], i) => {
+      const y = 46 + i * 62, sh = SHARED.has(id);
+      const g = el(rrf, "g", { class: "c03h-row" });
+      el(g, "rect", { x: 470, y, width: 270, height: 48, rx: 10 }, sh ? "fill:var(--agent-soft);stroke:var(--agent);stroke-width:2.5" : "fill:var(--surface-2);stroke:var(--line-2);stroke-width:1.5");
+      tx(g, 490, y + 31, id, sh ? "fill:var(--ink);font-weight:700" : "fill:var(--ink-2)");
+      const s = tx(g, 720, y + 31, v.toFixed(4), sh ? "fill:var(--agent);font-weight:700" : "fill:var(--muted)", "end");
+      s.classList.add("c03h-score"); s.dataset.v = v;
+    });
+    const bars = slide.querySelector("#c03h-fig2 .c03h-bars");
+    HIST.forEach((h, i) => {
+      const r = el(bars, "rect", { x: 60 + i * 62, y: 236, width: 44, height: 0, rx: 3 }, `fill:var(--${i < 5 ? "risk" : i === 5 ? "line-2" : "state"})`);
+      r.dataset.h = Math.round(h * 0.95);
+    });
+    built = true;
+  }
+
+  function fig1(slide, animate) {
+    const cells = slide.querySelectorAll("#c03h-fig1 .c03h-cell");
+    const rows = slide.querySelectorAll("#c03h-fig1 .c03h-row");
+    const scores = slide.querySelectorAll("#c03h-fig1 .c03h-score");
+    const f = slide.querySelectorAll("#c03h-fig1 .c03h-f");
+    if (!animate) {
+      gsap.set([...cells, ...rows, ...f], { opacity: 1, x: 0 });
+      scores.forEach((s) => (s.textContent = (+s.dataset.v).toFixed(4)));
+      return;
+    }
+    gsap.set([...rows, ...f], { opacity: 0 });
+    add(gsap.fromTo(cells, { opacity: 0 }, { opacity: 1, duration: 0.3, stagger: 0.05, delay: 0.1 }));
+    add(gsap.fromTo(rows, { opacity: 0, x: -14 }, { opacity: 1, x: 0, duration: 0.4, stagger: 0.16, delay: 0.7 }));
+    scores.forEach((s, i) => {
+      const o = { v: 0 };
+      s.textContent = "0.0000";
+      add(gsap.to(o, { v: +s.dataset.v, duration: 0.8, delay: 0.7 + i * 0.16, ease: "power1.out", onUpdate: () => (s.textContent = o.v.toFixed(4)) }));
+    });
+    add(gsap.to(f, { opacity: 1, duration: 0.4, stagger: 0.3, delay: 1.7 }));
+  }
+
+  function fig2(slide, animate) {
+    const bars = slide.querySelectorAll("#c03h-fig2 .c03h-bars rect");
+    const tail = slide.querySelector("#c03h-fig2 .c03h-tail");
+    const fin = (b) => ({ attr: { y: 236 - +b.dataset.h, height: +b.dataset.h } });
+    if (!animate) { bars.forEach((b) => gsap.set(b, fin(b))); gsap.set(tail, { opacity: 1 }); return; }
+    bars.forEach((b, i) => { gsap.set(b, { attr: { y: 236, height: 0 } }); add(gsap.to(b, { ...fin(b), duration: 0.6, delay: 0.15 + i * 0.06, ease: "power2.out" })); });
+    gsap.set(tail, { opacity: 0 });
+    add(gsap.to(tail, { opacity: 1, duration: 0.5, delay: 1.1 }));
+  }
+
+  function fig3(slide, animate) {
+    const chips = slide.querySelectorAll("#c03h-fig3 .c03h-chip");
+    const toks = slide.querySelectorAll("#c03h-fig3 .c03h-tok");
+    const ars = slide.querySelectorAll("#c03h-fig3 .c03h-ar");
+    if (!animate) { gsap.set([...chips, ...toks, ...ars], { opacity: 1 }); return; }
+    gsap.set([...toks, ...ars], { opacity: 0 });
+    add(gsap.fromTo(chips, { opacity: 0, y: -8 }, { opacity: 1, y: 0, duration: 0.35, stagger: 0.25, delay: 0.15 }));
+    const t = add(gsap.timeline({ delay: 0.9 }));
+    t.to(toks[0], { opacity: 1, duration: 0.3 })
+     .to(ars[0], { opacity: 1, duration: 0.2 })
+     .to(toks[1], { opacity: 1, duration: 0.35 })
+     .to(ars[1], { opacity: 1, duration: 0.2 }, "+=0.4")
+     .to(toks[2], { opacity: 1, duration: 0.35 });
+  }
+
+  function render(slide, n, animate) {
+    build(slide);
+    killAll();
+    [fig1, fig2, fig3].forEach((f, i) => f(slide, animate && n === i + 1));
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { killAll(); }
+  });
+})();
+</script>

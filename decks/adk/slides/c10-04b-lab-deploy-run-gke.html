@@ -1,0 +1,135 @@
+<section class="slide tight" id="adk-c10-lab-deploy-run-gke" data-tone="risk" data-title="Lab 10.3: Cloud Run and GKE">
+  <style>
+    #adk-c10-lab-deploy-run-gke .dg { display: grid; grid-template-columns: 770px minmax(0, 1fr); gap: 22px; align-items: start; }
+    #adk-c10-lab-deploy-run-gke .col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+    #adk-c10-lab-deploy-run-gke pre.code { font-size: 17px; line-height: 1.5; padding: 12px 16px 14px; }
+    #adk-c10-lab-deploy-run-gke svg { display: block; overflow: visible; }
+    #adk-c10-lab-deploy-run-gke svg text { font-family: var(--f-mono); }
+    #adk-c10-lab-deploy-run-gke .caps { display: grid; }
+    #adk-c10-lab-deploy-run-gke .caps > * { grid-area: 1 / 1; }
+    #adk-c10-lab-deploy-run-gke .cap { font-size: 21px; line-height: 1.4; color: var(--ink-2); margin: 0; }
+    #adk-c10-lab-deploy-run-gke .cap b { color: var(--ink); }
+  </style>
+  <div class="kicker"><span class="pill">Lab 10</span> Acme HR assistant · step 3 of 3 · Cloud Run, GKE</div>
+  <h2 class="title">The same folder ships to Cloud Run or GKE and stays private</h2>
+  <div class="dg fill">
+    <div class="col">
+      <div class="code-wrap">
+        <div class="code-head">labs/adk/c10-acme-hr/ship.sh · excerpt</div>
+        <pre class="code" data-lang="bash" data-focus="1:2-5, 2:4, 3:8-9"><code># B) Cloud Run: private, one warm instance
+adk deploy cloud_run --project=$PROJECT --region=$REGION \
+  --service_name=acme-hr \
+  --session_service_uri="agentengine://$AGENT_ENGINE_ID" \
+  hr_agent -- --no-allow-unauthenticated --min-instances=1
+
+# C) GKE: ClusterIP by default, no public IP
+adk deploy gke --project=$PROJECT --region=$REGION \
+  --cluster_name=agents-prod --service_type=ClusterIP hr_agent
+
+# also: --extra_packages (new in 2.13), --validate-agent-import
+# --trace_to_cloud is deprecated</code></pre>
+      </div>
+      <div class="caps">
+        <p class="cap" data-step="1" data-until="2">Flags after <code>--</code> go to <code>gcloud run deploy</code>. Keep the service private.</p>
+        <p class="cap" data-step="2" data-until="3">Without <code>--session_service_uri</code>, sessions live in instance memory.</p>
+        <p class="cap" data-step="3" data-until="4"><code>ClusterIP</code> is the default. <code>LoadBalancer</code> gives a public IP.</p>
+        <p class="cap" data-step="4">Same package, three trade-offs. Pick by what you must run yourself.</p>
+      </div>
+    </div>
+    <svg class="targets" viewBox="0 0 600 420" width="600" height="420" aria-label="The same three deploy targets. Cloud Run lights, then GKE, then a short list under each target says what to pick it for."></svg>
+  </div>
+  <aside class="notes">The same folder goes to the two self-managed targets. Press once: adk deploy cloud_run passes everything after the double dash to gcloud run deploy, so we keep the service private with --no-allow-unauthenticated and keep one warm instance. Press again: --session_service_uri points sessions at the Agent Runtime instance from the last slide; without it they live in the container's memory and vanish when Cloud Run recycles the instance, which is the first gotcha later in this chapter. Press again: GKE gives a ClusterIP service by default, so nothing is public until you ask for a LoadBalancer. 2.13 also added --extra_packages for local packages, and --trace_to_cloud is deprecated in favour of --otel_to_cloud. Press again: the lists show the trade-off: Agent Runtime for managed sessions, Memory Bank and Gemini Enterprise; Cloud Run for the ADK FastAPI routes, revisions and your own session database; GKE for GPUs and self-hosted models. Analogy: one shipping container, three ports: a managed port, a self-service dock and your own warehouse. Likely question: "Can I mix them?" Yes, as here: Cloud Run serves, Agent Runtime stores the sessions.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c10-lab-deploy-run-gke", NS = "http://www.w3.org/2000/svg";
+  const MAP = [[1,-1,0],[2,1,0],[2,1,0],[3,2,0],[3,-1,1]];          // per step: [targets shown, active target (-1 none), show table]
+  const TW = 180, TY = 150, TH = 72;
+  const T = [
+    { x: 0, name: "Agent Runtime", verb: "agent_engine", ep: ":query", rows: ["managed sessions", "Memory Bank", "Gemini Ent. tile"] },
+    { x: 210, name: "Cloud Run", verb: "cloud_run", ep: "/run · /run_sse", rows: ["ADK FastAPI routes", "revisions, traffic", "your session DB"] },
+    { x: 420, name: "GKE", verb: "gke", ep: "ClusterIP svc", rows: ["GPUs", "self-hosted models", "you run kubectl"] },
+  ];
+  const PX = 300, PY = 64;
+  let R = null, loop = null, tw = [];
+  const mk = (tag, a, p, t) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); if (t !== undefined) e.textContent = t; if (p) p.appendChild(e); return e; };
+  function build(svg) {
+    svg.innerHTML = "";
+    R = { svg, t: [] };
+    const pkg = mk("g", {}, svg);
+    mk("rect", { x: 190, y: 2, width: 220, height: 62, rx: 12, fill: "var(--agent-soft)", stroke: "var(--agent)", "stroke-width": 2.2 }, pkg);
+    mk("text", { x: 300, y: 29, "font-size": 18, "font-weight": 800, fill: "var(--agent)", "text-anchor": "middle" }, pkg, "hr_agent/");
+    mk("text", { x: 300, y: 51, "font-size": 14, fill: "var(--muted)", "text-anchor": "middle" }, pkg, "App(plugins=[…])");
+    R.head = mk("text", { x: 0, y: 300, "font-size": 15, "font-weight": 700, fill: "var(--muted)", "letter-spacing": "0.06em" }, svg, "PICK IT FOR");
+    T.forEach((t) => {
+      const cx = t.x + TW / 2, o = {};
+      o.d = `M${PX},${PY} C${PX},${PY + 48} ${cx},${TY - 48} ${cx},${TY}`;
+      o.wire = mk("path", { d: o.d, fill: "none", stroke: "var(--line-2)", "stroke-width": 2.6 }, svg);
+      o.g = mk("g", {}, svg);
+      o.box = mk("rect", { x: t.x + 1, y: TY, width: TW - 2, height: TH, rx: 12, fill: "var(--tool-soft)", stroke: "var(--tool)", "stroke-width": 2.2 }, o.g);
+      o.nt = mk("text", { x: cx, y: TY + 30, "font-size": 17, "font-weight": 800, fill: "var(--ink)", "text-anchor": "middle" }, o.g, t.name);
+      o.ns = mk("text", { x: cx, y: TY + 54, "font-size": 14, fill: "var(--muted)", "text-anchor": "middle" }, o.g, t.verb);
+      o.epG = mk("g", {}, svg);
+      mk("rect", { x: t.x + 8, y: TY + TH + 14, width: TW - 16, height: 32, rx: 8, fill: "#0f1430" }, o.epG);
+      mk("text", { x: cx, y: TY + TH + 36, "font-size": 15, "font-weight": 700, fill: "#7ee2b8", "text-anchor": "middle" }, o.epG, t.ep);
+      o.tab = mk("g", {}, svg);
+      mk("line", { x1: t.x + 4, y1: 314, x2: t.x + TW - 4, y2: 314, stroke: "var(--line-2)", "stroke-width": 1.5 }, o.tab);
+      t.rows.forEach((r, k) => mk("text", { x: t.x + 6, y: 344 + k * 32, "font-size": 15, "font-weight": 600, fill: "var(--ink-2)" }, o.tab, `· ${r}`));
+      o.dot = mk("circle", { cx: PX, cy: PY, r: 7, fill: "var(--risk)", opacity: 0 }, svg);
+      R.t.push(o);
+    });
+  }
+  function clear() {
+    tw.forEach((x) => x.kill()); tw = [];
+    if (loop) { loop.kill(); loop = null; }
+    if (R) R.t.forEach((o) => gsap.killTweensOf([o.g, o.dot, o.tab, o.epG]));
+  }
+  function along(o, p) { const L = o.wire.getTotalLength(), q = o.wire.getPointAtLength(L * p); o.dot.setAttribute("cx", q.x); o.dot.setAttribute("cy", q.y); }
+  function render(slide, n, animate) {
+    const svg = slide.querySelector("svg.targets");
+    if (!R || R.svg !== svg || !svg.childElementCount) build(svg);
+    clear();
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const [shownN, act, table] = MAP[Math.max(0, Math.min(n, MAP.length - 1))];
+    const prevAct = n > 0 ? MAP[Math.min(n - 1, MAP.length - 1)][1] : -1;
+    const prevTable = n > 0 ? MAP[Math.min(n - 1, MAP.length - 1)][2] : 0;
+    gsap.set(R.head, { opacity: table ? 1 : 0 });
+    R.t.forEach((o, i) => {
+      const active = act === i, shown = i < shownN;
+      gsap.set(o.g, { opacity: shown ? 1 : 0.32, scale: 1 });
+      o.box.setAttribute("fill", active ? "var(--tool)" : "var(--tool-soft)");
+      o.box.setAttribute("stroke-dasharray", shown ? "none" : "6 5");
+      o.nt.setAttribute("fill", active ? "#fff" : "var(--ink)");
+      o.ns.setAttribute("fill", active ? "#fff" : "var(--muted)");
+      o.wire.setAttribute("stroke", active ? "var(--risk)" : shown ? "var(--tool)" : "var(--line-2)");
+      o.wire.setAttribute("stroke-dasharray", shown ? "none" : "5 6");
+      gsap.set(o.epG, { opacity: shown ? 1 : 0, y: 0 });
+      gsap.set(o.tab, { opacity: table ? 1 : 0, y: 0 });
+      gsap.set(o.dot, { opacity: 0 });
+      if (animate && active && prevAct !== i && !reduce) {
+        gsap.set(o.epG, { opacity: 0, y: -6 });
+        tw.push(gsap.to(o.epG, { opacity: 1, y: 0, duration: 0.4, delay: 0.7 }));
+        tw.push(gsap.fromTo(o.g, { scale: 0.92, transformOrigin: "50% 50%" }, { scale: 1, duration: 0.5, ease: "back.out(2)", delay: 0.55 }));
+      }
+      if (animate && table && !prevTable && !reduce) {
+        gsap.set(o.tab, { opacity: 0, y: 8 });
+        tw.push(gsap.to(o.tab, { opacity: 1, y: 0, duration: 0.4, delay: 0.2 + i * 0.18 }));
+      }
+    });
+    const live = table ? R.t : act >= 0 ? [R.t[act]] : [];
+    if (!live.length || reduce) return;
+    loop = gsap.timeline({ repeat: -1, repeatDelay: 0.7 });
+    live.forEach((o, i) => {
+      const s = { p: 0 };
+      loop.set(o.dot, { opacity: 1 }, i * 0.25)
+        .fromTo(s, { p: 0 }, { p: 1, duration: 1.1, ease: "power1.inOut", onUpdate: () => along(o, s.p) }, i * 0.25)
+        .to(o.dot, { opacity: 0, duration: 0.2 }, i * 0.25 + 1.1);
+    });
+  }
+  Deck.register(ID, {
+    enter(slide, n) { render(slide, n || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { clear(); },
+  });
+})();
+</script>

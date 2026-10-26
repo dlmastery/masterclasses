@@ -1,0 +1,150 @@
+<section class="slide tight" id="adk-c02-gotcha-copy" data-tone="state" data-title="Gotcha: get_session returns a copy">
+  <style>
+    #adk-c02-gotcha-copy .gc-main { display: grid; grid-template-columns: 772px 1fr; gap: 28px; align-items: start; }
+    #adk-c02-gotcha-copy .gc-left, #adk-c02-gotcha-copy .gc-right { gap: 14px; min-width: 0; }
+    #adk-c02-gotcha-copy .gotcha { font-size: 18px; line-height: 1.38; padding: 14px 18px; grid-template-columns: 96px 1fr; gap: 6px 14px; }
+    #adk-c02-gotcha-copy .gotcha > b { font-size: 14px; }
+    #adk-c02-gotcha-copy .gotcha code { font-size: .84em; }
+    #adk-c02-gotcha-copy .code-wrap .code-head { padding: 7px 14px; font-size: 14px; }
+    #adk-c02-gotcha-copy pre.code.gc-c { font-size: 14.5px; line-height: 1.42; padding: 10px 16px 12px; }
+    #adk-c02-gotcha-copy .out pre.code { font-size: 15px; line-height: 1.45; padding: 8px 16px 10px; }
+    #adk-c02-gotcha-copy .callout { font-size: 16.5px; line-height: 1.4; padding: 10px 16px; }
+    #adk-c02-gotcha-copy .gc-cites { display: flex; gap: 8px; flex-wrap: wrap; }
+    #adk-c02-gotcha-copy .gc-cites .cite { font-size: 14px; padding: 5px 10px 5px 8px; }
+    /* bespoke viz */
+    #adk-c02-gotcha-copy .gv { position: relative; height: 330px; flex: none; border: 1px solid var(--line-2); border-radius: 14px; background: var(--surface); overflow: hidden; }
+    #adk-c02-gotcha-copy .bx { position: absolute; box-sizing: border-box; border-radius: 12px; border: 2px solid var(--line-2); background: var(--surface-2); padding: 10px 12px; }
+    #adk-c02-gotcha-copy .bx .h { font: 700 15px/1.2 var(--f-mono); color: var(--ink-2); margin-bottom: 8px; white-space: nowrap; }
+    #adk-c02-gotcha-copy .bx .h i { font-style: normal; font-weight: 600; color: var(--muted); }
+    #adk-c02-gotcha-copy .bx.st { border-color: var(--state); background: color-mix(in oklab, var(--state) 7%, var(--surface-2)); }
+    #adk-c02-gotcha-copy .bx.gh { border-style: dashed; }
+    #adk-c02-gotcha-copy .bx.tl { border-color: var(--tool); background: var(--tool-soft); }
+    #adk-c02-gotcha-copy .r { font: 500 15px/26px var(--f-mono); color: var(--ink-2); white-space: nowrap; }
+    #adk-c02-gotcha-copy .v.ok { color: var(--state); font-weight: 700; }
+    #adk-c02-gotcha-copy .v.lost { color: var(--muted); text-decoration: line-through; }
+    #adk-c02-gotcha-copy .chip { position: absolute; font: 700 15px/1 var(--f-mono); padding: 9px 11px; border-radius: 9px; white-space: nowrap; border: 2px solid var(--risk); color: var(--risk); background: color-mix(in oklab, var(--risk) 8%, var(--surface-2)); }
+    #adk-c02-gotcha-copy .gv svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+    #adk-c02-gotcha-copy .gv svg text { font: 700 15px/1 var(--f-mono); }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> Session state</div>
+  <h2 class="title">get_session returns a copy, so write state through an event</h2>
+  <div class="gc-main fill">
+    <div class="gc-left stack">
+      <div class="gotcha">
+        <b>Symptom</b><span>You set <code>claim_status</code>. The next <code>get_session</code> does not show it.</span>
+        <b class="why" data-step="1">Cause</b><span data-step="1"><code>get_session</code> returns a detached copy. Edits on it never reach the store.</span>
+        <b class="fix" data-step="2">Fix</b><span data-step="2">Write through <code>state_delta=</code>, <code>tool_context.state</code> or <code>callback_context.state</code>.</span>
+      </div>
+      <div class="code-wrap good" data-step="1">
+        <div class="code-head">claims/claims_followup.py · inside main()</div>
+        <pre class="code gc-c" data-lang="python" data-focus="1:2-3, 2:5-8, 3:10-11"><code># runner, sessions, uid = "u-tom", sid = "claim-77": as in claims_followup.py
+s = await sessions.get_session(app_name="claims_api", user_id=uid, session_id=sid)
+s.state["claim_status"] = "reviewed"         # edits the copy: lost
+
+msg = types.UserContent(parts=[types.Part(text="Mark the claim reviewed.")])
+async for _ in runner.run_async(user_id=uid, session_id=sid, new_message=msg,
+                                state_delta={"claim_status": "reviewed"}):
+    pass                                     # the delta rides on this turn
+
+s = await sessions.get_session(app_name="claims_api", user_id=uid, session_id=sid)
+print(s.state["claim_status"])</code></pre>
+      </div>
+      <div class="code-wrap out" data-step="3">
+        <div class="code-head">output · illustrative</div>
+        <pre class="code" data-lang="output"><code><span class="ok">reviewed</span>   <span class="dim"># the event wrote it to claims_sessions.db</span></code></pre>
+      </div>
+    </div>
+    <div class="gc-right stack">
+      <div class="gv" id="gc-viz" aria-label="The session store holds claim_status not set. get_session hands out a copy; an edit on the copy is lost. run_async with state_delta sends an event that writes reviewed into the store">
+        <svg viewBox="0 0 592 330">
+          <defs><marker id="gc-ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 Z" fill="var(--state)"/></marker></defs>
+          <path class="gc-arr" d="M136 202 L136 170" stroke="var(--state)" stroke-width="3" fill="none" marker-end="url(#gc-ah)"/>
+          <text class="gc-arl" x="152" y="192" text-anchor="start" fill="var(--state)">event</text>
+        </svg>
+        <div class="bx st gc-store" style="left:20px;top:36px;width:232px;height:124px">
+          <div class="h">session store <i>file</i></div>
+          <div class="r">claim_status</div>
+          <div class="r">= <span class="v gc-sv">(not set)</span></div>
+        </div>
+        <div class="bx gh gc-copy" style="left:20px;top:36px;width:232px;height:124px">
+          <div class="h">get_session() <i class="gc-cl">copy</i></div>
+          <div class="r">claim_status</div>
+          <div class="r">= <span class="v gc-cv">(not set)</span></div>
+        </div>
+        <div class="chip gc-edit" style="left:340px;top:176px">s.state[...] = "reviewed"</div>
+        <div class="bx tl gc-evt" style="left:20px;top:206px;width:300px;height:110px">
+          <div class="h">run_async(</div>
+          <div class="r">&nbsp;state_delta={"claim_status":</div>
+          <div class="r">&nbsp;&nbsp;"reviewed"})</div>
+        </div>
+      </div>
+      <div class="callout tip" data-step="3"><div>Every session service works this way: InMemory deep-copies, SQLite and Postgres build a new object from the rows.</div></div>
+      <div class="gc-cites push" data-step="3">
+        <a class="cite doc" href="https://adk.dev/sessions/state/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;State</a>
+        <a class="cite repo" href="https://github.com/google/adk-python/blob/v2.13.0/src/google/adk/sessions/in_memory_session_service.py" target="_blank" rel="noopener"><b>Repo</b>&nbsp;in_memory_session_service.py</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    This is the same claim-77 session from the SQLite slide. Step 0: someone marks the claim reviewed, and the next read does not show it. Step 1: get_session returns a detached object; the in-memory service deep-copies the session, and the SQLite service builds a new object from the rows in the file, so editing s.state changes only your copy. Step 2: state changes persist only when they travel inside an event: state_delta on run_async, tool_context.state in a tool, or callback_context.state in a callback. Here state_delta rides on a normal user turn, so the agent also replies. Step 3: read the session again and the value is there, because the event wrote it to claims_sessions.db. Analogy: get_session is a photocopy of the claim file; writing on the photocopy does not change the file in the cabinet. A likely question: "Can I write state without running the agent?" Not with these public calls; in this course every write goes through a turn, a tool or a callback.
+  </aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c02-gotcha-copy";
+  let tl = null;
+  const stop = () => { if (tl) { tl.kill(); tl = null; } };
+
+  function render(s, n, animate) {
+    stop();
+    if (window.c02Focus) window.c02Focus(s, n);
+    const q = (c) => s.querySelector("#gc-viz " + c);
+    const copy = q(".gc-copy"), cv = q(".gc-cv"), cl = q(".gc-cl"), edit = q(".gc-edit"), evt = q(".gc-evt"),
+          arr = q(".gc-arr"), arl = q(".gc-arl"), sv = q(".gc-sv"), store = q(".gc-store");
+    gsap.killTweensOf([copy, edit, evt, arr, arl, store]);
+    const len = arr.getTotalLength ? arr.getTotalLength() : 520;
+    // state for step n
+    const S = (k) => {
+      // copy: on top of the store at step 0, slid out to the right from step 1
+      gsap.set(copy, { x: k >= 1 ? 320 : 0, y: 0, autoAlpha: k >= 2 ? 0.4 : 1 });
+      cv.textContent = k >= 1 ? "\"reviewed\"" : "(not set)";
+      cv.className = "v gc-cv" + (k >= 2 ? " lost" : k >= 1 ? " ok" : "");
+      cl.textContent = k >= 2 ? "lost" : "copy";
+      cl.style.color = k >= 2 ? "var(--risk)" : "";
+      gsap.set(edit, { autoAlpha: k === 0 ? 1 : k === 1 ? 1 : 0.4, y: 0 });
+      gsap.set(evt, { autoAlpha: k >= 2 ? 1 : 0, x: 0 });
+      gsap.set(arr, { strokeDasharray: len, strokeDashoffset: k >= 2 ? 0 : len, autoAlpha: k >= 2 ? 1 : 0 });
+      gsap.set(arl, { autoAlpha: k >= 2 ? 1 : 0 });
+      sv.textContent = k >= 2 ? "\"reviewed\"" : "(not set)";
+      sv.className = "v gc-sv" + (k >= 2 ? " ok" : "");
+      gsap.set(store, { scale: 1 });
+    };
+    if (!animate || n === 0 || n >= 3) { S(Math.min(n, 2)); return; }
+    S(n - 1);
+    tl = gsap.timeline({ delay: 0.3, onComplete: () => S(n) });
+    if (n === 1) {
+      // the copy slides down out of the store, the edit lands on it
+      tl.to(copy, { x: 320, duration: 0.7, ease: "power2.out" })
+        .to(edit, { scale: 1.1, duration: 0.15, yoyo: true, repeat: 1 })
+        .add(() => { cv.textContent = "\"reviewed\""; cv.className = "v gc-cv ok"; })
+        .fromTo(store, { scale: 1 }, { scale: 1.04, duration: 0.2, yoyo: true, repeat: 1 }, "+=0.4");
+    } else if (n === 2) {
+      tl.add(() => { cv.className = "v gc-cv lost"; cl.textContent = "lost"; cl.style.color = "var(--risk)"; })
+        .to([copy], { autoAlpha: 0.4, duration: 0.4 })
+        .to(edit, { autoAlpha: 0.4, duration: 0.4 }, "<")
+        .fromTo(evt, { autoAlpha: 0, x: -20 }, { autoAlpha: 1, x: 0, duration: 0.4 })
+        .set(arr, { autoAlpha: 1 })
+        .to(arr, { strokeDashoffset: 0, duration: 0.8, ease: "power2.inOut" })
+        .to(arl, { autoAlpha: 1, duration: 0.3 }, "<0.3")
+        .add(() => { sv.textContent = "\"reviewed\""; sv.className = "v gc-sv ok"; })
+        .fromTo(store, { scale: 1.06 }, { scale: 1, duration: 0.45, ease: "back.out(2)" });
+    }
+  }
+
+  Deck.register(ID, {
+    enter(slide, n) { render(slide, n || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { stop(); gsap.killTweensOf(slide.querySelectorAll("#gc-viz *")); }
+  });
+})();
+</script>

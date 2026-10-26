@@ -1,0 +1,100 @@
+<section class="slide tight" id="adk-c05-lab-retry-timeout" data-tone="tool" data-title="Lab 5B.3: timeouts and jitter">
+  <style>
+    #adk-c05-lab-retry-timeout pre.code, #adk-c05-lab-retry-timeout code { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #adk-c05-lab-retry-timeout .to-body { display: grid; grid-template-columns: 790px minmax(0, 1fr); gap: 36px; align-items: start; }
+    #adk-c05-lab-retry-timeout .to-col { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+    #adk-c05-lab-retry-timeout .to-cap { display: grid; font-size: 21px; line-height: 1.35; color: var(--ink-2); }
+    #adk-c05-lab-retry-timeout .to-cap > p { grid-area: 1 / 1; margin: 0; }
+    #adk-c05-lab-retry-timeout .to-cap code { font-size: 19px; }
+    #adk-c05-lab-retry-timeout #to-svg { display: block; overflow: visible; }
+    #adk-c05-lab-retry-timeout #to-svg text { font-family: var(--f-mono); }
+  </style>
+  <div class="kicker"><span class="pill">Lab 5B</span> Acme payouts · step 3 of 6</div>
+  <h2 class="title">exceptions matches class names, so list NodeTimeoutError too</h2>
+  <div class="to-body fill">
+    <div class="to-col">
+      <div class="code-wrap bad" data-step="1">
+        <div class="code-head">payouts/app.py · pay</div>
+        <pre class="code" data-lang="python"><code>@node(retry_config=RetryConfig(exceptions=[ConnectionError]),
+      timeout=2.0)
+async def pay(ctx: Context, node_input: str): ...
+<span class="err"># NodeTimeoutError: Node 'pay' timed out after 2.0 seconds.</span>
+<span class="err"># not a ConnectionError, so it is not retried</span></code></pre>
+      </div>
+      <div class="code-wrap good" data-step="2">
+        <div class="code-head">labs/adk/lab5b-payouts-durable/payouts/app.py</div>
+        <pre class="code" data-lang="python"><code>@node(retry_config=RetryConfig(max_attempts=4, initial_delay=0.5,
+                               backoff_factor=2.0, jitter=0.0,
+                               exceptions=[ConnectionError,
+                                           "NodeTimeoutError"]),
+      timeout=2.0)</code></pre>
+      </div>
+      <div class="to-cap">
+        <p data-step="3" data-until="4">With <code>jitter=0.0</code> every wait is exact. Use it in tests.</p>
+        <p data-step="4">The defaults add jitter. Keep it in production to spread load.</p>
+      </div>
+    </div>
+    <svg id="to-svg" viewBox="0 0 566 470" width="566" height="470" aria-label="Wait before try 2: with jitter 0.0 one exact wait of 0.5 s; with the RetryConfig() defaults the wait lands anywhere between 0 and 2 s"></svg>
+  </div>
+  <aside class="notes">This build slide hardens the pay node from step 2. The exceptions list matches exception class names along the MRO. A timeout raises NodeTimeoutError, which is not a ConnectionError, so with only ConnectionError in the list a 2-second timeout ends the node on attempt 1; the error text is "Node 'pay' timed out after 2.0 seconds." Add the string "NodeTimeoutError" and the timeout is retried like the 503. The right side is about jitter. Our lab sets jitter=0.0, so the wait before try 2 is exactly 0.5 seconds every time, which is what you want in a test. RetryConfig() with no arguments resolves to max_attempts=5, initial_delay=1.0, max_delay=60, backoff_factor=2.0 and jitter=1.0, so the wait before try 2 lands anywhere between 0 and 2 seconds; keep jitter on in production to spread load. Think of jitter as staggering the start times of runners so they do not all hit the gateway at the same second. A likely question: "Why a string and not the class?" Both match by name; the string saves an import of an internal error class.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c05-lab-retry-timeout";
+  const NS = "http://www.w3.org/2000/svg";
+  const X0 = 40, PX = 240;                // 0 s at x=40, 1 s = 240 px, axis 0..2 s
+  let tw = [], R = null;
+  function mk(tag, attrs, parent) {
+    const e = document.createElementNS(NS, tag);
+    for (const [a, v] of Object.entries(attrs)) e.setAttribute(a, v);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function txt(parent, x, y, s, attrs) { const t = mk("text", Object.assign({ x, y, "font-size": 16, fill: "var(--ink-2)" }, attrs || {}), parent); t.textContent = s; return t; }
+  function axis(g, y) {
+    mk("line", { x1: X0, y1: y, x2: X0 + 2 * PX, y2: y, stroke: "var(--line-2)", "stroke-width": 2 }, g);
+    [0, 0.5, 1, 1.5, 2].forEach((s) => {
+      mk("line", { x1: X0 + s * PX, y1: y - 6, x2: X0 + s * PX, y2: y + 6, stroke: "var(--line-2)", "stroke-width": 2 }, g);
+      txt(g, X0 + s * PX, y + 28, `${s} s`, { "font-size": 15, "text-anchor": "middle", fill: "var(--muted)" });
+    });
+  }
+  function build(svg) {
+    svg.innerHTML = "";
+    R = { a: mk("g", {}, svg), b: mk("g", {}, svg), dots: [] };
+    txt(svg, 0, 22, "wait before try 2", { "font-size": 20, "font-weight": 700, fill: "var(--ink)" });
+    // A: jitter=0.0 (the lab): one exact wait
+    txt(R.a, 0, 82, "jitter=0.0 · the lab", { "font-size": 17, "font-weight": 700, fill: "var(--tool)" });
+    axis(R.a, 160);
+    R.exact = mk("circle", { cx: X0 + 0.5 * PX, cy: 130, r: 13, fill: "var(--tool)" }, R.a);
+    txt(R.a, X0 + 0.5 * PX + 24, 136, "always 0.5 s", { "font-size": 17, "font-weight": 700, fill: "var(--tool)" });
+    // B: RetryConfig() defaults: anywhere in 0..2 s
+    txt(R.b, 0, 262, "RetryConfig() defaults · jitter=1.0", { "font-size": 17, "font-weight": 700, fill: "var(--risk)" });
+    mk("rect", { x: X0, y: 296, width: 2 * PX, height: 44, rx: 10, fill: "var(--risk-soft)", stroke: "var(--risk)", "stroke-width": 1.5, "stroke-dasharray": "6 4" }, R.b);
+    axis(R.b, 360);
+    for (let i = 0; i < 12; i++) {                       // deterministic spread of 12 runs
+      const s = ((i * 0.618034) % 1) * 2;
+      R.dots.push(mk("circle", { cx: X0 + s * PX, cy: 318, r: 8, fill: "var(--risk)", opacity: 0 }, R.b));
+    }
+    txt(R.b, 0, 430, "max_attempts=5 · initial_delay=1.0", { "font-size": 16, fill: "var(--ink-2)" });
+    txt(R.b, 0, 456, "max_delay=60 · backoff_factor=2.0", { "font-size": 16, fill: "var(--ink-2)" });
+  }
+  function clear() { tw.forEach((t) => t.kill()); tw = []; }
+  function render(slide, n, animate) {
+    const svg = slide.querySelector("#to-svg");
+    if (!svg) return;
+    if (!svg.childElementCount) build(svg);
+    clear();
+    gsap.killTweensOf([R.a, R.b, R.exact, ...R.dots]);
+    gsap.set(R.a, { opacity: n >= 3 ? 1 : 0.15 });
+    gsap.set(R.b, { opacity: n >= 4 ? 1 : 0.15 });
+    gsap.set(R.dots, { opacity: n >= 4 ? 0.85 : 0, scale: 1 });
+    if (animate && n === 3) tw.push(gsap.fromTo(R.exact, { scale: 0.2, transformOrigin: "center" }, { scale: 1, duration: 0.4, ease: "back.out(3)" }));
+    if (animate && n === 4) tw.push(gsap.fromTo(R.dots, { opacity: 0, scale: 0.2, transformOrigin: "center" }, { opacity: 0.85, scale: 1, duration: 0.3, stagger: 0.12, ease: "back.out(3)" }));
+  }
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { clear(); if (slide) gsap.killTweensOf(slide.querySelectorAll("#to-svg *")); },
+  });
+})();
+</script>

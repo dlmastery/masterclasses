@@ -1,0 +1,246 @@
+<section class="slide" id="custom-c05-boxed-regex" data-tone="risk" data-title="The \boxed regex bug">
+  <div class="kicker"><span class="pill">Gotcha</span> Regex in rewards · found by the verifier</div>
+  <h2 class="title sm">One missing backslash made the brevity reward zero for every sample</h2>
+  <div class="br-grid">
+    <div class="stack br-left">
+      <div class="panel tight br-panel">
+        <svg id="br-svg" viewBox="0 0 800 296" width="736" height="272" aria-label="The text '...so \boxed{8500}' shown as character cells in three lanes. Lane 1: the broken regex tries every word boundary, finds 'b' where it needs 'o', and returns an empty list. Lane 2: in a non-raw test string the two characters backslash and b collapse into one backspace character, so the broken regex matches and returns 8500, a false pass. Lane 3: the fixed regex matches the literal backslash and captures 8500."></svg>
+      </div>
+      <div class="code-wrap bad" data-step="3">
+        <div class="code-head">claims_rl/claims_data.py + lab4_rewards.py · first draft</div>
+        <pre class="code xs" data-lang="python"><code>import re
+SYSTEM = ("You are a claims adjuster. Think briefly, "
+          "then give the payout as \boxed{number}.")   # \b = backspace
+BOX_RE = re.compile(r"\boxed\{([^{}]*)\}")              # \b = word boundary
+comps = [[{"content": "...so \boxed{8500}"}]]            # \b = backspace again</code></pre>
+      </div>
+      <div class="code-wrap good" data-step="3">
+        <div class="code-head">claims_rl/claims_data.py + lab4_rewards.py · trl 1.16.0 · CPU check</div>
+        <pre class="code xs" data-lang="python" data-focus="3:7, 4:3-5, 5:8-9"><code>import re
+# claims_data.py: the prompt the policy reads
+SYSTEM = (r"You are a claims adjuster. Think briefly, "
+          r"then give the payout as \boxed{number}.")
+print(repr(SYSTEM))      # CI: shows \\boxed, never \x08oxed
+# lab4_rewards.py: the reward regex and its self-test
+BOX_RE = re.compile(r"\\boxed\{([^{}]*)\}")   # literal backslash, then "boxed"
+assert BOX_RE.findall(r"...so \boxed{8500}") == ["8500"]   # raw = real output
+assert BOX_RE.findall("...so \boxed{8500}") == []          # non-raw holds \x08</code></pre>
+      </div>
+    </div>
+    <div class="stack br-right">
+      <div class="gotcha br-card" data-step="1">
+        <div class="br-h">1 · The regex never matches</div>
+        <b>Symptom</b><span><code>brevity/gated_frac</code> stays 1.0. The brevity reward is 0 for every sample.</span>
+        <b class="why">Cause</b><span>In a raw regex, <code>\b</code> is a word boundary. The pattern needs "oxed" after a boundary. On real text: <code>[]</code>.</span>
+        <b class="fix">Fix</b><span><code>r"\\boxed\{([^{}]*)\}"</code> gives <code>['8500']</code>.</span>
+      </div>
+      <div class="gotcha br-card" data-step="2">
+        <div class="br-h">2 · The self-test passed anyway</div>
+        <b>Symptom</b><span>The CPU self-test printed the expected rewards.</span>
+        <b class="why">Cause</b><span>The test strings were not raw. <code>\b</code> became a backspace (<code>\x08</code>), and the broken pattern matches after it.</span>
+        <b class="fix">Fix</b><span>Raw test strings: <code>r"...so \boxed{8500}"</code>.</span>
+      </div>
+      <div class="gotcha br-card" data-step="4">
+        <div class="br-h">3 · The prompt was garbled</div>
+        <b>Symptom</b><span>The policy is told to answer in a strange format. <code>accuracy_reward</code> needs <code>\boxed</code>.</span>
+        <b class="why">Cause</b><span><code>SYSTEM</code> was not raw. The prompt held <code>\x08oxed{number}</code> (checked with <code>repr</code>).</span>
+        <b class="fix">Fix</b><span><code>SYSTEM = r"..."</code> and <code>print(repr(SYSTEM))</code> in CI.</span>
+      </div>
+      <div class="code-wrap out" data-step="4">
+        <div class="code-head">print(repr(SYSTEM)) · output, trimmed</div>
+        <pre class="code xs" data-lang="bash"><code><span class="err">before '… give the payout as \x08oxed{number}.'</span>
+<span class="ok">after  '… give the payout as \\boxed{number}.'</span></code></pre>
+      </div>
+      <div class="callout insight br-lesson" data-step="5">Test rewards on real model output, not on strings that share the bug.</div>
+      <div class="row br-cites" data-step="1">
+        <a class="cite doc" href="https://huggingface.co/docs/trl/main/en/grpo_trainer" target="_blank" rel="noopener"><b>Docs</b>&nbsp;TRL GRPO Trainer</a>
+        <a class="cite repo" href="https://github.com/huggingface/trl/blob/v1.16.0/trl/rewards/accuracy_rewards.py" target="_blank" rel="noopener"><b>Repo</b>&nbsp;trl v1.16.0 accuracy_rewards.py</a>
+      </div>
+    </div>
+  </div>
+  <style>
+    #custom-c05-boxed-regex { gap: 18px; }
+    #custom-c05-boxed-regex .br-grid { display: grid; grid-template-columns: 812px 1fr; gap: 22px; align-items: start; }
+    #custom-c05-boxed-regex .br-left, #custom-c05-boxed-regex .br-right { gap: 10px; }
+    #custom-c05-boxed-regex .br-panel { padding: 6px 12px; }
+    #custom-c05-boxed-regex .code-head { font-size: 12.5px; padding: 7px 12px; }
+    #custom-c05-boxed-regex pre.code.xs { font-size: 13px; line-height: 16px; padding: 8px 14px 10px; }
+    #custom-c05-boxed-regex .br-card { grid-template-columns: 80px 1fr; gap: 2px 10px; padding: 9px 14px; font-size: 14.5px; line-height: 1.34; }
+    #custom-c05-boxed-regex .br-card > b { font-size: 11.5px; line-height: 1.75; }
+    #custom-c05-boxed-regex .br-card code { font-size: .82em; }
+    #custom-c05-boxed-regex .br-h { grid-column: 1 / -1; font: 700 13.5px/1.3 var(--f-mono); color: var(--ink); margin-bottom: 2px; }
+    #custom-c05-boxed-regex .br-lesson { font-size: 16px; padding: 10px 14px; }
+    #custom-c05-boxed-regex .br-cites { gap: 8px; flex-wrap: wrap; }
+    #custom-c05-boxed-regex .br-cites .cite { font-size: 12.5px; }
+  </style>
+  <aside class="notes">This bug is real: the verifier found it in our own Lab 4 code before the deck shipped. In a raw regex, backslash-b means a word boundary, so the pattern looks for "oxed" right after a boundary and never matches a real \boxed{8500}; every answer looked wrong, so the gated brevity reward paid zero. The self-test still passed, because the test strings were not raw, and Python turned backslash-b into a backspace character that the broken pattern happily matched after. The same escape also garbled the system prompt, so the model was asked for a format that accuracy_reward cannot read. Analogy: you tested the lock with a key cut from the same wrong template. Likely question: "How do I catch this class of bug?" Run every reward on a few real completions from the base model, and print repr() of every prompt string in CI.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c05-boxed-regex";
+  // "...so \boxed{8500}" as the model writes it: 18 characters (verified with Python re, see notes)
+  const REAL = [...String.raw`...so \boxed{8500}`];
+  const CW = 36, CH = 40, CHIP_X = 668, CHIP_W = 124;
+  // word boundaries in REAL: before s, after o, before b, after d, before 8, after the last 0
+  const BOUNDS = [3, 5, 7, 12, 13, 17];
+  const LANES = [
+    { y: 4, tone: "risk", label: String.raw`broken r"\boxed\{…\}" · real model output` },
+    { y: 102, tone: "tool", label: String.raw`broken r"\boxed\{…\}" · non-raw test string` },
+    { y: 200, tone: "state", label: String.raw`fixed r"\\boxed\{…\}" · real model output` },
+  ];
+  let P = null, tls = [], done = [false, false, false];
+
+  const el = (p, tag, a, st, txt) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in a) e.setAttribute(k, a[k]);
+    if (st) Object.assign(e.style, st);
+    if (txt !== undefined) e.textContent = txt;
+    p.appendChild(e); return e;
+  };
+  const mono = (w, s) => `${w} ${s}px var(--f-mono)`;
+  const glyph = (c) => (c === " " ? "␣" : c);
+
+  const STY = {
+    n: ["var(--surface-2)", "var(--line-2)", "var(--ink-2)"],
+    bad: ["var(--risk-soft)", "var(--risk)", "var(--risk)"],
+    warn: ["var(--tool-soft)", "var(--tool)", "var(--ink)"],
+    warnS: ["var(--tool)", "var(--tool)", "#fff"],
+    ok: ["var(--state-soft)", "var(--state)", "var(--ink)"],
+    okS: ["var(--state)", "var(--state)", "#fff"],
+  };
+  function paint(cell, mode) {
+    const [f, s, t] = STY[mode];
+    cell.r.style.fill = f; cell.r.style.stroke = s; cell.t.style.fill = cell.ch === " " ? "var(--muted)" : t;
+  }
+
+  function lane(svg, L) {
+    const g = el(svg, "g", {});
+    el(g, "text", { x: 0, y: L.y + 13 }, { font: mono(700, 13.5), fill: `var(--${L.tone})` }, L.label);
+    const cells = REAL.map((ch, i) => {
+      const cg = el(g, "g", {});
+      gsap.set(cg, { x: i * CW, y: L.y + 22 });
+      const r = el(cg, "rect", { x: 0, y: 0, width: CW - 4, height: CH, rx: 7 }, { strokeWidth: 1.8 });
+      const t = el(cg, "text", { x: (CW - 4) / 2, y: 27, "text-anchor": "middle" }, { font: mono(600, 19) }, glyph(ch));
+      const c = { g: cg, r, t, ch, i };
+      paint(c, "n");
+      return c;
+    });
+    const caret = el(g, "rect", { x: -3, y: L.y + 17, width: 4, height: CH + 10, rx: 2 }, { fill: `var(--${L.tone})`, opacity: 0 });
+    const ticks = BOUNDS.map((b) => el(g, "path", { d: `M${b * CW - 9} ${L.y + 66} l7 9 l7 -9 z` }, { fill: "var(--risk)", opacity: 0 }));
+    const ann = el(g, "text", { x: 0, y: L.y + 90 }, { font: mono(500, 13), fill: "var(--muted)" }, "");
+    const chip = el(g, "g", {}, { opacity: 0 });
+    const cr = el(chip, "rect", { x: CHIP_X, y: L.y + 22, width: CHIP_W, height: CH, rx: 10 }, { strokeWidth: 2, fill: `var(--${L.tone}-soft)`, stroke: `var(--${L.tone})` });
+    const ct = el(chip, "text", { x: CHIP_X + CHIP_W / 2, y: L.y + 49, "text-anchor": "middle" }, { font: mono(700, 18), fill: `var(--${L.tone})` }, "");
+    const cs = el(chip, "text", { x: CHIP_X + CHIP_W / 2, y: L.y + 80, "text-anchor": "middle" }, { font: mono(700, 12.5), fill: `var(--${L.tone})` }, "");
+    return { g, cells, caret, ticks, ann, chip, cr, ct, cs, L };
+  }
+
+  function build(svg) {
+    svg.innerHTML = "";
+    P = LANES.map((L) => lane(svg, L));
+    el(svg, "line", { x1: 656, y1: 0, x2: 656, y2: 296 }, { stroke: "var(--line)", strokeWidth: 1.5, strokeDasharray: "4 5" });
+  }
+
+  // ---------- initial and final states ----------
+  function initLane(k) {
+    const p = P[k];
+    p.cells.forEach((c) => { gsap.set(c.g, { x: c.i * CW, opacity: 1, scale: 1 }); c.t.textContent = glyph(c.ch); paint(c, "n"); });
+    gsap.set([p.caret, p.chip, ...p.ticks], { opacity: 0 });
+    gsap.set(p.caret, { x: 0 });
+    p.ann.textContent = k === 0 ? "the text the policy writes" : "";
+  }
+  function finalLane(k) {
+    const p = P[k];
+    if (k === 0) {
+      p.cells.forEach((c) => paint(c, c.i === 7 ? "bad" : "n"));
+      gsap.set(p.ticks, { opacity: 1 });
+      gsap.set(p.caret, { x: 7 * CW, opacity: 1 });
+      p.ann.textContent = String.raw`6 boundaries tried; \b before "b", but "o" is needed`;
+      p.ct.textContent = "[]"; p.cs.textContent = "reward 0";
+    } else if (k === 1) {
+      p.cells.forEach((c) => {
+        if (c.i === 7) { gsap.set(c.g, { opacity: 0 }); return; }
+        gsap.set(c.g, { x: (c.i > 7 ? c.i - 1 : c.i) * CW, opacity: 1, scale: 1 });
+        if (c.i === 6) { c.t.textContent = "␈"; paint(c, "warn"); return; }
+        paint(c, c.i >= 13 && c.i <= 16 ? "warnS" : c.i >= 8 ? "warn" : "n");
+      });
+      gsap.set(p.caret, { x: 7 * CW, opacity: 1 });
+      p.ann.textContent = String.raw`"\b" became one char \x08, so \b fits before "o"`;
+      p.ct.textContent = "['8500']"; p.cs.textContent = "FALSE PASS";
+    } else {
+      p.cells.forEach((c) => paint(c, c.i >= 13 && c.i <= 16 ? "okS" : c.i >= 6 ? "ok" : "n"));
+      p.ann.textContent = String.raw`\\ in the raw regex = one literal backslash`;
+      p.ct.textContent = "['8500']"; p.cs.textContent = "match";
+    }
+    gsap.set(p.chip, { opacity: 1, scale: 1 });
+  }
+
+  // ---------- animations (each ends exactly in finalLane(k)) ----------
+  function animLane(k) {
+    const p = P[k];
+    initLane(k);
+    const tl = gsap.timeline({ onComplete: () => finalLane(k) });
+    if (k === 0) {
+      p.ann.textContent = "";
+      tl.set(p.caret, { opacity: 1 });
+      BOUNDS.forEach((b, j) => {
+        const c = p.cells[b];
+        const t = j * 0.42;
+        tl.to(p.caret, { x: b * CW, duration: 0.25, ease: "power2.inOut" }, t)
+          .to(p.ticks[j], { opacity: 1, duration: 0.15 }, t + 0.2);
+        if (c) tl.call(() => paint(c, "bad"), null, t + 0.25).call(() => { if (b !== 7) paint(c, "n"); }, null, t + 0.4);
+      });
+      tl.to(p.caret, { x: 7 * CW, duration: 0.35, ease: "power2.inOut" }, 2.6)
+        .call(() => paint(p.cells[7], "bad"), null, 2.95)
+        .call(() => { p.ann.textContent = String.raw`6 boundaries tried; \b before "b", but "o" is needed`; p.ct.textContent = "[]"; p.cs.textContent = "reward 0"; }, null, 3.0)
+        .fromTo(p.chip, { opacity: 0, scale: 0.8, transformOrigin: "50% 50%" }, { opacity: 1, scale: 1, duration: 0.35, ease: "back.out(2)" }, 3.0);
+    } else if (k === 1) {
+      const bs = p.cells[6], b = p.cells[7], rest = p.cells.filter((c) => c.i > 7);
+      tl.to(b.g, { x: 6 * CW, opacity: 0, duration: 0.45, ease: "power2.in" }, 0.3)
+        .call(() => { bs.t.textContent = "␈"; paint(bs, "warn"); }, null, 0.6)
+        .fromTo(bs.g, { scale: 1.25, transformOrigin: "50% 50%" }, { scale: 1, duration: 0.4, ease: "back.out(2)" }, 0.6)
+        .to(rest.map((c) => c.g), { x: (i, t) => (rest[i].i - 1) * CW, duration: 0.45, ease: "power2.inOut", stagger: 0.02 }, 0.75)
+        .set(p.caret, { x: 7 * CW }, 1.4)
+        .to(p.caret, { opacity: 1, duration: 0.2 }, 1.4);
+      rest.forEach((c, j) => tl.call(() => paint(c, c.i >= 13 && c.i <= 16 ? "warnS" : "warn"), null, 1.65 + j * 0.08));
+      tl.call(() => { p.ann.textContent = String.raw`"\b" became one char \x08, so \b fits before "o"`; p.ct.textContent = "['8500']"; p.cs.textContent = "FALSE PASS"; }, null, 2.5)
+        .fromTo(p.chip, { opacity: 0, scale: 0.8, transformOrigin: "50% 50%" }, { opacity: 1, scale: 1, duration: 0.35, ease: "back.out(2)" }, 2.5);
+    } else {
+      p.cells.filter((c) => c.i >= 6).forEach((c, j) => tl.call(() => paint(c, c.i >= 13 && c.i <= 16 ? "okS" : "ok"), null, 0.3 + j * 0.1));
+      tl.call(() => { p.ann.textContent = String.raw`\\ in the raw regex = one literal backslash`; p.ct.textContent = "['8500']"; p.cs.textContent = "match"; }, null, 1.6)
+        .fromTo(p.chip, { opacity: 0, scale: 0.8, transformOrigin: "50% 50%" }, { opacity: 1, scale: 1, duration: 0.35, ease: "back.out(2)" }, 1.6);
+    }
+    tls[k] = tl;
+  }
+
+  function kill() {
+    tls.forEach((t) => t && t.kill()); tls = [];
+    if (P) P.forEach((p) => gsap.killTweensOf([p.caret, p.chip, ...p.ticks, ...p.cells.map((c) => c.g)]));
+  }
+
+  function render(n, animate) {
+    kill();
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    P.forEach((p, k) => {
+      const at = k + 1;                          // lane k is explained at step k + 1
+      gsap.set(p.g, { opacity: k === 0 || n >= at ? 1 : 0 });
+      if (n < at) { initLane(k); done[k] = false; return; }
+      if (animate && !reduce && n === at && !done[k]) animLane(k);
+      else finalLane(k);
+      done[k] = true;
+    });
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) {
+      kill();
+      done = [false, false, false];
+      build(slide.querySelector("#br-svg"));
+      render(step || 0, false);
+    },
+    step(slide, n, animate) { if (P) render(n, animate); },
+    leave() { kill(); },
+  });
+})();
+</script>

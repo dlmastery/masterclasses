@@ -1,0 +1,101 @@
+<section class="slide" id="adk-c06-gotcha-silent" data-tone="risk" data-title="Gotcha: the silent toolset loss">
+  <style>
+    #adk-c06-gotcha-silent svg { overflow: visible; display: block; }
+    #adk-c06-gotcha-silent svg text { font-family: var(--f-mono); }
+    #adk-c06-gotcha-silent .nm { fill: var(--ink); font-size: 19px; font-weight: 700; }
+    #adk-c06-gotcha-silent .sub { fill: var(--muted); font-size: 16px; }
+    #adk-c06-gotcha-silent .chipt { fill: var(--ink); font-size: 16px; font-weight: 600; }
+    #adk-c06-gotcha-silent .say { fill: var(--ink-2); font-size: 18px; }
+    #adk-c06-gotcha-silent .logt { fill: var(--muted); font-size: 17px; }
+    #adk-c06-gotcha-silent .gs-bot { display: grid; grid-template-columns: 860px 1fr; gap: 36px; align-items: start; }
+    #adk-c06-gotcha-silent .gotcha { font-size: 19px; line-height: 1.45; }
+    #adk-c06-gotcha-silent .gotcha code { font-size: 17px; }
+    #adk-c06-gotcha-silent .cap { font-size: 20px; line-height: 1.45; color: var(--ink-2); margin: 0; }
+    #adk-c06-gotcha-silent .cap code { font-size: 17px; }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> MCP at runtime</div>
+  <h2 class="title">When a toolset fails to load, the agent keeps talking without it</h2>
+  <svg id="gs-svg" viewBox="0 0 1392 300" width="1392" height="300" aria-label="The MCP server exits. The toolset greys out. The agent still answers, without tools. Then one log line appears, and a log match raises an alert.">
+    <line id="gs-w1" x1="260" y1="80" x2="360" y2="80" style="stroke:var(--tool);stroke-width:3"/>
+    <line id="gs-w2" x1="740" y1="80" x2="840" y2="80" style="stroke:var(--tool);stroke-width:3"/>
+    <g id="gs-agent">
+      <rect x="0" y="30" width="260" height="100" rx="14" style="fill:var(--agent-soft);stroke:var(--agent);stroke-width:2.5"/>
+      <text class="nm" x="22" y="72">claims_desk</text>
+      <circle cx="30" cy="102" r="7" style="fill:var(--state)"/>
+      <text class="sub" x="46" y="108">LlmAgent · running</text>
+    </g>
+    <g id="gs-tset">
+      <rect x="360" y="10" width="380" height="140" rx="14" style="fill:var(--tool-soft);stroke:var(--tool);stroke-width:2.5"/>
+      <text class="nm" x="380" y="46">McpToolset</text>
+      <text class="sub" x="520" y="46">prefix 'claims'</text>
+      <rect x="380" y="78" width="160" height="48" rx="9" style="fill:var(--bg);stroke:var(--tool);stroke-width:2"/>
+      <text class="chipt" x="396" y="108">get_claim</text>
+      <rect x="556" y="78" width="168" height="48" rx="9" style="fill:var(--bg);stroke:var(--tool);stroke-width:2"/>
+      <text class="chipt" x="570" y="108">approve_claim</text>
+    </g>
+    <g id="gs-srv">
+      <rect x="840" y="30" width="260" height="100" rx="14" style="fill:var(--tool-soft);stroke:var(--tool);stroke-width:2.5"/>
+      <text class="nm" x="862" y="72">claims_server</text>
+      <text class="sub" id="gs-srvs" x="862" y="106">stdio · up</text>
+    </g>
+    <g id="gs-bub" opacity="0">
+      <rect x="0" y="152" width="340" height="44" rx="12" style="fill:var(--surface-2);stroke:var(--line-2);stroke-width:2"/>
+      <text class="say" x="18" y="181">"I can't access claims."</text>
+    </g>
+    <g id="gs-badge" opacity="0">
+      <rect x="1140" y="30" width="252" height="54" rx="10" style="fill:var(--risk)"/>
+      <text x="1266" y="64" text-anchor="middle" style="fill:#fff;font-size:18px;font-weight:700">ALERT · log match</text>
+    </g>
+    <rect id="gs-logbox" x="0" y="216" width="1392" height="72" rx="10" style="fill:var(--surface-2);stroke:var(--line-2);stroke-width:2"/>
+    <text class="logt" id="gs-l1" x="20" y="259">log: (quiet)</text>
+  </svg>
+  <div class="gs-bot fill">
+    <div class="gotcha">
+      <b data-step="1">Symptom</b><span data-step="1">No exception. The agent answers without its tools.</span>
+      <b class="why" data-step="2">Cause</b><span data-step="2">Server crash, a <code>print()</code> on stdout, a URL without <code>/mcp</code>, or a start slower than <code>timeout</code>.</span>
+      <b class="fix" data-step="3">Fix</b><span data-step="3">Alert on the log line. Run a smoke test at startup.</span>
+    </div>
+    <p class="cap" data-step="4">Before 2.10 / 2.11, a dead session came back as a normal result: <code>Session terminated</code>. Alert on that string too.</p>
+  </div>
+  <aside class="notes">The third MCP failure is the expensive one, because nothing turns red. Step 1: the claims server exits, the toolset cannot load, and ADK logs one line: "Agent claims_desk will run without the tools from toolset McpToolset (prefix 'claims'), which failed to load". The agent keeps running and tells the adjuster "I can't access claims". Step 2: the usual causes are a server crash, a print on stdout, a URL without /mcp, or a server that starts slower than the timeout. Step 3: you own the alert: match that log line in your logging system, and run a startup smoke test, which is the next slide. Step 4: in versions before 2.10 and 2.11, after a server restart or a scale-to-zero, ADK kept the dead session and returned "MCP tool execution failed: Session terminated" as a normal tool result, so alert on that error string too, not only on exceptions. Think of a phone line that goes dead while the operator keeps talking politely to the caller. A likely question: "Why does ADK not just raise?" One broken toolset should not take down an agent that has other working tools, so the choice is deliberate.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c06-gotcha-silent";
+  const L1 = "log: Agent claims_desk will run without the tools from toolset McpToolset (prefix 'claims'), which failed to load: ...";
+  let tw = null;
+  const clamp = (x) => Math.max(0, Math.min(1, x));
+  const q = (s, sel) => s.querySelector(sel);
+  // p in [0,1]: server exits, toolset greys, agent answers without tools, log line types, alert fires
+  function draw(s, p) {
+    const a = clamp(p / 0.2), b = clamp((p - 0.2) / 0.2), c = clamp((p - 0.4) / 0.2), d = clamp((p - 0.6) / 0.28);
+    q(s, "#gs-srv").setAttribute("opacity", String(1 - 0.65 * a));
+    q(s, "#gs-srvs").textContent = a >= 1 ? "exited" : "stdio · up";
+    q(s, "#gs-w2").setAttribute("opacity", String(1 - 0.75 * a));
+    q(s, "#gs-tset").setAttribute("opacity", String(1 - 0.7 * b));
+    q(s, "#gs-w1").setAttribute("opacity", String(1 - 0.75 * b));
+    q(s, "#gs-w1").style.strokeDasharray = b > 0.5 ? "8 8" : "none";
+    q(s, "#gs-w2").style.strokeDasharray = a > 0.5 ? "8 8" : "none";
+    q(s, "#gs-bub").setAttribute("opacity", String(c));
+    const k = Math.round(L1.length * d);
+    q(s, "#gs-l1").textContent = d > 0 ? L1.slice(0, k) : "log: (quiet)";
+    const alert = p >= 0.92;
+    q(s, "#gs-badge").setAttribute("opacity", alert ? "1" : "0");
+    q(s, "#gs-logbox").style.stroke = alert ? "var(--risk)" : "";
+    q(s, "#gs-l1").style.fill = alert ? "var(--risk)" : "";
+  }
+  function stop() { if (tw) tw.kill(); tw = null; }
+  function build(s, n, animate) {
+    stop();
+    const st = { p: n >= 1 ? 1 : 0 };
+    if (animate && n === 1) st.p = 0;
+    draw(s, st.p);
+    if (animate && n === 1) tw = gsap.to(st, { p: 1, duration: 4.4, ease: "none", delay: 0.3, onUpdate: () => draw(s, st.p) });
+  }
+  Deck.register(ID, {
+    enter(slide, n) { build(slide, n || 0, false); },
+    step(slide, n, animate) { build(slide, n, animate); },
+    leave() { stop(); },
+  });
+})();
+</script>

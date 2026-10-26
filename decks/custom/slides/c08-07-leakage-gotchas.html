@@ -1,0 +1,218 @@
+<section class="slide" id="custom-c08-leakage-gotchas" data-tone="risk" data-title="Leakage gotchas">
+  <style>
+    #custom-c08-leakage-gotchas { gap: 12px; }
+    #custom-c08-leakage-gotchas .lg-top { display: grid; grid-template-columns: 780px 1fr; gap: 24px; flex: none; }
+    #custom-c08-leakage-gotchas .lg-left, #custom-c08-leakage-gotchas .lg-right { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+    #custom-c08-leakage-gotchas .code-head { padding: 5px 12px; font-size: 12px; }
+    #custom-c08-leakage-gotchas pre.code { font-size: 11px; line-height: 14px; padding: 6px 12px 7px; }
+    #custom-c08-leakage-gotchas .lg-svgwrap { padding: 4px 6px; }
+    #custom-c08-leakage-gotchas .lg-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; flex: none; }
+    #custom-c08-leakage-gotchas .gotcha { grid-template-columns: 70px 1fr; gap: 2px 10px; padding: 6px 13px; font-size: 13px; line-height: 1.27; align-content: start; }
+    #custom-c08-leakage-gotchas .gotcha > b { font-size: 11px; line-height: 1.7; }
+    #custom-c08-leakage-gotchas .gotcha code { font-size: .84em; }
+    #custom-c08-leakage-gotchas .lg-h { grid-column: 1 / -1; font: 700 13px/1.3 var(--f-mono); color: var(--ink); margin-bottom: 3px; }
+    #custom-c08-leakage-gotchas .lg-cites { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-start; }
+    #custom-c08-leakage-gotchas .lg-cites .cite { font-size: 12px; flex-direction: row; gap: 8px; padding: 5px 12px 5px 8px; border-radius: 10px; border-color: var(--line); }
+    #custom-c08-leakage-gotchas .lg-cites .cite::before { width: 18px; height: 18px; }
+    #custom-c08-leakage-gotchas pre.code, #custom-c08-leakage-gotchas pre.code *, #custom-c08-leakage-gotchas code, #custom-c08-leakage-gotchas svg text { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #c08lg-svg text { font-family: var(--f-mono); }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> Leakage · Acme refund-fraud model</div>
+  <h2 class="title">Leaks that pass review: fitted encoders, renamed features, agents</h2>
+  <div class="lg-top">
+    <div class="lg-left">
+      <div class="code-wrap bad" data-step="1">
+        <div class="code-head">fraud_data/leaky_feature.py · customer_fraud_rate from all rows</div>
+        <pre class="code" data-lang="python"><code>import pandas as pd
+from sklearn.model_selection import GroupKFold, cross_val_score
+from lab7_leakage_splits import df, y, model, X        # Lab 7: 400 customers x 15 events
+leak = X.assign(customer_fraud_rate=pd.Series(y).groupby(df["customer_id"]).transform("mean"))
+cross_val_score(model, leak, y, groups=df["customer_id"], cv=GroupKFold(n_splits=5), scoring="roc_auc")</code></pre>
+      </div>
+      <div class="code-wrap good" data-step="2">
+        <div class="code-head">fraud_data/safe_features.py · scikit-learn==1.9.1</div>
+        <pre class="code" data-lang="python" data-focus="2:9-13, 3:15-17"><code>import pandas as pd
+from sklearn.compose import make_column_transformer
+from sklearn.ensemble import HistGradientBoostingClassifier
+from sklearn.model_selection import GroupKFold, cross_val_score
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import TargetEncoder
+from lab7_leakage_splits import df, y                  # Lab 7: 400 customers x 15 events
+
+feats = [f"f{i}" for i in range(7)]
+enc = make_column_transformer((TargetEncoder(), ["customer_id"]), ("passthrough", feats))
+pipe = make_pipeline(enc, HistGradientBoostingClassifier(max_iter=200, random_state=0))
+auc = cross_val_score(pipe, df[["customer_id", *feats]], y, groups=df["customer_id"],
+                      cv=GroupKFold(n_splits=5, shuffle=True, random_state=0), scoring="roc_auc")
+
+def assert_available(log: pd.DataFrame) -> None:      # one row per (refund, feature)
+    late = log[log["feature_ts"] > log["prediction_ts"]]
+    assert late.empty, f"not available at prediction time: {sorted(late['feature'].unique())}"</code></pre>
+      </div>
+    </div>
+    <div class="lg-right">
+    <div class="panel tight lg-svgwrap">
+      <svg id="c08lg-svg" viewBox="0 0 580 372" width="572" height="367" role="img" aria-label="Two lanes. Top lane: a timeline for one refund request with a dashed vertical prediction-time line. refund_amount_usd, days_since_order and items_in_order arrive before the line; chargeback_flag arrives 7 days after it. Step 3: the three early features turn green and chargeback_flag turns red: the timestamp check catches it. Step 4: chargeback_flag is renamed x17; its timestamp does not move, a name filter misses it, the timestamp check still catches it. Bottom lane: 5 GroupKFold folds of 5 blocks, one test block per fold. Step 1: one red encoder fit covers all 25 blocks, test blocks included. Step 2: a Pipeline box; each fold re-fits its own encoder on its 4 train blocks only."></svg>
+    </div>
+    
+    </div>
+  </div>
+  <div class="lg-cards">
+    <div class="gotcha" data-step="1">
+      <div class="lg-h">1 · Encoder fitted before the split</div>
+      <b>Symptom</b><span>CV ROC-AUC is higher than production.</span>
+      <b class="why">Cause</b><span>A scaler, target encoder or vocabulary saw all rows. sklearn: "never call <code>fit</code> on the test data". An all-row <code>customer_fraud_rate</code> makes GroupKFold AUC jump.</span>
+      <b class="fix">Fix</b><span>Every transform in a <code>Pipeline</code> passed to <code>cross_val_score</code>. Same rule for dedup thresholds, tokenizer training, RM calibration.</span>
+    </div>
+    <div class="gotcha" data-step="3">
+      <div class="lg-h">2 · Agent picks a future feature</div>
+      <b>Symptom</b><span>An agent-built model uses a feature that does not exist at prediction time.</span>
+      <b class="why">Cause</b><span>LeakBench, MIMIC-IV (430k admissions): leak in <b>10/10</b> unconstrained runs, <b>0/10</b> with an admission-time constraint. Renaming changes neither: "a name-based filter fails".</span>
+      <b class="fix">Fix</b><span>An "available at prediction time" contract column, checked by timestamp: <code>feature_ts &lt;= prediction_ts</code>.</span>
+    </div>
+    <div class="gotcha" data-step="5">
+      <div class="lg-h">3 · The drift monitor breaks</div>
+      <b>Symptom</b><span>PSI = <code>inf</code>, or <code>ValueError: `bins` must increase monotonically, when an array</code></span>
+      <b class="why">Cause</b><span>An empty bin gives <code>log(0)</code>. Business bin edges are unsorted or repeat.</span>
+      <b class="fix">Fix</b><span><code>np.clip(share, eps, None)</code>, <code>edges = np.unique(edges)</code>. Set a minimum window: 10 bins and &lt; 500 rows give ~0.05 PSI noise.</span>
+    </div>
+  </div>
+  <div class="lg-cites" data-step="3">
+    <a class="cite doc" href="https://github.com/scikit-learn/scikit-learn/blob/main/doc/common_pitfalls.rst" target="_blank" rel="noopener"><b>Docs</b>&nbsp;scikit-learn: Common pitfalls and recommended practices</a>
+    <a class="cite paper" href="https://arxiv.org/abs/2610.26088" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.26088 LeakBench: Auditing Reward Hacking through Prediction-Time Leakage in Clinical Modeling Agents</a>
+  </div>
+  <aside class="notes">Three leaks that survive a code review, because the split itself looks correct. Step 1 and 2: a customer_fraud_rate computed on all rows puts each test customer's own labels into a feature, so GroupKFold AUC jumps; the fix is a TargetEncoder inside the Pipeline, so cross_val_score re-fits it on the four training folds only. Step 3 and 4: LeakBench shows coding agents pick a feature that does not exist at prediction time in 10 of 10 unconstrained runs, and renaming the column to something like x17 does not change that, so only a timestamp rule, feature_ts at or before prediction_ts, catches it. Step 5: the drift monitor from Lab 7 step 1 breaks on empty bins and unsorted business bin edges; clip with eps, use np.unique, and set a minimum window size. Analogy: a guard who checks name badges lets in anyone who borrows a badge, but a guard who checks the arrival time does not. Likely question: does the Pipeline slow the cross-validation down? A little, because the encoder is fitted five times, and that is the cost of an honest number. Hand-off: the next slide shows that the same leaks appear in three October 2026 papers outside fraud.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c08-leakage-gotchas";
+  const PX = 372;                                   // prediction-time line
+  const AXY = 150;                                  // timeline axis y
+  const FEATS = [                                    // name, arrival x, chip y, late?
+    { n: "refund_amount_usd", x: 34, y: 42, late: false },
+    { n: "days_since_order", x: 104, y: 78, late: false },
+    { n: "items_in_order", x: 174, y: 114, late: false },
+    { n: "chargeback_flag", x: 412, y: 78, late: true },
+  ];
+  const GX = 96, GY = 234, CW = 52, CH = 16, CG = 6, RG = 6;  // fold grid
+  let S = null;
+
+  function mk(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  }
+
+  function build(slide) {
+    const svg = slide.querySelector("#c08lg-svg");
+    if (svg._S) return svg._S;
+    svg.innerHTML = "";
+    const s = { chips: [], marks: [], cells: [], fitR: [], encs: [], caps: {} };
+    // ---- lane A: feature timeline ----
+    mk("text", { x: 8, y: 18, "font-size": 12.5, "font-weight": 700, fill: "var(--ink)" }, svg, "One refund request: when does each feature exist?");
+    mk("line", { x1: 14, y1: AXY, x2: 566, y2: AXY, stroke: "var(--line-2)", "stroke-width": 2 }, svg);
+    mk("text", { x: 566, y: AXY + 16, "text-anchor": "end", "font-size": 10.5, fill: "var(--muted)" }, svg, "time");
+    mk("line", { x1: PX, y1: 30, x2: PX, y2: AXY + 8, stroke: "var(--ink)", "stroke-width": 2, "stroke-dasharray": "6 4" }, svg);
+    mk("text", { x: PX - 6, y: 40, "text-anchor": "end", "font-size": 11, "font-weight": 700, fill: "var(--ink)" }, svg, "prediction time");
+    // label-delay bracket
+    s.delay = mk("g", { opacity: 1 }, svg);
+    mk("path", { d: `M${PX} ${AXY + 14} v6 H${FEATS[3].x} v-6`, fill: "none", stroke: "var(--muted)", "stroke-width": 1.4 }, s.delay);
+    mk("text", { x: (PX + FEATS[3].x) / 2, y: AXY + 33, "text-anchor": "middle", "font-size": 10.5, fill: "var(--muted)" }, s.delay, "+7 d");
+    FEATS.forEach((f, i) => {
+      const g = mk("g", {}, svg);
+      const w = f.late ? 146 : 9 + f.n.length * 7.2 + 9;
+      mk("line", { x1: f.x, y1: f.y + 13, x2: f.x, y2: AXY, stroke: "var(--line-2)", "stroke-width": 1.5 }, g);
+      const dot = mk("circle", { cx: f.x, cy: AXY, r: 5, fill: "var(--muted)" }, g);
+      const box = mk("rect", { x: f.x, y: f.y - 13, width: w, height: 26, rx: 7, fill: "var(--surface-2)", stroke: "var(--muted)", "stroke-width": 1.6 }, g);
+      const t = mk("text", { x: f.x + 9, y: f.y + 4, "font-size": 12, fill: "var(--ink)" }, g, f.n);
+      let t2 = null;
+      if (f.late) t2 = mk("text", { x: f.x + 9, y: f.y + 4, "font-size": 12, "font-weight": 700, fill: "var(--risk)", opacity: 0 }, g, "x17");
+      const mark = mk("text", { x: f.x + w + 6, y: f.y + 5, "font-size": 14, "font-weight": 700, fill: f.late ? "var(--risk)" : "var(--state)", opacity: 0 }, g, f.late ? "✕" : "✓");
+      s.chips.push({ g, dot, box, t, t2, mark, late: f.late });
+    });
+    const capA = (k, txt, col) => (s.caps["a" + k] = mk("text", { x: 8, y: 200, "font-size": 12, "font-weight": 700, fill: col, opacity: 0 }, svg, txt));
+    capA(3, "feature_ts <= prediction_ts: 3 pass, chargeback_flag caught", "var(--state)");
+    capA(4, "renamed x17: same timestamp. Name filter misses it, ts check catches it", "var(--risk)");
+    // ---- lane B: encoder fitted per fold ----
+    mk("line", { x1: 8, y1: 210, x2: 572, y2: 210, stroke: "var(--line)", "stroke-width": 1.5 }, svg);
+    mk("text", { x: 8, y: 226, "font-size": 12.5, "font-weight": 700, fill: "var(--ink)" }, svg, "TargetEncoder in GroupKFold(5)");
+    s.leg = mk("g", { opacity: 0 }, svg);
+    mk("rect", { x: 8, y: 354, width: 12, height: 12, rx: 3, fill: "var(--agent)" }, s.leg);
+    mk("text", { x: 25, y: 364, "font-size": 11, fill: "var(--muted)" }, s.leg, "train");
+    mk("rect", { x: 70, y: 354, width: 12, height: 12, rx: 3, fill: "var(--tool)" }, s.leg);
+    mk("text", { x: 87, y: 364, "font-size": 11, fill: "var(--muted)" }, s.leg, "test");
+    s.pipe = mk("g", { opacity: 0 }, svg);
+    mk("rect", { x: GX - 82, y: GY - 2, width: 5 * (CW + CG) + 82 + 128, height: 5 * (CH + RG) + 4, rx: 10, fill: "none", stroke: "var(--state)", "stroke-width": 1.6, "stroke-dasharray": "6 4" }, s.pipe);
+    for (let k = 0; k < 5; k++) {
+      const y = GY + 4 + k * (CH + RG);
+      mk("text", { x: 22, y: y + 12, "font-size": 11, fill: "var(--muted)" }, svg, "fold " + (k + 1));
+      for (let j = 0; j < 5; j++) {
+        const x = GX + j * (CW + CG);
+        s.cells.push({ el: mk("rect", { x, y, width: CW, height: CH, rx: 4, fill: "var(--line-2)" }, svg), test: j === k });
+      }
+      const e = mk("g", { opacity: 0 }, svg);
+      mk("rect", { x: GX + 5 * (CW + CG) + 8, y: y - 1, width: 112, height: CH + 2, rx: 9, fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 1.3 }, e);
+      mk("text", { x: GX + 5 * (CW + CG) + 64, y: y + 12, "text-anchor": "middle", "font-size": 10.5, "font-weight": 700, fill: "var(--state)" }, e, "fit on 4/5");
+      s.encs.push(e);
+    }
+    s.fitAll = mk("g", { opacity: 0 }, svg);
+    mk("rect", { x: GX - 6, y: GY, width: 5 * (CW + CG) + 6, height: 5 * (CH + RG), rx: 8, fill: "var(--risk-soft)", stroke: "var(--risk)", "stroke-width": 2 }, s.fitAll);
+    mk("text", { x: GX + 5 * (CW + CG) + 10, y: GY + 52, "font-size": 11.5, "font-weight": 700, fill: "var(--risk)" }, s.fitAll, "one fit,");
+    mk("text", { x: GX + 5 * (CW + CG) + 10, y: GY + 68, "font-size": 11.5, "font-weight": 700, fill: "var(--risk)" }, s.fitAll, "all 25 blocks");
+    const capB = (k, txt, col) => (s.caps["b" + k] = mk("text", { x: 572, y: 364, "text-anchor": "end", "font-size": 12, "font-weight": 700, fill: col, opacity: 0 }, svg, txt));
+    capB(1, "fit(all rows): the encoder saw the test labels", "var(--risk)");
+    capB(2, "Pipeline: re-fit 5 times, test block never seen", "var(--state)");
+    svg._S = s;
+    return s;
+  }
+
+  function render(s, n, animate) {
+    const all = [];
+    s.chips.forEach((c) => all.push(c.dot, c.box, c.t, c.mark, ...(c.t2 ? [c.t2] : [])));
+    s.cells.forEach((c) => all.push(c.el));
+    all.push(...s.encs, s.fitAll, s.pipe, s.leg, ...Object.values(s.caps));
+    gsap.killTweensOf(all);
+    const to = (el, v, d) => (animate ? gsap.to(el, { ...v, duration: 0.5, delay: d || 0 }) : gsap.set(el, v));
+    // lane B
+    s.cells.forEach((c, i) => {
+      const fill = n >= 1 ? (c.test ? "var(--tool)" : "var(--agent)") : "var(--line-2)";
+      to(c.el, { attr: { fill }, opacity: n >= 3 ? 0.55 : 1 }, animate && n === 1 ? i * 0.015 : 0);
+    });
+    to(s.leg, { opacity: n >= 1 ? 1 : 0 });
+    to(s.fitAll, { opacity: n === 1 ? 1 : 0 }, n === 1 ? 0.45 : 0);
+    to(s.pipe, { opacity: n >= 2 ? (n >= 3 ? 0.5 : 1) : 0 });
+    s.encs.forEach((e, k) => to(e, { opacity: n >= 2 ? (n >= 3 ? 0.5 : 1) : 0 }, n === 2 ? 0.3 + k * 0.12 : 0));
+    // lane A
+    s.chips.forEach((c, i) => {
+      const on = n >= 3;
+      const col = !on ? "var(--muted)" : c.late ? "var(--risk)" : "var(--state)";
+      to(c.box, { attr: { stroke: col, fill: on ? (c.late ? "var(--risk-soft)" : "var(--state-soft)") : "var(--surface-2)" } }, on ? i * 0.12 : 0);
+      to(c.dot, { attr: { fill: col } }, on ? i * 0.12 : 0);
+      to(c.mark, { opacity: on ? 1 : 0 }, on ? 0.2 + i * 0.12 : 0);
+      if (c.t2) { to(c.t, { opacity: n >= 4 ? 0 : 1 }); to(c.t2, { opacity: n >= 4 ? 1 : 0 }, n >= 4 ? 0.25 : 0); }
+    });
+    // captions: one per lane per step
+    const capAk = n >= 4 ? 4 : n >= 3 ? 3 : 0;
+    const capBk = n === 1 ? 1 : n === 2 ? 2 : 0;
+    [3, 4].forEach((k) => to(s.caps["a" + k], { opacity: k === capAk ? 1 : 0 }, k === capAk ? 0.5 : 0));
+    [1, 2].forEach((k) => to(s.caps["b" + k], { opacity: k === capBk ? 1 : 0 }, k === capBk ? 0.5 : 0));
+    gsap.set(s.chips[3].box, { scale: 1, transformOrigin: "left center" });
+    if (animate && n === 4) {
+      const c = s.chips[3];
+      gsap.fromTo(c.box, { scale: 1, transformOrigin: "left center" }, { scale: 1.08, duration: 0.25, yoyo: true, repeat: 1, delay: 0.1 });
+    }
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { S = build(slide); render(S, step, false); },
+    step(slide, n, animate) { S = build(slide); render(S, n, animate); },
+    leave(slide) {
+      const svg = slide.querySelector("#c08lg-svg");
+      if (svg) gsap.killTweensOf(svg.querySelectorAll("*"));
+    }
+  });
+})();
+</script>

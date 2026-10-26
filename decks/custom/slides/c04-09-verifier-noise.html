@@ -1,0 +1,193 @@
+<section class="slide" id="custom-c04-verifier-noise" data-tone="tool" data-title="Verifier noise papers">
+  <div class="kicker"><span class="pill">arXiv</span> Oct 2026 · three papers</div>
+  <h2 class="title sm">Verifiers fail by structure: side effects and constraint-only wins</h2>
+  <div class="grid fill vn-grid">
+    <div class="stack vn-left">
+      <svg id="vn-svg" viewBox="0 0 660 320" width="660" height="320" aria-label="Top: zero-variance filter on two groups of four rollouts. A false positive makes an all-wrong group look mixed, so it is kept. A false negative makes a mixed group look constant, so it is dropped. Bottom: the CaLIF band on the reference log-likelihood line, with a red quality-risk zone below l0, a green desired zone from l0 to l1 and a red inflation zone above l1. Rollout dots fall onto the line and score 1, 1.5 or 0. Bars: response quality 4.51 before RL, 2.96 after plain IF-RLVR, 4.59 with CaLIF."></svg>
+      <div class="code-wrap vn-code">
+        <div class="code-head">calif_reward.py · sketch from the paper, not official code</div>
+        <pre class="code" data-lang="python" data-focus="3:5-7, 4:1"><code># l = mean token logprob of y under pi_ref(.|x) (request only)
+def calif_reward(r_ver, l, l0, l1, alpha=0.5):
+    if l0 &gt; l1:                       # degenerate band
+        return r_ver if l &lt;= l1 else 0.0
+    if l &lt; l0:  return r_ver          # quality-risk region: no bonus
+    if l &lt;= l1: return r_ver + (alpha if r_ver &gt; 0 else 0.0)  # desired region
+    return 0.0                        # likelihood-inflation region</code></pre>
+      </div>
+      <div class="steps-rail vn-rail">
+        <div data-step="3"><span>Lines 5–7: below <code>l0</code>, <code>r_ver</code> only. From <code>l0</code> to <code>l1</code>, add α. Above <code>l1</code>, score 0.</span></div>
+        <div data-step="4"><span>Line 1: one teacher-forced pass under π<sub>ref</sub>. KL already loads π<sub>ref</sub>.</span></div>
+      </div>
+    </div>
+
+    <div class="stack vn-right">
+      <div class="paper" data-step="1">
+        <div class="pid">arXiv:2610.17824 <span>13 Oct 2026</span><a class="cite paper" href="https://arxiv.org/abs/2610.17824" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.17824</a></div>
+        <h4>Checking the Checkers: A Synthesis of Verifier Noise and Robustness in RLVR</h4>
+        <div class="find">Survey of <b>58</b> RLVR verifier-noise studies. Error structure matters more than error rate. Learnable false positives cause plateaus or collapse. Under KL or a fixed budget, random errors also lower final accuracy.</div>
+        <div class="so">Measure your verifier's FP and FN rates on <b>200</b> hand-labelled rollouts before RL. <a class="cite repo" href="https://github.com/huggingface/trl/issues/7747" target="_blank" rel="noopener"><b>TRL</b>&nbsp;issue #7747</a></div>
+      </div>
+      <div class="paper" data-step="2">
+        <div class="pid">arXiv:2610.09142 <span>6 Oct 2026</span><a class="cite paper" href="https://arxiv.org/abs/2610.09142" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.09142</a></div>
+        <h4>Finding Side-Effect Loopholes in Verifiable Rewards</h4>
+        <div class="find">Verifiers that check only the requested change pass runs with unrequested side effects. One count assertion per template rejected all <b>6</b> duplicates.</div>
+        <div class="code-wrap vn-diff">
+          <pre class="code" data-lang="none"><code><span class="vn-ctx">  def route_ticket(subject, body):</span>
+<span class="vn-add">+     open("routes.log", "a").write(subject)   # not requested</span>
+<span class="vn-ctx">      return "billing" if "refund" in body else "other"</span></code></pre>
+        </div>
+        <div class="so">Assert that <code>route_ticket</code> does not mutate globals or write files.</div>
+      </div>
+      <div class="paper" data-step="3">
+        <div class="pid">arXiv:2610.19525 <span>14 Oct 2026 · CaLIF</span><a class="cite paper" href="https://arxiv.org/abs/2610.19525" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.19525</a></div>
+        <h4>Diagnosing and Correcting Reward Hacking in Verifiable Instruction Following</h4>
+        <div class="find">IFBench, 5 configs (1.7B–8B): plain IF-RLVR drops response quality <b>4.51 → 2.96</b>. CaLIF raises constraint satisfaction <b>26.98 → 34.64</b> and keeps quality at <b>4.59</b>.</div>
+        <div class="so">Give every format reward a "did it still answer?" term, as <code>decision_reward</code> does for <code>format_reward</code>.</div>
+      </div>
+    </div>
+  </div>
+  <style>
+    #custom-c04-verifier-noise .vn-grid { grid-template-columns: 660px 1fr; gap: 28px; }
+    #custom-c04-verifier-noise .vn-left { gap: 10px; }
+    #custom-c04-verifier-noise .vn-right { gap: 10px; }
+    #custom-c04-verifier-noise .vn-code { align-self: stretch; }
+    #custom-c04-verifier-noise .vn-code .code-head { font-size: 13px; padding: 8px 14px; }
+    #custom-c04-verifier-noise .vn-code pre.code { font-size: 13px; line-height: 1.5; padding: 10px 16px 12px; }
+    #custom-c04-verifier-noise .vn-rail { gap: 6px; }
+    #custom-c04-verifier-noise .vn-rail > * { font-size: 15px; line-height: 1.3; grid-template-columns: 26px 1fr; gap: 10px; align-items: center; }
+    #custom-c04-verifier-noise .vn-rail > *::before { width: 24px; height: 24px; font-size: 13px; }
+    #custom-c04-verifier-noise .paper { padding: 10px 16px; gap: 5px; }
+    #custom-c04-verifier-noise .paper .pid { align-items: center; font-size: 13px; }
+    #custom-c04-verifier-noise .paper .pid .cite { margin-left: auto; flex: none; flex-direction: row; white-space: nowrap; line-height: 1.2; font-size: 12.5px; padding: 3px 8px 3px 6px; gap: 6px; }
+    #custom-c04-verifier-noise .paper .so .cite { white-space: nowrap; line-height: 1.2; font-size: 12.5px; padding: 2px 8px 2px 6px; gap: 6px; vertical-align: middle; }
+    #custom-c04-verifier-noise .paper .cite::before { width: 14px; height: 14px; }
+    #custom-c04-verifier-noise .paper h4 { font-size: 16.5px; line-height: 1.25; }
+    #custom-c04-verifier-noise .paper .find { font-size: 15px; line-height: 1.38; }
+    #custom-c04-verifier-noise .paper .so { font-size: 15px; line-height: 1.35; }
+    #custom-c04-verifier-noise .paper .so code { font-size: 13.5px; }
+    #custom-c04-verifier-noise .vn-diff { align-self: stretch; box-shadow: none; }
+    #custom-c04-verifier-noise .vn-diff pre.code { font-size: 12.5px; line-height: 1.45; padding: 7px 12px; }
+    #custom-c04-verifier-noise .vn-ctx { color: #aeb6e0; }
+    #custom-c04-verifier-noise .vn-add { color: #ff8fab; background: rgba(255, 90, 120, .16); display: inline-block; width: 100%; border-left: 3px solid #ff5a78; margin-left: -3px; }
+    #custom-c04-verifier-noise svg text { font-family: var(--f-mono); }
+  </style>
+  <aside class="notes">Three October papers say the same thing: how a verifier fails matters more than how often. The survey of 58 studies finds that false positives the policy can learn cause plateaus or collapse, and the top panel shows why: one false positive keeps an all-wrong group for training, and one false negative drops a useful mixed group. The side-effect paper is our route_ticket risk: a check that looks only at the returned queue passes a run that also writes a file, so add an assertion for globals and files. CaLIF is the format-reward version: plain IF-RLVR satisfied constraints while quality fell from 4.51 to 2.96, and a likelihood band under the reference policy kept quality at 4.59; think of a speed limit with a minimum as well as a maximum. A likely question is what l0 and l1 are: before RL, sample one answer with the constraint and one without, and score both under the reference policy with the request only. Chapter 5 takes these tested rewards into a full GRPO run with a verifier.</aside>
+</section>
+<script>
+(() => {
+  const ID = "custom-c04-verifier-noise";
+  const NS = "http://www.w3.org/2000/svg";
+  const mk = (tag, a, p, t) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); if (t !== undefined) e.textContent = t; p.appendChild(e); return e; };
+  // region A: two groups of 4 rollouts (true rewards), and the one verifier error in each
+  const GROUPS = [
+    { x: 14, name: "all wrong", vals: [0, 0, 0, 0], flip: 1, err: "FP", before: "std = 0 → dropped", after: "1 FP → std > 0 → kept, learns a false 1" },
+    { x: 344, name: "mixed", vals: [1, 0, 0, 0], flip: 0, err: "FN", before: "std > 0 → kept", after: "1 FN → std = 0 → dropped, signal lost" }
+  ];
+  // region B: CaLIF band
+  const X0 = 14, XL0 = 240, XL1 = 440, X1 = 646, ZY = 200, ZH = 30;
+  const DOTS = [60, 130, 196, 280, 340, 400, 500, 590];
+  const rewardAt = (x) => (x < XL0 ? "1" : x <= XL1 ? "1.5" : "0");
+  const zoneCol = (x) => (x < XL0 || x > XL1 ? "var(--risk)" : "var(--state)");
+  const BX = 130, U = 80; // bars: 1 quality point = 80 px
+  let svg, chips = [], verdicts = [], dots = [], dlabs = [], bars = [], bvals = [], barG, tw = [];
+
+  function build(slide) {
+    svg = slide.querySelector("#vn-svg"); svg.innerHTML = "";
+    chips = []; verdicts = []; dots = []; dlabs = []; bars = []; bvals = [];
+    mk("text", { x: 14, y: 14, "font-size": 13, "font-weight": 700, fill: "var(--ink-2)" }, svg, "zero-variance filter · 4 rollouts per group");
+    GROUPS.forEach((g, gi) => {
+      mk("text", { x: g.x, y: 34, "font-size": 12.5, fill: "var(--muted)" }, svg, `${g.name} · true ${g.vals.join(" ")}`);
+      const row = g.vals.map((v, i) => {
+        const gr = mk("g", {}, svg);
+        const r = mk("rect", { x: g.x + i * 64, y: 55, width: 52, height: 32, rx: 8, fill: "var(--surface)", stroke: "var(--line-2)", "stroke-width": 2 }, gr);
+        const t = mk("text", { x: g.x + i * 64 + 26, y: 77, "font-size": 16, "font-weight": 700, "text-anchor": "middle", fill: "var(--ink)" }, gr, String(v));
+        const e = mk("text", { x: g.x + i * 64 + 26, y: 50, "font-size": 11.5, "font-weight": 700, "text-anchor": "middle", fill: "var(--risk)", opacity: 0 }, gr, g.err);
+        return { r, t, e, v };
+      });
+      chips.push(row);
+      verdicts.push(mk("text", { x: g.x, y: 106, "font-size": 12.5, "font-weight": 700, fill: "var(--muted)" }, svg, g.before));
+    });
+    mk("line", { x1: 14, y1: 124, x2: 646, y2: 124, stroke: "var(--line)", "stroke-width": 1.5 }, svg);
+    // CaLIF band
+    mk("text", { x: 14, y: 146, "font-size": 13, "font-weight": 700, fill: "var(--ink-2)" }, svg, "CaLIF band on l · α = 0.5 · every dot r_ver = 1");
+    [[X0, XL0, "quality risk: r_ver", "var(--risk)"], [XL0, XL1, "desired: r_ver + α", "var(--state)"], [XL1, X1, "inflation: 0", "var(--risk)"]].forEach(([a, b, lab, c]) => {
+      mk("rect", { x: a, y: ZY, width: b - a, height: ZH, fill: c, opacity: .16 }, svg);
+      mk("text", { x: (a + b) / 2, y: ZY + 20, "font-size": 12.5, "font-weight": 700, "text-anchor": "middle", fill: c }, svg, lab);
+    });
+    mk("line", { x1: X0, y1: ZY + ZH, x2: X1, y2: ZY + ZH, stroke: "var(--ink-2)", "stroke-width": 2 }, svg);
+    [[XL0, "l0"], [XL1, "l1"]].forEach(([x, lab]) => {
+      mk("line", { x1: x, y1: ZY - 4, x2: x, y2: ZY + ZH + 6, stroke: "var(--ink-2)", "stroke-width": 2 }, svg);
+      mk("text", { x, y: ZY + ZH + 20, "font-size": 12.5, "font-weight": 700, "text-anchor": "middle", fill: "var(--ink-2)" }, svg, lab);
+    });
+    mk("text", { x: X1, y: ZY + ZH + 20, "font-size": 12, "text-anchor": "end", fill: "var(--muted)" }, svg, "log p(y | x) →");
+    DOTS.forEach((x) => {
+      dots.push(mk("circle", { cx: x, cy: 188, r: 8, fill: zoneCol(x), opacity: 0 }, svg));
+      dlabs.push(mk("text", { x, y: 172, "font-size": 13, "font-weight": 700, "text-anchor": "middle", fill: zoneCol(x), opacity: 0 }, svg, rewardAt(x)));
+    });
+    // quality bars
+    barG = mk("g", { opacity: 0 }, svg);
+    [["before RL", 4.51, "var(--muted)"], ["IF-RLVR", 2.96, "var(--risk)"], ["CaLIF", 4.59, "var(--state)"]].forEach(([lab, v, c], i) => {
+      const y = 262 + i * 20;
+      mk("text", { x: 14, y: y + 12, "font-size": 12.5, "font-weight": 700, fill: "var(--ink-2)" }, barG, lab);
+      mk("rect", { x: BX, y, width: U * 5, height: 14, rx: 4, fill: "var(--line)" }, barG);
+      bars.push(mk("rect", { x: BX, y, width: U * v, height: 14, rx: 4, fill: c }, barG));
+      bvals.push(mk("text", { x: BX + U * 5 + 10, y: y + 12, "font-size": 13, "font-weight": 700, fill: c }, barG, v.toFixed(2)));
+    });
+    mk("text", { x: X1, y: 274, "font-size": 12, "text-anchor": "end", fill: "var(--muted)" }, barG, "response");
+    mk("text", { x: X1, y: 290, "font-size": 12, "text-anchor": "end", fill: "var(--muted)" }, barG, "quality,");
+    mk("text", { x: X1, y: 306, "font-size": 12, "text-anchor": "end", fill: "var(--muted)" }, barG, "IFBench");
+  }
+
+  function setGroups(on) {
+    GROUPS.forEach((g, gi) => {
+      const c = chips[gi][g.flip];
+      c.t.textContent = String(on ? 1 - c.v : c.v);
+      c.r.setAttribute("stroke", on ? "var(--risk)" : "var(--line-2)");
+      c.r.setAttribute("fill", on ? "color-mix(in oklab, var(--risk) 14%, var(--surface))" : "var(--surface)");
+      c.e.setAttribute("opacity", on ? 1 : 0);
+      verdicts[gi].textContent = on ? g.after : g.before;
+      verdicts[gi].setAttribute("fill", on ? "var(--risk)" : "var(--muted)");
+    });
+  }
+  function kill() { tw.forEach((t) => t.kill()); tw = []; }
+
+  function render(n, animate) {
+    kill();
+    // region A: the verifier errors from step 1
+    setGroups(n >= 1);
+    if (animate && n === 1) {
+      GROUPS.forEach((g, gi) => {
+        const c = chips[gi][g.flip];
+        tw.push(gsap.fromTo(c.r, { scale: .6, transformOrigin: "50% 50%" }, { scale: 1, duration: .5, delay: .2 + gi * .5, ease: "back.out(2.5)" }));
+        tw.push(gsap.fromTo([c.e, verdicts[gi]], { opacity: 0 }, { opacity: 1, duration: .4, delay: .35 + gi * .5 }));
+      });
+    }
+    // region B: rollouts fall onto the band from step 3
+    const showDots = n >= 3;
+    dots.forEach((d, i) => { gsap.set(d, { attr: { cy: 188 }, opacity: showDots ? 1 : 0 }); gsap.set(dlabs[i], { opacity: showDots ? 1 : 0 }); });
+    if (animate && n === 3) {
+      dots.forEach((d, i) => {
+        tw.push(gsap.fromTo(d, { attr: { cy: 152 }, opacity: 0 }, { attr: { cy: 188 }, opacity: 1, duration: .45, delay: .3 + i * .22, ease: "bounce.out" }));
+        tw.push(gsap.fromTo(dlabs[i], { opacity: 0 }, { opacity: 1, duration: .25, delay: .7 + i * .22 }));
+      });
+    }
+    // bars from step 4: IF-RLVR falls from 4.51 to 2.96, CaLIF rises to 4.59
+    gsap.set(barG, { opacity: n >= 4 ? 1 : 0 });
+    bars[1].setAttribute("width", U * 2.96); bvals[1].textContent = "2.96";
+    bars[2].setAttribute("width", U * 4.59);
+    if (animate && n === 4) {
+      tw.push(gsap.fromTo(barG, { opacity: 0 }, { opacity: 1, duration: .3 }));
+      const o = { v: 4.51 };
+      bars[1].setAttribute("width", U * 4.51); bvals[1].textContent = "4.51";
+      tw.push(gsap.to(o, { v: 2.96, duration: 1.3, delay: .5, ease: "power2.in", onUpdate: () => { bars[1].setAttribute("width", U * o.v); bvals[1].textContent = o.v.toFixed(2); } }));
+      tw.push(gsap.fromTo(bars[2], { attr: { width: 0 } }, { attr: { width: U * 4.59 }, duration: 1, delay: 1.9, ease: "power2.out" }));
+    }
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { build(slide); render(step || 0, false); },
+    step(slide, n, animate) { if (!svg) build(slide); render(n, animate); },
+    leave() { kill(); }
+  });
+})();
+</script>

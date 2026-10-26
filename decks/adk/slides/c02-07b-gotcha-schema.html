@@ -1,0 +1,90 @@
+<section class="slide tight" id="adk-c02-gotcha-schema" data-tone="risk" data-title="Gotcha: where the schema goes">
+  <style>
+    #adk-c02-gotcha-schema .c02y-wrap { display: flex; flex-direction: column; gap: 24px; }
+    #adk-c02-gotcha-schema .gotcha { font-size: 20px; line-height: 1.42; padding: 18px 24px; gap: 10px 16px; }
+    #adk-c02-gotcha-schema .gotcha .em { font: 600 17px/1.5 var(--f-mono); color: var(--risk); }
+    #adk-c02-gotcha-schema .c02y-viz { position: relative; padding: 26px 28px; flex-direction: row; gap: 40px; }
+    #adk-c02-gotcha-schema .c02y-bx { position: relative; flex: 1; border-radius: 16px; border: 2px solid var(--line-2); background: var(--surface-2); padding: 18px 22px 20px; }
+    #adk-c02-gotcha-schema .c02y-bx.rk { border-color: var(--risk); background: color-mix(in oklab, var(--risk) 5%, var(--surface-2)); }
+    #adk-c02-gotcha-schema .c02y-bx.ok { border-color: var(--state); background: color-mix(in oklab, var(--state) 6%, var(--surface-2)); }
+    #adk-c02-gotcha-schema .c02y-bx .h { font: 700 16px/1 var(--f-mono); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 14px; }
+    #adk-c02-gotcha-schema .c02y-bx.rk .h { color: var(--risk); }
+    #adk-c02-gotcha-schema .c02y-bx.ok .h { color: var(--state); }
+    #adk-c02-gotcha-schema .c02y-r { font: 500 19px/40px var(--f-mono); color: var(--ink-2); white-space: nowrap; }
+    #adk-c02-gotcha-schema .slot { display: inline-block; width: 160px; height: 34px; vertical-align: middle; border-bottom: 2px dashed var(--line-2); }
+    #adk-c02-gotcha-schema .c02y-mk { position: absolute; right: 16px; top: 14px; width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; font: 800 22px/1 var(--f-mono); color: #fff; }
+    #adk-c02-gotcha-schema .c02y-mk.no { background: var(--risk); }
+    #adk-c02-gotcha-schema .c02y-mk.yes { background: var(--state); }
+    #adk-c02-gotcha-schema .c02y-chip { position: absolute; left: 0; top: 0; z-index: 3; font: 700 19px/1 var(--f-mono); padding: 7px 12px; border-radius: 9px; border: 2px solid var(--state); color: var(--state); background: var(--state-soft); white-space: nowrap; }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> Structured output</div>
+  <h2 class="title">Put the schema on the agent, not in generate_content_config</h2>
+  <div class="c02y-wrap fill">
+    <div class="gotcha">
+      <b>Symptom</b><span><span class="em">Response schema must be set via LlmAgent.output_schema, not via generate_content_config.response_schema.</span></span>
+      <b class="why" data-step="1">Cause</b><span data-step="1">An old google-genai habit: the schema went into <code>GenerateContentConfig</code>.</span>
+      <b class="fix" data-step="2">Fix</b><span data-step="2">Set <code>output_schema=ClaimIntake</code> on the agent. ADK validates the reply for you.</span>
+    </div>
+    <div class="panel flat c02y-viz" id="c02y-viz" aria-label="The ClaimIntake schema moves from GenerateContentConfig response_schema, which ADK rejects, to Agent output_schema">
+      <div class="c02y-bx rk">
+        <div class="h">wrong place</div>
+        <div class="c02y-r">Agent(name="claim_intake", ...,</div>
+        <div class="c02y-r">&nbsp;&nbsp;generate_content_config=</div>
+        <div class="c02y-r">&nbsp;&nbsp;&nbsp;&nbsp;GenerateContentConfig(</div>
+        <div class="c02y-r">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;response_schema=<span class="slot" id="c02y-s1"></span>))</div>
+        <div class="c02y-mk no" id="c02y-no">×</div>
+      </div>
+      <div class="c02y-bx ok">
+        <div class="h">right place</div>
+        <div class="c02y-r">Agent(name="claim_intake", ...,</div>
+        <div class="c02y-r">&nbsp;&nbsp;output_schema=<span class="slot" id="c02y-s2"></span>,</div>
+        <div class="c02y-r">&nbsp;&nbsp;output_key="claim")</div>
+        <div class="c02y-mk yes" id="c02y-yes">✓</div>
+      </div>
+      <div class="c02y-chip" id="c02y-chip">ClaimIntake</div>
+    </div>
+    <div class="c02-cap">
+      <p data-until="1">ADK raises the error above. No claim reaches state.</p>
+      <p data-step="1" data-until="2">ADK owns the schema, so it rejects a second copy in the model config.</p>
+      <p data-step="2" data-until="3">Move the schema to <code>output_schema</code>. Add <code>output_key</code> to store the result.</p>
+      <p data-step="3">With tools on an AI Studio key, traces show an extra <code>set_model_response</code> call. That is expected.</p>
+    </div>
+  </div>
+  <aside class="notes">Second structured-output mistake. Step 0: ADK raises an error whose full text ends with "Move your schema to LlmAgent(output_schema=...)". Click 1: the cause is an old google-genai habit of putting response_schema into GenerateContentConfig; ADK manages the schema itself, so it rejects it there. Click 2: the schema belongs on the agent as output_schema, and output_key stores the validated result in state. Click 3, a likely question: "Why does my trace show an extra set_model_response call when I add tools?" On an AI Studio key ADK cannot combine a schema and tools natively, so it adds a set_model_response tool and asks the model to answer through it. With GOOGLE_GENAI_USE_ENTERPRISE=1, the Agent Platform backend formerly called Vertex AI, the call goes away. On AI Studio it still works; there is nothing to fix. A related error: Agent(temperature=0) also fails; put temperature in generate_content_config instead.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c02-gotcha-schema";
+  let tl = null;
+  const stop = () => { if (tl) { tl.kill(); tl = null; } };
+  function at(viz, slot) {
+    const b = viz.getBoundingClientRect(), sc = b.width / viz.offsetWidth || 1, r = slot.getBoundingClientRect();
+    return { x: (r.left - b.left) / sc + 4, y: (r.top - b.top) / sc + 1 };
+  }
+  function render(slide, n, animate) {
+    stop();
+    const viz = slide.querySelector("#c02y-viz");
+    const chip = viz.querySelector("#c02y-chip"), no = viz.querySelector("#c02y-no"), yes = viz.querySelector("#c02y-yes");
+    gsap.killTweensOf([chip, no, yes]);
+    const p1 = at(viz, viz.querySelector("#c02y-s1")), p2 = at(viz, viz.querySelector("#c02y-s2"));
+    const fin = (k) => { const p = k >= 2 ? p2 : p1; gsap.set(chip, { x: p.x, y: p.y }); gsap.set(no, { autoAlpha: 1, scale: 1 }); gsap.set(yes, { autoAlpha: k >= 2 ? 1 : 0, scale: 1 }); };
+    if (!animate || (n !== 0 && n !== 2)) { fin(n); return; }
+    if (n === 0) {
+      gsap.set(chip, { x: p1.x, y: p1.y }); gsap.set([no, yes], { autoAlpha: 0 });
+      tl = gsap.timeline({ delay: 0.6, onComplete: () => fin(0) })
+        .fromTo(no, { autoAlpha: 0, scale: 0.5 }, { autoAlpha: 1, scale: 1, duration: 0.35, ease: "back.out(2.5)" })
+        .to(chip, { x: p1.x - 6, duration: 0.07, repeat: 5, yoyo: true });
+    } else {
+      fin(1);
+      tl = gsap.timeline({ delay: 0.35, onComplete: () => fin(2) })
+        .to(chip, { x: p2.x, y: p2.y, duration: 1.0, ease: "power2.inOut" })
+        .fromTo(yes, { autoAlpha: 0, scale: 0.5 }, { autoAlpha: 1, scale: 1, duration: 0.35, ease: "back.out(2.5)" });
+    }
+  }
+  Deck.register(ID, {
+    enter(slide, n) { if ((n || 0) !== 0) render(slide, n, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { stop(); },
+  });
+})();
+</script>

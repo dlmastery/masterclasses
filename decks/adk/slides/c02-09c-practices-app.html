@@ -1,0 +1,93 @@
+<section class="slide tight" id="adk-c02-practices-app" data-tone="state" data-title="Practices: one App per folder">
+  <style>
+    #adk-c02-practices-app .c02l-grid { display: grid; grid-template-columns: 1fr 760px; gap: 40px; align-items: center; }
+    #adk-c02-practices-app .c02l-left, #adk-c02-practices-app .c02l-right { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+    #adk-c02-practices-app ul.checks { gap: 22px; }
+    #adk-c02-practices-app ul.checks li { font-size: 23px; line-height: 1.4; grid-template-columns: 34px 1fr; gap: 14px; }
+    #adk-c02-practices-app ul.checks li::before { width: 32px; height: 32px; font-size: 17px; }
+    #adk-c02-practices-app ul.checks li code { font-size: .84em; }
+    #adk-c02-practices-app .code-wrap { align-self: stretch; }
+    #adk-c02-practices-app .c02l-svg text { font-family: var(--f-mono); }
+    #adk-c02-practices-app .c02l-svg .fold { fill: var(--state-soft); stroke: var(--state); stroke-width: 2; }
+    #adk-c02-practices-app .c02l-svg .appb { fill: var(--surface-2); stroke: var(--state); stroke-width: 2; }
+    #adk-c02-practices-app .c02l-svg .ft { font-size: 19px; font-weight: 700; fill: var(--ink); }
+    #adk-c02-practices-app .c02l-svg .fs { font-size: 15px; font-weight: 600; fill: var(--muted); }
+    #adk-c02-practices-app .c02l-svg .ul { stroke: var(--state); stroke-width: 3; }
+    #adk-c02-practices-app .c02l-svg .ring { fill: none; stroke: var(--tool); stroke-width: 3; stroke-dasharray: 9 7; }
+    #adk-c02-practices-app .c02l-svg .ag { fill: var(--agent-soft); stroke: var(--agent); stroke-width: 2; }
+    #adk-c02-practices-app .c02l-svg .agt { font-size: 15px; font-weight: 700; fill: var(--agent); }
+    #adk-c02-practices-app .c02l-svg .plt { font-size: 15px; font-weight: 700; fill: var(--tool); }
+    #adk-c02-practices-app .c02l-svg .eq { font-size: 30px; font-weight: 800; fill: var(--state); }
+    #adk-c02-practices-app .c02l-svg .no rect { fill: var(--risk-soft); stroke: var(--risk); stroke-width: 2; }
+    #adk-c02-practices-app .c02l-svg .no text { font-size: 17px; font-weight: 700; fill: var(--risk); }
+  </style>
+  <div class="kicker"><span class="pill">Best practices</span> Acme claims API · one App per folder</div>
+  <h2 class="title">One App per folder: name it like the folder, plugins on the App</h2>
+  <div class="c02l-grid fill">
+    <div class="c02l-left">
+      <ul class="checks">
+        <li data-step="1"><span>Name the App like its folder, with underscores: <code>claims_api</code>.</span></li>
+        <li data-step="2"><span>Register plugins on the <code>App</code>: every agent gets them.</span></li>
+        <li class="no" data-step="3"><span>Never pass <code>plugins=</code> to <code>Runner</code>: with <code>app=</code> it raises.</span></li>
+      </ul>
+      <div class="cites"><a class="cite doc" href="https://adk.dev/apps/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Apps</a></div>
+    </div>
+    <div class="c02l-right">
+      <svg class="c02l-svg" id="c02l-svg" viewBox="0 0 760 250" width="760" height="250" aria-label="The folder claims_api and App name claims_api match; plugins wrap the agent inside the App; Runner plugins is rejected">
+        <path class="fold" d="M2 40 h80 l14 16 h180 v120 h-274 z"/>
+        <text class="ft" x="24" y="104">claims_api/</text><text class="fs" x="24" y="140">the folder</text>
+        <line class="ul" id="c02l-u1" x1="24" y1="114" x2="150" y2="114"/>
+        <text class="eq" x="300" y="116">=</text>
+        <rect class="appb" x="350" y="20" width="408" height="176" rx="16"/>
+        <text class="ft" x="372" y="58">App(name="claims_api")</text>
+        <line class="ul" id="c02l-u2" x1="482" y1="68" x2="602" y2="68"/>
+        <circle class="ring" id="c02l-ring" cx="460" cy="132" r="42"/>
+        <circle class="ag" cx="460" cy="132" r="28"/>
+        <text class="agt" x="460" y="137" text-anchor="middle">agent</text>
+        <text class="plt" x="520" y="126">plugins wrap</text><text class="plt" x="520" y="148">every agent</text>
+        <g class="no" id="c02l-no"><rect x="350" y="206" width="408" height="42" rx="21"/><text x="554" y="233" text-anchor="middle">✕ Runner(app=app, plugins=[…])</text></g>
+      </svg>
+      <div class="code-wrap">
+        <div class="code-head">labs/adk/lab2-claims-api/agents/run_claims.py · excerpt</div>
+        <pre class="code c17" data-lang="python" data-focus="1:1, 3:4-6"><code>from claims_api.agent import app      # the one App, plugins included
+
+async def main() -&gt; None:
+    sessions = SqliteSessionService(db_path="claims_sessions.db")
+    runner = Runner(app=app, session_service=sessions,
+                    auto_create_session=True)      # no plugins= here</code></pre>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Rules for the deployable unit. Click 1: name the App like its folder, because the server names each app after its folder; the folder name must be a valid Python identifier, so use underscores, not hyphens. run_claims.py imports the one App from claims_api.agent instead of building a second one; run it from the agents folder. Click 2: register plugins on the App, so every agent in the tree gets the audit and logging hooks, in adk run, adk web, adk api_server and your own Runner alike. Click 3: never pass plugins to the Runner: that argument is deprecated with the warning "The plugins argument is deprecated. Please use the app argument to provide plugins instead.", and together with app= it raises. Analogy: one building, one security desk, one address on the door. A likely question: "Can one folder hold two Apps?" The loader takes the variable named app, so keep one App per folder and split other agents into their own folders.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c02-practices-app";
+  let ringTw = null, els = [];
+  function render(slide, n, animate) {
+    if (window.c02Focus) window.c02Focus(slide, n);
+    const q = (s) => slide.querySelector("#c02l-" + s);
+    els = [q("u1"), q("u2"), q("no")];
+    gsap.killTweensOf(els);
+    [["u1", 24, 150], ["u2", 482, 602]].forEach(([id, x1, x2], i) => {
+      const l = q(id);
+      if (animate && n === 1) gsap.fromTo(l, { attr: { x2: x1 } }, { attr: { x2 }, duration: 0.5, delay: 0.3 + i * 0.45, ease: "power2.out" });
+      else gsap.set(l, { attr: { x2: n >= 1 ? x2 : x1 } });
+    });
+    if (ringTw) { ringTw.kill(); ringTw = null; }
+    const ring = q("ring");
+    gsap.set(ring, { attr: { "stroke-dashoffset": 0 }, opacity: n >= 2 ? 1 : 0.3 });
+    if (n >= 2) ringTw = gsap.to(ring, { attr: { "stroke-dashoffset": -64 }, duration: 3, ease: "none", repeat: -1 });
+    const no = q("no");
+    if (animate && n === 3) {
+      gsap.set(no, { opacity: 1, x: 0 });
+      gsap.fromTo(no, { x: 0 }, { keyframes: [{ x: -8 }, { x: 8 }, { x: -5 }, { x: 0 }], duration: 0.45, delay: 0.3 });
+    } else gsap.set(no, { opacity: n >= 3 ? 1 : 0, x: 0 });
+  }
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { gsap.killTweensOf(els); if (ringTw) { ringTw.kill(); ringTw = null; } },
+  });
+})();
+</script>

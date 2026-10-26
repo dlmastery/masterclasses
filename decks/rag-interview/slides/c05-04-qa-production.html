@@ -1,0 +1,295 @@
+<section class="slide" id="rag-interview-c05-qa-production" data-tone="risk" data-title="Q&amp;A: cache, managed vs DIY, eval gate">
+  <style>
+    #rag-interview-c05-qa-production .prod-grid { display: grid; grid-template-columns: 790px 1fr; gap: 30px; align-items: start; }
+    #rag-interview-c05-qa-production .qa-col { display: grid; gap: 10px; align-content: start; }
+    #rag-interview-c05-qa-production .qa { gap: 8px; }
+    #rag-interview-c05-qa-production .qa .q { font-size: 20px; }
+    #rag-interview-c05-qa-production .qa .a { font-size: 16.5px; line-height: 1.42; padding: 10px 14px; }
+    #rag-interview-c05-qa-production .qa .a .tags { margin-top: 8px; gap: 8px; align-items: center; }
+    #rag-interview-c05-qa-production .qa .a .tag { font-size: 13px; padding: 5px 9px 5px 8px; }
+    #rag-interview-c05-qa-production .qa .a .cite { font-size: 13px; padding: 4px 9px 4px 7px; gap: 6px; }
+    #rag-interview-c05-qa-production .qa .a .cite.paper { flex-direction: row; border: 1px solid var(--line); border-radius: 10px; background: color-mix(in oklab, var(--surface) 60%, transparent); }
+    #rag-interview-c05-qa-production .viz { display: grid; gap: 10px; }
+    #rag-interview-c05-qa-production .stage-r { position: relative; width: 572px; height: 470px; }
+    #rag-interview-c05-qa-production .stage-r svg { position: absolute; inset: 0; width: 572px; height: 470px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
+    #rag-interview-c05-qa-production .tbl { position: absolute; inset: 0; padding: 16px 18px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
+    #rag-interview-c05-qa-production .tbl h4 { font: 700 14px/1 var(--f-mono); color: var(--ink); margin: 2px 0 10px; text-align: center; }
+    #rag-interview-c05-qa-production table.t { font-size: 16px; line-height: 1.35; }
+    #rag-interview-c05-qa-production table.t th { font-size: 13px; padding: 6px 8px; }
+    #rag-interview-c05-qa-production table.t td { padding: 11px 8px; }
+    #rag-interview-c05-qa-production table.t td:first-child { width: 104px; font-size: 14px; }
+    #rag-interview-c05-qa-production .cap { display: grid; min-height: 74px; }
+    #rag-interview-c05-qa-production .cap > * { grid-area: 1 / 1; align-self: center; }
+    #rag-interview-c05-qa-production .cap .stat { flex-direction: row; align-items: center; gap: 16px; }
+    #rag-interview-c05-qa-production .cap .stat .n { font-size: 54px; min-width: 150px; }
+    #rag-interview-c05-qa-production .cap .stat .l { font-size: 17px; }
+  </style>
+  <div class="kicker">Interview · production</div>
+  <h2 class="title">Production answers name the cache risks, the bill and the gate</h2>
+  <div class="prod-grid fill">
+    <div class="qa-col">
+      <div class="qa">
+        <div class="q">What are the risks of a semantic cache?</div>
+        <div class="a" data-step="1">Three risks: cross-tenant leak, false hits, stale answers. Scope every entry by tenant and policy version.
+          <div class="tags"><span class="tag t-risk">leak → partition</span><span class="tag t-risk">false hit → tune threshold</span><span class="tag t-risk">stale → TTL + doc_id</span><a class="cite repo" href="https://github.com/redis/redis-vl-python/tree/v0.28.0" target="_blank" rel="noopener"><b>Repo</b>&nbsp;redisvl v0.28.0</a></div>
+        </div>
+      </div>
+      <div class="qa">
+        <div class="q">Build your own pipeline, or use Gemini File Search?</div>
+        <div class="a" data-step="2">Managed for speed and built-in citations. DIY for custom chunking, rerankers and ACL logic.
+          <div class="tags"><span class="tag t-tool">$0.15 / 1M tokens to index</span><span class="tag t-tool">store under 20 GB</span><span class="tag t-risk">no Google Search in the same request</span><a class="cite doc" href="https://ai.google.dev/gemini-api/docs/file-search" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Gemini API: File search</a></div>
+        </div>
+      </div>
+      <div class="qa">
+        <div class="q">How do you decide to ship a pipeline change?</div>
+        <div class="a" data-step="3">An eval gate in CI: four checks in order, four explicit outcomes.
+          <div class="tags"><span class="tag t-state">PROMOTE · BLOCK · REJECT · INCONCLUSIVE</span><span class="tag t-risk">INCONCLUSIVE is not a pass</span><a class="cite paper" href="https://arxiv.org/abs/2609.34179" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2609.34179 RAGWarrant</a><a class="cite paper" href="https://arxiv.org/abs/2610.01218" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.01218 AGO</a></div>
+        </div>
+      </div>
+    </div>
+    <div class="viz">
+      <div class="stage-r">
+        <svg id="ric5p-svg" viewBox="0 0 572 470" aria-label="Semantic cache hit and miss paths, the three cache risks, and a CI release gate with four checks and four outcomes"></svg>
+        <div class="tbl" id="ric5p-tbl" data-step="2" data-until="3" data-fx="fade">
+          <h4>managed (File Search) vs DIY</h4>
+          <table class="t">
+            <thead><tr><th></th><th>Managed</th><th>DIY</th></tr></thead>
+            <tbody>
+              <tr><td>Index cost</td><td>$0.15 / 1M tokens; storage and query embeddings free</td><td>your embedder and vector DB</td></tr>
+              <tr><td>Limits</td><td>100 MB per file; keep a store under 20 GB</td><td>you size and shard</td></tr>
+              <tr><td>Tools</td><td>no other built-in grounding (Search, URL Context); function tools OK on Gemini 3+</td><td>any tool</td></tr>
+              <tr><td>Citations</td><td>file_citation annotations with file and page</td><td>you build them</td></tr>
+              <tr><td>Control</td><td>chunking config, metadata_filter</td><td>chunking, hybrid weights, rerankers, ACL logic</td></tr>
+              <tr class="hot"><td>Decide</td><td colspan="2">run both on the same golden set</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="cap">
+        <div class="small" data-until="1">Three production questions: the cache, the bill and the eval gate.</div>
+        <div class="stat" data-step="1" data-until="2"><span class="n" data-to="0.08" data-dec="2">0</span><span class="l">distance_threshold in the cache lab,<br>stricter than the RedisVL 0.1 default.</span></div>
+        <div class="stat" data-step="2" data-until="3"><span class="n" data-to="0.15" data-dec="2" data-pre="$">0</span><span class="l">per 1M tokens to index in File Search.<br>Storage and query embeddings are free.</span></div>
+        <div class="stat" data-step="3"><span class="n" style="font-size:40px;white-space:nowrap" data-to="35" data-pre="22–" data-suf="%">0</span><span class="l">of unsafe changes still promoted, even by<br>a beta-binomial gate. Naive gate: 29–42%.</span></div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Ask each question, let the candidate answer, then reveal the model answer. Q1 has three distinct risks, and a strong candidate gives a fix for each. Cross-tenant leak: partition entries by tenant and filter on it. False hit: tune distance_threshold, a cosine distance from 0 to 2 where lower is stricter; the lab uses 0.08, stricter than the RedisVL default 0.1, picked on labelled paraphrase and non-paraphrase pairs (RedisVL ships CacheThresholdOptimizer). Stale answer: set a TTL and invalidate by doc_id when a document changes. policy_version is the version of the ACL and fee policy, so a permission change makes old entries unreachable. Q2 tests judgment, not vendor loyalty: File Search costs $0.15 per 1M tokens to index, storage and query embeddings are free, files are capped at 100 MB, and a store should stay under 20 GB. It cannot share a request with other built-in grounding tools such as Google Search or URL Context, but on Gemini 3 and later it can sit next to your own function tools. Citations come back as file_citation annotations; in google-genai 2.33.0 the start_index is in bytes, so insert citation marks from right to left. Close with "measure both on the same golden set". Q3: deterministic recall@5 first, canary abstention with zero tolerance, faithfulness with a NaN-rate check, then a paired bootstrap against the baseline. BLOCK means a hard check failed; REJECT means the paired test shows a regression; INCONCLUSIVE means there is not enough evidence, so collect more rows. A beta-binomial gate treats the pass rate as uncertain and needs enough samples; in AGO it still let 22.2 to 35.1% of unsafe changes through, against 29.3 to 41.8% for a naive gate, so the gate reduces risk but does not remove it. Analogy: an eval gate is airport security with a separate lane for bags that need a second look. Next: put the cache, the ACL pre-filter and the eval gate into one 50M-document design.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "rag-interview-c05-qa-production";
+  let tweens = [], shown = -1;
+
+  function el(p, tag, attrs, style) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (style) Object.assign(e.style, style);
+    p.appendChild(e);
+    return e;
+  }
+  function text(p, x, y, s, o = {}) {
+    const t = el(p, "text", { x, y, "text-anchor": o.anchor || "middle" },
+      { fill: o.fill || "var(--ink-2)", fontFamily: "var(--f-mono)", fontSize: (o.size || 14) + "px", fontWeight: o.w || 500 });
+    t.textContent = s;
+    return t;
+  }
+  const T = (target, vars) => { const t = gsap.to(target, vars); tweens.push(t); return t; };
+  const F = (target, from, to) => { const t = gsap.fromTo(target, from, to); tweens.push(t); return t; };
+  function kill() { tweens.forEach((t) => t.kill()); tweens = []; }
+
+  // Scene 0: the cache on the request path, hit vs miss (lab 5 illustrative timings)
+  function arrow(svg, d, c) {
+    el(svg, "path", { d }, { fill: "none", stroke: c, strokeWidth: 2.5 });
+  }
+  function flow(svg) {
+    text(svg, 286, 34, "semantic cache · AcmeBank FAQ bot · 2 tenants", { w: 700, fill: "var(--ink)", size: 14 });
+    const bx = (x, y, w, h, tone, a, b) => {
+      el(svg, "rect", { x, y, width: w, height: h, rx: 12 }, { fill: `var(--${tone}-soft)`, stroke: `var(--${tone})`, strokeWidth: 2 });
+      text(svg, x + w / 2, y + h / 2 - 3, a, { w: 700, size: 15, fill: "var(--ink)" });
+      if (b) text(svg, x + w / 2, y + h / 2 + 17, b, { size: 12, fill: `var(--${tone})` });
+    };
+    bx(24, 196, 120, 64, "human", "query", "tenant: retail");
+    bx(204, 190, 156, 76, "state", "semantic cache", "nearest prompt");
+    bx(420, 92, 132, 64, "state", "cached answer", "~38 ms");
+    bx(420, 300, 132, 64, "model", "LLM call", "~1.5 s");
+    arrow(svg, "M144 228 L200 228 M190 220 L202 228 L190 236", "var(--human)");
+    arrow(svg, "M360 214 C 390 214, 390 124, 416 124 M406 116 L418 124 L406 132", "var(--state)");
+    arrow(svg, "M360 242 C 390 242, 390 332, 416 332 M406 324 L418 332 L406 340", "var(--model)");
+    text(svg, 486, 82, "hit", { w: 700, size: 13, fill: "var(--state)" });
+    text(svg, 486, 386, "miss", { w: 700, size: 13, fill: "var(--model)" });
+    text(svg, 286, 412, "A hit skips retrieval and the model.", { size: 14, w: 600, fill: "var(--ink)" });
+    text(svg, 286, 438, "What can a wrong hit cost you?", { size: 14, w: 600, fill: "var(--risk)" });
+  }
+
+  // Scene 1: three cache-risk cards unfold in sequence; each icon shows the fix
+  const CW = 172, CH = 288, CY = 66, CX = [14, 200, 386];
+  function cards(svg, animate) {
+    text(svg, 286, 28, "semantic cache · scope = tenant + policy_version", { w: 700, fill: "var(--ink)", size: 14 });
+    text(svg, 286, 50, "policy_version = ACL version: a permission change invalidates entries", { size: 11.5, fill: "var(--muted)" });
+    const fronts = [], backs = [], icons = [];
+    CX.forEach((x, i) => {
+      const f = el(svg, "g", {});
+      el(f, "rect", { x, y: CY, width: CW, height: CH, rx: 14 }, { fill: "var(--surface-2)", stroke: "var(--line-2)", strokeWidth: 1.5 });
+      fronts.push(f);
+      const b = el(svg, "g", {});
+      el(b, "rect", { x, y: CY, width: CW, height: CH, rx: 14 }, { fill: "var(--risk-soft)", stroke: "var(--risk)", strokeWidth: 1.8 });
+      backs.push(b);
+    });
+    const mid = (i) => CX[i] + CW / 2;
+    const label = (b, i, title, l1, l2) => {
+      text(b, mid(i), CY + 196, title, { w: 700, size: 15, fill: "var(--risk)" });
+      text(b, mid(i), CY + 232, l1, { size: 12.5, fill: "var(--ink)" });
+      text(b, mid(i), CY + 252, l2, { size: 12.5, fill: "var(--ink)" });
+    };
+    // card 1: two tenants mix in one cache, then a partition separates them
+    const b0 = backs[0], x0 = CX[0];
+    el(b0, "rect", { x: x0 + 22, y: CY + 40, width: 128, height: 110, rx: 10 }, { fill: "var(--surface-2)", stroke: "var(--line-2)", strokeWidth: 1.5 });
+    text(b0, mid(0), CY + 30, "cache", { size: 11, fill: "var(--muted)" });
+    const wall = el(b0, "line", { x1: mid(0), y1: CY + 46, x2: mid(0), y2: CY + 144 }, { stroke: "var(--risk)", strokeWidth: 3 });
+    const tA = el(b0, "circle", { cx: x0 + 56, cy: CY + 95, r: 18 }, { fill: "var(--agent)", opacity: 0.85 });
+    const tB = el(b0, "circle", { cx: x0 + 116, cy: CY + 95, r: 18 }, { fill: "var(--human)", opacity: 0.85 });
+    text(b0, x0 + 56, CY + 170, "retail", { size: 11, fill: "var(--agent)", w: 700 });
+    text(b0, x0 + 116, CY + 170, "business", { size: 11, fill: "var(--human)", w: 700 });
+    label(b0, 0, "cross-tenant leak", "partition by tenant", "and filter on it");
+    icons.push(() => {
+      F([tA, tB], { attr: { cx: mid(0) } }, { attr: { cx: (k, t) => (t === tA ? x0 + 56 : x0 + 116) }, duration: 0.7, delay: 0.5, ease: "power3.inOut" });
+      F(wall, { attr: { y2: CY + 46 } }, { attr: { y2: CY + 144 }, duration: 0.4, delay: 0.9 });
+    });
+    // card 2: threshold slider moves from 0.10 to 0.08 (scale 0 .. 0.20)
+    const b1 = backs[1], x1 = CX[1], sx = (v) => x1 + 22 + (v / 0.2) * 128;
+    text(b1, mid(1), CY + 46, "distance_threshold", { size: 11.5, fill: "var(--ink-2)", w: 600 });
+    el(b1, "line", { x1: sx(0), y1: CY + 100, x2: sx(0.2), y2: CY + 100 }, { stroke: "var(--line-2)", strokeWidth: 6, strokeLinecap: "round" });
+    [0, 0.1, 0.2].forEach((v) => text(b1, sx(v), CY + 126, v.toFixed(1), { size: 11, fill: "var(--muted)" }));
+    const thumb = el(b1, "circle", { cx: sx(0.08), cy: CY + 100, r: 11 }, { fill: "var(--risk)" });
+    const val = text(b1, mid(1), CY + 78, "0.08", { w: 700, size: 16, fill: "var(--risk)" });
+    text(b1, mid(1), CY + 150, "cosine distance 0–2", { size: 11, fill: "var(--muted)" });
+    text(b1, mid(1), CY + 166, "lower = stricter", { size: 11, fill: "var(--muted)" });
+    label(b1, 1, "false hit", "pick it on labelled", "paraphrase pairs");
+    icons.push(() => {
+      const o = { v: 0.1 };
+      thumb.setAttribute("cx", sx(0.1)); val.textContent = "0.10";
+      F(o, { v: 0.1 }, { v: 0.08, duration: 0.9, delay: 0.4, ease: "power2.inOut", onUpdate: () => { thumb.setAttribute("cx", sx(o.v)); val.textContent = o.v.toFixed(2); } });
+    });
+    // card 3: clock with a TTL hand
+    const b2 = backs[2], ccx = mid(2), ccy = CY + 96;
+    el(b2, "circle", { cx: ccx, cy: ccy, r: 46 }, { fill: "var(--surface-2)", stroke: "var(--risk)", strokeWidth: 2.5 });
+    for (let h = 0; h < 12; h++) {
+      const a = (h * Math.PI) / 6;
+      el(b2, "line", { x1: ccx + 38 * Math.sin(a), y1: ccy - 38 * Math.cos(a), x2: ccx + 44 * Math.sin(a), y2: ccy - 44 * Math.cos(a) }, { stroke: "var(--line-2)", strokeWidth: 2 });
+    }
+    const hand = el(b2, "line", { x1: ccx, y1: ccy, x2: ccx, y2: ccy - 34 }, { stroke: "var(--risk)", strokeWidth: 3.5, strokeLinecap: "round" });
+    text(b2, ccx, CY + 166, "ttl = 24 h", { size: 12, w: 700, fill: "var(--ink-2)" });
+    label(b2, 2, "stale answer", "TTL + invalidate", "by doc_id");
+    icons.push(() => {
+      F(hand, { rotation: 0, svgOrigin: `${ccx} ${ccy}` }, { rotation: 360, svgOrigin: `${ccx} ${ccy}`, duration: 1.2, delay: 0.4, ease: "power2.inOut" });
+    });
+    // the lab-5 calls (redisvl 0.28.0)
+    const foot = [
+      text(svg, 24, 380, "pip install \"redisvl[google-genai]==0.28.0\"  # lab5_cache_latency.py", { anchor: "start", size: 11.5, fill: "var(--muted)" }),
+      text(svg, 24, 402, "cache = SemanticCache(..., distance_threshold=0.08, ttl=24*3600)", { anchor: "start", size: 12, w: 600, fill: "var(--ink)" }),
+      text(svg, 24, 424, "scope = (Tag(\"tenant\") == t) & (Tag(\"policy_version\") == v)", { anchor: "start", size: 12, w: 600, fill: "var(--ink)" }),
+      text(svg, 24, 446, "hit = cache.check(prompt=q, filter_expression=scope)", { anchor: "start", size: 12, w: 600, fill: "var(--ink)" }),
+    ];
+    fronts.forEach((f) => (f.style.opacity = 0));
+    if (!animate) return;
+    CX.forEach((x, i) => {
+      const o = { svgOrigin: `${mid(i)} ${CY + CH / 2}` };
+      F(fronts[i], { opacity: 1, scaleX: 1, ...o }, { scaleX: 0, duration: 0.22, delay: 0.1 + i * 0.75, ease: "power2.in", ...o });
+      F(backs[i], { opacity: 1, scaleX: 0, ...o }, { scaleX: 1, duration: 0.25, delay: 0.32 + i * 0.75, ease: "power2.out", ...o });
+      const t = gsap.delayedCall(0.32 + i * 0.75, icons[i]);
+      tweens.push(t);
+    });
+    F(foot, { opacity: 0 }, { opacity: 1, duration: 0.4, delay: 2.6, stagger: 0.15 });
+  }
+
+  // Scene 3: a left-to-right gate pipeline per PR; the last stage routes the PR to one outcome
+  const SX = [110, 200, 290, 380], SW = 76, SH = 44, OX = 446, OW = 116;
+  const STAGES = [["recall@5", "ids, no LLM"], ["canary", "tol 0.00"], ["faithful", "NaN ≤ 5%"], ["paired", "bootstrap"]];
+  const PRS = [
+    { name: "PR 1", y: 104, marks: ["✓", "✓", "✓", "✓"], out: ["PROMOTE", "state"] },
+    { name: "PR 2", y: 180, marks: ["✓", "✓", "✓", "?"], out: ["INCONCLUSIVE", "muted"] },
+  ];
+  const LEGEND = [
+    ["PROMOTE", "state", "all checks pass, no paired drop"],
+    ["BLOCK", "risk", "a hard check fails (canary, NaN rate)"],
+    ["REJECT", "risk", "the paired test shows a regression"],
+    ["INCONCLUSIVE", "muted", "CI too wide to decide: add rows"],
+  ];
+  function chip(p, x, y, w, h, s, tone) {
+    const g = el(p, "g", {});
+    el(g, "rect", { x, y, width: w, height: h, rx: h / 2 }, { fill: tone === "muted" ? "var(--surface-2)" : `var(--${tone}-soft)`, stroke: `var(--${tone})`, strokeWidth: 2 });
+    text(g, x + w / 2, y + h / 2 + 4.5, s, { w: 700, size: s.length > 8 ? 11.5 : 12.5, fill: `var(--${tone})` });
+    return g;
+  }
+  function gate(svg, animate) {
+    text(svg, 286, 28, "HelpDesk triage RAG · eval gate in CI", { w: 700, fill: "var(--ink)", size: 14 });
+    STAGES.forEach(([a, b], i) => {
+      text(svg, SX[i], 62, a, { w: 700, size: 13, fill: "var(--ink)" });
+      text(svg, SX[i], 80, b, { size: 11, fill: "var(--muted)" });
+    });
+    text(svg, OX + OW / 2, 70, "outcome", { w: 700, size: 13, fill: "var(--ink)" });
+    const seq = [];
+    PRS.forEach((pr) => {
+      const cy = pr.y + SH / 2;
+      text(svg, 34, cy + 5, pr.name, { w: 700, size: 13, fill: "var(--agent)" });
+      const row = { marks: [], links: [], out: null };
+      SX.forEach((x, i) => {
+        el(svg, "rect", { x: x - SW / 2, y: pr.y, width: SW, height: SH, rx: 10 }, { fill: "var(--surface-2)", stroke: "var(--line-2)", strokeWidth: 1.6 });
+        const m = pr.marks[i];
+        row.marks.push(text(svg, x, cy + 8, m, { w: 700, size: 22, fill: m === "✓" ? "var(--state)" : "var(--muted)" }));
+        const x1 = x + SW / 2, x2 = i < 3 ? SX[i + 1] - SW / 2 : OX;
+        row.links.push(el(svg, "path", { d: `M${x1 + 2} ${cy} L${x2 - 3} ${cy} M${x2 - 10} ${cy - 5} L${x2 - 3} ${cy} L${x2 - 10} ${cy + 5}` }, { fill: "none", stroke: "var(--ink-2)", strokeWidth: 2 }));
+      });
+      row.out = chip(svg, OX, pr.y + 6, OW, SH - 12, pr.out[0], pr.out[1]);
+      seq.push(row);
+    });
+    el(svg, "line", { x1: 24, y1: 250, x2: 548, y2: 250 }, { stroke: "var(--line-2)", strokeWidth: 1.5, strokeDasharray: "4 5" });
+    const leg = LEGEND.map(([s, tone, d], i) => {
+      const y = 264 + i * 30;
+      const g = el(svg, "g", {});
+      chip(g, 24, y, 120, 24, s, tone);
+      text(g, 156, y + 17, d, { anchor: "start", size: 12.5, fill: "var(--ink-2)" });
+      return g;
+    });
+    const foot = [
+      text(svg, 24, 404, "paired = bootstrap 95% CI of candidate − baseline, 2,000 resamples", { anchor: "start", size: 12, w: 600, fill: "var(--ink)" }),
+      text(svg, 24, 426, "REJECT when the upper bound is below −0.01", { anchor: "start", size: 12, fill: "var(--ink-2)" }),
+      text(svg, 24, 450, "eval_gate.py: sys.exit(1 if failed else 0) · RAGWarrant outcomes", { anchor: "start", size: 11.5, fill: "var(--muted)" }),
+    ];
+    if (!animate) return;
+    const tl = gsap.timeline({ delay: 0.2 });
+    tweens.push(tl);
+    seq.forEach((row) => tl.set([...row.marks, ...row.links, row.out], { opacity: 0 }, 0));
+    tl.set([...leg, ...foot], { opacity: 0 }, 0);
+    seq.forEach((row) => {
+      row.marks.forEach((m, i) => {
+        tl.fromTo(m, { opacity: 0, scale: 0.4, transformOrigin: "center", transformBox: "fill-box" }, { opacity: 1, scale: 1, duration: 0.25, ease: "back.out(2.5)" });
+        tl.to(row.links[i], { opacity: 1, duration: 0.15 });
+      });
+      tl.fromTo(row.out, { opacity: 0, x: -14 }, { opacity: 1, x: 0, duration: 0.35, ease: "power2.out" });
+    });
+    tl.to(leg, { opacity: 1, duration: 0.3, stagger: 0.12 });
+    tl.to(foot, { opacity: 1, duration: 0.3, stagger: 0.12 });
+  }
+
+  function render(slide, n, animate) {
+    const svg = slide.querySelector("#ric5p-svg");
+    if (!svg) return;
+    kill();
+    svg.innerHTML = "";
+    shown = n;
+    const s = Math.min(n, 3);
+    svg.style.opacity = s === 2 ? 0 : 1;
+    if (s === 0) flow(svg);
+    else if (s === 1) cards(svg, animate);
+    else if (s === 3) gate(svg, animate);
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { if (shown !== step) render(slide, step, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { kill(); shown = -1; }
+  });
+})();
+</script>

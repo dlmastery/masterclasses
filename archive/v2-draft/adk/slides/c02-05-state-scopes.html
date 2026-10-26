@@ -1,0 +1,158 @@
+<section class="slide tight" id="adk-c02-state-scopes" data-tone="state" data-title="Build: state prefixes">
+  <style>
+    #adk-c02-state-scopes .ss-grid { display: grid; grid-template-columns: 810px 1fr; gap: 22px; align-items: start; }
+    #adk-c02-state-scopes .ss-left, #adk-c02-state-scopes .ss-right { gap: 12px; min-width: 0; }
+    #adk-c02-state-scopes .code-wrap .code-head { padding: 7px 14px; font-size: 14px; }
+    #adk-c02-state-scopes .code-head .rc { margin-left: auto; margin-right: 76px; font: 600 13.5px/1 var(--f-mono); color: #9fe7c6; }
+    #adk-c02-state-scopes pre.code.ss-c { font-size: 15.5px; line-height: 1.38; padding: 9px 16px 11px; }
+    #adk-c02-state-scopes .out pre.code { font-size: 13.5px; line-height: 1.45; padding: 8px 14px 10px; }
+    #adk-c02-state-scopes .ss-cites { display: flex; gap: 8px; flex-wrap: wrap; }
+    #adk-c02-state-scopes .ss-cites .cite { font-size: 13.5px; padding: 5px 10px 5px 8px; }
+    #adk-c02-state-scopes .ss-svg text { font-family: var(--f-mono); }
+    #adk-c02-state-scopes .ss-svg .bk { fill: var(--state-soft); stroke: var(--state); stroke-width: 1.6; transition: stroke-width .4s, opacity .4s; }
+    #adk-c02-state-scopes .ss-svg .bk.kept { stroke-width: 4; }
+    #adk-c02-state-scopes .ss-svg .bk.t { stroke-dasharray: 6 5; }
+    #adk-c02-state-scopes .ss-svg .bh { font-size: 19px; font-weight: 700; fill: var(--ink); }
+    #adk-c02-state-scopes .ss-svg .bs { font-size: 14px; font-weight: 600; fill: var(--muted); }
+    #adk-c02-state-scopes .ss-svg .bs.warn { fill: var(--risk); }
+    #adk-c02-state-scopes .ss-svg .ch rect { fill: var(--surface-2); stroke: var(--state); stroke-width: 1.5; }
+    #adk-c02-state-scopes .ss-svg .ch.t rect { stroke-dasharray: 5 4; }
+    #adk-c02-state-scopes .ss-svg .ch.old rect { stroke: var(--risk); }
+    #adk-c02-state-scopes .ss-svg .ch text { font-size: 16px; font-weight: 600; fill: var(--ink); }
+    #adk-c02-state-scopes .ss-svg .wp rect { fill: var(--state); }
+    #adk-c02-state-scopes .ss-svg .wp text { font-size: 15px; font-weight: 700; fill: #fff; }
+    #adk-c02-state-scopes .ss-svg .tag rect { fill: none; stroke: var(--line-2); stroke-width: 1.5; }
+    #adk-c02-state-scopes .ss-svg .tag text { font-size: 15px; font-weight: 700; fill: var(--ink-2); }
+    #adk-c02-state-scopes .ss-svg .wipe { fill: var(--state); }
+    #adk-c02-state-scopes .ss-rail { position: relative; height: 48px; }
+    #adk-c02-state-scopes .ss-rail > p { position: absolute; left: 0; right: 0; top: 0; margin: 0; font-size: 16.5px; line-height: 1.38; }
+    #adk-c02-state-scopes .ss-rail code { font-size: .88em; }
+  </style>
+  <div class="kicker"><span class="pill">Build</span> Northwind claims API · remember the customer</div>
+  <h2 class="title">State prefixes decide what survives into the customer's next session</h2>
+  <div class="ss-grid fill">
+    <div class="stack ss-left">
+      <div class="code-wrap bad">
+        <div class="code-head">claims/claims_faq.py · excerpt</div>
+        <pre class="code ss-c" data-lang="python"><code>asked = tool_context.state.get("topics_asked", [])
+tool_context.state["topics_asked"] = asked + [topic]       # no prefix
+s2 = await svc.create_session(app_name="claims_api", user_id="u-tom")
+print(s2.state)                                             # {}: new chat, empty</code></pre>
+      </div>
+      <div class="code-wrap good" data-step="1">
+        <div class="code-head">claims/claims_faq.py · excerpt <span class="rc">$ python claims/claims_faq.py</span></div>
+        <pre class="code ss-c" data-lang="python" data-focus="1:10-11, 2:12-14, 3:1-5, 4:6-9, 5:15-16"><code>def get_policy(topic: str, tool_context: ToolContext) -> dict:
+    tool_context.state["temp:last_topic"] = topic              # this turn only
+    asked = tool_context.state.get("user:topics_asked", [])
+    tool_context.state["user:topics_asked"] = asked + [topic]  # all chats of u-tom
+    return {"status": "success", "policy": POLICIES[topic]}
+faq_agent = Agent(name="claims_faq_agent", model="gemini-3.5-flash",
+    instruction="Help {user:customer_name} at {app:company_name}. "
+                "Reply in {user:language?}.",
+    tools=[get_policy], output_key="last_answer")              # this chat only
+s1 = await svc.create_session(app_name="claims_api", user_id="u-tom", state={
+    "app:company_name": "Northwind", "user:customer_name": "Tom"})
+async for _ in runner.run_async(user_id="u-tom", session_id=s1.id,
+        new_message=msg, state_delta={"user:language": "English"}):
+    pass
+s2 = await svc.create_session(app_name="claims_api", user_id="u-tom")  # new chat
+print(s2.state)</code></pre>
+      </div>
+    </div>
+    <div class="stack ss-right">
+      <svg class="ss-svg" id="ss-svg" viewBox="0 0 560 348" width="560" height="348" aria-label="Four state buckets: app, user, no prefix and temp. A new session keeps only the app and user keys">
+        <g class="tag"><rect id="ss-tag-r" x="1" y="1" width="118" height="30" rx="15"/><text id="ss-tag-t" x="60" y="21.5" text-anchor="middle">session 1</text></g>
+        <g class="wp" id="ss-wp"><rect x="150" y="1" width="409" height="30" rx="15"/><text id="ss-wp-t" x="354" y="21.5" text-anchor="middle">create_session(state=…)</text></g>
+        <rect class="bk" id="ss-b0" x="1" y="42" width="268" height="146" rx="14"/>
+        <rect class="bk" id="ss-b1" x="291" y="42" width="268" height="146" rx="14" fill-opacity=".7"/>
+        <rect class="bk" id="ss-b2" x="1" y="200" width="268" height="146" rx="14" fill-opacity=".4"/>
+        <rect class="bk t" id="ss-b3" x="291" y="200" width="268" height="146" rx="14" fill-opacity=".18"/>
+        <text class="bh" x="16" y="68">app:</text><text class="bs warn" x="80" y="68">every user of the app</text>
+        <text class="bh" x="306" y="68">user:</text><text class="bs" x="376" y="68">u-tom, every chat</text>
+        <text class="bh" x="16" y="226">no prefix</text><text class="bs" x="130" y="226">this chat only</text>
+        <text class="bh" x="306" y="226">temp:</text><text class="bs" x="376" y="226">this turn only</text>
+        <g class="ch" id="ss-k0"><rect x="14" y="80" width="242" height="28" rx="14"/><text x="135" y="99.5" text-anchor="middle">company_name</text></g>
+        <g class="ch" id="ss-k1"><rect x="304" y="80" width="242" height="28" rx="14"/><text x="425" y="99.5" text-anchor="middle">customer_name</text></g>
+        <g class="ch" id="ss-k2"><rect x="304" y="114" width="242" height="28" rx="14"/><text x="425" y="133.5" text-anchor="middle">language</text></g>
+        <g class="ch" id="ss-k3"><rect x="304" y="148" width="242" height="28" rx="14"/><text x="425" y="167.5" text-anchor="middle">topics_asked</text></g>
+        <g class="ch" id="ss-k4"><rect x="14" y="238" width="242" height="28" rx="14"/><text x="135" y="257.5" text-anchor="middle">last_answer</text></g>
+        <g class="ch t" id="ss-k5"><rect x="304" y="238" width="242" height="28" rx="14"/><text x="425" y="257.5" text-anchor="middle">last_topic</text></g>
+        <g class="ch old" id="ss-o0"><rect x="14" y="238" width="242" height="28" rx="14"/><text x="135" y="257.5" text-anchor="middle">topics_asked</text></g>
+        <g class="ch old" id="ss-o1"><rect x="14" y="272" width="242" height="28" rx="14"/><text x="135" y="291.5" text-anchor="middle">last_topic</text></g>
+        <rect class="wipe" id="ss-wipe" x="560" y="38" width="40" height="310" rx="8" opacity="0"/>
+      </svg>
+      <div class="ss-rail">
+        <p data-until="1"><span>Before: keys without a prefix live in one session. A new chat starts empty.</span></p>
+        <p data-step="1" data-until="2"><span>Seed <code>app:</code> and <code>user:</code> keys at create. <code>app:</code> is shared by every user.</span></p>
+        <p data-step="2" data-until="3"><span>Send per-turn context as <code>state_delta</code>. It is written through an event.</span></p>
+        <p data-step="3" data-until="4"><span><code>temp:</code> lives for this turn. <code>user:</code> follows u-tom into every chat.</span></p>
+        <p data-step="4" data-until="5"><span><code>output_key</code> writes <code>last_answer</code>: this chat only. <code>{user:language?}</code> renders <code>''</code> if missing.</span></p>
+        <p data-step="5"><span>Session 2 gets <code>app:</code> and <code>user:</code> back. InMemory keeps them only while the process runs.</span></p>
+      </div>
+      <div class="code-wrap out" data-step="5">
+        <div class="code-head">output · s2.state · illustrative</div>
+        <pre class="code" data-lang="output"><code><span class="ok">{'app:company_name': 'Northwind', 'user:customer_name': 'Tom',
+ 'user:language': 'English', 'user:topics_asked': ['glass']}</span></code></pre>
+      </div>
+      <div class="ss-cites push">
+        <a class="cite codelab" href="https://codelabs.developers.google.com/codelabs/agent-memory/instructions" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;Building Stateful and Personalized Agents with ADK</a>
+        <a class="cite doc" href="https://adk.dev/sessions/state/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;State</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    This build is a standalone FAQ agent, claims_faq_agent, under the same app_name claims_api and the same customer u-tom. Both code blocks are excerpts; the full file in the repo adds the imports, the POLICIES dict, the InMemoryRunner, svc = runner.session_service and the user message msg. Start with the before block: the keys have no prefix, so they belong to one session, and a new chat for the same customer starts with an empty dict. Then walk the after code: create_session seeds an app: key and a user: key; the state_delta on run_async writes the language through an event; the tool writes temp:last_topic for this turn and appends to user:topics_asked; output_key stores last_answer with no prefix. The InMemorySessionService keeps separate app and user dicts and merges them into every session it returns, which is why session 2 still knows Tom. temp: keys are trimmed before commit, so they are never stored. Warn the room: app: keys are shared by every user of the app, so never write customer data there. The instruction uses {user:language?}: the question mark makes the key optional, so a missing key renders as an empty string; the gotcha slide shows what happens without it. Analogy: app: is the office noticeboard, user: is the customer file, unprefixed keys are the notepad for this call, and temp: is a sticky note you throw away when you hang up. The in-memory service loses all of this when the process stops; the next slide fixes that with SQLite.
+  </aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c02-state-scopes";
+  const WP = { 0: "BEFORE: no prefix", 1: "create_session(state=…)", 2: "run_async(state_delta=…)", 3: "get_policy → tool_context.state", 4: "output_key=\"last_answer\"", 5: "session 2 keeps the customer" };
+  // chip id -> [first step, last step (inclusive)]
+  const CH = { "ss-k0": [1, 9], "ss-k1": [1, 9], "ss-k2": [2, 9], "ss-k3": [3, 9], "ss-k5": [3, 3], "ss-k4": [4, 4], "ss-o0": [0, 0], "ss-o1": [0, 0] };
+  const CXY = { "ss-k0": [135, 94], "ss-k1": [425, 94], "ss-k2": [425, 128], "ss-k3": [425, 162], "ss-k4": [135, 252], "ss-k5": [425, 252] };
+  const SRC = [354, 16];
+  let prev = -1, els = [];
+  function render(slide, n, animate) {
+    if (window.c02Focus) window.c02Focus(slide, n);
+    const q = (s) => slide.querySelector(s);
+    els = [...slide.querySelectorAll("#ss-svg g, #ss-svg rect, #ss-svg text")];
+    gsap.killTweensOf(els);
+    const fwd = animate && n === prev + 1;
+    const wp = q("#ss-wp");
+    q("#ss-wp-t").textContent = WP[n] || "";
+    gsap.set(wp, { opacity: 1, scale: 1, svgOrigin: "354 16" });
+    if (fwd) gsap.fromTo(wp, { scale: .85, svgOrigin: "354 16" }, { scale: 1, svgOrigin: "354 16", duration: .35, ease: "back.out(2)" });
+    q("#ss-tag-t").textContent = n >= 5 ? "session 2" : "session 1";
+    let k = 0;
+    Object.keys(CH).forEach((id) => {
+      const g = q("#" + id), [a, b] = CH[id];
+      const op = n >= a && n <= b ? 1 : 0;
+      if (fwd && n === a && CXY[id]) {
+        const [cx, cy] = CXY[id];
+        gsap.fromTo(g, { x: SRC[0] - cx, y: SRC[1] - cy, opacity: 0 }, { x: 0, y: 0, opacity: 1, duration: .7, delay: .15 + (k++) * .14, ease: "power3.out" });
+      } else if (fwd && n === b + 1 && (id === "ss-k5" || id === "ss-k4" || id.startsWith("ss-o"))) {
+        gsap.set(g, { x: 0, y: 0, opacity: 1 });
+        gsap.to(g, { opacity: 0, duration: .45, delay: id === "ss-k4" ? .5 : .2 });
+      } else gsap.set(g, { x: 0, y: 0, opacity: op });
+    });
+    [0, 1, 2, 3].forEach((i) => {
+      const bk = q("#ss-b" + i);
+      bk.classList.toggle("kept", n >= 5 && i < 2);
+      gsap.set(bk, { opacity: n >= 5 && i >= 2 ? 0.45 : 1 });
+    });
+    const w = q("#ss-wipe");
+    if (fwd && n === 5) {
+      gsap.set(w, { attr: { x: 560 }, opacity: .35 });
+      gsap.to(w, { attr: { x: -40 }, duration: .9, ease: "power2.inOut" });
+      gsap.to(w, { opacity: 0, duration: .2, delay: .85 });
+    } else gsap.set(w, { attr: { x: 560 }, opacity: 0 });
+    prev = n;
+  }
+  Deck.register(ID, {
+    enter(slide, step) { prev = -1; render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { gsap.killTweensOf(els); prev = -1; }
+  });
+})();
+</script>

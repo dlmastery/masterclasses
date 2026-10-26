@@ -1,0 +1,118 @@
+<section class="slide" id="adk-c08-lab-live-agent" data-tone="model" data-title="Lab 8.3a: Live agent + RunConfig">
+  <style>
+    #adk-c08-lab-live-agent .la-grid { display: grid; grid-template-columns: 780px 1fr; gap: 40px; align-items: start; }
+    #adk-c08-lab-live-agent .la-col { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+    #adk-c08-lab-live-agent #la-svg { display: block; width: 572px; height: 330px; overflow: visible; }
+    #adk-c08-lab-live-agent #la-svg text { font-family: var(--f-mono); }
+    #adk-c08-lab-live-agent .caps { display: grid; }
+    #adk-c08-lab-live-agent .caps > p { grid-area: 1 / 1; font-size: 22px; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 8</span> Acme billing · voice · 1 of 2</div>
+  <h2 class="title">A Live agent: native-audio model, audio out, transcript on</h2>
+  <div class="la-grid fill">
+    <div class="la-col">
+      <div class="code-wrap">
+        <div class="code-head">labs/adk/c08-live-voice/live_billing.py · excerpt</div>
+        <pre class="code" data-lang="python" data-focus="1:1-4, 2:6-8, 3:10-13"><code>def get_balance(account_id: str) -&gt; dict:
+    """Returns balance and due date for an Acme account."""
+    return {"status": "success", "account_id": account_id,
+            "balance_usd": 84.20, "due": "2026-11-05"}
+
+agent = Agent(name="voice_billing", tools=[get_balance],
+    model="gemini-live-2.5-flash-native-audio",
+    instruction="Acme billing. Be brief. No new-plan prices.")
+
+cfg = RunConfig(
+    response_modalities=["AUDIO"],
+    output_audio_transcription=types.AudioTranscriptionConfig(),
+    session_resumption=types.SessionResumptionConfig())</code></pre>
+      </div>
+      <div class="caps">
+        <p data-step="1" data-until="2">One plain tool. The Live model calls it mid-call.</p>
+        <p data-step="2" data-until="3">Native-audio Live models speak; they do not write text.</p>
+        <p data-step="3">So ask for the transcript, and resume when the link drops.</p>
+      </div>
+    </div>
+    <div class="la-col">
+      <div class="code-wrap term">
+        <div class="code-head">run it Monday · labs/adk/c08-live-voice/</div>
+        <pre class="code" data-lang="bash"><code>$ pip install "google-adk==2.13.0"
+.env  GOOGLE_GENAI_USE_ENTERPRISE=TRUE
+      GOOGLE_CLOUD_PROJECT=my-proj
+      GOOGLE_CLOUD_LOCATION=us-central1</code></pre>
+      </div>
+      <svg id="la-svg" viewBox="0 0 572 330" aria-label="The get_balance tool attaches to the Live API model box. Three RunConfig pills slide into the model box: AUDIO out, transcript out and resumption. Two output lanes leave the model: audio as 24 kHz PCM and a text transcript."></svg>
+    </div>
+  </div>
+  <aside class="notes">Step three of Lab 8 moves the Acme billing desk to voice with the Live API on Agent Platform, so the .env sets GOOGLE_GENAI_USE_ENTERPRISE=TRUE and a regional location; global does not serve the Live model. With an AI Studio key instead, set it to FALSE, add GOOGLE_API_KEY, and use the preview model gemini-3.1-flash-live-preview. Press once: get_balance is a plain function tool; the instruction forbids quoting new-plan prices. Press again: the agent uses gemini-live-2.5-flash-native-audio, which is DEFAULT_LIVE_MODEL in 2.13; native-audio models answer in audio only. Press again: RunConfig asks for audio out, turns on output_audio_transcription so you also get text, and adds session_resumption so ADK reconnects when the Live connection hits its duration limit. Think of the transcript as the subtitles on a phone call. A likely question: "Does StreamingMode.BIDI turn on live mode?" No; its own docstring says to use runner.run_live, which is the next slide.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c08-lab-live-agent";
+  const NS = "http://www.w3.org/2000/svg";
+  let R = null, tw = [];
+  function mk(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text !== undefined) e.textContent = text;
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function build(svg) {
+    svg.innerHTML = "";
+    R = {};
+    const defs = mk("defs", {}, svg);
+    const m = mk("marker", { id: "la-ah", viewBox: "0 0 10 10", refX: 8, refY: 5, markerWidth: 6, markerHeight: 6, orient: "auto-start-reverse" }, defs);
+    mk("path", { d: "M0,0 L10,5 L0,10 z", fill: "var(--model)" }, m);
+    // tool
+    R.tool = mk("g", {}, svg);
+    mk("rect", { x: 0, y: 70, width: 170, height: 56, rx: 12, fill: "var(--tool-soft)", stroke: "var(--tool)", "stroke-width": 2 }, R.tool);
+    mk("text", { x: 85, y: 104, "text-anchor": "middle", "font-size": 16, "font-weight": 700, fill: "var(--ink)" }, R.tool, "get_balance()");
+    mk("path", { d: "M174,98 H206", fill: "none", stroke: "var(--tool)", "stroke-width": 2.6, "stroke-dasharray": "5 4" }, R.tool);
+    // model box
+    R.model = mk("g", {}, svg);
+    R.mrect = mk("rect", { x: 210, y: 0, width: 362, height: 196, rx: 16, fill: "var(--model-soft)", stroke: "var(--model)", "stroke-width": 2.2 }, R.model);
+    mk("text", { x: 391, y: 32, "text-anchor": "middle", "font-size": 18, "font-weight": 800, fill: "var(--ink)" }, R.model, "Live API");
+    mk("text", { x: 391, y: 56, "text-anchor": "middle", "font-size": 14, fill: "var(--ink-2)" }, R.model, "gemini-live-2.5-flash-native-audio");
+    // config pills
+    R.pills = [["AUDIO out", 80], ["transcript out", 118], ["session resumption", 156]].map(([s, y]) => {
+      const g = mk("g", {}, svg);
+      mk("rect", { x: 250, y: y - 4, width: 282, height: 30, rx: 8, fill: "var(--bg)", stroke: "var(--model)", "stroke-width": 1.8 }, g);
+      mk("text", { x: 391, y: y + 16, "text-anchor": "middle", "font-size": 15, "font-weight": 700, fill: "var(--model)" }, g, s);
+      return g;
+    });
+    // outputs
+    R.out = mk("g", {}, svg);
+    mk("path", { d: "M300,200 V250", fill: "none", stroke: "var(--model)", "stroke-width": 2.6, "marker-end": "url(#la-ah)" }, R.out);
+    mk("path", { d: "M482,200 V250", fill: "none", stroke: "var(--model)", "stroke-width": 2.6, "marker-end": "url(#la-ah)" }, R.out);
+    mk("rect", { x: 210, y: 256, width: 176, height: 70, rx: 12, fill: "var(--surface)", stroke: "var(--line-2)", "stroke-width": 1.6 }, R.out);
+    mk("text", { x: 298, y: 286, "text-anchor": "middle", "font-size": 16, "font-weight": 700, fill: "var(--model)" }, R.out, "audio");
+    mk("text", { x: 298, y: 310, "text-anchor": "middle", "font-size": 14, fill: "var(--ink-2)" }, R.out, "24 kHz PCM");
+    mk("rect", { x: 396, y: 256, width: 176, height: 70, rx: 12, fill: "var(--surface)", stroke: "var(--line-2)", "stroke-width": 1.6 }, R.out);
+    mk("text", { x: 484, y: 286, "text-anchor": "middle", "font-size": 16, "font-weight": 700, fill: "var(--state)" }, R.out, "transcript");
+    mk("text", { x: 484, y: 310, "text-anchor": "middle", "font-size": 14, fill: "var(--ink-2)" }, R.out, "text events");
+  }
+  function clear() { tw.forEach((t) => t.kill()); tw = []; }
+  function show(el, on, animate, delay, from) {
+    gsap.killTweensOf(el);
+    if (!on) { gsap.set(el, { opacity: 0 }); return; }
+    if (animate) tw.push(gsap.fromTo(el, Object.assign({ opacity: 0 }, from || {}), { opacity: 1, x: 0, y: 0, duration: 0.45, delay: delay || 0, ease: "power2.out" }));
+    else gsap.set(el, { opacity: 1, x: 0, y: 0 });
+  }
+  function render(slide, n, animate) {
+    const svg = slide.querySelector("#la-svg");
+    if (!R || !svg.childElementCount) build(svg);
+    clear();
+    show(R.tool, n >= 1, animate && n === 1, 0, { x: -20 });
+    show(R.model, n >= 2, animate && n === 2, 0, { y: 12 });
+    gsap.set(R.model, { opacity: n >= 2 ? 1 : 0.2 });
+    R.pills.forEach((p, i) => show(p, n >= 3, animate && n === 3, i * 0.2, { x: 40 }));
+    show(R.out, n >= 3, animate && n === 3, 0.7);
+  }
+  Deck.register(ID, {
+    enter(slide, step) { R = null; render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { clear(); if (slide) gsap.killTweensOf(slide.querySelectorAll("#la-svg *")); },
+  });
+})();
+</script>

@@ -1,0 +1,35 @@
+<section class="slide tight" id="adk-c10-canary-blue-green" data-tone="risk" data-title="Agent Runtime: blue/green">
+  <style>
+    #adk-c10-canary-blue-green .bg { display: grid; grid-template-columns: 640px minmax(0, 1fr); gap: 48px; align-items: start; }
+    #adk-c10-canary-blue-green .col { display: flex; flex-direction: column; gap: 26px; min-width: 0; }
+    #adk-c10-canary-blue-green .gotcha { font-size: 20px; grid-template-columns: 110px 1fr; }
+    #adk-c10-canary-blue-green ul.checks li { font-size: 21px; line-height: 1.4; }
+    #adk-c10-canary-blue-green .diagram .nt { font-size: 19px; }
+    #adk-c10-canary-blue-green .diagram .ns { font-size: 15px; }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> Rollout on Agent Runtime</div>
+  <h2 class="title">Agent Runtime has no traffic split: switch resources blue/green</h2>
+  <div class="bg fill">
+    <div class="col">
+      <div class="gotcha" data-step="1">
+        <b>Symptom</b><span>You look for a traffic split on Agent Runtime and find none.</span>
+        <b class="why">Cause</b><span>No traffic-split or revision-rollback feature was found for Agent Runtime.</span>
+        <b class="fix">Fix</b><span>Deploy a second resource. Switch the client to its id. Switch back to roll back.</span>
+      </div>
+      <ul class="checks" data-step="4" data-fx="stagger">
+        <li>Soak and roll out every system-prompt change gradually.</li>
+        <li class="no">Never shadow a candidate that has live write tools. Stub them.</li>
+      </ul>
+    </div>
+    <div class="diagram" style="width:700px;height:460px" data-wires="client>blue:flow{agent} [resource id]; client>green@3:flow{state} [new id]">
+      <div class="node n-human pill" id="client" style="left:0;top:196px;width:220px"><span class="nt">Acme HR client</span><span class="ns">holds one id</span></div>
+      <div class="node n-agent" id="blue" style="left:420px;top:40px;width:270px" data-on="3:dim"><span class="nt">resource 111</span><span class="ns">old · live</span></div>
+      <div class="node n-state" id="green" style="left:420px;top:330px;width:270px" data-step="2" data-fx="pop" data-on="3:hot"><span class="nt">resource 222</span><span class="ns">new · evals pass</span></div>
+    </div>
+  </div>
+  <div class="cites" data-step="4">
+    <a class="cite doc" href="https://www.anthropic.com/engineering/april-23-postmortem" target="_blank" rel="noopener"><b>Postmortem</b>&nbsp;Anthropic: an update on recent Claude Code quality reports</a>
+    <a class="cite doc" href="https://docs.cloud.google.com/run/docs/rollouts-rollbacks-traffic-migration" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Cloud Run rollouts, rollbacks and traffic migration</a>
+  </div>
+  <aside class="notes">The canary on the last slide uses Cloud Run revisions; Agent Runtime does not give you that. Press once: the research found no traffic-splitting or revision-rollback feature for Agent Runtime, so do not look for a percentage slider. Press again: deploy a second Agent Runtime resource for the new version and run the evals against it while the old one stays live. Press again: the client switches to the new resource id; to roll back, it switches back, so keep the old resource until the new one has soaked. Press again: two rules from production. Anthropic's 2026-04-23 postmortem added soak periods and gradual rollout for every system-prompt change. And never shadow-test a candidate that has live write tools: a shadow call to an HR or refund write tool is a real write, so stub those tools. Analogy: blue/green is two stages in one theatre; the audience walks to the second stage only when it is ready. Likely question: "How does the client switch?" Keep the resource id in config, not in code, so the switch is a config change.</aside>
+</section>

@@ -1,0 +1,199 @@
+<section class="slide" id="rag-interview-c03-qa-gate" data-tone="agent" data-title="Gate before you rewrite">
+  <style>
+    #rag-interview-c03-qa-gate .gt-grid { display: grid; grid-template-columns: 560px 1fr; gap: 30px; }
+    #rag-interview-c03-qa-gate .qa-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+    #rag-interview-c03-qa-gate .qa { gap: 8px; transition: opacity .35s; }
+    #rag-interview-c03-qa-gate .qa .q { font-size: 20px; }
+    #rag-interview-c03-qa-gate .qa .a { font-size: 20px; line-height: 1.38; padding: 10px 14px; }
+    #rag-interview-c03-qa-gate .right { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    #rag-interview-c03-qa-gate svg.viz { width: 802px; height: 200px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+    #rag-interview-c03-qa-gate pre.code.xs { font-size: 13px; line-height: 1.45; padding: 10px 16px 12px; }
+    #rag-interview-c03-qa-gate .code-wrap .code-head { padding: 7px 14px; font-size: 13px; }
+    #rag-interview-c03-qa-gate .cites { gap: 8px; }
+    #rag-interview-c03-qa-gate .cite { font-size: 13px; flex-direction: row; align-items: center; gap: 8px; padding: 6px 10px 6px 8px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); white-space: nowrap; }
+  </style>
+  <div class="kicker">Interview · query rewriting and sufficiency</div>
+  <h2 class="title">Gate before you rewrite: a cheap score signal picks the weak queries</h2>
+  <div class="gt-grid fill">
+    <div class="qa-col">
+      <div class="qa" data-on="2:dim">
+        <div class="q">Should every Northwind query get an LLM rewrite or HyDE (embed an LLM-written fake answer)?</div>
+        <div class="a" data-step="1">No. A score gate rewrites <b>under 40%</b> of queries. HyDE adds <b>57.5</b> invented terms per query.</div>
+      </div>
+      <div class="qa" data-on="3:dim">
+        <div class="q">How do you know the evidence is sufficient before you generate?</div>
+        <div class="a" data-step="2">Read the reranker's score shape (QPP). It flags weak evidence at <b>AUROC 0.856</b> in <b>2 ms</b>.</div>
+      </div>
+      <div class="qa">
+        <div class="q">How do you set GATE and SPREAD?</div>
+        <div class="a" data-step="3">Sweep both on the labelled queries. Keep the lowest rewrite rate that holds R@5.</div>
+      </div>
+      <div class="code-wrap" data-step="2">
+        <div class="code-head">weak() · the score-shape signal, no LLM call</div>
+        <pre class="code xs" data-lang="python" data-focus="3:1"><code>GATE, SPREAD = 0.55, 0.02     # placeholders: fit on labels
+def weak(r) -&gt; bool:          # r: [(chunk_id, score)], best first
+    if len(r) &lt; 2:
+        return True
+    top1, top5 = r[0][1], r[min(4, len(r) - 1)][1]
+    return top1 &lt; GATE or top1 - top5 &lt; SPREAD   # low or flat</code></pre>
+      </div>
+    </div>
+    <div class="right">
+      <svg class="viz" id="gtq-svg" viewBox="0 0 802 200" aria-label="Score gate: weak queries are rewritten; flat score shapes are insufficient"></svg>
+      <div class="code-wrap">
+        <div class="code-head">gated_search.py · export GEMINI_API_KEY · sentence-transformers==6.2.0 · google-genai==2.33.0</div>
+        <pre class="code xs" data-lang="python" data-focus="1:12-16, 2:17"><code>import torch
+from sentence_transformers import CrossEncoder
+from kb import TEXT
+from lab3_hybrid import hybrid_search, rrf
+from lab7_query_transform import rewrite          # Gemini 3.8 Flash, cached
+ce = CrossEncoder("cross-encoder/ettin-reranker-32m-v1", activation_fn=torch.nn.Sigmoid())
+def rerank(q: str, ids: list[str]) -&gt; list[tuple[str, float]]:
+    hits = ce.rank(q, [TEXT[i] for i in ids], top_k=8)
+    return [(ids[h["corpus_id"]], h["score"]) for h in hits]   # 0..1 scores
+def gated_search(q: str) -&gt; tuple[list[str], str]:
+    r = rerank(q, hybrid_search(q, depth=75)[:30])
+    if not weak(r):                                # weak(): left panel
+        return [i for i, _ in r], "direct"         # most queries stop here
+    qs = [q] + rewrite(q).paraphrases              # keep the original query
+    lists = [hybrid_search(x, depth=75) for x in qs]
+    r = rerank(q, rrf(lists, k=60, weights=[2.0] + [1.0] * (len(qs) - 1))[:30])
+    return [i for i, _ in r], ("insufficient" if weak(r) else "rewritten")</code></pre>
+      </div>
+      <div class="cites push">
+        <a class="cite paper" href="https://arxiv.org/abs/2609.05637" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2609.05637 gated rewriting</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2610.13810" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.13810 HyDE terms</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2609.11646" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2609.11646 QPP</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">The theme of this slide is adaptive compute: run the cheap path first and spend an LLM call only on a signal. Q1: HyDE means the LLM writes a hypothetical answer and you embed that. A strong candidate says one rewriter is at best on par with a strong hybrid plus reranker baseline; a union of rewriters gave +12.5 HIT@10 (51.70 vs 39.22), and a score-gated router rewrote fewer than 40% of queries. HyDE also injects about 57.5 unsupported terms per query (SAFE-QE paper). Industry agrees: Snap gates its LLM query path to about 10% of users, for about 90% lower LLM cost and +27.6% conversion in a two-week A/B (arXiv 2607.23121). Q2: QPP means query performance prediction; here it reads the shape of the reranker scores, which is free. AUROC 0.856 means that for a random sufficient and a random insufficient query, the signal ranks the sufficient one higher 86% of the time; a local LLM judge got 0.649. Q3: GATE and SPREAD are placeholders; sweep them on the labelled queries and log the rewrite rate. The dot diagram is illustrative: 3 of 10 queries go to the rewrite path. Analogy: a hospital triage desk sends only the unclear cases to the specialist. Likely follow-up: "Why keep the original query in the fusion?" Expansion studies only gain when the original query keeps a large share of the weight, so give it weight 2. Next: what the caller does with "insufficient", and when to escalate to long context.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "rag-interview-c03-qa-gate";
+  let tweens = [], shown = -1;
+
+  function el(p, tag, attrs, style) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (style) Object.assign(e.style, style);
+    p.appendChild(e);
+    return e;
+  }
+  function text(p, x, y, s, o = {}) {
+    const t = el(p, "text", { x, y, "text-anchor": o.anchor || "middle" },
+      { fill: o.fill || "var(--ink-2)", fontFamily: "var(--f-mono)", fontSize: (o.size || 16) + "px", fontWeight: o.w || 500 });
+    t.textContent = s;
+    return t;
+  }
+  function arrow(p, d, col, o = {}) {
+    return el(p, "path", { d }, { fill: "none", stroke: col, strokeWidth: o.w || 2.5, strokeDasharray: o.dash || "none", strokeLinecap: "round" });
+  }
+  const T = (tw) => { tweens.push(tw); return tw; };
+  function kill() { tweens.forEach((t) => t.kill()); tweens = []; }
+  const fade = (nodes, animate, delay = 0) => { if (animate) T(gsap.fromTo(nodes, { opacity: 0 }, { opacity: 1, duration: 0.4, delay, stagger: 0.08 })); };
+
+  // ---------- step 0 / 1: the score gate splits 10 queries ----------
+  const REWRITE = new Set([1, 4, 8]);           // 3 of 10 (paper: fewer than 40%)
+  function router(svg, n, animate) {
+    const GX = 300, GY = 100;
+    el(svg, "path", { d: `M ${GX} ${GY - 42} L ${GX + 42} ${GY} L ${GX} ${GY + 42} L ${GX - 42} ${GY} Z` }, { fill: "var(--risk-soft)", stroke: "var(--risk)", strokeWidth: 2 });
+    text(svg, GX, GY + 6, "gate", { size: 16, fill: "var(--risk)", w: 700 });
+    text(svg, GX, 182, "top-1 < 0.55 or spread < 0.02", { size: 15, fill: "var(--risk)", w: 700 });
+    el(svg, "rect", { x: 500, y: 10, width: 290, height: 80, rx: 12 }, { fill: "var(--tool-soft)", stroke: "var(--tool)", strokeWidth: 2 });
+    el(svg, "rect", { x: 500, y: 110, width: 290, height: 80, rx: 12 }, { fill: "var(--state-soft)", stroke: "var(--state)", strokeWidth: 2 });
+    text(svg, 645, 36, "rewrite + RRF + rerank", { size: 17, fill: "var(--tool)", w: 700 });
+    text(svg, 645, 136, "direct: hybrid + rerank", { size: 17, fill: "var(--state)", w: 700 });
+    arrow(svg, `M ${GX + 42} ${GY} C 430 ${GY} 430 50 500 50`, "var(--tool)", { dash: "6 5" });
+    arrow(svg, `M ${GX + 42} ${GY} C 430 ${GY} 430 150 500 150`, "var(--state)");
+    text(svg, 16, 26, "10 Northwind queries · illustrative", { anchor: "start", size: 15, fill: "var(--ink-2)" });
+    const dots = [];
+    for (let i = 0; i < 10; i++) {
+      const x = 28 + i * 22, y = GY;
+      dots.push({ c: el(svg, "circle", { cx: x, cy: y, r: 8 }, { fill: "var(--human)" }), i });
+    }
+    if (n < 1) {
+      text(svg, 130, GY + 40, "all wait for an LLM rewrite?", { size: 15, fill: "var(--muted)" });
+      return;
+    }
+    let up = 0, dn = 0;
+    const cntUp = text(svg, 645, 62, "", { size: 16, fill: "var(--tool)", w: 700 });
+    const cntDn = text(svg, 645, 162, "", { size: 16, fill: "var(--state)", w: 700 });
+    const label = () => { cntUp.textContent = `rewritten ${up} / 10`; cntDn.textContent = `direct ${dn} / 10`; };
+    dots.forEach((d) => {
+      const isUp = REWRITE.has(d.i);
+      const k = isUp ? [...REWRITE].indexOf(d.i) : d.i - [...REWRITE].filter((j) => j < d.i).length;
+      const tx = 520 + k * 22, ty = isUp ? 78 : 178;
+      if (!animate) { d.c.setAttribute("cx", tx); d.c.setAttribute("cy", ty); d.c.setAttribute("fill", isUp ? "var(--tool)" : "var(--state)"); return; }
+      const tl = gsap.timeline({ delay: (9 - d.i) * 0.22 });
+      tl.to(d.c, { attr: { cx: GX, cy: GY }, duration: 0.35, ease: "power1.in" })
+        .set(d.c, { attr: { fill: isUp ? "var(--tool)" : "var(--state)" } })
+        .to(d.c, { attr: { cx: tx, cy: ty }, duration: 0.45, ease: "power1.out",
+          onComplete: () => { if (isUp) up++; else dn++; label(); } });
+      T(tl);
+    });
+    if (!animate) { up = 3; dn = 7; }
+    label();
+  }
+
+  // ---------- step 2 / 3: score-distribution QPP before the reader ----------
+  const PEAK = [0.92, 0.41, 0.30, 0.22, 0.18, 0.15, 0.12, 0.10, 0.08, 0.06];
+  const FLAT = [0.31, 0.30, 0.29, 0.29, 0.28, 0.27, 0.27, 0.26, 0.26, 0.25];
+  function sufficiency(svg, animate) {
+    const rows = [
+      { s: PEAK, y: 10, ok: true, l1: "peaked:", l2: "one winner" },
+      { s: FLAT, y: 104, ok: false, l1: "flat:", l2: "no winner" }
+    ];
+    el(svg, "rect", { x: 560, y: 14, width: 228, height: 60, rx: 12 }, { fill: "var(--model-soft)", stroke: "var(--model)", strokeWidth: 2 });
+    text(svg, 674, 50, "reader LLM", { size: 18, fill: "var(--model)", w: 700 });
+    rows.forEach((r, ri) => {
+      const col = r.ok ? "var(--state)" : "var(--risk)";
+      text(svg, 14, r.y + 40, r.l1, { anchor: "start", size: 16, fill: col, w: 700 });
+      text(svg, 14, r.y + 62, r.l2, { anchor: "start", size: 16, fill: col, w: 700 });
+      const base = r.y + 82;
+      el(svg, "line", { x1: 132, y1: base, x2: 360, y2: base }, { stroke: "var(--line-2)", strokeWidth: 1.5 });
+      r.s.forEach((v, i) => {
+        const h = v * 70, x = 136 + i * 22;
+        const b = el(svg, "rect", { x, y: animate ? base : base - h, width: 16, height: animate ? 0 : h, rx: 3 }, { fill: col, opacity: 0.85 });
+        if (animate) T(gsap.to(b, { attr: { y: base - h, height: h }, duration: 0.5, delay: ri * 0.5 + i * 0.04, ease: "power2.out" }));
+      });
+      const y = r.y + 48;
+      if (r.ok) {
+        const a = arrow(svg, `M 372 ${y} C 460 ${y} 480 44 556 44`, "var(--state)", { w: 3 });
+        const t = text(svg, 440, y + 26, "sufficient", { size: 15, fill: "var(--state)", w: 700 });
+        fade([a, t], animate, 1.0);
+      } else {
+        const a = arrow(svg, `M 372 ${y} L 416 ${y}`, "var(--risk)", { w: 3 });
+        const bar = el(svg, "line", { x1: 420, y1: y - 20, x2: 420, y2: y + 20 }, { stroke: "var(--risk)", strokeWidth: 5, strokeLinecap: "round" });
+        const t = text(svg, 430, y + 6, "insufficient", { anchor: "start", size: 15, fill: "var(--risk)", w: 700 });
+        fade([a, bar, t], animate, 1.3);
+      }
+    });
+    const f = [
+      text(svg, 580, 108, "AUROC, sufficiency", { anchor: "start", size: 14, fill: "var(--ink-2)" }),
+      text(svg, 580, 140, "QPP 0.856 · 2 ms", { anchor: "start", size: 22, fill: "var(--agent)", w: 700 }),
+      text(svg, 580, 174, "LLM judge 0.649", { anchor: "start", size: 20, fill: "var(--muted)", w: 700 })
+    ];
+    fade(f, animate, 1.6);
+    text(svg, 790, 194, "illustrative scores", { anchor: "end", size: 13, fill: "var(--muted)" });
+  }
+
+  function render(slide, n, animate) {
+    const svg = slide.querySelector("#gtq-svg");
+    if (!svg) return;
+    kill();
+    svg.innerHTML = "";
+    shown = n;
+    if (n <= 1) router(svg, n, animate);
+    else sufficiency(svg, animate && n === 2);
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { if (shown !== step) render(slide, step, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { kill(); shown = -1; }
+  });
+})();
+</script>

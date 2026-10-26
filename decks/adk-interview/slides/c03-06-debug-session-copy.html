@@ -1,0 +1,185 @@
+<section class="slide" id="adk-interview-c03-debug-session-copy" data-tone="state" data-title="Debug: state written to a copy">
+  <style>
+    #adk-interview-c03-debug-session-copy .ds-main { display: grid; grid-template-columns: 790px 1fr; gap: 26px; }
+    #adk-interview-c03-debug-session-copy .ds-left { gap: 14px; }
+    #adk-interview-c03-debug-session-copy .ds-left .code-wrap.bad pre.code { font-size: 13px; line-height: 1.45; padding: 12px 18px 14px 54px; }
+    #adk-interview-c03-debug-session-copy .ds-left .ln { position: absolute; left: 0; width: 40px; text-align: right; padding-right: 7px; font: 400 13px/1.45 var(--f-mono); color: #6f78a8; white-space: pre; z-index: 2; pointer-events: none; border-right: 1px solid #262c55; }
+    #adk-interview-c03-debug-session-copy .ds-left .row-l { transition: opacity .4s; }
+    #adk-interview-c03-debug-session-copy .ds-left .row-l.del { opacity: .45; text-decoration: line-through; text-decoration-color: var(--risk); text-decoration-thickness: 2px; }
+    #adk-interview-c03-debug-session-copy .ds-left .rm { color: var(--risk); font-weight: 700; text-decoration: none; display: none; }
+    #adk-interview-c03-debug-session-copy .ds-left .code-wrap.done .rm { display: inline; }
+    #adk-interview-c03-debug-session-copy .ds-cell { display: grid; }
+    #adk-interview-c03-debug-session-copy .ds-cell > * { grid-area: 1 / 1; align-self: start; }
+    #adk-interview-c03-debug-session-copy .code-wrap .code-head { padding: 8px 14px; font-size: 13.5px; }
+    #adk-interview-c03-debug-session-copy .ds-right { gap: 14px; min-width: 0; }
+    #adk-interview-c03-debug-session-copy .lab-head { gap: 12px; flex-wrap: nowrap; }
+    #adk-interview-c03-debug-session-copy .lab-head .pins { font: 500 13px/1.3 var(--f-mono); color: var(--muted); white-space: nowrap; }
+    #adk-interview-c03-debug-session-copy .code-wrap.out pre.code { font-size: 13px; line-height: 1.5; padding: 10px 14px 12px; white-space: pre-wrap; }
+    #adk-interview-c03-debug-session-copy .code-wrap.out pre.code code { white-space: pre-wrap; }
+    #adk-interview-c03-debug-session-copy .steps-rail { counter-reset: sr; gap: 6px; }
+    #adk-interview-c03-debug-session-copy .steps-rail > * { font-size: 16px; grid-template-columns: 30px 1fr; align-items: center; }
+    #adk-interview-c03-debug-session-copy .steps-rail > *::before { width: 26px; height: 26px; font-size: 13px; }
+    #adk-interview-c03-debug-session-copy .gotcha { font-size: 16px; line-height: 1.38; padding: 12px 16px; grid-template-columns: 84px 1fr; gap: 6px 12px; }
+    #adk-interview-c03-debug-session-copy .gotcha > b.hint { color: var(--agent); }
+    #adk-interview-c03-debug-session-copy .ds-out { display: grid; }
+    #adk-interview-c03-debug-session-copy .ds-out > * { grid-area: 1 / 1; align-self: start; }
+    #adk-interview-c03-debug-session-copy .gotcha > b { font-size: 12.5px; }
+    #adk-interview-c03-debug-session-copy .code-wrap.good pre.code { font-size: 13px; line-height: 1.45; padding: 10px 14px 12px; }
+    #adk-interview-c03-debug-session-copy .ds-cites { display: flex; gap: 8px; flex-wrap: wrap; }
+    #adk-interview-c03-debug-session-copy .ds-cites .cite { font-size: 14px; }
+    #adk-interview-c03-debug-session-copy #ds-svg text { font-family: var(--f-mono); }
+  </style>
+  <div class="kicker"><span class="pill">Debug this</span> session state</div>
+  <h2 class="title">Debug this: the language was set, and the agent raised KeyError</h2>
+  <div class="ds-main fill">
+    <div class="ds-left stack">
+      <div class="code-wrap bad">
+        <div class="code-head">hr_state_debug.py</div>
+        <pre class="code sm" data-lang="python" data-focus="2:8, 3:16-17, 4:19"><code>import asyncio
+from google.adk import Agent
+from google.adk.runners import InMemoryRunner
+from google.genai import types
+hr_agent = Agent(
+    name="hr_policy_agent", model="gemini-3.5-flash",
+    instruction=("You are the HR assistant for {app:company_name}. "
+                 "Reply in {user:language}. Quote policy text exactly."),
+    output_key="last_hr_answer",
+)
+async def main() -> None:
+    runner = InMemoryRunner(agent=hr_agent, app_name="hr_app")
+    svc = runner.session_service
+    s1 = await svc.create_session(app_name="hr_app", user_id="emp-17",
+                                  state={"app:company_name": "Acme Corp"})
+    s1 = await svc.get_session(app_name="hr_app", user_id="emp-17", session_id=s1.id)
+    s1.state["user:language"] = "German"
+    msg = types.UserContent(parts=[types.Part(text="How much parental leave do I get?")])
+    async for ev in runner.run_async(user_id="emp-17", session_id=s1.id, new_message=msg):
+        if ev.is_final_response():
+            print(ev.content.parts[0].text)
+asyncio.run(main())</code></pre>
+      </div>
+      <div class="ds-cell">
+        <div class="steps-rail" data-until="4">
+          <div data-step="2"><span>Line 8: the template reads <code>{user:language}</code> from the stored session.</span></div>
+          <div data-step="3"><span>Line 16: <code>get_session()</code> returns a deep copy. Line 17 edits only the copy.</span></div>
+        </div>
+        <div class="code-wrap good" data-step="4">
+          <div class="code-head">line 19, fixed · delete lines 16-17</div>
+          <pre class="code" data-lang="python"><code>    async for ev in runner.run_async(
+            user_id="emp-17", session_id=s1.id, new_message=msg,
+            state_delta={"user:language": "German"}):
+# or: create_session(state={...}) · or "Reply in {user:language?}."</code></pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="ds-right stack">
+      <div class="lab-head"><span class="run">python hr_state_debug.py</span><span class="pins">google-adk==2.13.0 · Python 3.11+ · GOOGLE_API_KEY</span></div>
+      <div class="ds-out" data-step="1">
+        <div class="code-wrap out" data-until="4">
+          <div class="code-head">output</div>
+          <pre class="code" data-lang="none"><code><span class="err">KeyError: "Context variable not found: `user:language` in agent 'hr_policy_agent'."</span></code></pre>
+        </div>
+        <div class="code-wrap out" data-step="4">
+          <div class="code-head">output after the fix · illustrative</div>
+          <pre class="code" data-lang="none"><code><span class="ok">Sie haben Anspruch auf Elternzeit nach Abschnitt 6 der Acme-Richtlinie.</span>
+<span class="dim">exit 0 · stored state now has user:language = "German"</span></code></pre>
+        </div>
+      </div>
+      <svg id="ds-svg" viewBox="0 0 560 200" width="560" height="200" aria-label="The session service and the copy returned by get_session"></svg>
+      <div class="gotcha">
+        <b data-step="1">Symptom</b><span data-step="1">The first turn crashes before the model call, one line after line 17 set the language.</span>
+        <b class="hint" data-step="2" data-until="3">Hint</b><span data-step="2" data-until="3">Line 17 sets the key. Which object did it change?</span>
+        <b class="why" data-step="3">Cause</b><span data-step="3"><code>get_session()</code> returns a copy. Only events write stored state.</span>
+        <b class="fix" data-step="4">Fix</b><span data-step="4">Send the key as <code>state_delta</code> on line 19 (left).</span>
+      </div>
+      <div class="ds-cites">
+        <a class="cite doc" href="https://adk.dev/sessions/state/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;State</a>
+        <a class="cite codelab" href="https://codelabs.developers.google.com/codelabs/agent-memory/instructions" target="_blank" rel="noopener"><b>Codelab</b>&nbsp;Building Stateful and Personalized Agents with ADK</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Show the script and the KeyError, then give the room one minute. The template on line 8 is rendered from the state that the session service stores, not from the Python object in main. In google-adk 2.13.0, get_session() on the in-memory service returns a deep copy, so line 17 changes only that copy and the key never reaches storage. The fix is to write state through an event: state_delta on run_async, or seed it in create_session(state=...), or make it optional with {user:language?}. Inside the agent, tools write through tool_context.state and callbacks through callback_context.state; both go through events too. Analogy: you corrected a photocopy of the form and then handed the clerk the original. Likely follow-up: "Why a copy at all?" So that only events change persisted state, which keeps the event log the single source of truth. This is the same hr_app and emp-17 from the state Q&amp;A slide, so link the answer back to Q1 there.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-interview-c03-debug-session-copy";
+  const NS = "http://www.w3.org/2000/svg";
+  let svg = null, P = {};
+  const el = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); parent.appendChild(e); return e; };
+  const txt = (parent, x, y, s, attrs) => { const t = el("text", Object.assign({ x, y, "font-size": 13 }, attrs || {}), parent); t.textContent = s; return t; };
+
+  function build(slide) {
+    svg = slide.querySelector("#ds-svg");
+    svg.innerHTML = "";
+    // session service (persisted)
+    txt(svg, 0, 14, "session service · stored", { fill: "var(--state)", "font-weight": 700 });
+    el("rect", { x: 0, y: 24, width: 230, height: 116, rx: 12, fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 2 }, svg);
+    txt(svg, 14, 54, "app:company_name", { fill: "var(--ink)" });
+    txt(svg, 14, 72, "  = \"Acme Corp\"", { fill: "var(--ink-2)" });
+    P.svcSlot = el("rect", { x: 10, y: 88, width: 210, height: 42, rx: 8, fill: "none", stroke: "var(--risk)", "stroke-width": 1.6, "stroke-dasharray": "5 4" }, svg);
+    P.svcMiss = txt(svg, 22, 114, "user:language  missing", { fill: "var(--risk)", "font-weight": 700 });
+    P.svcKey = el("g", {}, svg);
+    el("rect", { x: 10, y: 88, width: 210, height: 42, rx: 8, fill: "var(--surface-2)", stroke: "var(--state)", "stroke-width": 1.6 }, P.svcKey);
+    txt(P.svcKey, 22, 114, "user:language=\"German\"", { fill: "var(--state)", "font-weight": 700 });
+    txt(P.svcKey, 202, 114, "✓", { fill: "var(--state)", "font-weight": 700, "font-size": 16 });
+    // copy
+    P.copy = el("g", {}, svg);
+    txt(P.copy, 330, 14, "s1 · deep copy", { fill: "var(--muted)", "font-weight": 700 });
+    el("rect", { x: 330, y: 24, width: 230, height: 116, rx: 12, fill: "var(--surface)", stroke: "var(--line-2)", "stroke-width": 2 }, P.copy);
+    txt(P.copy, 344, 54, "app:company_name", { fill: "var(--ink-2)" });
+    txt(P.copy, 344, 72, "  = \"Acme Corp\"", { fill: "var(--muted)" });
+    P.copyKey = el("g", {}, P.copy);
+    el("rect", { x: 340, y: 88, width: 210, height: 42, rx: 8, fill: "var(--surface-2)", stroke: "var(--muted)", "stroke-width": 1.4 }, P.copyKey);
+    txt(P.copyKey, 352, 114, "user:language=\"German\"", { fill: "var(--ink-2)", "font-weight": 700 });
+    // template chip + arrow into the service box
+    P.tmpl = el("g", {}, svg);
+    P.tmplBox = el("rect", { x: 236, y: 154, width: 150, height: 26, rx: 13, fill: "var(--surface-2)", stroke: "var(--risk)", "stroke-width": 1.6 }, P.tmpl);
+    P.tmplTxt = txt(P.tmpl, 311, 172, "{user:language}", { "text-anchor": "middle", fill: "var(--risk)", "font-weight": 700 });
+    P.arrow = el("path", { d: "M236,167 C200,167 230,120 224,112", fill: "none", stroke: "var(--risk)", "stroke-width": 2.4, "marker-end": "" }, P.tmpl);
+    P.head = el("path", { d: "M222,108 L229,118 L218,117 Z", fill: "var(--risk)" }, P.tmpl);
+    // state_delta event chip
+    P.ev = el("g", {}, svg);
+    el("rect", { x: 0, y: 0, width: 132, height: 26, rx: 13, fill: "var(--state)" }, P.ev);
+    txt(P.ev, 66, 18, "event · state_delta", { "text-anchor": "middle", fill: "#fff", "font-weight": 700, "font-size": 12 });
+  }
+
+  function kill() { if (svg) gsap.killTweensOf([P.copyKey, P.svcKey, P.svcSlot, P.svcMiss, P.tmpl, P.ev, P.copy]); }
+
+  function paint(n, animate) {
+    kill();
+    const bug = n === 3, fixed = n >= 4;
+    const tone = fixed ? "var(--state)" : "var(--risk)";
+    [P.tmplBox, P.arrow].forEach((e) => e.setAttribute("stroke", tone));
+    P.tmplTxt.setAttribute("fill", tone);
+    P.head.setAttribute("fill", tone);
+    gsap.set(P.copy, { opacity: fixed ? 0.4 : 1 });
+    gsap.set(P.tmpl, { opacity: n >= 3 ? 1 : 0 });
+    gsap.set([P.svcSlot, P.svcMiss], { opacity: bug ? 1 : 0 });
+    if (n >= 3 && animate && bug) {
+      gsap.fromTo(P.copyKey, { opacity: 0, y: -60 }, { opacity: 1, y: 0, duration: 0.6, ease: "bounce.out" });
+      gsap.fromTo(P.tmpl, { opacity: 0 }, { opacity: 1, duration: 0.4, delay: 0.6 });
+      gsap.fromTo([P.svcSlot, P.svcMiss], { opacity: 0 }, { opacity: 1, duration: 0.3, delay: 0.9, repeat: 3, yoyo: true, onComplete: () => gsap.set([P.svcSlot, P.svcMiss], { opacity: 1 }) });
+    } else {
+      gsap.set(P.copyKey, { opacity: n >= 3 ? 1 : 0, y: 0 });
+    }
+    if (fixed && animate) {
+      gsap.set(P.svcKey, { opacity: 0 });
+      gsap.fromTo(P.ev, { x: 214, y: 0, opacity: 0 }, { keyframes: [
+        { opacity: 1, duration: 0.2 },
+        { x: 50, y: 96, duration: 0.7, ease: "power2.inOut" },
+        { opacity: 0, duration: 0.2 }] });
+      gsap.to(P.svcKey, { opacity: 1, duration: 0.35, delay: 0.95 });
+    } else {
+      gsap.set(P.ev, { x: 214, y: 0, opacity: 0 });
+      gsap.set(P.svcKey, { opacity: fixed ? 1 : 0 });
+    }
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { build(slide); paint(step || 0, false); },
+    step(slide, n, animate) { if (!svg || !slide.contains(svg)) build(slide); paint(n, animate); },
+    leave() { kill(); }
+  });
+})();
+</script>

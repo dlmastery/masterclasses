@@ -1,0 +1,33 @@
+<section class="slide tight" id="adk-c05-confirm-reply" data-tone="human" data-title="Build: the confirmation reply">
+  <style>
+    #adk-c05-confirm-reply pre.code, #adk-c05-confirm-reply code { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #adk-c05-confirm-reply .cf-head { display: flex; gap: 14px; align-items: center; font-size: 20px; color: var(--ink-2); margin: 0; }
+    #adk-c05-confirm-reply .cf-head code { font-size: 19px; color: var(--human); font-weight: 700; }
+    #adk-c05-confirm-reply table.t { width: 100%; font-size: 20px; line-height: 1.35; }
+    #adk-c05-confirm-reply table.t th, #adk-c05-confirm-reply table.t td { padding: 18px 16px; vertical-align: top; }
+    #adk-c05-confirm-reply table.t th { font-size: 19px; color: var(--ink); text-transform: none; letter-spacing: 0; }
+    #adk-c05-confirm-reply table.t td { font-family: var(--f-mono); font-size: 18px; }
+    #adk-c05-confirm-reply table.t td:first-child { width: 290px; font-weight: 700; color: var(--ink); }
+    #adk-c05-confirm-reply table.t td:nth-child(2) { width: 230px; }
+    #adk-c05-confirm-reply .cf-ok { color: var(--state); font-weight: 700; }
+    #adk-c05-confirm-reply .cf-rej { color: var(--tool); font-weight: 700; }
+    #adk-c05-confirm-reply .cf-err { color: var(--risk); font-weight: 700; }
+  </style>
+  <div class="kicker">Build</div>
+  <h2 class="title">The reply must be a JSON object, or the node raises WorkflowDataError</h2>
+  <div class="code-wrap term">
+    <div class="code-head">terminal · run from labs/adk/lab5a-refund-approval/</div>
+    <pre class="code" data-lang="bash" data-focus="1:1, 2:2"><code>$ adk run refund_confirm "A-2040 820" --session_id case-2040
+$ adk run refund_confirm '{"confirmed": true}' --session_id case-2040</code></pre>
+  </div>
+  <p class="cf-head" data-step="1">The pause is a RequestInput with id <code>wf_tool_confirmation:&lt;node_path&gt;</code></p>
+  <table class="t">
+    <thead><tr><th>manager replies</th><th>node gets</th><th>result · illustrative</th></tr></thead>
+    <tbody>
+      <tr data-step="2"><td>{"confirmed": true}</td><td>ToolConfirmation</td><td class="cf-ok">REFUNDED $820.00 on A-2040 (key refund-A-2040)</td></tr>
+      <tr data-step="3"><td>{"confirmed": false}</td><td>ToolConfirmation</td><td class="cf-rej">body skipped · {"error": "This tool call is rejected."}</td></tr>
+      <tr data-step="4"><td>yes</td><td>str</td><td class="cf-err">WorkflowDataError: A tool confirmation response must be a ToolConfirmation payload, but got str.</td></tr>
+    </tbody>
+  </table>
+  <aside class="notes">Now run the decorated node from the same lab folder. The first command pauses: node confirmation is a RequestInput whose interrupt id is wf_tool_confirmation plus the node path and whose schema is ToolConfirmation. The second command answers it. Because adk run JSON-parses the reply text, you type the JSON object as the query: {"confirmed": true} becomes a dict, the node body runs once, and the refund line comes out with its idempotency key. {"confirmed": false} is a rejection: the body does not run, and the node output is {"error": "This tool call is rejected."}. A plain yes stays a string, and the node raises WorkflowDataError with the exact text on the slide. Think of the badge reader again: it reads only badges, so a spoken "yes" at the door does nothing. A likely question: "Can I make yes work?" Not with the decorator; put a small normalizer node before it, or keep the RequestInput gate and parse the string yourself. Next: the three HITL bugs that hit this gate in practice.</aside>
+</section>

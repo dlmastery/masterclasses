@@ -1,0 +1,111 @@
+<section class="slide" id="adk-c09-lab-record" data-tone="model" data-title="Lab 9.4: Record golden chats">
+  <style>
+    #adk-c09-lab-record .c9-cap { min-height: 66px; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 9</span> Acme refund eval gate · step 4 of 15</div>
+  <h2 class="title">Record golden chats in adk web with Add current session</h2>
+  <svg class="c9-svg" id="c9w-svg" viewBox="0 0 1200 450" aria-label="The adk web dev UI. On the left a chat: the customer asks to refund A-2040, the agent calls lookup_order and escalate_to_human and answers that a supervisor will review it. On the right the Eval tab: the Add current session button is pressed, the chat becomes a row in the eval set, a second chat for A-1001 is added, and the set is saved as refund_agent/refund.evalset.json."></svg>
+  <div class="c9-cap">
+    <p data-step="1" data-until="2">Open the <b>Eval</b> tab after a good chat.</p>
+    <p data-step="2" data-until="3"><b>Add current session</b> freezes the tool calls and the answer as one case.</p>
+    <p data-step="3">Do it for A-1001 too. Review the JSON file, then keep it in git.</p>
+  </div>
+  <aside class="notes">Step four: record the golden cases. In adk web, chat once about each order: A-2040 should escalate, A-1001 should be refunded 79 dollars. Then open the Eval tab and click Add current session: ADK freezes the user turn, the tool calls and the final answer as one eval case in an .evalset.json file inside the agent folder. Read the file before you commit it: you are saying "this is the right behaviour", so a recorded mistake becomes a golden mistake. Analogy: a flight recorder; you record one good flight, and every new build must fly the same route. A likely question: "Can I write the file by hand?" Yes, and the next slide shows its four parts; recording is just faster and gets the keys right.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c09-lab-record";
+  const NS = "http://www.w3.org/2000/svg";
+  let R = null, tw = [];
+  function mk(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const [a, v] of Object.entries(attrs)) e.setAttribute(a, v);
+    if (text !== undefined) e.textContent = text;
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  const CH = 11.4; // mono char width at 19px
+  function bub(p, x, y, tone, lines, solid) {
+    const g = mk("g", {}, p);
+    const w = Math.max(...lines.map((l) => l.length)) * CH + 30, h = 22 + lines.length * 26;
+    mk("rect", { x, y, width: w, height: h, rx: 12, fill: solid ? `var(--${tone})` : `var(--${tone}-soft)`, stroke: `var(--${tone})`, "stroke-width": 2 }, g);
+    lines.forEach((t, i) => mk("text", { x: x + 15, y: y + 31 + i * 26, "font-size": 19, "font-weight": 600, fill: solid ? "#fff" : "var(--ink)" }, g, t));
+    return g;
+  }
+  function build(svg) {
+    svg.innerHTML = "";
+    R = { svg };
+    mk("rect", { x: 1, y: 1, width: 1198, height: 448, rx: 16, fill: "var(--surface)", stroke: "var(--line-2)", "stroke-width": 2 }, svg);
+    mk("text", { x: 24, y: 40, "font-size": 20, "font-weight": 700, fill: "var(--model)" }, svg, "adk web · localhost:8000");
+    R.tabs = [["Chat", 760], ["Eval", 880], ["Trace", 1000]].map(([t, x]) => {
+      const g = mk("g", {}, svg);
+      const r = mk("rect", { x, y: 12, width: 104, height: 38, rx: 9, fill: "none", stroke: "var(--line-2)", "stroke-width": 1.6 }, g);
+      const tx = mk("text", { x: x + 52, y: 38, "text-anchor": "middle", "font-size": 18, "font-weight": 700, fill: "var(--muted)" }, g, t);
+      return { r, tx };
+    });
+    mk("line", { x1: 0, y1: 64, x2: 1200, y2: 64, stroke: "var(--line)", "stroke-width": 1.5 }, svg);
+    R.chat = [
+      bub(svg, 24, 84, "human", ["Refund A-2040, the TV is broken."]),
+      bub(svg, 24, 146, "tool", ["lookup_order(A-2040)"]),
+      bub(svg, 24, 208, "tool", ["escalate_to_human(A-2040)"]),
+      bub(svg, 24, 270, "agent", ["Above 500 USD: ticket ESC-A-2040.", "A supervisor will review it."], true),
+    ];
+    mk("line", { x1: 600, y1: 76, x2: 600, y2: 430, stroke: "var(--line)", "stroke-width": 1.5 }, svg);
+    mk("text", { x: 630, y: 104, "font-size": 19, "font-weight": 700, fill: "var(--ink)" }, svg, "eval set: refund_golden");
+    R.btn = mk("g", {}, svg);
+    mk("rect", { x: 630, y: 124, width: 300, height: 48, rx: 10, fill: "var(--model)" }, R.btn);
+    mk("text", { x: 780, y: 155, "text-anchor": "middle", "font-size": 19, "font-weight": 700, fill: "#fff" }, R.btn, "+ Add current session");
+    const row = (y, t) => {
+      const g = mk("g", {}, svg);
+      mk("rect", { x: 630, y, width: 546, height: 50, rx: 10, fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 2 }, g);
+      mk("text", { x: 650, y: y + 32, "font-size": 19, "font-weight": 700, fill: "var(--ink)" }, g, t);
+      return g;
+    };
+    R.row1 = row(194, "✓ large_refund_escalates · A-2040");
+    R.row2 = row(258, "✓ small_refund · A-1001 · $79");
+    R.file = mk("g", {}, svg);
+    mk("rect", { x: 630, y: 336, width: 546, height: 64, rx: 10, fill: "var(--surface)", stroke: "var(--state)", "stroke-width": 2.4, "stroke-dasharray": "7 5" }, R.file);
+    mk("text", { x: 650, y: 376, "font-size": 19, "font-weight": 700, fill: "var(--state)" }, R.file, "→ refund_agent/refund.evalset.json");
+    R.ghost = mk("rect", { x: 16, y: 78, width: 470, height: 266, rx: 14, fill: "none", stroke: "var(--model)", "stroke-width": 3 }, svg);
+  }
+  function clear() { tw.forEach((t) => t.kill()); tw = []; }
+  function render(slide, n, animate) {
+    const svg = slide.querySelector("#c9w-svg");
+    if (!svg) return;
+    if (!R || R.svg !== svg || !svg.childElementCount) build(svg);
+    clear();
+    gsap.killTweensOf([R.btn, R.row1, R.row2, R.file, R.ghost]);
+    const ev = n >= 1;
+    R.tabs.forEach((t, i) => {
+      const on = i === (ev ? 1 : 0);
+      t.r.setAttribute("fill", on ? "var(--model-soft)" : "none");
+      t.r.setAttribute("stroke", on ? "var(--model)" : "var(--line-2)");
+      t.tx.setAttribute("fill", on ? "var(--model)" : "var(--muted)");
+    });
+    gsap.set(R.btn, { opacity: ev ? 1 : 0.3, scale: 1, transformOrigin: "50% 50%" });
+    gsap.set(R.ghost, { opacity: 0, x: 0, y: 0, scaleX: 1, scaleY: 1 });
+    if (n === 2 && animate) {
+      gsap.set([R.row1, R.row2, R.file], { opacity: 0 });
+      tw.push(gsap.fromTo(R.btn, { scale: 1 }, { scale: 0.93, duration: 0.12, yoyo: true, repeat: 1, delay: 0.25 }));
+      tw.push(gsap.fromTo(R.ghost, { opacity: 1, x: 0, y: 0, scaleX: 1, scaleY: 1, transformOrigin: "0 0" },
+        { x: 614, y: 116, scaleX: 546 / 470, scaleY: 50 / 266, opacity: 0.3, duration: 0.85, delay: 0.5, ease: "power3.inOut" }));
+      tw.push(gsap.to(R.ghost, { opacity: 0, duration: 0.2, delay: 1.35 }));
+      tw.push(gsap.fromTo(R.row1, { opacity: 0, x: -10 }, { opacity: 1, x: 0, duration: 0.35, delay: 1.3 }));
+    } else if (n === 3 && animate) {
+      gsap.set(R.row1, { opacity: 1, x: 0 });
+      gsap.set([R.row2, R.file], { opacity: 0 });
+      tw.push(gsap.fromTo(R.row2, { opacity: 0, x: -10 }, { opacity: 1, x: 0, duration: 0.35, delay: 0.2 }));
+      tw.push(gsap.fromTo(R.file, { opacity: 0, y: 8 }, { opacity: 1, y: 0, duration: 0.4, delay: 0.7 }));
+    } else {
+      gsap.set(R.row1, { opacity: n >= 2 ? 1 : 0, x: 0 });
+      gsap.set(R.row2, { opacity: n >= 3 ? 1 : 0, x: 0 });
+      gsap.set(R.file, { opacity: n >= 3 ? 1 : 0, y: 0 });
+    }
+  }
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { clear(); },
+  });
+})();
+</script>

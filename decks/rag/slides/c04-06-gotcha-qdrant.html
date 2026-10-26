@@ -1,0 +1,255 @@
+<section class="slide tight" id="rag-c04-gotcha-qdrant" data-tone="agent" data-title="Gotcha: Qdrant fusion defaults">
+  <style>
+    #rag-c04-gotcha-qdrant .gq-main { display: grid; grid-template-columns: 800px 1fr; gap: 24px; align-items: start; }
+    #rag-c04-gotcha-qdrant .gq-left, #rag-c04-gotcha-qdrant .gq-right { gap: 12px; min-width: 0; }
+    #rag-c04-gotcha-qdrant .gotcha { font-size: 14px; line-height: 1.36; padding: 9px 14px; grid-template-columns: 70px 1fr; gap: 3px 10px; }
+    #rag-c04-gotcha-qdrant .gotcha > b { font-size: 11.5px; }
+    #rag-c04-gotcha-qdrant .gotcha .gh { grid-column: 1 / -1; font: 700 12.5px/1.3 var(--f-mono); color: var(--ink); letter-spacing: .03em; margin-bottom: 2px; }
+    #rag-c04-gotcha-qdrant .gotcha q { font-style: italic; color: var(--ink); }
+    #rag-c04-gotcha-qdrant .gotcha .em { font: 500 11.5px/1.4 var(--f-mono); color: var(--risk); background: color-mix(in oklab, var(--risk) 7%, transparent); padding: 1px 5px; border-radius: 5px; }
+    #rag-c04-gotcha-qdrant .gq-left > .code-wrap { width: 100%; box-sizing: border-box; }
+    #rag-c04-gotcha-qdrant .code-wrap .code-head { padding: 8px 14px; font-size: 13.5px; }
+    #rag-c04-gotcha-qdrant pre.code.gq-c { font-size: 12.2px; line-height: 1.5; padding: 10px 14px 12px; }
+    #rag-c04-gotcha-qdrant .gq-svg { display: block; width: 800px; height: 270px; overflow: visible; }
+    #rag-c04-gotcha-qdrant .gq-svg text { font-family: var(--f-mono); }
+    #rag-c04-gotcha-qdrant .gq-svg .pn { fill: var(--surface); stroke: var(--line-2); stroke-width: 1; }
+    #rag-c04-gotcha-qdrant .gq-svg .hd { font-size: 11.5px; font-weight: 700; fill: var(--muted); letter-spacing: .04em; }
+    #rag-c04-gotcha-qdrant .gq-svg .ax { stroke: var(--ink-2); stroke-width: 1.2; }
+    #rag-c04-gotcha-qdrant .gq-svg .gr { stroke: var(--line-2); stroke-width: 1; }
+    #rag-c04-gotcha-qdrant .gq-svg .tk { font-size: 10px; fill: var(--muted); }
+    #rag-c04-gotcha-qdrant .gq-svg .sm { font-size: 11.5px; fill: var(--ink-2); }
+    #rag-c04-gotcha-qdrant .gq-svg .bx { fill: var(--surface-2); stroke: var(--line-2); stroke-width: 1.2; }
+    #rag-c04-gotcha-qdrant .gq-svg .r { fill: var(--risk); font-weight: 700; }
+    #rag-c04-gotcha-qdrant .gq-svg .g { fill: var(--state); font-weight: 700; }
+    #rag-c04-gotcha-qdrant .gq-svg .t { fill: var(--tool); font-weight: 700; }
+    #rag-c04-gotcha-qdrant .gq-cites { display: flex; flex-wrap: wrap; gap: 8px; }
+    #rag-c04-gotcha-qdrant .gq-cites .cite { font-size: 13px; padding: 5px 10px 5px 8px; }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> Qdrant 1.20</div>
+  <h2 class="title">Qdrant fuses with k=2 by default, and a short prefetch returns nothing</h2>
+  <div class="gq-main fill">
+    <div class="stack gq-left">
+      <svg class="gq-svg" viewBox="0 0 800 270" aria-label="Panel 1: RRF score curves for k=2 and k=60 and a fused list that reorders. Panel 2: a prefetch of 5 feeds a main query of limit 10 and returns an empty list. Panel 3: client 1.17 and server 1.13 version mismatch.">
+        <g id="gq-p1">
+          <rect class="pn" x="0" y="0" width="396" height="270" rx="12"/>
+          <text class="hd" x="12" y="20">1 · RRF SCORE 1/(k+rank), ÷ RANK-1 SCORE</text>
+          <g id="gq-chart"></g>
+          <g id="gq-list"></g>
+        </g>
+        <g id="gq-p2">
+          <rect class="pn" x="408" y="0" width="190" height="270" rx="12"/>
+          <text class="hd" x="420" y="20">2 · PREFETCH LIMIT</text>
+          <g id="gq-fun"></g>
+        </g>
+        <g id="gq-p3">
+          <rect class="pn" x="610" y="0" width="190" height="270" rx="12"/>
+          <text class="hd" x="622" y="20">3 · VERSIONS</text>
+          <g id="gq-ver"></g>
+        </g>
+      </svg>
+      <div class="code-wrap good">
+        <div class="code-head">northwind_rag/lab4_qdrant.py · server mode, changed lines · qdrant-client 1.20.0</div>
+        <pre class="code gq-c" data-lang="python" data-focus="1:13, 2:8-12, 3:1-4"><code>from qdrant_client import QdrantClient, models
+client = QdrantClient(url="http://localhost:6333")       # integration tests: never only ":memory:"
+assert client.info().version.startswith("1.20"), "client and server minor versions differ"
+# docker run -p 6333:6333 qdrant/qdrant:v1.20.0          # the same server version as prod
+# model, BGE_QUERY, create_collection and upsert: unchanged from Lab 4 step 2
+def qdrant_hybrid(query: str, limit: int = 10, offset: int = 0, k_rrf: int = 60) -> list[str]:
+    q_vec = model.encode_query(query, prompt=BGE_QUERY, normalize_embeddings=True).tolist()
+    depth = limit + offset + 10                          # each prefetch >= limit + offset
+    res = client.query_points(
+        collection_name="northwind_kb",
+        prefetch=[models.Prefetch(query=models.TextQuery(text=query), using="text", limit=depth),
+                  models.Prefetch(query=q_vec, using="dense", limit=depth)],
+        query=models.RrfQuery(rrf=models.Rrf(k=k_rrf, weights=[3.0, 1.0])),  # weights: server >= 1.17
+        limit=limit, offset=offset)
+    return [p.payload["chunk_id"] for p in res.points]</code></pre>
+      </div>
+    </div>
+    <div class="stack gq-right">
+      <div class="gotcha" data-step="1">
+        <span class="gh">1 · The fusion constant</span>
+        <b>Symptom</b><span>You switch engines and the rankings change. One list's top hit dominates.</span>
+        <b class="why">Cause</b><span><code>hybrid/fusion.py</code>: <code>DEFAULT_RANKING_CONSTANT_K = 2</code>. The paper uses 60. With k=2, rank 1 scores 1/3 and rank 10 scores 1/12. With k=60 the curve is flat, so agreement between lists wins.</span>
+        <b class="fix">Fix</b><span>Pin <code>Rrf(k=60)</code> or your tuned k in code and in config review.</span>
+      </div>
+      <div class="gotcha" data-step="2">
+        <span class="gh">2 · The prefetch depth</span>
+        <b>Symptom</b><span>An empty result, although both prefetches return points.</span>
+        <b class="why">Cause</b><span>Qdrant docs: the prefetch limit must be <q>at least limit + offset of the main query</q>, <q>otherwise you can get an empty result</q>.</span>
+        <b class="fix">Fix</b><span>Set each prefetch <code>limit</code> &ge; <code>limit + offset</code>.</span>
+      </div>
+      <div class="gotcha" data-step="3">
+        <span class="gh">3 · Client and server versions (qdrant#8436)</span>
+        <b>Symptom</b><span>Weighted RRF fails: <span class="em">400 - {"status":{"error":"Format error in JSON body: Expected some form of vector, id, or a type of query at line...</span></span>
+        <b class="why">Cause</b><span>Server 1.13.2, client 1.17.x. Weighted RRF needs server v1.17.0+. Local <code>":memory:"</code> mode also differs: it ignores a top-level <code>query_filter</code> on fusion with prefetches (#1372).</span>
+        <b class="fix">Fix</b><span>Pin client minor = server minor. Check <code>client.info().version</code> at startup. Run integration tests on <code>qdrant/qdrant</code> at the prod version.</span>
+      </div>
+      <div class="gq-cites">
+        <a class="cite doc" href="https://qdrant.tech/documentation/concepts/hybrid-queries/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Hybrid and Multi-Stage Queries</a>
+        <a class="cite repo" href="https://github.com/qdrant/qdrant/issues/8436" target="_blank" rel="noopener"><b>Issue</b>&nbsp;qdrant#8436</a>
+        <a class="cite repo" href="https://github.com/qdrant/qdrant-client/issues?q=is%3Aissue+%22Local+mode%22" target="_blank" rel="noopener"><b>Issues</b>&nbsp;qdrant-client local mode</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Three Qdrant defaults change hybrid results without any error, so check them before you trust a benchmark. First, Qdrant's RRF constant is 2, not the 60 from the paper: with k=2 the top hit of one list wins, as the worked example shows, where chunk A is first in BM25 only and still beats chunk B, which is fifth in both lists. Second, every prefetch must return at least limit plus offset points, or the main query can come back empty. Think of the prefetch as a funnel: if it is narrower than the bucket you want to fill, you get nothing out. Third, pin the client and server to the same minor version and test against a real server in Docker, because weighted RRF needs server 1.17 and local mode behaves differently. A likely question is whether k=60 is always right: no, tune k on your labelled set, but write the value down explicitly. Hand-off: the next slide shows the same kind of silent bug on the reranker side of Lab 4.</aside>
+</section>
+<script>
+(() => {
+  const ID = "rag-c04-gotcha-qdrant";
+  const NS = "http://www.w3.org/2000/svg";
+  // chart geometry (panel 1)
+  const X0 = 44, X1 = 380, Y0 = 36, Y1 = 150;
+  const X = (r) => X0 + ((r - 1) / 19) * (X1 - X0);
+  const Y = (v) => Y1 - v * (Y1 - Y0);
+  const rel = (k, r) => (k + 1) / (k + r);            // (1/(k+r)) / (1/(k+1))
+  // worked example: A is rank 1 in BM25 only, B is rank 5 in both lists
+  const SC = { 60: { A: 1 / 61, B: 2 / 65 }, 2: { A: 1 / 3, B: 2 / 7 } };
+  let tl = null;
+  const mk = (p, tag, a, txt) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in a) e.setAttribute(k, a[k]);
+    if (txt != null) e.textContent = txt;
+    p.appendChild(e); return e;
+  };
+  const path = (k) => Array.from({ length: 20 }, (_, i) => `${i ? "L" : "M"}${X(i + 1).toFixed(1)} ${Y(rel(k, i + 1)).toFixed(1)}`).join(" ");
+  function build(slide) {
+    const svg = slide.querySelector(".gq-svg");
+    if (svg._b) return svg._b;
+    const ch = svg.querySelector("#gq-chart"), ls = svg.querySelector("#gq-list");
+    const fu = svg.querySelector("#gq-fun"), ve = svg.querySelector("#gq-ver");
+    // panel 1: axes
+    [0, 0.5, 1].forEach((v) => {
+      mk(ch, "line", { x1: X0, x2: X1, y1: Y(v), y2: Y(v), class: "gr" });
+      mk(ch, "text", { x: X0 - 6, y: Y(v) + 3, "text-anchor": "end", class: "tk" }, v.toFixed(1));
+    });
+    [1, 5, 10, 15, 20].forEach((r) => mk(ch, "text", { x: X(r), y: Y1 + 14, "text-anchor": "middle", class: "tk" }, r));
+    mk(ch, "line", { x1: X0, x2: X1, y1: Y1, y2: Y1, class: "ax" });
+    mk(ch, "line", { x1: X0, x2: X0, y1: Y0 - 4, y2: Y1, class: "ax" });
+    mk(ch, "text", { x: (X(15) + X(20)) / 2, y: Y1 + 14, "text-anchor": "middle", class: "tk" }, "rank →");
+    const c60 = mk(ch, "path", { d: path(60), fill: "none", stroke: "var(--state)", "stroke-width": 3, "stroke-linecap": "round" });
+    const c2 = mk(ch, "path", { d: path(2), fill: "none", stroke: "var(--risk)", "stroke-width": 3, "stroke-linecap": "round" });
+    const l60 = mk(ch, "text", { x: X1, y: Y(rel(60, 20)) - 8, "text-anchor": "end", class: "sm g" }, "k=60 (paper)");
+    const l2 = mk(ch, "text", { x: X(4) + 6, y: Y(rel(2, 4)) - 6, class: "sm r" }, "k=2 (Qdrant default)");
+    const dot = mk(ch, "circle", { cx: X(10), cy: Y(rel(2, 10)), r: 5, fill: "var(--risk)" });
+    const dl = mk(ch, "text", { x: X(10) - 8, y: Y(rel(2, 10)) + 18, "text-anchor": "end", class: "tk" }, "rank 10: 1/12 vs 1/3");
+    // panel 1: fused list (worked example)
+    mk(ls, "text", { x: 12, y: 186, class: "tk" }, "worked example · fused order");
+    const tg = mk(ls, "g", {});
+    const tgr = mk(tg, "rect", { x: 288, y: 174, width: 96, height: 20, rx: 10, fill: "var(--state-soft)", stroke: "var(--state)" });
+    const tgt = mk(tg, "text", { x: 336, y: 188, "text-anchor": "middle", class: "sm g" }, "k = 60");
+    const row = (name, desc) => {
+      const g = mk(ls, "g", {});
+      mk(g, "rect", { x: 12, y: 0, width: 372, height: 28, rx: 7, class: "bx" });
+      mk(g, "text", { x: 24, y: 18, class: "sm", "font-weight": 700 }, name);
+      mk(g, "text", { x: 48, y: 18, class: "sm" }, desc);
+      const s = mk(g, "text", { x: 372, y: 18, "text-anchor": "end", class: "sm g" }, "");
+      return { g, s };
+    };
+    const rA = row("A", "BM25 #1, missing from dense");
+    const rB = row("B", "#5 in BM25 and #5 in dense");
+    // panel 2: funnel
+    const pf = [0, 1].map((i) => {
+      const g = mk(fu, "g", {});
+      mk(g, "rect", { x: 420 + i * 86, y: 36, width: 80, height: 44, rx: 8, class: "bx" });
+      mk(g, "text", { x: 460 + i * 86, y: 54, "text-anchor": "middle", class: "tk" }, i ? "dense" : "TextQuery");
+      mk(g, "text", { x: 460 + i * 86, y: 70, "text-anchor": "middle", class: "sm t" }, "limit=5");
+      return g;
+    });
+    const funnel = mk(fu, "path", { d: "M424 96 L590 96 L536 150 L478 150 Z", fill: "color-mix(in oklab, var(--tool) 10%, transparent)", stroke: "var(--tool)", "stroke-width": 1.4 });
+    const main = mk(fu, "g", {});
+    mk(main, "rect", { x: 430, y: 160, width: 146, height: 40, rx: 8, class: "bx" });
+    mk(main, "text", { x: 503, y: 177, "text-anchor": "middle", class: "tk" }, "main query");
+    mk(main, "text", { x: 503, y: 192, "text-anchor": "middle", class: "sm" }, "limit=10 offset=0");
+    const dots = Array.from({ length: 10 }, (_, i) => mk(fu, "circle", { cx: 440 + (i % 5) * 16 + (i >= 5 ? 86 : 0), cy: 88, r: 4, fill: i >= 5 ? "var(--state)" : "var(--tool)" }));
+    const empty = mk(fu, "text", { x: 503, y: 226, "text-anchor": "middle", class: "sm r", "font-size": 15 }, "[]  can be empty");
+    const fixf = mk(fu, "text", { x: 503, y: 252, "text-anchor": "middle", class: "sm g" }, "prefetch ≥ limit+offset");
+    // panel 3: versions
+    const chip = (y, label, cls) => {
+      const g = mk(ve, "g", {});
+      mk(g, "rect", { x: 622, y, width: 166, height: 34, rx: 9, class: "bx" });
+      mk(g, "text", { x: 705, y: y + 22, "text-anchor": "middle", class: "sm " + cls }, label);
+      return g;
+    };
+    const cli = chip(40, "client 1.17.x", "t");
+    const srv = chip(110, "server 1.13.2", "t");
+    const bad = mk(ve, "g", {});
+    mk(bad, "circle", { cx: 705, cy: 92, r: 13, fill: "var(--risk)" });
+    mk(bad, "text", { x: 705, y: 97, "text-anchor": "middle", fill: "#fff", "font-size": 15, "font-weight": 700 }, "≠");
+    const v1 = mk(ve, "text", { x: 705, y: 172, "text-anchor": "middle", class: "sm r" }, "weighted RRF → 400");
+    const v2 = mk(ve, "text", { x: 705, y: 192, "text-anchor": "middle", class: "tk" }, "needs server ≥ 1.17.0");
+    const v3 = mk(ve, "text", { x: 705, y: 228, "text-anchor": "middle", class: "sm t" }, ":memory: ≠ server");
+    const v4 = mk(ve, "text", { x: 705, y: 248, "text-anchor": "middle", class: "tk" }, "test on Docker, prod version");
+    svg._b = { c60, c2, l60, l2, dot, dl, tg, tgr, tgt, rA, rB, pf, funnel, main, dots, empty, fixf, cli, srv, bad, v1, v2, v3, v4,
+      L60: c60.getTotalLength(), L2: c2.getTotalLength() };
+    return svg._b;
+  }
+  function setList(b, k) {
+    const s = SC[k], aTop = s.A > s.B;
+    gsap.set(b.rA.g, { y: aTop ? 200 : 234 });
+    gsap.set(b.rB.g, { y: aTop ? 234 : 200 });
+    b.rA.s.textContent = s.A.toFixed(k === 2 ? 3 : 4);
+    b.rB.s.textContent = s.B.toFixed(k === 2 ? 3 : 4);
+    [b.rA.s, b.rB.s].forEach((e) => e.setAttribute("class", "sm " + (k === 2 ? "r" : "g")));
+    b.tgt.textContent = k === 2 ? "k = 2" : "k = 60";
+    b.tgt.setAttribute("class", "sm " + (k === 2 ? "r" : "g"));
+    b.tgr.setAttribute("stroke", k === 2 ? "var(--risk)" : "var(--state)");
+    b.tgr.setAttribute("fill", k === 2 ? "var(--risk-soft)" : "var(--state-soft)");
+  }
+  function allEls(b) {
+    return [b.c60, b.c2, b.l60, b.l2, b.dot, b.dl, b.tg, b.rA.g, b.rB.g, ...b.pf, b.funnel, b.main, ...b.dots, b.empty, b.fixf, b.cli, b.srv, b.bad, b.v1, b.v2, b.v3, b.v4];
+  }
+  function render(slide, n, animate) {
+    const b = build(slide);
+    if (tl) { tl.kill(); tl = null; }
+    allEls(b).forEach((e) => gsap.killTweensOf(e));
+    // final state for step n
+    const p1 = n >= 1, p2 = n >= 2, p3 = n >= 3;
+    gsap.set(b.c60, { autoAlpha: p1 ? 1 : 0, strokeDasharray: b.L60, strokeDashoffset: 0 });
+    gsap.set(b.c2, { autoAlpha: p1 ? 1 : 0, strokeDasharray: b.L2, strokeDashoffset: 0 });
+    gsap.set([b.l60, b.l2, b.dot, b.dl, b.tg, b.rA.g, b.rB.g], { autoAlpha: p1 ? 1 : 0 });
+    setList(b, p1 ? 2 : 60);
+    gsap.set([...b.pf, b.funnel, b.main, b.fixf], { autoAlpha: p2 ? 1 : 0 });
+    gsap.set(b.dots, { autoAlpha: 0, x: 0, y: 0 });             // the dots only exist while the funnel drains
+    gsap.set(b.empty, { autoAlpha: p2 ? 1 : 0, scale: 1, transformOrigin: "50% 50%" });
+    gsap.set([b.cli, b.srv, b.v1, b.v2, b.v3, b.v4], { autoAlpha: p3 ? 1 : 0, x: 0 });
+    gsap.set(b.bad, { autoAlpha: p3 ? 1 : 0, scale: 1, transformOrigin: "705px 92px" });
+    if (!animate || n < 1 || n > 3) return;
+    tl = gsap.timeline({ delay: 0.3 });
+    if (n === 1) {
+      setList(b, 60);
+      gsap.set([b.l60, b.l2, b.dot, b.dl], { autoAlpha: 0 });
+      tl.fromTo(b.c60, { strokeDashoffset: b.L60 }, { strokeDashoffset: 0, duration: 0.8, ease: "power1.inOut" })
+        .to(b.l60, { autoAlpha: 1, duration: 0.25 })
+        .fromTo(b.c2, { strokeDashoffset: b.L2 }, { strokeDashoffset: 0, duration: 0.8, ease: "power1.inOut" })
+        .to([b.l2, b.dot, b.dl], { autoAlpha: 1, duration: 0.25 })
+        .add(() => { b.tgt.textContent = "k = 2"; b.tgt.setAttribute("class", "sm r"); b.tgr.setAttribute("stroke", "var(--risk)"); b.tgr.setAttribute("fill", "var(--risk-soft)"); }, "+=0.5")
+        .to(b.rA.g, { y: 200, duration: 0.6, ease: "power2.inOut" })
+        .to(b.rB.g, { y: 234, duration: 0.6, ease: "power2.inOut" }, "<")
+        .add(() => setList(b, 2));
+    }
+    if (n === 2) {
+      gsap.set(b.empty, { autoAlpha: 0 });
+      gsap.set(b.dots, { y: 0, autoAlpha: 1 });
+      tl.to(b.dots, { y: 76, autoAlpha: 0, duration: 0.7, ease: "power2.in", stagger: 0.05 })
+        .fromTo(b.empty, { autoAlpha: 0, scale: 0.4 }, { autoAlpha: 1, scale: 1, duration: 0.45, ease: "back.out(2.4)" });
+    }
+    if (n === 3) {
+      gsap.set([b.bad, b.v1, b.v2, b.v3, b.v4], { autoAlpha: 0 });
+      tl.fromTo(b.cli, { x: -30 }, { x: 0, duration: 0.4 })
+        .fromTo(b.srv, { x: 30 }, { x: 0, duration: 0.4 }, "<")
+        .fromTo(b.bad, { autoAlpha: 0, scale: 0 }, { autoAlpha: 1, scale: 1, duration: 0.45, ease: "back.out(2.6)" })
+        .to([b.v1, b.v2], { autoAlpha: 1, duration: 0.3 })
+        .to([b.v3, b.v4], { autoAlpha: 1, duration: 0.3 }, "+=0.2");
+    }
+  }
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) {
+      if (tl) { tl.kill(); tl = null; }
+      if (slide) { const s = slide.querySelector(".gq-svg"); if (s && s._b) allEls(s._b).forEach((e) => gsap.killTweensOf(e)); }
+    }
+  });
+})();
+</script>

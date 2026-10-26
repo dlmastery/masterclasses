@@ -1,0 +1,161 @@
+<section class="slide" id="rag-interview-c05-wb-production" data-tone="risk" data-title="Whiteboard: 50M-doc RAG under 1 s">
+  <style>
+    #rag-interview-c05-wb-production .wbp-grid { display: grid; grid-template-columns: 900px 1fr; gap: 30px; }
+    #rag-interview-c05-wb-production .diagram .node { min-width: 0; padding: 11px 14px; }
+    #rag-interview-c05-wb-production .diagram .node .nt { font-size: 17.5px; }
+    #rag-interview-c05-wb-production .diagram .node .ns { font-size: 12.5px; }
+    #rag-interview-c05-wb-production .wbp-left { gap: 12px; }
+    #rag-interview-c05-wb-production #wbp-svg { display: block; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+    #rag-interview-c05-wb-production #wbp-svg text { font-family: var(--f-mono); }
+    #rag-interview-c05-wb-production .prompt-card p { font-size: 16px; line-height: 1.4; margin: 0; }
+    #rag-interview-c05-wb-production ol.seq { gap: 8px; }
+    #rag-interview-c05-wb-production ol.seq > li { font-size: 15px; line-height: 1.36; padding-left: 42px; color: var(--ink-2); }
+    #rag-interview-c05-wb-production ol.seq > li::before { width: 28px; height: 28px; font-size: 13px; }
+    #rag-interview-c05-wb-production ol.seq code { font-size: .82em; }
+    #rag-interview-c05-wb-production table.t { font-size: 13.5px; line-height: 1.25; }
+    #rag-interview-c05-wb-production table.t td { padding: 5px 8px; }
+    #rag-interview-c05-wb-production table.t td:first-child { font-size: 13px; }
+    #rag-interview-c05-wb-production table.t td:last-child { font-family: var(--f-mono); color: var(--ink); white-space: nowrap; }
+    #rag-interview-c05-wb-production .wbp-lane { position: absolute; width: 220px; text-align: right; font: 700 14px/1.35 var(--f-mono); color: var(--risk); }
+    #rag-interview-c05-wb-production .ref-h { font: 700 16px/1.2 var(--f-body); color: var(--ink); margin: 0 0 6px; }
+    #rag-interview-c05-wb-production .wbp-cites { display: flex; flex-wrap: wrap; gap: 8px; }
+    #rag-interview-c05-wb-production .wbp-cites .cite { font-size: 13px; }
+  </style>
+  <div class="kicker"><span class="pill">Whiteboard</span> system design</div>
+  <h2 class="title">RAG for 50M documents, p95 under 1 s, per-user ACLs</h2>
+  <div class="wbp-grid fill">
+    <div class="stack wbp-left">
+      <div class="diagram" id="wbp-dg" style="width:900px;height:378px"
+           data-wires="user>auth@1:tl:flow{human}; auth>cache@2:rl:flow{state}; cache>ret@2:rt:flow{state} [miss]; index>ret@2:lr{state}; ret>rr@3:lr:flow{agent} [top 100]; rr>llm@4:lr:flow{model} [top 10]; llm>user@4:tb:flow{human} [stream]; cache>user@4:br:dash{state} [hit ~30 ms]; ingest>index@5:tb:dash{tool} [nightly diff]; gate>ret@6:tb:dash{risk} [blocks deploy]">
+        <div class="group g-risk" style="left:470px;top:294px;width:430px;height:84px" data-step="5"></div>
+        <div class="wbp-lane" style="left:236px;top:318px" data-step="5">release lane<br>offline · CI + nightly</div>
+        <div class="node n-human pill" id="user" style="left:0;top:70px;width:160px" data-step="1" data-fx="pop"><span class="nt">User</span><span class="ns">OIDC groups</span></div>
+        <div class="node n-tool" id="auth" style="left:245px;top:0;width:160px" data-step="1" data-fx="pop" data-on="1:hot 2:lit"><span class="nt">Auth</span><span class="ns">end-user identity</span></div>
+        <div class="node n-state" id="cache" style="left:490px;top:0;width:160px" data-step="2" data-fx="pop" data-on="4:hot"><span class="nt">Semantic cache</span><span class="ns">per tenant</span></div>
+        <div class="node n-model" id="llm" style="left:0;top:180px;width:160px" data-step="4" data-fx="pop" data-on="4:hot"><span class="nt">Prompt + LLM</span><span class="ns">cached prefix</span></div>
+        <div class="node n-model" id="rr" style="left:245px;top:180px;width:160px" data-step="3" data-fx="pop" data-on="3:hot 4:lit"><span class="nt">Reranker</span><span class="ns">small, fast</span></div>
+        <div class="node n-agent" id="ret" style="left:490px;top:180px;width:160px" data-step="2" data-fx="pop" data-on="2:hot 3:lit"><span class="nt">Hybrid search</span><span class="ns">BM25 + ANN + ACL</span></div>
+        <div class="node n-state" id="index" style="left:740px;top:180px;width:160px" data-step="2" data-fx="pop" data-on="2:lit 5:hot"><span class="nt">Index</span><span class="ns">50M docs + ACLs</span></div>
+        <div class="node n-risk" id="gate" style="left:490px;top:306px;width:160px;border-style:dashed" data-step="6" data-fx="pop" data-on="6:hot"><span class="nt">Eval gate</span><span class="ns">CI, before deploy</span></div>
+        <div class="node n-tool" id="ingest" style="left:740px;top:306px;width:160px" data-step="5" data-fx="pop" data-on="5:hot"><span class="nt">Ingest</span><span class="ns">content hash</span></div>
+      </div>
+      <svg id="wbp-svg" viewBox="0 0 900 176" width="900" height="176" aria-label="Example latency budget waterfall with headroom that ends at the 1 second p95 line"></svg>
+      <div class="wbp-cites" data-step="6">
+        <a class="cite doc" href="https://dropbox.tech/machine-learning/vp-josh-clemm-knowledge-graphs-mcp-and-dspy-dash" target="_blank" rel="noopener"><b>Dropbox</b>&nbsp;Dash, Jan 2026</a>
+        <a class="cite doc" href="https://www.notion.com/blog/two-years-of-vector-search-at-notion" target="_blank" rel="noopener"><b>Notion</b>&nbsp;Vector search</a>
+        <a class="cite doc" href="https://turbopuffer.com/customers/atlassian" target="_blank" rel="noopener"><b>turbopuffer</b>&nbsp;Atlassian Rovo</a>
+        <a class="cite doc" href="https://docs.cloud.google.com/vertex-ai/generative-ai/docs/rag-engine/retrieval-and-ranking" target="_blank" rel="noopener"><b>Docs</b>&nbsp;RAG Engine ranking</a>
+      </div>
+    </div>
+
+    <div class="stack" style="gap:12px">
+      <div class="panel k-human tight prompt-card">
+        <h4 style="margin:0 0 6px">Prompt</h4>
+        <p>Design enterprise RAG over <b>50M documents</b> from Drive, Jira and email. <b>p95 time-to-first-token under 1 s</b>, per-user permissions, nightly updates, a weekly release cadence.</p>
+      </div>
+      <ol class="seq">
+        <li data-step="1"><b>One permission-aware index</b>, not federation: Dropbox Dash measured federated agent queries at up to <b>45 s</b>.</li>
+        <li data-step="2"><b>Hybrid BM25 + ANN</b> (HNSW or DiskANN); 768-dim int8 vectors, 4x smaller. ACL pre-filter in both.</li>
+        <li data-step="3"><b>RRF</b> (reciprocal rank fusion) of both ranks, then a <b>small reranker</b>: top 100 in, top 10 out.</li>
+        <li data-step="4"><b>Tenant-partitioned cache</b>: a hit returns at once. Cached prompt prefix.</li>
+        <li data-step="5"><b>Ingest by content hash</b>; <code>embedding_version</code> per vector; blue/green upgrades.</li>
+        <li data-step="6"><b>Eval gate in CI</b> blocks the deploy: recall@5, canaries, judge NaN rate.</li>
+      </ol>
+      <div class="push" data-step="3">
+        <h4 class="ref-h">Published reference latencies · mixed percentiles</h4>
+        <table class="t">
+          <tbody>
+            <tr><td>Notion · vector search</td><td>p50 50-70 ms</td></tr>
+            <tr><td>Atlassian Rovo · search</td><td>p90 60 ms</td></tr>
+            <tr><td>Google ranking API · rerank</td><td>&lt; 100 ms</td></tr>
+            <tr><td>Dropbox Dash · end to end</td><td>95%+ in 1-2 s</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    Read the prompt aloud and let the candidate draw before you reveal each step. This is the classic system-design question: a strong answer builds one permission-aware index instead of federating live API calls, because Dropbox measured federated agent queries at up to 45 seconds (Dropbox tech blog, January 2026, on Dash). Listen for three things: a latency budget per span, the ACL filter inside both the BM25 and the ANN queries with the end user's identity, and a small reranker, because it runs on every query. MRL (Matryoshka) embeddings let you cut vectors to 768 dimensions, and int8 makes each vector 4x smaller than float32, so the 50M vectors fit in RAM. The waterfall is an example budget, not a measurement. Each bar is a target p95 for that span, and p95 values do not add up: the p95 of a sum is not the sum of the p95s, and tail latencies stack. So keep about 80 ms of headroom for network and queueing; that leaves roughly 640 ms for the model's first token. A cache hit skips the rest of the path and returns in about 30 ms. The eval gate sits in the release lane: it runs in CI before a deploy, not on a live request. The reference latencies use different percentiles and different stages, so do not compare them directly. Analogy: the budget is a train timetable, and every station gets a fixed number of minutes or the train is late. Likely follow-up: "How do you migrate the embedding model with zero downtime?" Build the new index blue/green, compare both on the golden set, switch reads in one step and keep the old index for rollback. Next: the eval gate in step 6 has a bug that hides a broken judge.
+  </aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "rag-interview-c05-wb-production";
+  // example budget (ms) -- each span appears at the step that adds that stage
+  const SPANS = [
+    { name: "auth", ms: 20, tone: "tool", step: 1 },
+    { name: "cache lookup", ms: 10, tone: "state", step: 2 },
+    { name: "hybrid + ACL", ms: 120, tone: "agent", step: 2 },
+    { name: "rerank top 100", ms: 100, tone: "model", step: 3 },
+    { name: "prompt build", ms: 30, tone: "tool", step: 4 },
+    { name: "network + headroom", ms: 80, tone: "muted", step: 4 },
+    { name: "model TTFT", ms: 640, tone: "model", step: 4, rest: true }
+  ];
+  const X0 = 170, X1 = 860, SC = (X1 - X0) / 1000, Y0 = 26, RH = 17, AX = 150;
+  let svg = null, E = {}, tweens = [];
+  const el = (tag, attrs, parent, text) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text != null) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  };
+  function build(s) {
+    svg = s; svg.innerHTML = ""; E = { bars: [], vals: [], names: [] };
+    el("text", { x: 12, y: 16, "font-size": 12, style: "fill:var(--muted)" }, svg, "target p95 per span · not additive · ms to first token");
+    // axis + ticks
+    el("line", { x1: X0, y1: AX, x2: X1, y2: AX, style: "stroke:var(--line-2);stroke-width:1.5" }, svg);
+    [0, 250, 500, 750, 1000].forEach((t) => {
+      const x = X0 + t * SC;
+      el("line", { x1: x, y1: AX, x2: x, y2: AX + 5, style: "stroke:var(--line-2);stroke-width:1.5" }, svg);
+      el("text", { x, y: AX + 18, "text-anchor": "middle", "font-size": 11, style: "fill:var(--muted)" }, svg, t === 1000 ? "1,000" : String(t));
+    });
+    let t0 = 0;
+    SPANS.forEach((sp, i) => {
+      const y = Y0 + i * RH;
+      sp.x = X0 + t0 * SC; sp.w = sp.ms * SC; sp.y = y; t0 += sp.ms; sp.end = t0;
+      E.names.push(el("text", { x: X0 - 10, y: y + 11, "text-anchor": "end", "font-size": 12, style: "fill:var(--ink-2)" }, svg, sp.name));
+      E.bars.push(el("rect", { x: sp.x, y: y + 1, width: 0, height: RH - 5, rx: 3, style: `fill:var(--${sp.tone})` }, svg));
+      const label = sp.rest ? "640 ms left for the model" : `${sp.ms} ms`;
+      E.vals.push(el("text", sp.rest
+        ? { x: sp.x + 12, y: y + 11, "font-size": 11.5, "font-weight": 700, style: "fill:#fff" }
+        : { x: sp.x + sp.w + 6, y: y + 11, "font-size": 11.5, style: "fill:var(--ink-2)" }, svg, label));
+    });
+    // the 1 s p95 line
+    E.limit = el("line", { x1: X1, y1: 20, x2: X1, y2: AX, style: "stroke:var(--risk);stroke-width:2;stroke-dasharray:6 5" }, svg);
+    E.limitLbl = el("text", { x: X1 + 6, y: 32, "font-size": 12, "font-weight": 700, style: "fill:var(--risk)" }, svg, "1 s");
+    E.limitLbl2 = el("text", { x: X1 + 6, y: 46, "font-size": 11, style: "fill:var(--risk)" }, svg, "p95");
+    E.cum = el("text", { x: 892, y: 16, "text-anchor": "end", "font-size": 12, "font-weight": 700, style: "fill:var(--ink)" }, svg, "");
+  }
+  function stop() { tweens.forEach((t) => t.kill()); tweens = []; }
+  function render(n, animate) {
+    stop();
+    let used = 0;
+    SPANS.forEach((sp, i) => {
+      const on = n >= sp.step;
+      const fresh = animate && n === sp.step;
+      if (on && !sp.rest) used = sp.end;
+      gsap.set([E.names[i], E.vals[i]], { opacity: on ? 1 : 0.25 });
+      if (!on) { E.bars[i].setAttribute("width", 0); gsap.set(E.vals[i], { opacity: 0 }); return; }
+      if (fresh) {
+        E.bars[i].setAttribute("width", 0);
+        gsap.set(E.vals[i], { opacity: 0 });
+        const d = sp.rest ? 0.9 : 0.45, delay = (i - SPANS.findIndex((s) => s.step === sp.step)) * 0.4;
+        tweens.push(gsap.to(E.bars[i], { attr: { width: sp.w }, duration: d, delay, ease: "power2.out" }));
+        tweens.push(gsap.to(E.vals[i], { opacity: 1, duration: 0.25, delay: delay + d }));
+      } else {
+        E.bars[i].setAttribute("width", sp.w);
+      }
+    });
+    E.cum.textContent = n === 0 ? "" : n >= 4 ? "280 + 80 headroom · model ≤ 640 ms · hit ≈ 30 ms" : `retrieval path so far: ${used} ms`;
+    if (animate && n >= 1 && n <= 4) tweens.push(gsap.fromTo(E.limit, { opacity: 0.35 }, { opacity: 1, duration: 0.5, yoyo: true, repeat: 1 }));
+    else gsap.set(E.limit, { opacity: 1 });
+  }
+  Deck.register(ID, {
+    enter(slide, step) { build(slide.querySelector("#wbp-svg")); render(step || 0, false); },
+    step(slide, n, animate) { if (!svg || !svg.isConnected || !E.bars) build(slide.querySelector("#wbp-svg")); render(n, animate); },
+    leave() { stop(); }
+  });
+})();
+</script>

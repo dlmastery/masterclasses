@@ -1,0 +1,114 @@
+<section class="slide" id="adk-c06-server-stdio" data-tone="tool" data-title="Lab 6.1a: MCP server over stdio">
+  <style>
+    #adk-c06-server-stdio .ms-body { display: grid; grid-template-columns: 820px 1fr; gap: 36px; align-items: start; }
+    #adk-c06-server-stdio .ms-right { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+    #adk-c06-server-stdio svg { overflow: visible; display: block; }
+    #adk-c06-server-stdio svg text { font-family: var(--f-mono); }
+    #adk-c06-server-stdio .ms-nm { font-size: 18px; font-weight: 700; fill: var(--ink); }
+    #adk-c06-server-stdio .ms-sub { font-size: 15px; fill: var(--muted); }
+    #adk-c06-server-stdio .ms-lbl { font-size: 16px; font-weight: 700; fill: var(--ink-2); }
+    #adk-c06-server-stdio .ms-chip rect { fill: var(--bg); stroke: var(--tool); stroke-width: 2; }
+    #adk-c06-server-stdio .ms-chip text { font-size: 16px; font-weight: 600; fill: var(--ink); }
+    #adk-c06-server-stdio .ms-chip.later { opacity: .3; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 6</span> Acme claims desk · step 1 of 4 · server</div>
+  <h2 class="title">An MCP 2.x server exposes claim tools over stdio</h2>
+  <div class="lab-head"><span class="run">python claims_agent/claims_server.py &lt; /dev/null</span></div>
+  <div class="ms-body fill">
+    <div class="code-wrap">
+      <div class="code-head">labs/adk/lab6-acme-claims-desk/claims_agent/claims_server.py · excerpt</div>
+      <pre class="code" data-lang="python" data-focus="1:2, 2:3-4, 3:7-13, 4:15-16"><code>import logging, sys
+from mcp.server.mcpserver import MCPServer
+# stdout carries JSON-RPC: log to stderr only
+logging.basicConfig(stream=sys.stderr, level=logging.INFO)
+mcp = MCPServer("claims-server")
+CLAIMS = {"CLM-1001": {"status": "open", "amount": 1800.0}}
+@mcp.tool()
+def get_claim(claim_id: str) -&gt; dict:
+    """Return status and amount (USD) for a claim id like CLM-1001."""
+    if claim_id not in CLAIMS:
+        return {"status": "error",
+                "message": f"Unknown claim {claim_id}."}
+    return {"status": "ok", "claim_id": claim_id, **CLAIMS[claim_id]}
+# ... approve_claim and purge_claim: next slide
+if __name__ == "__main__":
+    mcp.run()  # transport defaults to "stdio"</code></pre>
+    </div>
+    <div class="ms-right">
+      <svg id="ms-pipe" viewBox="0 0 536 300" width="536" height="300" aria-label="The stdio pipe between the agent and the claims-server child process. The top lane is stdout and carries JSON-RPC both ways. The bottom lane is stderr and carries log lines to the terminal.">
+        <rect class="ms-box" x="0" y="14" width="160" height="78" rx="12" style="fill:var(--agent-soft);stroke:var(--agent);stroke-width:2.5"/>
+        <text class="ms-nm" x="16" y="46">claims_desk</text>
+        <text class="ms-sub" x="16" y="72">McpToolset</text>
+        <rect x="0" y="210" width="160" height="62" rx="31" style="fill:var(--human-soft);stroke:var(--human);stroke-width:2.5"/>
+        <text class="ms-nm" x="80" y="247" text-anchor="middle">terminal</text>
+        <rect id="ms-srv" x="352" y="0" width="184" height="300" rx="14" style="fill:var(--tool-soft);stroke:var(--tool);stroke-width:2.5"/>
+        <text class="ms-nm" x="366" y="30">claims-server</text>
+        <text class="ms-sub" x="366" y="52">child process</text>
+        <g class="ms-chip" id="ms-c1"><rect x="366" y="104" width="156" height="38" rx="8"/><text x="380" y="129">get_claim</text></g>
+        <g class="ms-chip later"><rect x="366" y="154" width="156" height="38" rx="8"/><text x="380" y="179">approve_claim</text></g>
+        <g class="ms-chip later"><rect x="366" y="204" width="156" height="38" rx="8"/><text x="380" y="229">purge_claim</text></g>
+        <text class="ms-lbl" x="256" y="30" text-anchor="middle">stdout: JSON-RPC</text>
+        <rect id="ms-out" x="172" y="40" width="168" height="26" rx="13" style="fill:var(--surface-2);stroke:var(--line-2);stroke-width:2.5"/>
+        <rect id="ms-err" x="172" y="228" width="168" height="26" rx="13" style="fill:var(--surface-2);stroke:var(--line-2);stroke-width:2.5"/>
+        <text class="ms-lbl" x="256" y="286" text-anchor="middle">stderr: logs</text>
+        <g id="ms-flow"></g>
+      </svg>
+      <div class="code-wrap out" data-step="4">
+        <div class="code-head">output · illustrative</div>
+        <pre class="code sm" data-lang="out"><code>$ python claims_agent/claims_server.py &lt; /dev/null
+<span class="ok">stdout: empty</span>   # only JSON-RPC goes there
+stderr: import errors show here first</code></pre>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">This is step 1 of the Acme claims desk lab: a small MCP server with claim tools that the agent starts as a child process. The full file is labs/adk/lab6-acme-claims-desk/claims_agent/claims_server.py; the slide shows only the lines that carry the idea. Step 1, the import: mcp 2.x renamed FastMCP to MCPServer, so old tutorials fail with an import error. Step 2, logging goes to stderr, because over stdio the stdout pipe carries the JSON-RPC messages and nothing else. Step 3, the tool: the decorator turns the function into an MCP tool, and the docstring and type hints become its schema; an unknown id gives a structured error, not an exception. Step 4, mcp.run() picks stdio by default. Run the server alone with stdin closed: it starts, reads the end of its input and exits, and any import error shows in the terminal. Think of stdout as a phone line that a fax machine uses: if you say one word into it, the fax fails. A likely question: "Do I start this server myself?" No, McpToolset starts it; you run it alone only to check it imports.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "adk-c06-server-stdio";
+  let loops = [];
+  function clear() { loops.forEach((t) => t.kill()); loops = []; }
+  function dot(g, r, fill) {
+    const c = document.createElementNS(NS, "circle");
+    c.setAttribute("r", r); c.style.fill = fill; c.style.opacity = 0;
+    g.appendChild(c);
+    return c;
+  }
+  // deterministic flow: requests go right, responses go left, log lines go left
+  function lane(flow, specs) {
+    specs.forEach((s) => {
+      const c = dot(flow, 7, s.fill);
+      const t = gsap.timeline({ repeat: -1, delay: s.delay });
+      t.set(c, { attr: { cx: s.from, cy: s.y }, opacity: 0 })
+        .to(c, { opacity: 1, duration: 0.15 })
+        .to(c, { attr: { cx: s.to }, duration: 1.5, ease: "none" }, 0)
+        .to(c, { opacity: 0, duration: 0.15 }, 1.35);
+      loops.push(t);
+    });
+  }
+  function render(slide, n) {
+    clear();
+    const svg = slide.querySelector("#ms-pipe");
+    const flow = svg.querySelector("#ms-flow");
+    flow.innerHTML = "";
+    const out = svg.querySelector("#ms-out"), err = svg.querySelector("#ms-err"), srv = svg.querySelector("#ms-srv");
+    srv.style.strokeWidth = n === 1 ? 4.5 : 2.5;
+    err.style.fill = n >= 2 ? "var(--state-soft)" : "var(--surface-2)";
+    err.style.stroke = n >= 2 ? "var(--state)" : "var(--line-2)";
+    out.style.fill = n >= 4 ? "var(--tool-soft)" : "var(--surface-2)";
+    out.style.stroke = n >= 4 ? "var(--tool)" : "var(--line-2)";
+    gsap.set(svg.querySelector("#ms-c1"), { opacity: n >= 3 ? 1 : 0.3 });
+    if (n >= 2) lane(flow, [0, 1, 2].map((i) => ({ fill: "var(--state)", from: 330, to: 184, y: 241, delay: 0.15 + i * 0.6 })));
+    if (n >= 4) {
+      lane(flow, [0, 1, 2].map((i) => ({ fill: "var(--agent)", from: 184, to: 330, y: 53, delay: i * 0.6 })));
+      lane(flow, [0, 1, 2].map((i) => ({ fill: "var(--tool)", from: 330, to: 184, y: 53, delay: 0.3 + i * 0.6 })));
+    }
+  }
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step || 0); },
+    step(slide, n) { render(slide, n); },
+    leave() { clear(); },
+  });
+})();
+</script>

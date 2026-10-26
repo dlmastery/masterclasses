@@ -1,0 +1,181 @@
+<section class="slide tight" id="rag-c01-lab1-metrics" data-tone="human" data-title="Four retrieval metrics">
+  <style>
+    #rag-c01-lab1-metrics .m-main { display: grid; grid-template-columns: 800px 1fr; gap: 28px; }
+    #rag-c01-lab1-metrics .m-left, #rag-c01-lab1-metrics .m-right { gap: 12px; min-width: 0; }
+    #rag-c01-lab1-metrics .lab-head { font-size: 16px; gap: 12px; }
+    #rag-c01-lab1-metrics .lab-head .run { font-size: 14px; }
+    #rag-c01-lab1-metrics .code-wrap .code-head { padding: 8px 14px; font-size: 13.5px; }
+    #rag-c01-lab1-metrics pre.code { font-size: 13px; line-height: 1.45; padding: 12px 18px 14px; }
+    #rag-c01-lab1-metrics .code-wrap.out pre.code { font-size: 13px; line-height: 1.5; padding: 10px 18px 12px; }
+    #rag-c01-lab1-metrics .viz { border: 1px solid var(--line-2); border-radius: 16px; background: var(--surface); padding: 12px 14px 8px; }
+    #rag-c01-lab1-metrics .viz svg { display: block; overflow: visible; }
+    #rag-c01-lab1-metrics .steps-rail { gap: 8px; }
+    #rag-c01-lab1-metrics .steps-rail > * { font-size: 16px; line-height: 1.35; grid-template-columns: 30px 1fr; gap: 10px; }
+    #rag-c01-lab1-metrics .steps-rail > *::before { width: 26px; height: 26px; font-size: 13px; }
+    #rag-c01-lab1-metrics .steps-rail b { color: var(--human); font-family: var(--f-mono); font-size: 15px; }
+    #rag-c01-lab1-metrics .gotcha { font-size: 15px; grid-template-columns: 84px 1fr; padding: 10px 14px; gap: 4px 12px; }
+    #rag-c01-lab1-metrics .gotcha > b { font-size: 12px; }
+    #rag-c01-lab1-metrics .gotcha code { font-size: 12.5px; }
+    #rag-c01-lab1-metrics .src { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    #rag-c01-lab1-metrics .src .tiny { font-size: 14px; }
+    #rag-c01-lab1-metrics .cite { font-size: 13.5px; padding: 5px 10px 5px 8px; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 1</span> Northwind support · step 2 of 4</div>
+  <h2 class="title">Four metrics in 20 lines: recall@k, hit@k, MRR and nDCG</h2>
+  <div class="m-main fill">
+    <div class="m-left stack">
+      <div class="lab-head"><span class="run">python -i evalkit.py</span><span>stdlib only · Python 3.12 · no env vars</span></div>
+      <div class="code-wrap">
+        <div class="code-head">evalkit.py · part 1 of 2: the metrics</div>
+        <pre class="code" data-lang="python" data-focus="1:5-9, 2:11-15, 3:17-20"><code># evalkit.py -- retrieval metrics on a labelled set (no dependencies)
+import math
+from kb import QUERIES
+
+def recall_at_k(ranked: list[str], gold: set[str], k: int) -> float:
+    return len(set(ranked[:k]) &amp; gold) / len(gold)
+
+def hit_at_k(ranked: list[str], gold: set[str], k: int) -> float:
+    return 1.0 if set(ranked[:k]) &amp; gold else 0.0
+
+def mrr(ranked: list[str], gold: set[str], k: int = 10) -> float:
+    for rank, doc_id in enumerate(ranked[:k], start=1):
+        if doc_id in gold:
+            return 1.0 / rank
+    return 0.0
+
+def ndcg_at_k(ranked: list[str], gold: set[str], k: int) -> float:
+    dcg = sum(1.0 / math.log2(r + 1) for r, d in enumerate(ranked[:k], start=1) if d in gold)
+    ideal = sum(1.0 / math.log2(r + 1) for r in range(1, min(len(gold), k) + 1))
+    return dcg / ideal</code></pre>
+      </div>
+      <div class="code-wrap out" data-step="4">
+        <div class="code-head">output · executed for q11, Python 3.12</div>
+        <pre class="code" data-lang="none"><code><span class="dim">&gt;&gt;&gt; r, g = ['c04', 'c09', 'c02'], {'c04', 'c02'}      # q11, two gold chunks</span>
+<span class="dim">&gt;&gt;&gt; recall_at_k(r, g, 1), hit_at_k(r, g, 1), mrr(r, g), round(ndcg_at_k(r, g, 3), 3)</span>
+<span class="ok">(0.5, 1.0, 1.0, 0.92)</span></code></pre>
+      </div>
+    </div>
+    <div class="m-right stack">
+      <div class="viz"><svg id="c01m-svg" viewBox="0 0 536 306" width="536" height="306" aria-label="q11 ranked list and its four metric values"></svg></div>
+      <div class="steps-rail">
+        <div data-step="1"><span><b>recall@k</b> = share of the gold chunks in the top k. <b>hit@k</b> = at least one.</span></div>
+        <div data-step="2"><span><b>MRR</b> = 1 / rank of the first gold chunk: how far the LLM reads down.</span></div>
+        <div data-step="3"><span><b>nDCG</b> = discounted gains ÷ the ideal order with min(len(gold), k) slots.</span></div>
+      </div>
+      <div class="gotcha" data-step="4">
+        <b>Symptom</b><span><code>ZeroDivisionError: division by zero</code> in <code>recall_at_k</code>.</span>
+        <b class="why">Cause</b><span>A query has an empty gold set.</span>
+        <b class="fix">Fix</b><span><code>assert all(gold for _, gold in QUERIES.values())</code> at load time.</span>
+      </div>
+      <div class="src" data-step="1">
+        <span class="tiny">Anthropic's "1 − failure rate@20" is hit@20, not recall@20.</span>
+        <a class="cite doc" href="https://www.anthropic.com/news/contextual-retrieval" target="_blank" rel="noopener"><b>Post</b>&nbsp;Anthropic: Introducing Contextual Retrieval</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    These four functions are the whole metric layer of evalkit.py, and every later lab calls them through the same harness. Walk one query in the REPL: q11 asks about the loyalty return window and the refund date, so it has two gold chunks, c04 and c02, and our example retriever ranks c04, c09, c02. Recall at 1 is 0.5 because we found one of the two gold chunks; hit at 1 is 1 because at least one appeared, and that hit number is what Anthropic reports as one minus the failure rate at 20, so never compare it with someone else's recall. MRR is 1 because the first gold chunk sits at rank 1, and nDCG at 3 is 1.5 divided by the ideal 1.631, which gives 0.920. Analogy: recall asks "did you bring all the ingredients", MRR asks "how deep in the bag was the first one". A likely question is "which metric should I report?": report recall at k for the k your prompt uses, plus MRR, and always say which one you mean. Next: part 2 of evalkit.py averages these four metrics over all 15 queries.
+  </aside>
+</section>
+<script>
+(() => {
+  const ID = "rag-c01-lab1-metrics";
+  const NS = "http://www.w3.org/2000/svg";
+  const X0 = 36, CW = 270, CH = 50, RY = [36, 100, 164];
+  const CARDS = [
+    { id: "c04", txt: "loyalty: 60-day window", gold: true, gain: "+1.000" },
+    { id: "c09", txt: "backpacks: 5 years", gold: false, gain: "+0" },
+    { id: "c02", txt: "refund in 5-7 days", gold: true, gain: "+0.500" }
+  ];
+  const S = 300 / 1.631;           // px per gain unit: the ideal bar is 300 px
+  const mk = (tag, attrs, parent, text) => {
+    const el = document.createElementNS(NS, tag);
+    for (const k in attrs) el.setAttribute(k, attrs[k]);
+    if (text !== undefined) el.textContent = text;
+    parent.appendChild(el);
+    return el;
+  };
+  let svg = null, R = null;
+
+  function build(slide) {
+    svg = slide.querySelector("#c01m-svg");
+    if (svg._built) { R = svg._R; return; }
+    svg.innerHTML = "";
+    R = {};
+    const mono = "font-family:var(--f-mono)";
+    mk("text", { x: 0, y: 16, style: mono + ";font-size:15px;font-weight:600;fill:var(--ink)" }, svg, "q11 · gold = {c04, c02}");
+    mk("text", { x: 536, y: 16, "text-anchor": "end", style: mono + ";font-size:13px;fill:var(--muted)" }, svg, "ranked by a retriever");
+    // top-1 bracket (step 1)
+    R.bracket = mk("rect", { x: X0 - 7, y: RY[0] - 7, width: CW + 14, height: CH + 14, rx: 13, style: "fill:none;stroke:var(--human);stroke-width:2.5;stroke-dasharray:7 5" }, svg);
+    // MRR arrow (step 2)
+    R.arrow = mk("g", {}, svg);
+    mk("path", { d: `M2 ${RY[0] + 25} L${X0 - 12} ${RY[0] + 25}`, style: "stroke:var(--human);stroke-width:3;fill:none" }, R.arrow);
+    mk("path", { d: `M${X0 - 12} ${RY[0] + 18} L${X0 - 3} ${RY[0] + 25} L${X0 - 12} ${RY[0] + 32} Z`, style: "fill:var(--human)" }, R.arrow);
+    // ranked cards
+    R.cards = []; R.gains = []; R.rankDots = [];
+    CARDS.forEach((c, i) => {
+      const g = mk("g", {}, svg);
+      const y = RY[i];
+      const col = c.gold ? "var(--state)" : "var(--muted)";
+      mk("rect", { x: X0, y, width: CW, height: CH, rx: 11, style: `fill:var(--surface-2);stroke:${col};stroke-width:${c.gold ? 2 : 1.2};${c.gold ? "" : "stroke-dasharray:4 4"}` }, g);
+      R.rankDots.push(mk("circle", { cx: X0 + 22, cy: y + 25, r: 13, style: `fill:${col}` }, g));
+      mk("text", { x: X0 + 22, y: y + 30, "text-anchor": "middle", style: mono + ";font-size:13px;font-weight:700;fill:#fff" }, g, String(i + 1));
+      mk("text", { x: X0 + 46, y: y + 21, style: mono + `;font-size:14px;font-weight:700;fill:${c.gold ? "var(--state)" : "var(--ink-2)"}` }, g, c.id + (c.gold ? "  gold" : ""));
+      mk("text", { x: X0 + 46, y: y + 40, style: "font-size:13px;fill:var(--muted)" }, g, c.txt);
+      R.gains.push(mk("text", { x: X0 + CW - 10, y: y + 30, "text-anchor": "end", style: mono + ";font-size:13px;font-weight:700;fill:var(--human)" }, g, c.gain));
+      R.cards.push(g);
+    });
+    // readouts, one block per metric; they stack, so every earlier value stays on screen
+    const RX = 330;
+    const line = (y, t) => mk("text", { x: RX, y, style: mono + ";font-size:15px;font-weight:600;fill:var(--ink-2);white-space:pre" }, svg, t);
+    R.read = [
+      [line(58, "recall@1 = 1/2 = 0.500"), line(82, "hit@1    = 1.000")],
+      [line(130, "MRR = 1/1 = 1.000")],
+      [line(172, "nDCG@3 = 1.5/1.631"), line(196, "       = 0.920")]
+    ];
+    // gain bars (step 3)
+    R.bars = mk("g", {}, svg);
+    mk("text", { x: X0, y: 240, style: "font-size:13px;fill:var(--ink-2)" }, R.bars, "DCG: gains at ranks 1 and 3 = 1 + 1/log2(4)");
+    R.seg1 = mk("rect", { x: X0, y: 246, width: 0, height: 16, rx: 4, style: "fill:var(--state)" }, R.bars);
+    R.seg2 = mk("rect", { x: X0 + S, y: 246, width: 0, height: 16, rx: 4, style: "fill:var(--state);opacity:.55" }, R.bars);
+    R.dcgV = mk("text", { x: X0 + 1.5 * S + 8, y: 259, style: mono + ";font-size:13px;font-weight:700;fill:var(--state)" }, R.bars, "1.500");
+    mk("text", { x: X0, y: 282, style: "font-size:13px;fill:var(--ink-2)" }, R.bars, "ideal: both gold chunks at ranks 1 and 2 = 1 + 1/log2(3)");
+    R.ideal = mk("rect", { x: X0, y: 288, width: 0, height: 16, rx: 4, style: "fill:none;stroke:var(--muted);stroke-width:1.5;stroke-dasharray:5 4" }, R.bars);
+    R.idealV = mk("text", { x: X0 + 1.631 * S + 8, y: 301, style: mono + ";font-size:13px;font-weight:700;fill:var(--muted)" }, R.bars, "1.631");
+    svg._R = R; svg._built = true;
+  }
+
+  function render(n, animate) {
+    if (!R) return;
+    const d = animate ? 0.5 : 0;
+    const vis = (el, on, delay) => gsap.to(el, { autoAlpha: on ? 1 : 0, duration: d, delay: on && animate ? (delay || 0) : 0, overwrite: true });
+    // decorations belong to one step each
+    vis(R.bracket, n === 1);
+    vis(R.arrow, n === 2, 0.1);
+    if (animate && n === 2) gsap.fromTo(R.arrow, { x: -14 }, { x: 0, duration: 0.5, ease: "back.out(2)" });
+    R.rankDots.forEach((c, i) => gsap.to(c, { attr: { r: n === 2 && i === 0 ? 16 : 13 }, duration: d, overwrite: true }));
+    // non-gold card fades while recall counts the gold ones
+    gsap.to(R.cards[1], { opacity: n >= 1 ? 0.55 : 1, duration: d, overwrite: true });
+    // readouts accumulate; the current metric is coloured
+    R.read.forEach((grp, i) => grp.forEach((t) => {
+      vis(t, n >= i + 1, 0.15);
+      t.style.fill = n === i + 1 || (n >= 4) ? "var(--human)" : "var(--ink-2)";
+    }));
+    // gains and bars at step 3
+    R.gains.forEach((g, i) => vis(g, n >= 3, 0.1 + i * 0.12));
+    vis(R.bars, n >= 3);
+    const on = n >= 3;
+    gsap.to(R.seg1, { attr: { width: on ? 1.0 * S - 2 : 0 }, duration: animate ? 0.6 : 0, delay: on && animate ? 0.3 : 0, ease: "power2.out", overwrite: true });
+    gsap.to(R.seg2, { attr: { width: on ? 0.5 * S : 0 }, duration: animate ? 0.5 : 0, delay: on && animate ? 0.9 : 0, ease: "power2.out", overwrite: true });
+    gsap.to(R.ideal, { attr: { width: on ? 1.631 * S : 0 }, duration: animate ? 0.7 : 0, delay: on && animate ? 1.3 : 0, ease: "power2.out", overwrite: true });
+    vis(R.dcgV, on, 1.3);
+    vis(R.idealV, on, 1.9);
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { build(slide); render(step || 0, false); },
+    step(slide, n, animate) { build(slide); render(n, animate); },
+    leave() { if (svg) gsap.killTweensOf(svg.querySelectorAll("*")); }
+  });
+})();
+</script>

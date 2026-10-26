@@ -1,0 +1,103 @@
+<section class="slide" id="custom-c04-lab3-rewards" data-tone="tool" data-title="Lab 3: two refund rewards">
+  <style>
+    #custom-c04-lab3-rewards { gap: 22px; }
+    #custom-c04-lab3-rewards .r-grid { display: grid; grid-template-columns: 740px 1fr; gap: 24px; min-height: 0; }
+    #custom-c04-lab3-rewards .r-code pre.code { font-size: 12px; line-height: 1.3; padding: 12px 18px 12px; }
+    #custom-c04-lab3-rewards .code-head { padding: 8px 14px; font-size: 13.5px; }
+    #custom-c04-lab3-rewards .r-right { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+    #custom-c04-lab3-rewards .lab-head { font-size: 15px; gap: 12px; }
+    #custom-c04-lab3-rewards .lab-head .run { font-size: 15px; padding: 7px 11px; }
+    #custom-c04-lab3-rewards .r-swap { display: grid; }
+    #custom-c04-lab3-rewards .r-swap > * { grid-area: 1 / 1; align-self: start; }
+    #custom-c04-lab3-rewards .r-swap pre.code { font-size: 13px; line-height: 1.38; padding: 10px 16px 12px; }
+    #custom-c04-lab3-rewards .diagram .node { padding: 10px 12px; min-width: 0; }
+    #custom-c04-lab3-rewards .diagram .node .nt { font: 700 15px/1.15 var(--f-mono); }
+    #custom-c04-lab3-rewards .diagram .node .ns { font-size: 12.5px; }
+    #custom-c04-lab3-rewards .steps-rail { gap: 7px; }
+    #custom-c04-lab3-rewards .steps-rail > * { font-size: 15.5px; line-height: 1.36; grid-template-columns: 30px 1fr; gap: 10px; }
+    #custom-c04-lab3-rewards .steps-rail > *::before { width: 26px; height: 26px; font-size: 14px; }
+    #custom-c04-lab3-rewards code { font-size: .88em; }
+    #custom-c04-lab3-rewards pre.code, #custom-c04-lab3-rewards pre.code *, #custom-c04-lab3-rewards code { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 3</span> Acme refund-decision agent · step 1 of 4</div>
+  <h2 class="title">Two refund rewards in TRL's signature: format and gated decision</h2>
+  <div class="r-grid fill">
+    <div class="code-wrap r-code">
+      <div class="code-head">refunds_rl/refund_rewards.py · trl 1.16.0 reward contract</div>
+      <pre class="code" data-lang="python" data-focus="1:14-20, 2:22, 3:28-31, 4:24-27"><code>import json, re
+ANSWER_RE = re.compile(r"&lt;answer&gt;\s*(\{.*?\})\s*&lt;/answer&gt;", re.DOTALL)
+DECISIONS = {"approve", "deny", "escalate"}
+REQUIRED = {"decision", "refund_amount", "reason"}
+
+def _parse(text):  # the JSON dict inside &lt;answer&gt;...&lt;/answer&gt;, or None
+    m = ANSWER_RE.search(text)
+    try:
+        obj = json.loads(m.group(1)) if m else None
+    except json.JSONDecodeError:
+        return None
+    return obj if isinstance(obj, dict) else None
+
+def format_reward(completions, **kwargs):  # 0.2 = parses, 3 keys, valid decision
+    out = []
+    for c in completions:
+        obj = _parse(c[0]["content"])
+        ok = obj is not None and REQUIRED &lt;= obj.keys() and obj.get("decision") in DECISIONS
+        out.append(0.2 if ok else 0.0)
+    return out
+
+def decision_reward(completions, gold_decision, gold_amount, **kwargs):
+    out = []  # 1.0 decision + amount within $0.01 | 0.5 decision only | 0.0 otherwise
+    for c, gd, ga in zip(completions, gold_decision, gold_amount, strict=True):
+        if gd is None:  # no gold label: TRL skips this reward for the row
+            out.append(None)
+            continue
+        obj = _parse(c[0]["content"])
+        if obj is None or not REQUIRED &lt;= obj.keys() or obj.get("decision") != gd:
+            out.append(0.0)
+            continue
+        try:
+            amount_ok = abs(float(obj.get("refund_amount")) - float(ga)) &lt;= 0.01
+        except (TypeError, ValueError):
+            amount_ok = False
+        out.append(1.0 if amount_ok else 0.5)
+    return out</code></pre>
+    </div>
+    <div class="r-right">
+      <div class="lab-head"><span class="run">python refund_rewards.py</span><a class="cite doc" href="https://huggingface.co/docs/trl/main/en/grpo_trainer" target="_blank" rel="noopener"><b>Docs</b>&nbsp;TRL GRPO Trainer</a></div>
+      <div class="r-swap">
+        <div class="code-wrap term" data-until="4">
+          <div class="code-head">run it Monday · Python &gt;= 3.11 · CPU · no packages for the test</div>
+          <pre class="code" data-lang="bash"><code>$ python --version              # 3.11 or newer
+$ pip install "trl==1.16.0"     # only for GRPOTrainer later
+refunds_rl/
+  refund_rewards.py      # steps 1-2: TRL rewards + self-test
+  tests/test_rewards.py
+  openai_grader.py       # step 3
+  vertex_rft.py          # step 4</code></pre>
+        </div>
+        <div class="code-wrap out" data-step="4">
+          <div class="code-head">output · with the step 2 self-test block</div>
+          <pre class="code" data-lang="none"><code>format  : [0.2, 0.2, 0.0, 0.0]
+decision: [1.0, 0.5, 0.0, 0.0]
+<span class="ok">no-label: [None]</span>    # gd is None: row skipped</code></pre>
+        </div>
+      </div>
+      <div class="diagram" style="width:628px;height:218px" data-wires="pr>kw@2:flow:bt{state} [prompts=]; gd>pd@2:flow:bt{state} [gold_decision=]; ga>pa@2:flow:bt{state} [gold_amount=]">
+        <div class="node n-state" id="pr" style="left:14px;top:0;width:170px"><span class="nt">prompt</span><span class="ns">dataset column</span></div>
+        <div class="node n-state" id="gd" style="left:229px;top:0;width:170px"><span class="nt">gold_decision</span><span class="ns">policy engine</span></div>
+        <div class="node n-state" id="ga" style="left:444px;top:0;width:170px"><span class="nt">gold_amount</span><span class="ns">policy engine</span></div>
+        <div class="group g-tool" style="left:0;top:114px;width:628px;height:92px" data-step="2"><span class="gl" style="top:auto;bottom:-12px">decision_reward(completions, ..., **kwargs)</span></div>
+        <div class="node n-tool" id="kw" style="left:14px;top:130px;width:170px" data-step="2" data-fx="pop"><span class="nt">**kwargs</span></div>
+        <div class="node n-tool" id="pd" style="left:229px;top:130px;width:170px" data-step="2" data-fx="pop"><span class="nt">gold_decision</span></div>
+        <div class="node n-tool" id="pa" style="left:444px;top:130px;width:170px" data-step="2" data-fx="pop"><span class="nt">gold_amount</span></div>
+      </div>
+      <div class="steps-rail">
+        <div data-step="1"><span>Text is in <code>c[0]["content"]</code>. <code>**kwargs</code> takes <code>prompts</code>, <code>completion_ids</code>, <code>trainer_state</code>, <code>log_extra</code>, <code>log_metric</code>.</span></div>
+        <div data-step="2"><span>A named parameter gets the dataset column with the same name.</span></div>
+        <div data-step="3"><span>Schema gate: no partial credit unless all 3 keys exist.</span></div>
+        <div data-step="4"><span><code>None</code> becomes NaN, so TRL skips this reward for the row. <code>strict=True</code> stops silent misalignment.</span></div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Lab 3 starts here and runs four slides: write the reward, test it, then port it to OpenAI graders and to Vertex Gemini RFT. This is the reward for the Acme refund-decision agent, written in the exact signature that TRL 1.16.0 GRPOTrainer calls, and it runs on a laptop CPU with no packages. Step 1: format_reward reads the text from c[0]["content"] because completions are message lists, and the **kwargs catch-all is required because TRL also passes prompts, completion_ids, trainer_state, log_extra, log_metric and every dataset column. Step 2: decision_reward asks for gold_decision and gold_amount by name, and TRL fills them from the dataset columns with the same names, so there is no glue code. Step 3: the schema gate means no partial credit unless all three keys are present; step 4: returning None for a row without a gold label tells TRL to skip this reward for that row, and zip with strict=True turns a silent misalignment into an error. Analogy: the reward is an exam marker who must refuse to mark a paper that is not on the official answer sheet. Likely question: "Why not just return 0.0 for unlabelled rows?" Because 0.0 is a real score that pushes the policy down, while None removes the row from this reward entirely. Next, step 2 runs the self-test and shows the hack it caught.</aside>
+</section>

@@ -1,0 +1,137 @@
+<section class="slide tight" id="rag-c06-lab5-edges" data-tone="agent" data-title="Lab 5: Workflow edges">
+  <style>
+    #rag-c06-lab5-edges .ed-grid { display: grid; grid-template-columns: 664px 704px; gap: 24px; align-items: start; }
+    #rag-c06-lab5-edges .ed-right { gap: 10px; min-width: 0; }
+    #rag-c06-lab5-edges .code-wrap .code-head { padding: 9px 14px; font-size: 13.5px; }
+    #rag-c06-lab5-edges pre.code.ed-c { font-size: 12.5px; line-height: 1.5; padding: 12px 16px 14px; }
+    #rag-c06-lab5-edges pre.code.ed-o { font-size: 11px; line-height: 1.38; padding: 7px 14px 9px; }
+    #rag-c06-lab5-edges pre.code.ed-o .ln { display: block; }
+    #rag-c06-lab5-edges .lab-head { gap: 10px; flex-wrap: nowrap; }
+    #rag-c06-lab5-edges .lab-head .run { font-size: 14px; flex: none; }
+    #rag-c06-lab5-edges .lab-head .tag { font-size: 13px; padding: 5px 9px; }
+    #rag-c06-lab5-edges .lab-head .cite { flex: none; white-space: nowrap; font-size: 13px; padding: 5px 10px 5px 8px; }
+    #rag-c06-lab5-edges .diagram .node { padding: 8px 12px; min-width: 0; gap: 2px; }
+    #rag-c06-lab5-edges .diagram .node .nt { font: 700 15px/1.2 var(--f-mono); }
+    #rag-c06-lab5-edges .diagram .node.pill { padding: 8px 16px; }
+    #rag-c06-lab5-edges .ed-msg { position: absolute; left: 538px; top: 0; width: 166px; padding: 6px 10px; border-radius: 10px;
+      border: 1.5px solid var(--human); background: var(--human-soft); font: 600 12px/1.35 var(--f-mono); color: var(--ink); z-index: 2; }
+    #rag-c06-lab5-edges .ed-msg b { color: var(--human); }
+    #rag-c06-lab5-edges .ed-tok { position: absolute; left: -9px; top: -9px; width: 18px; height: 18px; border-radius: 50%; z-index: 4;
+      background: var(--human); box-shadow: 0 0 0 4px var(--human-soft), 0 0 16px var(--human); pointer-events: none; }
+    #rag-c06-lab5-edges .ed-rail { position: relative; height: 44px; }
+    #rag-c06-lab5-edges .ed-rail > p { position: absolute; left: 0; right: 0; top: 0; margin: 0; font-size: 16.5px; line-height: 1.36; }
+    #rag-c06-lab5-edges .ed-rail code { font-size: .88em; }
+    #rag-c06-lab5-edges .gotcha { grid-template-columns: 76px minmax(0, 1fr); gap: 3px 10px; padding: 9px 14px; font-size: 13.5px; line-height: 1.35; }
+    #rag-c06-lab5-edges .gotcha > b { font-size: 12px; line-height: 1.6; }
+    #rag-c06-lab5-edges .gotcha code { font-size: 12px; white-space: normal; overflow-wrap: anywhere; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 5</span> Northwind helpdesk · step 2 of 4</div>
+  <h2 class="title">Declare the graph as edges: a chain, a route map, a second chain</h2>
+  <div class="ed-grid fill">
+    <div class="code-wrap">
+      <div class="code-head">lab5_helpdesk.py · step 2: the edges</div>
+      <pre class="code ed-c" data-lang="python" data-focus="1:10, 2:11-13, 3:14, 4:18-21"><code># step 1: imports, MODEL, take_question, router, route_on_category, retrieve_hr
+# step 3 defines: answerer, verifier, gate (the HR chain, next slide)
+
+it_agent = Agent(name="it_agent", model=MODEL,
+                 instruction="Give a 2-line IT first-aid tip for: {question}")
+def refuse():
+    yield Event(message="I can only help with HR policy and IT questions.")
+
+root_agent = Workflow(name="hr_helpdesk", edges=[
+    ("START", take_question, router, route_on_category),
+    (route_on_category, {"hr_policy": retrieve_hr,
+                         "it_support": it_agent,
+                         "out_of_scope": refuse}),
+    (retrieve_hr, answerer, verifier, gate),
+])
+
+async def main():
+    runner = InMemoryRunner(node=root_agent)
+    for i, q in enumerate(["How many PTO days can I carry over into 2027?",
+                           "Can you book me a pizza?"]):
+        await runner.run_debug(q, session_id=f"s{i}")
+if __name__ == "__main__":
+    asyncio.run(main())</code></pre>
+    </div>
+    <div class="stack ed-right">
+      <div class="lab-head">
+        <span class="run">python lab5_helpdesk.py</span>
+        <span class="tag t-tool">google-adk==2.13.0</span>
+        <a class="cite repo" href="https://github.com/google/adk-python/tree/v2.13.0/contributing/samples/workflows/route" target="_blank" rel="noopener"><b>Repo</b>&nbsp;ADK Workflow Routing Sample</a>
+      </div>
+      <div class="diagram" id="ed-dg" style="width:704px;height:274px"
+           data-wires="ed-start>ed-tq@1:rl{human}; ed-tq>ed-router@1:rl; ed-router>ed-roc@1:bt; ed-roc>ed-refuse@2:lr{tool} [out_of_scope]; ed-roc>ed-it@2:rl{agent} [it_support]; ed-roc>ed-rh@2:bt{state} [hr_policy]; ed-rh>ed-ans@3:rl; ed-ans>ed-ver@3:rl; ed-ver>ed-gate@3:rl">
+        <div class="node n-human pill" id="ed-start" style="left:0;top:0;width:92px"><span class="nt">START</span></div>
+        <div class="node n-tool" id="ed-tq" style="left:172px;top:0;width:150px"><span class="nt">take_question</span></div>
+        <div class="node n-agent" id="ed-router" style="left:402px;top:0;width:96px"><span class="nt">router</span></div>
+        <div class="node n-tool" id="ed-roc" style="left:254px;top:118px;width:184px"><span class="nt">route_on_category</span></div>
+        <div class="node n-tool" id="ed-refuse" style="left:0;top:118px;width:104px" data-step="2" data-fx="pop"><span class="nt">refuse</span></div>
+        <div class="node n-agent" id="ed-it" style="left:588px;top:118px;width:116px" data-step="2" data-fx="pop"><span class="nt">it_agent</span></div>
+        <div class="node n-tool" id="ed-rh" style="left:40px;top:236px;width:126px" data-step="2" data-fx="pop"><span class="nt">retrieve_hr</span></div>
+        <div class="node n-agent" id="ed-ans" style="left:246px;top:236px;width:104px" data-step="3" data-fx="pop"><span class="nt">answerer</span></div>
+        <div class="node n-agent" id="ed-ver" style="left:430px;top:236px;width:104px" data-step="3" data-fx="pop"><span class="nt">verifier</span></div>
+        <div class="node n-tool" id="ed-gate" style="left:614px;top:236px;width:72px" data-step="3" data-fx="pop"><span class="nt">gate</span></div>
+        <div class="ed-msg" data-step="1" data-until="3"><b>User &gt;</b> Can you book me a pizza?</div>
+        <div class="ed-msg" data-step="3"><b>User &gt;</b> How many PTO days can I carry over into 2027?</div>
+        <div class="ed-tok"></div>
+      </div>
+      <div class="steps-rail ed-rail">
+        <p data-step="1" data-until="2"><span>A tuple is a chain. <code>"START"</code> passes the user message to <code>take_question</code>.</span></p>
+        <p data-step="2" data-until="3"><span>A dict maps route names to nodes. <code>Event(route=...)</code> picks one.</span></p>
+        <p data-step="3" data-until="4"><span>A second tuple chains the HR branch; step 3 builds its nodes. <code>model_post_init</code> validates the graph.</span></p>
+        <p data-step="4"><span>A <code>Workflow</code> is a node, not an agent: pass <code>node=</code>, not <code>agent=</code>.</span></p>
+      </div>
+      <div class="code-wrap out" data-step="2">
+        <div class="code-head">output · illustrative</div>
+        <pre class="code ed-o" data-lang="output"><code><span class="ln" data-step="3">User &gt; How many PTO days can I carry over into 2027?</span><span class="ln" data-step="3"><span class="dim">[router]: {"category": "hr_policy"}  →  [answerer] → [verifier]</span></span><span class="ln ok" data-step="3">[gate]: VERIFIED: You can carry over at most 5 unused PTO days into the next year [PTO-2026].</span><span class="ln">User &gt; Can you book me a pizza?</span><span class="ln">[router]: {"category": "out_of_scope"}</span><span class="ln ok">[refuse]: I can only help with HR policy and IT questions.</span></code></pre>
+      </div>
+      <div class="gotcha" data-step="4">
+        <b>Symptom</b><span><code>GraphValidationError: Graph validation failed. Duplicate node names found: ['answerer'] ...</code></span>
+        <b class="fix">Fix</b><span>Two different <code>Agent(name="answerer")</code> objects. Reuse one instance.</span>
+        <b>Symptom</b><span><code>TypeError: Runner root 'hr_helpdesk' is a node, not an agent.</code></span>
+        <b class="fix">Fix</b><span>Agent-only code read <code>runner.agent</code>. Treat it as a node, or wrap it in an <code>App</code>.</span>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    This is step 2 of Lab 5: lab5_helpdesk.py now turns the nodes from step 1 into a graph with three edge tuples. it_agent is a placeholder that step 4 replaces with it_triage, and the three HR-chain nodes answerer, verifier and gate are the subject of the next slide. Walk the bands: the first tuple is a chain from "START" through take_question and router to route_on_category; the dict tuple is a conditional edge map, and the key comes from Event(route=...); the third tuple chains retrieve_hr, answerer, verifier and gate, and Workflow validates the whole graph in model_post_init. The token shows the run: the pizza message takes the out_of_scope edge and stops at refuse, the PTO question runs the whole HR chain to gate. Analogy: the edges list is a railway timetable, and route_on_category is the switch operator who throws one lever per train. Likely question: "Why InMemoryRunner(node=...)?" Because a Workflow is a BaseNode, not a BaseAgent, so agent= is the wrong slot; agent= and node= are mutually exclusive, and agent-only code paths raise the TypeError on the card.
+  </aside>
+</section>
+<script>
+(() => {
+  const CHAIN = ["ed-start", "ed-tq", "ed-router", "ed-roc"];
+  const PIZZA = [...CHAIN, "ed-refuse"];
+  const HR = [...CHAIN, "ed-rh", "ed-ans", "ed-ver", "ed-gate"];
+  let tl = null, prev = -1;
+  // token sits on the top-right corner of a node, so it never covers the node name
+  const pt = (d, id) => { const el = d.querySelector("#" + id); return { x: el.offsetLeft + el.offsetWidth - 6, y: el.offsetTop + 4 }; };
+  const lit = (d, id) => d.querySelectorAll(".node").forEach((nd) => nd.classList.toggle("lit", nd.id === id));
+  function render(slide, n, animate) {
+    const d = slide.querySelector("#ed-dg"), tok = d.querySelector(".ed-tok");
+    if (tl) { tl.kill(); tl = null; }
+    const path = n >= 3 ? HR : n === 2 ? PIZZA : n === 1 ? CHAIN : null;
+    if (!path) { gsap.set(tok, { autoAlpha: 0 }); lit(d, null); prev = n; return; }
+    const end = pt(d, path[path.length - 1]);
+    const fwd = animate && n === prev + 1 && n <= 3;
+    prev = n;
+    if (!fwd) { gsap.set(tok, { autoAlpha: 1, x: end.x, y: end.y }); lit(d, path[path.length - 1]); return; }
+    const from = n === 2 ? CHAIN.length - 1 : 0;           // the pizza token continues from route_on_category
+    const p0 = pt(d, path[from]);
+    tl = gsap.timeline({ delay: n === 1 ? 0.2 : 0.45 });
+    tl.set(tok, { autoAlpha: 1, x: p0.x, y: p0.y });
+    tl.call(() => lit(d, path[from]));
+    for (let i = from + 1; i < path.length; i++) {
+      const p = pt(d, path[i]);
+      tl.to(tok, { x: p.x, y: p.y, duration: 0.5, ease: "power2.inOut" });
+      tl.call(() => lit(d, path[i]));
+      tl.to(tok, { scale: 1.35, duration: 0.12, yoyo: true, repeat: 1 });
+    }
+  }
+  Deck.register("rag-c06-lab5-edges", {
+    enter(slide, step) { prev = -1; render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { if (tl) { tl.kill(); tl = null; } prev = -1; if (slide) gsap.killTweensOf(slide.querySelector(".ed-tok")); }
+  });
+})();
+</script>

@@ -1,0 +1,211 @@
+<section class="slide" id="rag-c03-lab3-pgvector-filter" data-tone="state" data-title="Lab 3: filtered top-k in pgvector">
+  <style>
+    #rag-c03-lab3-pgvector-filter .pf-main { display: grid; grid-template-columns: 760px 1fr; gap: 24px; }
+    #rag-c03-lab3-pgvector-filter .pf-col { gap: 12px; min-width: 0; }
+    #rag-c03-lab3-pgvector-filter .pf-code pre.code { font-size: 12.5px; line-height: 1.4; padding: 12px 16px 14px; }
+    #rag-c03-lab3-pgvector-filter .lab-head { flex-direction: column; align-items: stretch; gap: 6px; }
+    #rag-c03-lab3-pgvector-filter .lab-head .run { font-size: 12.5px; line-height: 1.4; padding: 6px 10px; white-space: normal; overflow-wrap: anywhere; }
+    #rag-c03-lab3-pgvector-filter .pf-fig { border: 1px solid var(--line); border-radius: 14px; background: var(--surface); padding: 8px 10px; }
+    #rag-c03-lab3-pgvector-filter .pf-fig svg { display: block; overflow: visible; }
+    #rag-c03-lab3-pgvector-filter svg text { font-family: var(--f-mono); }
+    #rag-c03-lab3-pgvector-filter .pf-hdr { fill: var(--ink-2); font-size: 13px; font-weight: 700; }
+    #rag-c03-lab3-pgvector-filter .pf-lbl { fill: var(--muted); font-size: 12px; font-weight: 600; }
+    #rag-c03-lab3-pgvector-filter .pf-cnt { font-size: 38px; font-weight: 800; }
+    #rag-c03-lab3-pgvector-filter .pf-cap { font-size: 13px; font-weight: 700; }
+    #rag-c03-lab3-pgvector-filter .pf-rail { display: grid; }
+    #rag-c03-lab3-pgvector-filter .pf-rail > * { grid-area: 1 / 1; font-size: 15.5px; line-height: 1.38; }
+    #rag-c03-lab3-pgvector-filter .pf-rail q { display: block; font-style: italic; color: var(--ink); margin-bottom: 4px; }
+    #rag-c03-lab3-pgvector-filter .pf-rail q + a { font-size: 12.5px; }
+    #rag-c03-lab3-pgvector-filter .pf-fix { display: block; margin-top: 6px; }
+    #rag-c03-lab3-pgvector-filter .code-wrap.out { width: 100%; }
+    #rag-c03-lab3-pgvector-filter .code-wrap.out pre.code { font-size: 12px; line-height: 1.45; padding: 10px 12px 12px; }
+    #rag-c03-lab3-pgvector-filter .pf-tip { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 15px; line-height: 1.35; color: var(--ink-2); }
+    #rag-c03-lab3-pgvector-filter pre.code, #rag-c03-lab3-pgvector-filter code, #rag-c03-lab3-pgvector-filter .run { font-variant-ligatures: none; }
+    #rag-c03-lab3-pgvector-filter .cite { font-size: 13px; padding: 5px 9px 5px 7px; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 3</span> Northwind Mutual index · step 4 of 4</div>
+  <h2 class="title">Filtered top-k in pgvector returns 10 rows with an iterative scan</h2>
+  <div class="pf-main fill">
+    <div class="pf-col stack">
+      <div class="code-wrap pf-code">
+        <div class="code-head">lab7_pgvector_claims.py · pgvector 0.8.7 · Postgres 18</div>
+        <pre class="code" data-lang="python" data-focus="1:6-12, 2:15-17, 3:23-25, 4:19-21"><code>import datetime as dt, os
+import numpy as np, psycopg
+from pgvector import Vector
+from pgvector.psycopg import register_vector
+conn = psycopg.connect(os.environ["PG_DSN"], autocommit=True)
+conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
+register_vector(conn)                                   # after CREATE EXTENSION
+conn.execute("DROP TABLE IF EXISTS claim_chunks")
+conn.execute("""CREATE TABLE claim_chunks (
+    id bigserial PRIMARY KEY, tenant_id int NOT NULL, product text NOT NULL,
+    effective_date date NOT NULL, content text NOT NULL,
+    embedding_model text NOT NULL, embedding vector(256) NOT NULL)""")
+emb = np.random.default_rng(1).standard_normal((50_000, 256)).astype(np.float32)
+emb /= np.linalg.norm(emb, axis=1, keepdims=True)   # omitted: COPY 50,000 rows + emb
+conn.execute("SET maintenance_work_mem = '1GB'")          # build after load
+conn.execute("CREATE INDEX claim_hnsw ON claim_chunks USING hnsw"
+             " (embedding vector_cosine_ops) WITH (m = 16, ef_construction = 64)")
+conn.execute("ANALYZE claim_chunks")
+SQL = """SELECT id, product, effective_date, embedding &lt;=&gt; %s AS dist FROM claim_chunks
+         WHERE tenant_id = %s AND product = %s AND effective_date &gt;= %s
+         ORDER BY embedding &lt;=&gt; %s LIMIT 10"""
+q = Vector(emb[123])
+with conn.transaction():
+    conn.execute("SET LOCAL hnsw.ef_search = 100")
+    conn.execute("SET LOCAL hnsw.iterative_scan = relaxed_order")   # pgvector &gt;= 0.8.0
+    rows = conn.execute(SQL, (q, 3, "home", dt.date(2025, 1, 1), q)).fetchall()
+    plan = conn.execute("EXPLAIN " + SQL, (q, 3, "home", dt.date(2025, 1, 1), q)).fetchall()
+print(len(rows), "rows; first:", rows[0][:3])
+print("\n".join(r[0] for r in plan[:4]))</code></pre>
+      </div>
+      <div class="pf-tip" data-step="5"><span><b class="c-state">Many tenants:</b> <code>PARTITION BY LIST (tenant_id)</code> or partial indexes.</span><a class="cite repo" href="https://github.com/pgvector/pgvector-python" target="_blank" rel="noopener"><b>Repo</b>&nbsp;pgvector-python</a></div>
+    </div>
+    <div class="pf-col stack">
+      <div class="lab-head">
+        <span class="run">docker run -d --name pg -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=rag -p 5432:5432 pgvector/pgvector:pg18-trixie</span>
+        <span class="run">pip install "pgvector==0.5.1" "psycopg[binary]==3.3.6" numpy</span>
+        <span class="run">export PG_DSN="postgresql://postgres:postgres@localhost:5432/rag"</span>
+      </div>
+      <div class="pf-fig">
+        <svg id="pf-svg" viewBox="0 0 586 178" width="586" height="178" aria-label="HNSW returns 100 candidates; the WHERE filter removes all of them; an iterative scan continues until 10 rows match">
+          <text id="pf-hdr" class="pf-hdr" x="0" y="14">HNSW candidates · hnsw.ef_search = 100</text>
+          <g id="pf-slots"></g>
+          <text class="pf-lbl" x="400" y="14">rows returned (LIMIT 10)</text>
+          <text id="pf-cnt" class="pf-cnt" x="400" y="62" style="fill:var(--muted)">0 / 10</text>
+          <g id="pf-res"></g>
+          <text id="pf-scan" class="pf-lbl" x="400" y="144"></text>
+          <text id="pf-cap" class="pf-cap" x="0" y="172"></text>
+        </svg>
+      </div>
+      <div class="steps-rail pf-rail">
+        <div data-step="1" data-until="2"><span>Call <code>register_vector</code> after <code>CREATE EXTENSION</code>: it reads the vector type OIDs. Store <code>embedding_model</code> on every row.</span></div>
+        <div data-step="2" data-until="3"><span>Build HNSW after the load. <code>vector_cosine_ops</code> must match <code>&lt;=&gt;</code>. m 16 and ef_construction 64 are the defaults.</span></div>
+        <div data-step="3" data-until="4"><span><q>If a condition matches 10% of rows, with HNSW and the default hnsw.ef_search of 40, only 4 rows will match on average.</q><a class="cite doc" href="https://github.com/pgvector/pgvector/blob/master/README.md#filtering" target="_blank" rel="noopener"><b>Docs</b>&nbsp;pgvector README · Filtering</a><span class="pf-fix">Fix: <code>iterative_scan</code> reads more batches until 10 rows match. <code>SET LOCAL</code> is safe with connection pools.</span></span></div>
+        <div data-step="4"><span>Only <code>ORDER BY embedding &lt;=&gt; q LIMIT 10</code> uses the index. <code>ORDER BY 1 - (embedding &lt;=&gt; q) DESC</code> does not.</span></div>
+      </div>
+      <div class="code-wrap out" data-step="4">
+        <div class="code-head">output · illustrative</div>
+        <pre class="code" data-lang="out" id="pf-out"><code><span class="ok">10 rows; first: (123, 'home', datetime.date(2026, 1, 1))</span>
+Limit  (cost=... rows=10 width=...)
+  -&gt;  <span class="ok">Index Scan using claim_hnsw</span> on claim_chunks
+        Order By: (embedding &lt;=&gt; '[...]'::vector)
+        Filter: ((tenant_id = 3) AND (product = 'home'::text) AND ...)</code></pre>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    This is the last step of Lab 3: the Qwen3 claims vectors (256 dims, as in step 2) move into Postgres, loaded as 50,000 rows over 20 tenants, and each query filters by tenant, product and date. Steps 1 and 2: register the vector type after CREATE EXTENSION, keep the model name on every row, and build the cosine HNSW index after the bulk load. Step 3 is the trap: pgvector filters after the index scan, and this filter keeps about 0.8% of rows (1/20 tenants x 1/4 products x 2/3 years), so even the 100 candidates of ef_search 100 give under one matching row (the README case with the default 40 gives 0.3); the iterative scan keeps reading until 10 rows match or hnsw.max_scan_tuples (20,000) is reached. Analogy: a waiter brings 40 dishes and then removes all dishes that you did not order; the iterative scan sends the waiter back to the kitchen until you have 10. Step 4: check EXPLAIN for "Index Scan using claim_hnsw", and keep the distance operator in ORDER BY ascending. Likely question: "Why not always use iterative scan?" It costs extra reads on selective filters; for many tenants the README recommends partitions, and the planner can also pick the B-tree and an exact sort. Hand-off: the index now serves; the Build slide next handles day two, when the claims policy is edited.
+  </aside>
+</section>
+<script>
+(() => {
+  const ID = "rag-c03-lab3-pgvector-filter";
+  const NS = "http://www.w3.org/2000/svg";
+  const COLS = 20, ROWS = 5, SW = 15, SH = 17, DX = 18.5, DY = 21, Y0 = 26;
+  // iterative scan: 13 batches of ef_search = 100 candidates; 0.8% match, so about 0.8 hits per batch (10 hits in total)
+  const NB = 13;
+  const HITB = Array.from({ length: NB }, (_, b) => Math.floor((b + 1) * 10 / NB) > Math.floor(b * 10 / NB));
+  const HITSLOT = (b) => (b * 37 + 11) % 100;
+  const hitsUpTo = (b) => HITB.slice(0, b + 1).filter(Boolean).length;
+  let tl = null;
+  const mk = (tag, attrs, parent, text) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text != null) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  };
+  const q = (s, sel) => s.querySelector(sel);
+
+  function ensure(s) {
+    const g = q(s, "#pf-slots");
+    if (g.childNodes.length) return;
+    for (let i = 0; i < COLS * ROWS; i++) {
+      const x = (i % COLS) * DX, y = Y0 + Math.floor(i / COLS) * DY;
+      mk("rect", { x, y, width: SW, height: SH, rx: 5, "stroke-width": 1.5 }, g);
+    }
+    const r = q(s, "#pf-res");
+    for (let i = 0; i < 10; i++) {
+      mk("rect", { x: 400 + (i % 5) * 32, y: 76 + Math.floor(i / 5) * 26, width: 26, height: 20, rx: 4, "stroke-width": 1.5 }, r);
+    }
+  }
+  const slots = (s) => [...q(s, "#pf-slots").children];
+  const cells = (s) => [...q(s, "#pf-res").children];
+  const EMPTY = { fill: "transparent", stroke: "var(--line-2)", opacity: 1 };
+  const CAND = { fill: "var(--state-soft)", stroke: "var(--state)", opacity: 1 };
+  const GREY = { fill: "var(--line)", stroke: "var(--line-2)", opacity: 0.45 };
+  const HIT = { fill: "var(--state)", stroke: "var(--state)", opacity: 1 };
+  const paint = (el, st) => { el.setAttribute("fill", st.fill); el.setAttribute("stroke", st.stroke); el.setAttribute("opacity", st.opacity); };
+
+  function setText(s, hdr, cnt, cntColor, scan, cap, capColor) {
+    q(s, "#pf-hdr").textContent = hdr;
+    const c = q(s, "#pf-cnt"); c.textContent = cnt; c.style.fill = cntColor;
+    q(s, "#pf-scan").textContent = scan;
+    const p = q(s, "#pf-cap"); p.textContent = cap; p.style.fill = capColor;
+  }
+
+  const FAIL_CAP = "WHERE keeps ≈0.8% of rows: 100 × 0.8% ≈ 0.8 rows";
+  function finalState(s, n) {
+    const S = slots(s), C = cells(s);
+    if (n < 2) {
+      S.forEach((e) => paint(e, EMPTY)); C.forEach((e) => paint(e, EMPTY));
+      setText(s, "HNSW candidates · ef_search = 100", "– / 10", "var(--muted)", "", "", "var(--muted)");
+    } else if (n === 2) {
+      S.forEach((e) => paint(e, CAND)); C.forEach((e) => paint(e, EMPTY));
+      setText(s, "HNSW candidates · ef_search = 100", "– / 10", "var(--muted)", "scanned: 100",
+        "one index scan gives 100 nearest candidates", "var(--ink-2)");
+    } else {
+      S.forEach((e, i) => paint(e, i === HITSLOT(NB - 1) ? HIT : GREY)); C.forEach((e) => paint(e, HIT));
+      setText(s, "iterative scan · batch " + NB + " of candidates", "10 / 10", "var(--state)", "scanned: " + (NB * 100).toLocaleString("en-US"),
+        "10 ÷ 0.8% ≈ 1,250 rows read (cap: max_scan_tuples 20,000)", "var(--state)");
+    }
+  }
+
+  function play(s, n) {
+    const S = slots(s), C = cells(s);
+    tl = gsap.timeline({ onComplete: () => finalState(s, n) });
+    if (n === 2) {
+      S.forEach((e) => paint(e, EMPTY));
+      setText(s, "HNSW candidates · ef_search = 100", "– / 10", "var(--muted)", "", "", "var(--muted)");
+      S.forEach((e, i) => tl.call(() => paint(e, CAND), null, 0.012 * i));
+      tl.call(() => finalState(s, 2), null, 1.4);
+    } else if (n === 3) {
+      // phase A: the WHERE filter runs after the scan and removes every candidate
+      S.forEach((e) => paint(e, CAND)); C.forEach((e) => paint(e, EMPTY));
+      setText(s, "HNSW candidates · ef_search = 100", "– / 10", "var(--muted)", "scanned: 100", "", "var(--risk)");
+      tl.call(() => { S.forEach((e) => paint(e, GREY)); setText(s, "WHERE filter after the scan", "0 / 10", "var(--risk)", "scanned: 100", FAIL_CAP, "var(--risk)"); }, null, 0.3);
+      tl.fromTo(S, { scale: 1 }, { scale: 0.86, transformOrigin: "50% 50%", duration: 0.2, yoyo: true, repeat: 1, stagger: 0.006 }, 0.3);
+      // phase B: iterative scan keeps reading batches until 10 rows match
+      const T0 = 2.2, DT = 0.3;
+      tl.call(() => { const p = q(s, "#pf-cap"); p.textContent = "SET LOCAL hnsw.iterative_scan = relaxed_order"; p.style.fill = "var(--state)"; }, null, T0 - 0.2);
+      for (let b = 0; b < NB; b++) {
+        const t0 = T0 + b * DT, h = hitsUpTo(b);
+        tl.call(() => {
+          S.forEach((e, i) => paint(e, HITB[b] && i === HITSLOT(b) ? HIT : GREY));
+          q(s, "#pf-hdr").textContent = "iterative scan · batch " + (b + 1) + " of candidates";
+          q(s, "#pf-scan").textContent = "scanned: " + ((b + 1) * 100).toLocaleString("en-US");
+          const c = q(s, "#pf-cnt"); c.textContent = h + " / 10"; c.style.fill = h === 10 ? "var(--state)" : h ? "var(--tool)" : "var(--risk)";
+          if (HITB[b]) paint(C[h - 1], HIT);
+        }, null, t0);
+        if (HITB[b]) tl.fromTo(C[h - 1], { scale: 0.4 }, { scale: 1, transformOrigin: "50% 50%", duration: 0.3, ease: "back.out(2.4)" }, t0);
+      }
+      tl.call(() => finalState(s, 3), null, T0 + NB * DT + 0.3);
+    }
+  }
+
+  function render(s, n, animate) {
+    ensure(s);
+    if (tl) { tl.kill(); tl = null; }
+    gsap.killTweensOf([...slots(s), ...cells(s)]);
+    gsap.set([...slots(s), ...cells(s)], { scale: 1 });
+    if (animate && (n === 2 || n === 3)) play(s, n); else finalState(s, n);
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { render(slide, step, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave(slide) { if (tl) { tl.kill(); tl = null; } gsap.killTweensOf([...slots(slide), ...cells(slide)]); }
+  });
+})();
+</script>

@@ -1,0 +1,106 @@
+<section class="slide tight" id="adk-c02-gotcha-none" data-tone="risk" data-title="Gotcha: None fields are dropped">
+  <style>
+    #adk-c02-gotcha-none .c02x-grid { display: grid; grid-template-columns: 724px 1fr; gap: 28px; align-items: start; }
+    #adk-c02-gotcha-none .c02x-left { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+    #adk-c02-gotcha-none .gotcha { font-size: 20px; line-height: 1.42; padding: 18px 22px; gap: 10px 16px; }
+    #adk-c02-gotcha-none .gotcha .em { font: 600 17px/1.45 var(--f-mono); color: var(--risk); }
+    #adk-c02-gotcha-none .code-wrap { align-self: stretch; }
+    #adk-c02-gotcha-none .c02x-viz { padding: 24px 26px; gap: 26px; min-height: 470px; }
+    #adk-c02-gotcha-none .c02x-row { display: flex; align-items: center; gap: 14px; }
+    #adk-c02-gotcha-none .c02x-bx { flex: 1; border-radius: 14px; border: 2px solid var(--line-2); background: var(--surface-2); padding: 12px 14px; }
+    #adk-c02-gotcha-none .c02x-bx.md { border-color: var(--model); }
+    #adk-c02-gotcha-none .c02x-bx.st { border-color: var(--state); background: color-mix(in oklab, var(--state) 6%, var(--surface-2)); }
+    #adk-c02-gotcha-none .c02x-bx .h { font: 700 16px/1.2 var(--f-mono); color: var(--ink-2); margin-bottom: 8px; }
+    #adk-c02-gotcha-none .c02x-bx .h i { font-style: normal; font-weight: 500; color: var(--muted); }
+    #adk-c02-gotcha-none .c02x-r { font: 500 17px/34px var(--f-mono); color: var(--ink-2); white-space: nowrap; overflow: hidden; border-radius: 6px; padding: 0 6px; }
+    #adk-c02-gotcha-none .c02x-r b { color: var(--ink); }
+    #adk-c02-gotcha-none .c02x-r.null { color: var(--risk); background: color-mix(in oklab, var(--risk) 9%, transparent); }
+    #adk-c02-gotcha-none .c02x-r.strike { text-decoration: line-through; }
+    #adk-c02-gotcha-none .c02x-mid { flex: none; display: flex; flex-direction: column; align-items: center; gap: 4px; font: 700 15px/1 var(--f-mono); color: var(--muted); }
+    #adk-c02-gotcha-none .c02x-mid b { font-size: 28px; color: var(--state); }
+    #adk-c02-gotcha-none .c02x-chips { display: flex; flex-direction: column; gap: 14px; }
+    #adk-c02-gotcha-none .c02x-chip { align-self: flex-start; font: 700 18px/1 var(--f-mono); padding: 12px 16px; border-radius: 10px; border: 2px solid; white-space: nowrap; }
+    #adk-c02-gotcha-none .c02x-chip.red { border-color: var(--risk); color: var(--risk); background: color-mix(in oklab, var(--risk) 8%, var(--surface-2)); }
+    #adk-c02-gotcha-none .c02x-chip.grn { border-color: var(--state); color: var(--state); background: color-mix(in oklab, var(--state) 8%, var(--surface-2)); }
+  </style>
+  <div class="kicker"><span class="pill">Gotcha</span> Structured output</div>
+  <h2 class="title">output_key drops None fields, so read optional keys with .get()</h2>
+  <div class="c02x-grid fill">
+    <div class="c02x-left">
+      <div class="gotcha">
+        <b>Symptom</b><span><span class="em">KeyError: 'incident_date'</span> in the downstream claims code.</span>
+        <b class="why" data-step="1">Cause</b><span data-step="1"><code>output_key</code> stores <code>model_dump(exclude_none=True)</code>. Null fields vanish.</span>
+        <b class="fix" data-step="2">Fix</b><span data-step="2">Read with <code>.get()</code>, or rebuild the typed object.</span>
+      </div>
+      <div class="code-wrap good" data-step="2">
+        <div class="code-head">labs/adk/lab2-claims-api/claims/claim_intake.py · excerpt</div>
+        <pre class="code c17" data-lang="python" data-focus="2:3, 3:4"><code>claim = s.state["claim"]            # a dict, None fields dropped
+# ...
+date = claim.get("incident_date")   # None, not KeyError
+typed = ClaimIntake.model_validate(claim)   # typed object back</code></pre>
+      </div>
+      <div class="cites push"><a class="cite doc" href="https://adk.dev/sessions/state/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;State</a></div>
+    </div>
+    <div class="panel flat c02x-viz" id="c02x-viz" aria-label="The model reply has incident_date null; exclude_none drops it from state, so claim[incident_date] raises KeyError, claim.get returns None and model_validate rebuilds the object with incident_date None">
+      <div class="c02x-row">
+        <div class="c02x-bx md">
+          <div class="h">model reply <i>JSON</i></div>
+          <div class="c02x-r">"severity": <b>"medium"</b></div>
+          <div class="c02x-r null">"incident_date": <b>null</b></div>
+          <div class="c02x-r">"injuries": <b>false</b></div>
+        </div>
+        <div class="c02x-mid"><b>→</b>exclude_none</div>
+        <div class="c02x-bx st">
+          <div class="h">state["claim"] <i>dict</i></div>
+          <div class="c02x-r">"severity": <b>"medium"</b></div>
+          <div class="c02x-r null" id="c02x-drop">"incident_date": <b>null</b></div>
+          <div class="c02x-r">"injuries": <b>false</b></div>
+        </div>
+      </div>
+      <div class="c02x-chips">
+        <div class="c02x-chip red" id="c02x-ke">claim["incident_date"] → KeyError</div>
+        <div class="c02x-chip grn" id="c02x-get">claim.get("incident_date") → None</div>
+        <div class="c02x-chip grn" id="c02x-typed">model_validate(claim).incident_date → None</div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Symptom first: the downstream claims code crashes with KeyError 'incident_date'. Click 1, the cause: the email in Lab 2 had no year, so the model returned null; with output_key and output_schema, ADK stores model_dump with exclude_none=True, so a null field is not stored as None, it is absent from the dict. Click 2, the fix: read optional keys with .get, which returns None. Click 3: or rebuild the typed object with ClaimIntake.model_validate, which fills the default None again and gives you attribute access. Analogy: the claim form has no box for a missing date, so the clerk leaves the box out instead of writing "none". A likely question: "Can I turn exclude_none off?" Not through output_key; if you need every key, validate the dict back into the model as shown.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c02-gotcha-none";
+  let tl = null;
+  const stop = () => { if (tl) { tl.kill(); tl = null; } };
+  function render(slide, n, animate) {
+    if (window.c02Focus) window.c02Focus(slide, n);
+    stop();
+    const q = (s) => slide.querySelector("#c02x-" + s);
+    const drop = q("drop"), ke = q("ke"), get = q("get"), typed = q("typed");
+    gsap.killTweensOf([drop, ke, get, typed]);
+    // final state for n
+    drop.classList.toggle("strike", n >= 1);
+    gsap.set(drop, { autoAlpha: n >= 1 ? 0 : 1, height: n >= 1 ? 0 : 34 });
+    gsap.set(ke, { autoAlpha: 1, scale: 1 });
+    gsap.set(get, { autoAlpha: n >= 2 ? 1 : 0, y: 0 });
+    gsap.set(typed, { autoAlpha: n >= 3 ? 1 : 0, y: 0 });
+    if (!animate) return;
+    if (n === 1) {
+      drop.classList.remove("strike");
+      gsap.set(drop, { autoAlpha: 1, height: 34 });
+      tl = gsap.timeline({ delay: 0.3 })
+        .add(() => drop.classList.add("strike"))
+        .to(drop, { autoAlpha: 0, height: 0, duration: 0.6, ease: "power2.in" }, "+=0.4")
+        .fromTo(ke, { scale: 1 }, { scale: 1.08, duration: 0.2, yoyo: true, repeat: 1 }, "+=0.1");
+    } else if (n === 2) {
+      tl = gsap.timeline({ delay: 0.4 }).fromTo(get, { autoAlpha: 0, y: 10 }, { autoAlpha: 1, y: 0, duration: 0.4 });
+    } else if (n === 3) {
+      tl = gsap.timeline({ delay: 0.4 }).fromTo(typed, { autoAlpha: 0, y: 10 }, { autoAlpha: 1, y: 0, duration: 0.4 });
+    }
+  }
+  Deck.register(ID, {
+    enter(slide, n) { render(slide, n || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { stop(); },
+  });
+})();
+</script>

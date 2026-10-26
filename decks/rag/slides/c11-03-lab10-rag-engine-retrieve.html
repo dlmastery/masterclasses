@@ -1,0 +1,157 @@
+<section class="slide tight" id="rag-c11-lab10-rag-engine-retrieve" data-tone="tool" data-title="Lab 10: retrieve, rerank, ground">
+  <style>
+    #rag-c11-lab10-rag-engine-retrieve .re-grid { display: grid; grid-template-columns: 724px 1fr; gap: 28px; align-items: start; }
+    #rag-c11-lab10-rag-engine-retrieve .re-left, #rag-c11-lab10-rag-engine-retrieve .re-right { gap: 10px; min-width: 0; }
+    #rag-c11-lab10-rag-engine-retrieve .lab-head { gap: 12px; flex-wrap: nowrap; font-size: 14px; }
+    #rag-c11-lab10-rag-engine-retrieve .lab-head .run { font-size: 14px; flex: none; }
+    #rag-c11-lab10-rag-engine-retrieve .code-wrap .code-head { padding: 7px 14px; font-size: 13.5px; }
+    #rag-c11-lab10-rag-engine-retrieve pre.code.re-c { font-size: 12px; line-height: 1.36; padding: 10px 16px 12px; font-variant-ligatures: none; }
+    #rag-c11-lab10-rag-engine-retrieve pre.code.re-o { font-size: 10.1px; line-height: 1.45; padding: 7px 14px 9px; font-variant-ligatures: none; }
+    #rag-c11-lab10-rag-engine-retrieve .diagram .node { padding: 11px 15px; min-width: 0; }
+    #rag-c11-lab10-rag-engine-retrieve .diagram .node .nt { font-size: 17px; }
+    #rag-c11-lab10-rag-engine-retrieve .diagram .node .ns { font-size: 13.5px; }
+    #rag-c11-lab10-rag-engine-retrieve .re-err { position: absolute; left: 0; top: 372px; width: 360px; padding: 9px 12px; border-radius: 12px;
+      border: 1px solid color-mix(in oklab, var(--risk) 35%, transparent); border-left: 4px solid var(--risk);
+      background: color-mix(in oklab, var(--risk) 6%, transparent); font: 600 11.5px/1.4 var(--f-mono); color: var(--ink-2); z-index: 1; }
+    #rag-c11-lab10-rag-engine-retrieve .re-err b { color: var(--risk); display: block; font-size: 11px; letter-spacing: .05em; margin-bottom: 2px; }
+    #rag-c11-lab10-rag-engine-retrieve .re-svg { position: absolute; left: 412px; top: 26px; overflow: visible; z-index: 1; }
+    #rag-c11-lab10-rag-engine-retrieve .re-svg text { font-family: var(--f-mono); }
+    #rag-c11-lab10-rag-engine-retrieve .steps-rail { gap: 7px; }
+    #rag-c11-lab10-rag-engine-retrieve .steps-rail > * { font-size: 15px; line-height: 1.34; grid-template-columns: 30px 1fr; gap: 10px; }
+    #rag-c11-lab10-rag-engine-retrieve .steps-rail > *::before { width: 26px; height: 26px; font-size: 13px; }
+    #rag-c11-lab10-rag-engine-retrieve .steps-rail code { font-size: .86em; }
+    #rag-c11-lab10-rag-engine-retrieve .re-cite { display: flex; gap: 8px; flex-wrap: wrap; }
+    #rag-c11-lab10-rag-engine-retrieve .re-cite .cite { font-size: 13px; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 10</span> GlobalCorp people team · step 2 of 4</div>
+  <h2 class="title">Retrieve with a distance threshold, rerank, then ground the answer</h2>
+  <div class="re-grid fill">
+    <div class="stack re-left">
+      <div class="lab-head"><span class="run">python lab10_rag_engine_hr.py</span><span>add <code>--cleanup</code> at the end: the corpus bills for storage</span></div>
+      <div class="code-wrap">
+        <div class="code-head">lab10_rag_engine_hr.py · part 2 of 2: retrieve, rerank, generate</div>
+        <pre class="code re-c" data-lang="python" data-focus="1:2-5, 2:6-10, 3:12-16, 4:17-22"><code># part 1 (step 1 of 4): imports, sys, PROJECT, LOC, client, corpus, import_files
+store = gt.VertexRagStore(
+    rag_resources=[gt.VertexRagStoreRagResource(rag_corpus=corpus.name)])
+cfg = gt.RagRetrievalConfig(
+    top_k=5, filter=gt.RagRetrievalConfigFilter(vector_distance_threshold=0.5))
+q = "How many weeks of paid parental leave do employees in Germany get?"
+ctx = client.rag.retrieve_contexts(
+    vertex_rag_store=store, query=types.RagQuery(text=q, rag_retrieval_config=cfg))
+for c in ctx.contexts.contexts:
+    print(f"dist={c.score:.3f}  {c.source_display_name}  {c.text[:70]!r}")
+
+rerank_cfg = gt.RagRetrievalConfig(top_k=5, ranking=gt.RagRetrievalConfigRanking(
+    rank_service=gt.RagRetrievalConfigRankingRankService(
+        model_name="semantic-ranker-512@latest")))
+tool = gt.Tool(retrieval=gt.Retrieval(vertex_rag_store=gt.VertexRagStore(
+    rag_resources=store.rag_resources, rag_retrieval_config=rerank_cfg)))
+gen = genai.Client(enterprise=True, project=PROJECT, location=LOC)
+resp = gen.models.generate_content(model="gemini-3.8-flash", contents=q,
+    config=gt.GenerateContentConfig(tools=[tool], temperature=0))
+print("\nANSWER:", resp.text)
+for ch in resp.candidates[0].grounding_metadata.grounding_chunks or []:
+    print("  source:", ch.retrieved_context.title, ch.retrieved_context.uri)
+
+if "--cleanup" in sys.argv:
+    client.rag.delete_corpus(name=corpus.name)</code></pre>
+      </div>
+      <div class="code-wrap out" data-step="2">
+        <div class="code-head">output · illustrative</div>
+        <pre class="code re-o" data-lang="none"><code><span class="ok">dist=0.212  parental-leave-DE.pdf  'Employees in Germany receive 14 weeks of paid maternity leave...'</span>
+dist=0.348  parental-leave-global.pdf  'Parental leave entitlements vary by country; see the...'
+<span class="dim">dist=0.471  benefits-overview.pdf  'Paid leave types include annual leave, parental leave...'</span>
+<span data-step="4">ANSWER: Employees in Germany receive 14 weeks of paid maternity leave ...
+<span class="ok">  source: parental-leave-DE.pdf gs://globalcorp-hr-docs/handbook/parental-leave-DE.pdf</span></span></code></pre>
+      </div>
+    </div>
+    <div class="stack re-right">
+      <div class="diagram" style="width:640px;height:450px"
+           data-wires="q>ret:rl; ret>ev@2:dash:bt{state}; ret>rk@3:bt{tool}; rk>llm@4:rl{tool}; llm>ans@4:flow:bt{model} [grounded]">
+        <div class="group g-state" style="left:192px;top:0;width:448px;height:196px"><span class="gl">RAG Engine corpus · hr-handbook-2026</span></div>
+        <div class="node n-human pill" id="q" style="left:0;top:66px;width:122px"><span class="nt">Query</span><span class="ns">RagQuery</span></div>
+        <div class="node n-tool" id="ret" style="left:212px;top:56px;width:180px" data-on="1:hot"><span class="nt">retrieve_contexts</span><span class="ns">dist ≤ 0.5</span></div>
+        <svg class="re-svg" id="re-space" viewBox="0 0 214 160" width="214" height="160" aria-label="Chunk vectors around the query, with the distance 0.5 radius"></svg>
+        <div class="node n-state" id="ev" style="left:0;top:216px;width:146px" data-step="2"><span class="nt">eval harness</span><span class="ns">c.text → ragas</span></div>
+        <div class="node n-tool" id="rk" style="left:226px;top:216px;width:162px" data-step="3" data-on="3:hot"><span class="nt">semantic ranker</span><span class="ns">&lt; 100 ms</span></div>
+        <div class="node n-model" id="llm" style="left:470px;top:216px;width:170px" data-step="4" data-on="4:hot"><span class="nt">Gemini 3.8 Flash</span><span class="ns">temperature=0</span></div>
+        <div class="node n-human" id="ans" style="left:400px;top:374px;width:240px" data-step="4"><span class="nt">Answer + source</span><span class="ns">parental-leave-DE.pdf</span></div>
+        <div class="re-err" data-step="4"><b>Both flags set</b>"enterprise and vertexai flags have conflicting values, please set enterprise value only."</div>
+      </div>
+      <div class="steps-rail">
+        <div data-step="1"><span><code>vector_distance_threshold</code> is a distance: lower is closer, cosine range [0, 2].</span></div>
+        <div data-step="2"><span>Log <code>c.text</code>: ragas then scores what the model saw.</span></div>
+        <div data-step="3"><span>Ranking API under 100 ms; an LLM ranker takes 1-2 s.</span></div>
+        <div data-step="4"><span><code>enterprise=True</code> replaces <code>vertexai=</code>. Sources: <code>retrieved_context</code>.</span></div>
+      </div>
+      <div class="re-cite">
+        <a class="cite doc" href="https://docs.cloud.google.com/gemini-enterprise-agent-platform/build/rag-engine/rag-quickstart" target="_blank" rel="noopener"><b>Docs</b>&nbsp;RAG quickstart</a>
+        <a class="cite doc" href="https://docs.cloud.google.com/vertex-ai/generative-ai/docs/rag-engine/retrieval-and-ranking" target="_blank" rel="noopener"><b>Docs</b>&nbsp;RAG Engine retrieval and ranking</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    This is the second half of the GlobalCorp script: we retrieve with a distance threshold, look at the raw contexts, then let Gemini answer with a reranked retrieval tool. The key trap is the threshold: RAG Engine returns a distance, so 0.212 is better than 0.471, and anything above 0.5 is dropped. Think of it as a radius around the question, not a minimum score. We print the raw chunk text because the eval harness from chapter 9 must score exactly what the model saw; for hybrid search you can also set RagQueryRanking alpha, where 0 is sparse only and 1 is dense only. A likely question is "why rerank if the filter already cut the list?": the grounded call uses top 5 plus the ranking API, which costs under 100 ms, while an LLM ranker costs 1 to 2 seconds. Next: step 3 puts the EU benefits handbook in a File Search store, where citations come back as byte offsets.
+  </aside>
+</section>
+<script>
+(() => {
+  const ID = "rag-c11-lab10-rag-engine-retrieve";
+  const NS = "http://www.w3.org/2000/svg";
+  const CX = 104, CY = 82, R = 62;              // 62 px = distance 0.5
+  // inside the radius: the three printed contexts (px = dist * 124)
+  const IN = [[22.5, -13, "0.212"], [-40.4, 14.7, "0.348"], [-10, 57.1, "0.471"]];
+  const NEAR = [[12, -69], [-66, 38]];          // just outside: still in top_k=5 when the filter is off
+  const FAR = [[-90, -50], [-95, 8], [80, -55], [92, 20], [62, -42], [-30, -70], [-40, 68], [-86, -22]];
+  const mk = (tag, a, p, t) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); if (t !== undefined) e.textContent = t; p.appendChild(e); return e; };
+  let svg = null, S = null;
+
+  function build(slide) {
+    svg = slide.querySelector("#re-space");
+    if (svg._S) { S = svg._S; return; }
+    svg.innerHTML = "";
+    S = { inP: [], inL: [], near: [], far: [], rings: [] };
+    S.circle = mk("circle", { cx: CX, cy: CY, r: R, style: "fill:color-mix(in oklab, var(--state) 10%, transparent);stroke:var(--state);stroke-width:2;stroke-dasharray:5 5" }, svg);
+    S.cLab = mk("text", { x: CX + 40, y: 14, style: "font-size:11px;font-weight:700;fill:var(--state)" }, svg, "≤ 0.5");
+    FAR.forEach(([x, y]) => S.far.push(mk("circle", { cx: CX + x, cy: CY + y, r: 5.5, style: "fill:var(--muted)" }, svg)));
+    NEAR.forEach(([x, y]) => S.near.push(mk("circle", { cx: CX + x, cy: CY + y, r: 5.5, style: "fill:var(--muted)" }, svg)));
+    IN.forEach(([x, y, d]) => {
+      S.inP.push(mk("circle", { cx: CX + x, cy: CY + y, r: 6.5, style: "fill:var(--muted)" }, svg));
+      const left = x < 0;
+      S.inL.push(mk("text", { x: CX + x + (left ? -10 : 10), y: CY + y + 4, "text-anchor": left ? "end" : "start", style: "font-size:10.5px;font-weight:700;fill:var(--state);paint-order:stroke;stroke:var(--surface-2);stroke-width:3" }, svg, d));
+    });
+    [...IN, ...NEAR].forEach(([x, y]) => S.rings.push(mk("circle", { cx: CX + x, cy: CY + y, r: 10, style: "fill:none;stroke:var(--tool);stroke-width:2.2" }, svg)));
+    S.q = mk("circle", { cx: CX, cy: CY, r: 8, style: "fill:var(--human);stroke:#fff;stroke-width:2" }, svg);
+    S.qL = mk("text", { x: CX - 6, y: CY - 13, style: "font-size:11px;font-weight:700;fill:var(--human)" }, svg, "q");
+    S.kLab = mk("text", { x: 214, y: 157, "text-anchor": "end", style: "font-size:11px;font-weight:700;fill:var(--tool)" }, svg, "top_k=5 → ranker");
+    svg._S = S;
+  }
+
+  function render(n, animate) {
+    if (!S) return;
+    const d = animate ? 0.45 : 0;
+    const op = (el, v, delay) => gsap.to(el, { opacity: v, duration: d, delay: animate ? (delay || 0) : 0, overwrite: true });
+    // step 1: the radius appears; points inside turn green, others fade
+    const filt = n >= 1;
+    op(S.circle, n >= 3 ? 0.3 : (filt ? 1 : 0));
+    op(S.cLab, n >= 3 ? 0.3 : (filt ? 1 : 0));
+    if (animate && n === 1) gsap.fromTo(S.circle, { attr: { r: 0 } }, { attr: { r: R }, duration: 0.7, ease: "power3.out" });
+    else gsap.set(S.circle, { attr: { r: R } });
+    S.inP.forEach((p, i) => { p.style.fill = filt ? "var(--state)" : "var(--muted)"; op(p, 1, 0.1 * i); });
+    S.far.forEach((p) => op(p, filt ? 0.28 : 0.6));
+    S.near.forEach((p) => op(p, filt && n < 3 ? 0.28 : 0.6));
+    // step 2: printed distances
+    S.inL.forEach((t, i) => op(t, n >= 2 ? 1 : 0, 0.15 * i));
+    // step 3: the reranked tool has no filter: the 5 nearest go to the ranker
+    S.rings.forEach((r, i) => op(r, n >= 3 ? 1 : 0, 0.08 * i));
+    op(S.kLab, n >= 3 ? 1 : 0, 0.3);
+    if (animate && n === 3) gsap.fromTo(S.rings, { scale: 0.4, transformOrigin: "50% 50%" }, { scale: 1, duration: 0.5, stagger: 0.08, ease: "back.out(2)" });
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { build(slide); render(step || 0, false); },
+    step(slide, n, animate) { build(slide); render(n, animate); },
+    leave() { if (svg) gsap.killTweensOf(svg.querySelectorAll("*")); }
+  });
+})();
+</script>

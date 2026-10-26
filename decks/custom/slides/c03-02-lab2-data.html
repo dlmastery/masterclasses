@@ -1,0 +1,205 @@
+<section class="slide" id="custom-c03-lab2-data" data-tone="model" data-title="Lab 2: prompt-completion claims rows">
+  <style>
+    #custom-c03-lab2-data .d-grid { display: grid; grid-template-columns: 700px minmax(0, 1fr); gap: 28px; min-height: 0; }
+    #custom-c03-lab2-data .d-left, #custom-c03-lab2-data .d-right { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    #custom-c03-lab2-data .d-code pre.code { font-size: 15px; line-height: 21px; padding: 10px 18px 12px; }
+    #custom-c03-lab2-data .d-out pre.code { font-size: 14px; line-height: 20px; padding: 8px 16px 10px; }
+    #custom-c03-lab2-data .d-run pre.code { font-size: 12.5px; line-height: 17px; padding: 8px 14px 10px; }
+    #custom-c03-lab2-data .code-head { padding: 7px 14px; font-size: 13.5px; }
+    #custom-c03-lab2-data .lab-head { font-size: 15px; gap: 12px; }
+    #custom-c03-lab2-data .lab-head .run { font-size: 15px; padding: 7px 11px; }
+    #custom-c03-lab2-data .lab-head .cite { font-size: 13px; padding: 5px 10px; }
+    #custom-c03-lab2-data .steps-rail { gap: 7px; }
+    #custom-c03-lab2-data .steps-rail > * { font-size: 15.5px; line-height: 1.34; grid-template-columns: 30px minmax(0, 1fr); gap: 10px; }
+    #custom-c03-lab2-data .steps-rail > *::before { width: 26px; height: 26px; font-size: 14px; }
+    #custom-c03-lab2-data .steps-rail code { font-size: .86em; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 2</span> Acme claims extractor · step 1 of 4</div>
+  <h2 class="title">Prompt-completion rows mask the prompt for any chat template</h2>
+  <div class="d-grid fill">
+    <div class="d-left">
+      <div class="lab-head"><span class="run">python lab2_rows.py</span><span>CPU · seconds</span><a class="cite doc" href="https://huggingface.co/docs/trl/sft_trainer" target="_blank" rel="noopener"><b>Docs</b>&nbsp;TRL SFT Trainer</a></div>
+      <div class="code-wrap d-code">
+        <div class="code-head">claims_sft/lab2_rows.py · datasets 5.1.0</div>
+        <pre class="code" data-lang="python" data-focus="1:4-7, 2:7, 4:9-18"><code># lab2_rows.py - gate the claims rows before any GPU time
+import json, sys
+from datasets import load_dataset
+KEYS = {"loss_type", "severity", "needs_adjuster", "policy_section"}
+ds = load_dataset("json", data_files={"train": "claims_train.jsonl",
+                                      "validation": "claims_val.jsonl"})
+print(list(ds), ds["train"].column_names)   # prompt, completion
+
+def bad_row(r):                              # wrong keys or broken JSON
+    try:
+        return set(json.loads(r["completion"][0]["content"])) != KEYS
+    except json.JSONDecodeError:
+        return True
+
+bad = [(s, i) for s in ds for i, r in enumerate(ds[s]) if bad_row(r)]
+if bad:
+    sys.exit(f"{len(bad)} bad rows, first: {bad[:5]}")
+print("bad rows: 0")</code></pre>
+      </div>
+      <div class="code-wrap out d-out" data-step="4">
+        <div class="code-head">output · illustrative</div>
+        <pre class="code" data-lang="none"><code><span class="ok">['train', 'validation'] ['prompt', 'completion']</span>
+<span class="ok">bad rows: 0</span>   <span class="dim"># any bad row: exit code 1, no training job</span></code></pre>
+      </div>
+    </div>
+    <div class="d-right">
+      <div class="code-wrap term d-run">
+        <div class="code-head">run it Monday · Python 3.11+ · GPU 16-24 GB (T4, L4, A10G)</div>
+        <pre class="code" data-lang="bash"><code>$ pip install "trl==1.16.0" "peft==0.21.2" "transformers==5.20.2" "datasets==5.1.0" \
+    "accelerate==1.15.0" "bitsandbytes==0.50.2" "torch==2.14.1"
+claims_sft/  claims_train.jsonl  claims_val.jsonl  claims_test.jsonl (200 rows)
+  # one JSON row per line, exported from the claims system (format below)
+  lab2_rows.py  lab3_qlora_claims.py  lab4_eval_before_after.py</code></pre>
+      </div>
+      <svg id="c03d-svg" viewBox="0 0 640 300" width="640" height="300" aria-label="One JSONL row as two bands of word boxes. The prompt band holds the system and user turns; at step 2 each prompt word turns grey and gets a small -100 label under it, while the words stay readable. The completion band holds the JSON answer and stays in the loss. At step 3 two rows compare assistant_only_loss, which needs generation tags in the chat template, with prompt-completion rows, which need no tags."></svg>
+      <div class="steps-rail">
+        <div data-step="1"><span>One row has two columns. <code>prompt</code> holds the system and user turns. <code>completion</code> holds the JSON answer.</span></div>
+        <div data-step="2"><span>Prompt tokens get label -100, the ignore index of PyTorch cross-entropy. They add zero loss. TRL does this when both columns exist.</span></div>
+        <div data-step="3"><span><code>assistant_only_loss</code> needs <code>{% generation %}</code> marks in the chat template. TRL adds them for Qwen3, not for Gemma 4. Prompt-completion rows need no marks.</span></div>
+        <div data-step="4"><span>The gate exits on a bad row, so no GPU time is lost. <code>claims_test.jsonl</code> never trains and never picks a checkpoint.</span></div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Lab 2 starts with the data, because the row format decides what the model learns. Each JSONL row has two columns: prompt, with the system and user turns, and completion, with the assistant's JSON answer. Export the three files from the claims system in this format; the test file has 200 rows and stays locked away for step 4. When both columns exist, TRL's completion_only_loss defaults to True, so every prompt token gets label -100, which is the ignore index of PyTorch cross-entropy, and only the JSON is in the loss. Note on the diagram: the words stay readable, they only stop counting. assistant_only_loss does the same job for conversational rows, but it needs generation marks in the chat template; TRL patches Qwen3, which is why Lab 1 can use it, but it does not patch Gemma 4, which then raises "The chat template is not training-compatible". Prompt-completion rows avoid that question for any model. Do not add a formatting_func: TRL raises "A formatting function was provided while completion_only_loss=True, which is incompatible." Analogy: an exam sheet where the question is printed and only the answer box is graded. Likely question: "What does the gate catch?" A completion with the wrong keys or broken JSON; sys.exit returns code 1, so a CI job stops before any GPU time.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c03-lab2-data";
+  const PROMPT = ["system:", "Extract", "the", "claim", "as", "JSON", "…", "user:", "Insured", "reports", "burst", "pipe", "…", "relatives."];
+  const COMP = ['{"loss_type":', '"water",', '"severity":', '"high",', '"needs_adjuster":', "true,", '"policy_section":', '"Coverage A - Dwelling"}'];
+  const X0 = 112, XMAX = 636, BH = 26, CH = 7.4, PAD = 12, GAP = 6;
+  let S = null, tl = null, loop = null;
+
+  const el = (parent, tag, attrs, style, text) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (style) Object.assign(e.style, style);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  };
+  const mono = (w, s) => `${w} ${s}px var(--f-mono)`;
+
+  function layout(words, y0, rowH) {
+    let x = X0, y = y0;
+    return words.map((w) => {
+      const width = Math.max(46, Math.round(w.length * CH + PAD));
+      if (x + width > XMAX) { x = X0; y += rowH; }
+      const box = { w, x, y, width };
+      x += width + GAP;
+      return box;
+    });
+  }
+
+  function build(svg) {
+    svg.innerHTML = "";
+    const cap = el(svg, "text", { x: 0, y: 14 }, { font: mono(600, 14), fill: "var(--muted)" }, "");
+    const bands = [
+      { name: "prompt", sub: "sys + user", y: 26, words: PROMPT, kind: "p", rowH: 44 },
+      { name: "completion", sub: "assistant", y: 136, words: COMP, kind: "c", rowH: 32 },
+    ].map((b) => {
+      const boxes = layout(b.words, b.y + 8, b.rowH);
+      const yEnd = boxes[boxes.length - 1].y + (b.kind === "p" ? 42 : BH + 8);
+      const band = el(svg, "rect", { x: X0 - 8, y: b.y, width: XMAX - X0 + 6, height: yEnd - b.y, rx: 12 },
+        { fill: b.kind === "c" ? "var(--model-soft)" : "var(--surface)", stroke: b.kind === "c" ? "var(--model)" : "var(--line-2)", strokeWidth: 1.5 });
+      el(svg, "text", { x: 0, y: b.y + 24 }, { font: mono(700, 15), fill: b.kind === "c" ? "var(--model)" : "var(--ink-2)" }, b.name);
+      el(svg, "text", { x: 0, y: b.y + 42 }, { font: mono(500, 13), fill: "var(--muted)" }, b.sub);
+      const toks = boxes.map((bx) => {
+        const g = el(svg, "g", {});
+        const rect = el(g, "rect", { x: bx.x, y: bx.y, width: bx.width, height: BH, rx: 6 },
+          { fill: "var(--surface-2)", stroke: b.kind === "c" ? "var(--model)" : "var(--line-2)", strokeWidth: 1.5 });
+        const tx = el(g, "text", { x: bx.x + bx.width / 2, y: bx.y + 17.5, "text-anchor": "middle" },
+          { font: mono(500, 12), fill: b.kind === "c" ? "var(--model)" : "var(--ink-2)" }, bx.w);
+        const lab = b.kind === "p" ? el(g, "text", { x: bx.x + bx.width / 2, y: bx.y + BH + 12, "text-anchor": "middle" },
+          { font: mono(700, 10.5), fill: "var(--risk)", opacity: 0 }, "-100") : null;
+        return { g, rect, tx, lab };
+      });
+      return { toks, kind: b.kind, band };
+    });
+    // comparison (step 3)
+    const cmp = el(svg, "g", {});
+    el(cmp, "line", { x1: 0, y1: 222, x2: 636, y2: 222 }, { stroke: "var(--line)", strokeWidth: 1.5 });
+    const items = [
+      { y: 248, icon: "✕", c: "var(--risk)", a: "assistant_only_loss", b: "needs {% generation %} marks · Gemma 4: ValueError" },
+      { y: 284, icon: "✓", c: "var(--state)", a: "prompt + completion", b: "needs no marks · any chat template" },
+    ].map((it) => {
+      const g = el(cmp, "g", {});
+      el(g, "circle", { cx: 12, cy: it.y - 5, r: 12 }, { fill: it.c });
+      el(g, "text", { x: 12, y: it.y, "text-anchor": "middle" }, { font: mono(700, 14), fill: "#fff" }, it.icon);
+      el(g, "text", { x: 34, y: it.y }, { font: mono(700, 14), fill: it.c }, it.a);
+      el(g, "text", { x: 222, y: it.y }, { font: mono(500, 13.5), fill: "var(--ink-2)" }, it.b);
+      return g;
+    });
+    S = { svg, cap, prompt: bands[0], comp: bands[1], compBand: bands[1].band, cmp, items };
+  }
+
+  const CAPS = [
+    "one JSONL row = two columns",
+    "the row, word by word (1 box ≈ 1 word)",
+    "grey = label -100 (no loss) · coral = in the loss",
+    "two ways to mask the prompt",
+    "two ways to mask the prompt",
+  ];
+
+  function stop() {
+    if (tl) { tl.kill(); tl = null; }
+    if (loop) { loop.kill(); loop = null; }
+    if (S) gsap.killTweensOf([S.compBand, S.cmp, ...S.items, ...S.prompt.toks.map((t) => t.g), ...S.prompt.toks.map((t) => t.lab), ...S.comp.toks.map((t) => t.g)]);
+  }
+
+  function render(n, animate) {
+    if (!S) return;
+    stop();
+    S.cap.textContent = CAPS[Math.min(n, 4)];
+    const all = [...S.prompt.toks, ...S.comp.toks];
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const anim = animate && !reduce;
+    // step 1: the row appears word by word
+    if (n === 1 && anim) {
+      tl = gsap.timeline();
+      all.forEach((t, i) => tl.fromTo(t.g, { opacity: 0, y: -6 }, { opacity: 1, y: 0, duration: 0.18 }, i * 0.05));
+    } else gsap.set(all.map((t) => t.g), { opacity: n >= 1 ? 1 : 0, y: 0 });
+    // step 2+: prompt words stay readable but turn grey; a -100 label appears under each
+    S.prompt.toks.forEach((t, i) => {
+      const masked = n >= 2;
+      t.tx.style.fill = masked ? "var(--faint)" : "var(--ink-2)";
+      t.rect.style.strokeDasharray = masked ? "4 3" : "none";
+      t.rect.style.fill = masked ? "var(--surface)" : "var(--surface-2)";
+      if (masked && n === 2 && anim) gsap.fromTo(t.lab, { opacity: 0, y: -6 }, { opacity: 1, y: 0, duration: 0.3, delay: 0.05 + i * 0.05 });
+      else gsap.set(t.lab, { opacity: masked ? 1 : 0, y: 0 });
+    });
+    S.comp.toks.forEach((t) => {
+      t.rect.style.fill = n >= 2 ? "var(--model-soft)" : "var(--surface-2)";
+      t.rect.style.strokeWidth = n >= 2 ? 2.2 : 1.5;
+    });
+    gsap.set(S.compBand, { opacity: 1 });
+    if (n >= 2 && !reduce) loop = gsap.to(S.compBand, { opacity: 0.55, duration: 0.9, yoyo: true, repeat: -1, ease: "sine.inOut" });
+    // step 3+: comparison
+    if (n === 3 && anim) {
+      gsap.set(S.cmp, { opacity: 1 });
+      gsap.fromTo(S.items, { opacity: 0, x: -14 }, { opacity: 1, x: 0, duration: 0.4, stagger: 0.25, ease: "power2.out" });
+    } else {
+      gsap.set(S.cmp, { opacity: n >= 3 ? 1 : 0 });
+      gsap.set(S.items, { opacity: 1, x: 0 });
+    }
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) {
+      stop();
+      build(slide.querySelector("#c03d-svg"));
+      render(step || 0, false);
+    },
+    step(slide, n, animate) {
+      if (!S || !slide.contains(S.svg)) build(slide.querySelector("#c03d-svg"));
+      render(n, animate);
+    },
+    leave() { stop(); },
+  });
+})();
+</script>

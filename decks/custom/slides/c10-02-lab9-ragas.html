@@ -1,0 +1,232 @@
+<section class="slide" id="custom-c10-lab9-ragas" data-tone="state" data-title="Lab 9: ragas test set">
+  <style>
+    #custom-c10-lab9-ragas { gap: 20px; }
+    #custom-c10-lab9-ragas .rg-grid { display: grid; grid-template-columns: 730px minmax(0, 1fr); gap: 26px; min-height: 0; }
+    #custom-c10-lab9-ragas .rg-left, #custom-c10-lab9-ragas .rg-right { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    #custom-c10-lab9-ragas .code-head { padding: 7px 14px; font-size: 13.5px; }
+    #custom-c10-lab9-ragas .rg-code pre.code { font-size: 13px; line-height: 1.42; padding: 10px 14px 12px; }
+    #custom-c10-lab9-ragas .lab-head { font-size: 14px; gap: 10px; }
+    #custom-c10-lab9-ragas .lab-head .run { font-size: 14.5px; padding: 7px 11px; }
+    #custom-c10-lab9-ragas .steps-rail { gap: 8px; }
+    #custom-c10-lab9-ragas .steps-rail > * { font-size: 15px; line-height: 1.36; grid-template-columns: 30px minmax(0, 1fr); gap: 10px; }
+    #custom-c10-lab9-ragas .steps-rail > *::before { width: 26px; height: 26px; font-size: 14px; }
+    #custom-c10-lab9-ragas .steps-rail code { font-size: .84em; white-space: normal; overflow-wrap: anywhere; }
+    #custom-c10-lab9-ragas .rg-swap { display: grid; margin-top: auto; }
+    #custom-c10-lab9-ragas .rg-swap > * { grid-area: 1 / 1; align-self: end; }
+    #custom-c10-lab9-ragas .rg-swap pre.code, #custom-c10-lab9-ragas .rg-swap pre.code code { font-size: 12px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
+    #custom-c10-lab9-ragas .rg-swap pre.code { padding: 9px 14px 11px; }
+    #custom-c10-lab9-ragas .gotcha { font-size: 14px; line-height: 1.36; padding: 11px 14px; grid-template-columns: 74px minmax(0, 1fr); gap: 4px 10px; }
+    #custom-c10-lab9-ragas .gotcha > b { font-size: 12px; line-height: 1.5; }
+    #custom-c10-lab9-ragas .gotcha code { font-size: .86em; white-space: normal; overflow-wrap: anywhere; }
+    #custom-c10-lab9-ragas pre.code, #custom-c10-lab9-ragas pre.code *, #custom-c10-lab9-ragas code, #custom-c10-lab9-ragas svg text { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #c10rg-svg text { font-family: var(--f-mono); }
+  </style>
+  <div class="kicker"><span class="pill">Lab 9</span> Acme HR policy assistant · step 1 of 4</div>
+  <h2 class="title">Synthesize 40 HR-policy questions with ragas TestsetGenerator</h2>
+  <div class="rg-grid fill">
+    <div class="rg-left">
+      <div class="code-wrap rg-code">
+        <div class="code-head">hr_eval/lab9_testset.py · lines 1-20 (part 1 of 2)</div>
+        <pre class="code" data-lang="python" data-focus="1:12-13, 2:15-17, 3:18-20"><code>"""Lab 9 - Acme HR policy assistant: synthesize a RAG eval set with ragas, then verify it."""
+import collections, difflib, glob, hashlib, json, os
+
+from langchain_core.documents import Document
+from langchain_openai import ChatOpenAI
+from openai import OpenAI
+from ragas.embeddings import OpenAIEmbeddings
+from ragas.llms import LangchainLLMWrapper
+from ragas.testset import TestsetGenerator
+
+client = OpenAI()   # reads OPENAI_API_KEY
+JUDGE = os.environ["JUDGE_MODEL"]   # used by the checks in step 2
+docs = [Document(page_content=open(p, encoding="utf-8").read(), metadata={"source": p})
+        for p in sorted(glob.glob("hr_policies/*.md"))]   # pto.md, ...
+
+generator = TestsetGenerator(
+    llm=LangchainLLMWrapper(ChatOpenAI(model=os.environ["GEN_MODEL"])),
+    embedding_model=OpenAIEmbeddings(client=client))
+rows = generator.generate_with_langchain_docs(docs, testset_size=40).to_list()
+print(len(rows), sorted(rows[0]))
+# step 2 of 4: ask_judge(), grounded, closed-book and near-duplicate checks, sha256 file name</code></pre>
+      </div>
+      <div class="rg-swap">
+        <div class="code-wrap term" data-until="3">
+          <div class="code-head">run it Monday · Python 3.12 · separate venv</div>
+          <pre class="code" data-lang="bash"><code>$ python -m venv .venv-rag &amp;&amp; . .venv-rag/bin/activate
+$ pip install "ragas==0.4.3" "langchain-openai==1.7.2" "openai==3.37.0"
+$ export OPENAI_API_KEY=sk-...  GEN_MODEL=&lt;gen&gt;  JUDGE_MODEL=&lt;judge&gt;
+$ export RAGAS_DO_NOT_TRACK=true   <span class="dim"># else ragas sends usage analytics</span>
+hr_eval/hr_policies/  pto.md  parental_leave.md  expenses.md  ...  <span class="dim"># 5+ files, each &gt; 500 tokens</span></code></pre>
+        </div>
+        <div class="code-wrap out" data-step="3">
+          <div class="code-head">output · illustrative (LLM calls not run)</div>
+          <pre class="code" data-lang="none"><code><span class="err">DeprecationWarning: LangchainLLMWrapper is deprecated and will be removed in a future version. Use llm_factory instead</span>
+<span class="dim">Applying HeadlinesExtractor: 100%|...|   (graph transforms, then scenarios, then samples)</span>
+<span class="ok">40 ['persona_name', 'query_length', 'query_style', 'reference', 'reference_contexts', 'synthesizer_name', 'user_input']</span></code></pre>
+        </div>
+      </div>
+    </div>
+    <div class="rg-right">
+      <div class="lab-head"><span class="run">python lab9_testset.py</span><a class="cite doc" href="https://docs.ragas.io/en/stable/getstarted/rag_testset_generation/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Testset Generation for RAG</a></div>
+      <svg id="c10rg-svg" viewBox="0 0 636 250" width="636" height="236" role="img" aria-label="A ragas knowledge graph. Five green policy document nodes: pto.md, parental_leave.md, expenses.md, policy_4.md and policy_5.md. Step 1: extractors add small headline and entity child nodes to each document. Step 2: relationship edges draw between related documents, for example pto.md and parental_leave.md. Step 3: question cards fly from single nodes to a single-hop specific counter and from edges to two multi-hop counters; the counters reach 20, 10 and 10 of 40, the default 0.5, 0.25, 0.25 mix. Counts are illustrative."></svg>
+      <div class="steps-rail">
+        <div data-step="1"><span>One <code>Document</code> per policy, with <code>source</code> metadata. ragas bins docs by tokens: 100 or less fails.</span></div>
+        <div data-step="2"><span>The generator builds a knowledge graph: extractors add headlines and entities, then relationships link related policies.</span></div>
+        <div data-step="3"><span>Default mix 0.5 / 0.25 / 0.25. Pass <code>query_distribution=</code> to match your real query logs.</span></div>
+      </div>
+      <div class="gotcha" data-step="4">
+        <b>Error</b><span><code>ValueError: Documents appears to be too short (ie 100 tokens or less). Please provide longer documents.</code></span>
+        <b class="fix">Fix</b><span>Merge short FAQ entries into longer docs, or chunk them and call <code>generate_with_chunks()</code>.</span>
+        <b>Error</b><span><code>ValueError: No relationships match the provided condition. Cannot form clusters.</code></span>
+        <b class="fix">Fix</b><span>Multi-hop needs related docs: add overlapping policies, or use a single-hop <code>query_distribution</code>.</span>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">This is step 1 of Lab 9: we turn the Acme HR policies into 40 synthetic question, answer and context rows with the ragas 0.4.3 TestsetGenerator. Step 1: each markdown policy becomes one LangChain Document with its source path; keep each policy above 500 tokens, because ragas bins documents by length and rejects very short ones. Step 2: the generator gets an LLM through LangchainLLMWrapper and an embedding model; inside, it builds a knowledge graph, with headline and entity extractors on each document and relationship edges between related documents such as PTO and parental leave. Step 3: the default mix is half single-hop specific, a quarter multi-hop abstract and a quarter multi-hop specific, and each row carries user_input, reference_contexts, reference, persona and query style; the deprecation warning is expected because the 0.4.3 docs still use the wrapper. Analogy: the generator is a new hire who writes exam questions from the handbook, and like any first draft, the next slide checks every question before anyone uses it. The JUDGE_MODEL variable is read here but used in step 2. Likely question: "Why does multi-hop fail on my two documents?" Because multi-hop synthesizers need relationships between documents; with one or two unrelated files there are none, so you get "Cannot form clusters".</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c10-lab9-ragas";
+  // document nodes: [label, x, y, w]
+  const DOCS = [
+    ["pto.md", 140, 30, 112],
+    ["parental_leave.md", 262, 112, 160],
+    ["expenses.md", 0, 112, 120],
+    ["policy_4.md", 30, 200, 116],
+    ["policy_5.md", 236, 200, 116],
+  ];
+  const H = 34;
+  const cx = (i) => DOCS[i][1] + DOCS[i][3] / 2, cy = (i) => DOCS[i][2] + H / 2;
+  const EDGES = [[0, 1], [0, 2], [1, 4], [2, 3]];
+  // child offsets (headline, entity) per doc: deterministic
+  const KIDS = [[-48, -22], [48, -22], [-58, 24], [58, 24], [-40, 26], [40, 26], [-50, -24], [50, -24], [-48, -24], [48, -24]];
+  const MIX = [["single-hop specific", 20, 0.5], ["multi-hop abstract", 10, 0.25], ["multi-hop specific", 10, 0.25]];
+  const PX = 452, PW = 184, BAR = 132;
+  let S = null;
+
+  function mk(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  }
+
+  function build(slide) {
+    const svg = slide.querySelector("#c10rg-svg");
+    if (svg._S) return svg._S;
+    svg.innerHTML = "";
+    const s = {};
+    mk("text", { x: 0, y: 14, "font-size": 12.5, "font-weight": 700, fill: "var(--ink)" }, svg, "KnowledgeGraph · hr_policies/");
+    s.leg = mk("text", { x: 0, y: 248, "font-size": 11, fill: "var(--muted)", opacity: 0 }, svg, "+ headline / entity nodes");
+    // edges (behind nodes)
+    s.edges = EDGES.map(([a, b]) => {
+      const len = Math.hypot(cx(b) - cx(a), cy(b) - cy(a));
+      return mk("line", { x1: cx(a), y1: cy(a), x2: cx(b), y2: cy(b), stroke: "var(--state)", "stroke-width": 2.6, "stroke-dasharray": `${len} ${len}`, "stroke-dashoffset": len, "data-len": len }, svg);
+    });
+    s.edgeLbl = mk("text", { x: (cx(0) + cx(1)) / 2 + 14, y: (cy(0) + cy(1)) / 2 - 6, "font-size": 10.5, "font-weight": 700, fill: "var(--state)", opacity: 0 }, svg, "shared entities");
+    s.pulses = EDGES.map(([a]) => mk("circle", { cx: cx(a), cy: cy(a), r: 4, fill: "var(--state)", opacity: 0 }, svg));
+    // children
+    s.kids = [];
+    DOCS.forEach((d, i) => {
+      [0, 1].forEach((j) => {
+        const [dx, dy] = KIDS[i * 2 + j];
+        const g = mk("g", { opacity: 0 }, svg);
+        mk("line", { x1: cx(i), y1: cy(i), x2: cx(i) + dx, y2: cy(i) + dy, stroke: "var(--line-2)", "stroke-width": 1.4 }, g);
+        mk("circle", { cx: cx(i) + dx, cy: cy(i) + dy, r: 5.5, fill: j ? "var(--tool)" : "var(--agent)" }, g);
+        s.kids.push(g);
+      });
+    });
+    // doc nodes
+    DOCS.forEach(([lbl, x, y, w]) => {
+      mk("rect", { x, y, width: w, height: H, rx: 10, fill: "var(--surface)" }, svg);
+      mk("rect", { x, y, width: w, height: H, rx: 10, fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 2 }, svg);
+      mk("text", { x: x + w / 2, y: y + 22, "text-anchor": "middle", "font-size": 12, "font-weight": 700, fill: "var(--ink)" }, svg, lbl);
+    });
+    // query panel
+    s.panel = mk("g", { opacity: 0 }, svg);
+    mk("rect", { x: PX, y: 30, width: PW, height: 196, rx: 14, fill: "var(--surface)", stroke: "var(--model)", "stroke-width": 2 }, s.panel);
+    mk("text", { x: PX + 12, y: 52, "font-size": 12, "font-weight": 700, fill: "var(--model)" }, s.panel, "queries · 40");
+    s.counts = MIX.map(([name, , p], i) => {
+      const y = 76 + i * 50;
+      mk("text", { x: PX + 12, y, "font-size": 10.5, fill: "var(--ink-2)" }, s.panel, `${name} ${p}`);
+      mk("rect", { x: PX + 12, y: y + 8, width: BAR, height: 12, rx: 4, fill: "var(--line)" }, s.panel);
+      const bar = mk("rect", { x: PX + 12, y: y + 8, width: 0, height: 12, rx: 4, fill: i ? "var(--model)" : "var(--agent)" }, s.panel);
+      const num = mk("text", { x: PX + 12 + BAR + 6, y: y + 19, "font-size": 12, "font-weight": 700, fill: "var(--ink)" }, s.panel, "0");
+      return { bar, num, y };
+    });
+    mk("text", { x: PX + 12, y: 218, "font-size": 10, fill: "var(--muted)" }, s.panel, "default mix · illustrative");
+    // flying query cards: 6 (3 from nodes, 3 from edges)
+    s.cards = [0, 1, 2, 3, 4, 5].map((i) => {
+      const g = mk("g", { opacity: 0 }, svg);
+      mk("rect", { x: -13, y: -9, width: 26, height: 18, rx: 4, fill: "var(--surface)", stroke: i < 3 ? "var(--agent)" : "var(--model)", "stroke-width": 1.8 }, g);
+      mk("text", { x: 0, y: 4, "text-anchor": "middle", "font-size": 9, "font-weight": 700, fill: i < 3 ? "var(--agent)" : "var(--model)" }, g, "Q");
+      return g;
+    });
+    s.prev = -1;
+    svg._S = s;
+    return s;
+  }
+
+  function cardFrom(i) {
+    if (i < 3) return [cx([0, 2, 3][i]), cy([0, 2, 3][i])];
+    const [a, b] = EDGES[[0, 1, 2][i - 3]];
+    return [(cx(a) + cx(b)) / 2, (cy(a) + cy(b)) / 2];
+  }
+  function cardTo(i) { const row = i < 3 ? 0 : (i === 3 ? 1 : 2); return [PX + PW - 20, S.counts[row].y + 14]; }
+
+  function pulses(s, on) {
+    if (s.tl) { s.tl.kill(); s.tl = null; }
+    gsap.set(s.pulses, { opacity: 0 });
+    if (!on || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    s.tl = gsap.timeline({ repeat: -1 });
+    EDGES.forEach(([a, b], i) => {
+      s.tl.fromTo(s.pulses[i], { attr: { cx: cx(a), cy: cy(a) }, opacity: 1 }, { attr: { cx: cx(b), cy: cy(b) }, opacity: 0.2, duration: 1.4, ease: "none" }, i * 0.35);
+    });
+  }
+
+  function render(s, n, animate) {
+    const els = [s.leg, s.edgeLbl, s.panel, ...s.kids, ...s.edges, ...s.cards, ...s.counts.map((c) => c.bar)];
+    gsap.killTweensOf(els);
+    const to = (el, v, d) => (animate ? gsap.to(el, { ...v, duration: 0.5, delay: d || 0 }) : gsap.set(el, v));
+    // step 1: extractors add child nodes
+    s.kids.forEach((k, i) => to(k, { opacity: n >= 1 ? 1 : 0 }, animate ? i * 0.05 : 0));
+    to(s.leg, { opacity: n >= 1 ? 1 : 0 });
+    // step 2: relationships draw
+    s.edges.forEach((e, i) => to(e, { attr: { "stroke-dashoffset": n >= 2 ? 0 : +e.getAttribute("data-len") } }, animate ? i * 0.15 : 0));
+    to(s.edgeLbl, { opacity: n >= 2 ? 1 : 0 }, 0.4);
+    if ((n >= 2) !== (s.prev >= 2) || !s.tl) pulses(s, n >= 2);
+    // step 3: queries from nodes (single-hop) and edges (multi-hop)
+    to(s.panel, { opacity: n >= 3 ? 1 : 0 });
+    const fly = animate && n >= 3 && s.prev < 3;
+    s.cards.forEach((c, i) => {
+      const [fx, fy] = cardFrom(i), [tx, ty] = cardTo(i);
+      if (fly) {
+        gsap.set(c, { x: fx, y: fy, opacity: 0 });
+        gsap.timeline({ delay: 0.3 + i * 0.18 }).to(c, { opacity: 1, duration: 0.15 }).to(c, { x: tx, y: ty, duration: 0.7, ease: "power2.inOut" }).to(c, { opacity: 0, duration: 0.2 });
+      } else gsap.set(c, { opacity: 0 });
+    });
+    s.counts.forEach((c, i) => {
+      const target = n >= 3 ? MIX[i][1] : 0;
+      const w = BAR * target / 20;
+      if (fly) {
+        const o = { v: 0 };
+        gsap.to(c.bar, { attr: { width: w }, duration: 1.0, delay: 0.9 + i * 0.2, ease: "power2.out" });
+        gsap.to(o, { v: target, duration: 1.0, delay: 0.9 + i * 0.2, ease: "power2.out", onUpdate: () => { c.num.textContent = Math.round(o.v); } });
+      } else { gsap.set(c.bar, { attr: { width: w } }); c.num.textContent = target; }
+    });
+    s.prev = n;
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { S = build(slide); S.prev = -1; if (S.tl) { S.tl.kill(); S.tl = null; } render(S, step, false); },
+    step(slide, n, animate) { S = build(slide); render(S, n, animate); },
+    leave(slide) {
+      const svg = slide.querySelector("#c10rg-svg");
+      if (svg && svg._S && svg._S.tl) { svg._S.tl.kill(); svg._S.tl = null; }
+      if (svg) gsap.killTweensOf(svg.querySelectorAll("*"));
+    }
+  });
+})();
+</script>

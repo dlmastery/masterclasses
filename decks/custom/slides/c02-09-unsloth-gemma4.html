@@ -1,0 +1,150 @@
+<section class="slide" id="custom-c02-unsloth-gemma4" data-tone="model" data-title="Gemma 4 with Unsloth">
+  <div class="kicker"><span class="pill">Build</span> Acme refunds assistant · Gemma 4 router with Unsloth</div>
+  <h2 class="title sm">Gemma 4 breaks TRL masking; Unsloth train_on_responses_only fixes it</h2>
+  <div class="grid fill" style="grid-template-columns:600px 1fr;gap:24px">
+    <div class="stack ug-left">
+      <div class="lab-head"><span class="run">pip install "unsloth==2026.10.8"</span><span class="tiny">new env or a free Colab T4 · Unsloth pins its own transformers</span></div>
+      <div class="code-wrap bad">
+        <div class="code-head">router_trl.py · trl==1.16.0</div>
+        <pre class="code ug-sm" data-lang="python"><code>from trl import SFTConfig, SFTTrainer
+args = SFTConfig(output_dir="gemma4-router", assistant_only_loss=True)
+trainer = SFTTrainer(model="google/gemma-4-E2B-it", args=args,
+                     train_dataset=ds)   # ds: Bitext rows as messages</code></pre>
+      </div>
+      <div class="code-wrap out">
+        <div class="code-head">output · chat_template_utils.py:1249</div>
+        <pre class="code ug-sm" data-lang="none"><code><span class="err">ValueError: The chat template is not training-compatible
+(missing prefix-preservation or `{% generation %}` markers)
+and patching is not supported for this template.</span></code></pre>
+      </div>
+      <svg id="ug-svg" data-step="2" data-fx="fade" viewBox="0 0 600 150" width="600" height="150" aria-label="One training row in the gemma-4 template: the user turn and its markers get label -100, only the JSON label and the end-of-turn marker train"></svg>
+      <div class="ug-file" data-step="4">
+        <svg viewBox="0 0 44 46" width="34" height="36"><path d="M2 2 h30 l12 12 v30 h-42 z" fill="var(--model-soft)" stroke="var(--model)" stroke-width="2"/><text x="23" y="34" text-anchor="middle" font-size="11" font-weight="700" fill="var(--model)" style="font-family:var(--f-mono)">GGUF</text></svg>
+        <span><b>gemma4-router-gguf/ · Q8_0</b><br>Gemma 4 export today: Q8_0, BF16 or F16 only.</span>
+      </div>
+      <div class="row ug-delta" data-step="1">
+        <span class="delta up">~25M of 5,135,846,944 params trained (~0.5%) · r=16</span>
+        <span class="small">E2B = 2B effective</span>
+        <a class="cite repo" href="https://github.com/unslothai/notebooks/blob/main/nb/Gemma4_(E2B)-Text.ipynb" target="_blank" rel="noopener"><b>Notebook</b>&nbsp;Gemma4_(E2B)-Text</a>
+      </div>
+      <div class="callout pitfall ug-pit" data-step="5"><span>GGUF from a raw <code>PeftModel</code> ships the base. Load with <code>FastModel</code>.</span></div>
+    </div>
+
+    <div class="stack ug-right">
+      <div class="code-wrap good" data-step="1">
+        <div class="code-head">gemma4_router.py · router: request → {category, intent} JSON · REFUND → Lab 1</div>
+        <pre class="code ug-code" data-lang="python" data-focus="1:1-10, 2:11, 3:25-26, 4:28"><code>from unsloth import FastModel        # import unsloth FIRST: it patches trl
+from unsloth.chat_templates import get_chat_template, train_on_responses_only
+import json
+from datasets import load_dataset
+from trl import SFTConfig, SFTTrainer
+model, tokenizer = FastModel.from_pretrained("unsloth/gemma-4-E2B-it",
+    max_seq_length=1024, load_in_4bit=True)   # Unsloth kwarg, not SFTConfig
+model = FastModel.get_peft_model(model, finetune_vision_layers=False,
+    finetune_language_layers=True, finetune_attention_modules=True,
+    finetune_mlp_modules=True, r=16, lora_alpha=16, lora_dropout=0)
+tokenizer = get_chat_template(tokenizer, chat_template="gemma-4")
+SYSTEM = "Classify the customer ticket. Reply with JSON only."
+def to_text(r):
+    label = json.dumps({"category": r["category"], "intent": r["intent"]})
+    convo = [{"role": "system", "content": SYSTEM},
+             {"role": "user", "content": r["instruction"]},
+             {"role": "assistant", "content": label}]
+    return {"text": tokenizer.apply_chat_template(convo, tokenize=False)}
+raw = load_dataset("bitext/Bitext-customer-support-llm-chatbot-training-dataset",
+                   split="train").shuffle(seed=3407).select(range(6000))
+trainer = SFTTrainer(model=model, processing_class=tokenizer,
+    train_dataset=raw.map(to_text, remove_columns=raw.column_names),
+    args=SFTConfig(dataset_text_field="text", max_steps=200, learning_rate=2e-4,
+        per_device_train_batch_size=2, gradient_accumulation_steps=4))
+trainer = train_on_responses_only(trainer,
+    instruction_part="&lt;|turn&gt;user\n", response_part="&lt;|turn&gt;model\n")
+trainer.train()
+model.save_pretrained_gguf("gemma4-router-gguf", tokenizer, quantization_method="Q8_0")</code></pre>
+      </div>
+    </div>
+  </div>
+  <style>
+    #custom-c02-unsloth-gemma4 .ug-left, #custom-c02-unsloth-gemma4 .ug-right { gap: 12px; }
+    #custom-c02-unsloth-gemma4 pre.code.ug-sm { font-size: 13.5px; line-height: 1.45; padding: 10px 16px 12px; }
+    #custom-c02-unsloth-gemma4 pre.code.ug-code { font-size: 13.5px; line-height: 1.4; padding: 10px 16px 12px; }
+    #custom-c02-unsloth-gemma4 .code-head { font-size: 13.5px; padding: 8px 14px; }
+    #custom-c02-unsloth-gemma4 .ug-sub { font-size: 17px; color: var(--ink-2); }
+    #custom-c02-unsloth-gemma4 .ug-sub code { font-size: .88em; }
+    #custom-c02-unsloth-gemma4 .ug-file { display: flex; gap: 12px; align-items: center; font: 500 15px/1.35 var(--f-mono); color: var(--muted); }
+    #custom-c02-unsloth-gemma4 .ug-file b { color: var(--ink); }
+    #custom-c02-unsloth-gemma4 .ug-pit { padding: 9px 14px; font-size: 16px; }
+    #custom-c02-unsloth-gemma4 .ug-delta { gap: 12px; align-items: center; flex-wrap: wrap; }
+    #custom-c02-unsloth-gemma4 .ug-delta .delta { font-size: 14.5px; white-space: nowrap; }
+    #custom-c02-unsloth-gemma4 svg text { font-variant-ligatures: none; }
+  </style>
+  <aside class="notes">Acme now wants a small router in front of the refunds assistant: it labels each request with category and intent as JSON over the 27 Bitext intents, on a free T4 with Gemma 4 E2B. A REFUND label sends the request to the Lab 1 adapter. Start on the left: the plain TRL path fails at once, because assistant_only_loss needs a training-compatible chat template, and TRL 1.16 patches Gemma and Gemma 3 but not Gemma 4. Click 1: Unsloth. Import unsloth first so it can patch trl and transformers. max_seq_length is Unsloth's own loader argument, not the TRL SFTConfig field we renamed earlier. With r=16 about 25 million of 5.1 billion total parameters train; E2B means about 2 billion effective parameters. The data map builds one text field per row with the gemma-4 template. Click 2: Gemma 4 uses turn markers that differ from Gemma 3, so old tutorial markers match nothing. Click 3: train_on_responses_only gives every user token the label minus 100, so only the JSON label trains. We pass instruction_part and response_part explicitly, because auto-detection can fail with "Could not auto-detect chat template structure - pass instruction_part and response_part." Think of the mask as a highlighter: the model reads the whole page but is graded only on the highlighted answer. Click 4: export a Q8_0 GGUF, one of the three formats Unsloth supports for Gemma 4 today, and probe three prompts with llama.cpp's llama-cli. Click 5: a GGUF export from a raw PeftModel wrapper silently ships the base model (unsloth issue 11698), so load the adapter with FastModel before export. Next: we have checkpoints from three paths; the last slide shows how to pick the one to ship.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const CW = 9.6, FS = 16, H = 36, GAP = 8;
+  // kind: m = template marker, u = user text, a = assistant label, e = end-of-turn; masked = label -100
+  const ROWS = [
+    { y: 28, chips: [["<|turn>user", "m", true], ["where is my refund?", "u", true], ["<turn|>", "m", true]] },
+    { y: 98, chips: [["<|turn>model", "m", true], ['{"category": "REFUND", …}', "a", false], ["<turn|>", "e", false]] }
+  ];
+  const COL = { m: "var(--tool)", u: "var(--human)", a: "var(--model)", e: "var(--model)" };
+  let svg, chips = [], tweens = [];
+  const mono = "font-family:var(--f-mono)";
+  const mk = (tag, a, p) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); p.appendChild(e); return e; };
+  const tx = (s, a, p) => { const e = mk("text", a, p); e.textContent = s; return e; };
+
+  function build(slide) {
+    svg = slide.querySelector("#ug-svg");
+    svg.innerHTML = ""; chips = [];
+    tx("one training row · gemma-4 template", { x: 0, y: 14, "font-size": 14, fill: "var(--muted)", style: mono }, svg);
+    ROWS.forEach((row) => {
+      let x = 0;
+      row.chips.forEach(([s, k, masked]) => {
+        const w = Math.round(s.length * CW + 20);
+        const g = mk("g", {}, svg);
+        const rect = mk("rect", { x, y: row.y, width: w, height: H, rx: 8, fill: "color-mix(in oklab, " + COL[k] + " 12%, var(--surface))", stroke: COL[k], "stroke-width": 1.8 }, g);
+        const t = tx(s, { x: x + 10, y: row.y + 24, "font-size": FS, "font-weight": k === "a" ? 700 : 500, fill: k === "u" ? "var(--ink-2)" : COL[k], style: mono }, g);
+        const lab = tx(masked ? "-100" : "trained", { x: x + w / 2, y: row.y + H + 17, "font-size": 14, "font-weight": 700, "text-anchor": "middle", fill: masked ? "var(--ink-2)" : "var(--model)", style: mono, opacity: 0 }, svg);
+        chips.push({ g, rect, t, lab, masked, k });
+        x += w + GAP;
+      });
+    });
+  }
+  const kill = () => { tweens.forEach((t) => t.kill()); tweens = []; };
+
+  function paint(c, maskOn) {
+    if (maskOn && c.masked) {
+      c.rect.setAttribute("fill", "var(--surface-2)");
+      c.rect.setAttribute("stroke", "var(--muted)");
+      c.t.setAttribute("fill", "var(--muted)");
+    } else {
+      c.rect.setAttribute("fill", "color-mix(in oklab, " + COL[c.k] + " 12%, var(--surface))");
+      c.rect.setAttribute("stroke", COL[c.k]);
+      c.t.setAttribute("fill", c.k === "u" ? "var(--ink-2)" : COL[c.k]);
+    }
+  }
+
+  function render(slide, n, animate) {
+    if (!svg || !slide.contains(svg)) build(slide);
+    kill();
+    const maskOn = n >= 3;
+    chips.forEach((c) => { paint(c, maskOn); c.lab.setAttribute("opacity", maskOn ? 1 : 0); gsap.set(c.g, { opacity: 1, y: 0 }); });
+    if (!animate) return;
+    if (n === 2) tweens.push(gsap.fromTo(chips.map((c) => c.g), { opacity: 0, y: 8 }, { opacity: 1, y: 0, duration: 0.45, stagger: 0.12, ease: "power2.out" }));
+    if (n === 3) {
+      chips.forEach((c) => { paint(c, false); c.lab.setAttribute("opacity", 0); });
+      const tl = gsap.timeline();
+      chips.forEach((c, i) => tl.call(() => { paint(c, true); }, null, 0.2 + i * 0.25).fromTo(c.lab, { attr: { opacity: 0 } }, { attr: { opacity: 1 }, duration: 0.3 }, 0.2 + i * 0.25));
+      tweens.push(tl);
+    }
+  }
+
+  Deck.register("custom-c02-unsloth-gemma4", {
+    enter(slide, step) { build(slide); render(slide, step || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { kill(); }
+  });
+})();
+</script>

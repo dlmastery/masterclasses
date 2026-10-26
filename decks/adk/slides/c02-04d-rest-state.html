@@ -1,0 +1,90 @@
+<section class="slide tight" id="adk-c02-rest-state" data-tone="state" data-title="Lab 2.3: read the session">
+  <style>
+    #adk-c02-rest-state .c02g-grid { display: grid; grid-template-columns: 790px 1fr; gap: 30px; align-items: start; }
+    #adk-c02-rest-state .c02g-left, #adk-c02-rest-state .c02g-right { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+    #adk-c02-rest-state .term pre.code { padding: 16px 22px 18px; }
+    #adk-c02-rest-state .out { align-self: stretch; }
+    #adk-c02-rest-state .c02g-viz { padding: 22px 24px; gap: 14px; }
+    #adk-c02-rest-state .c02g-turns { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    #adk-c02-rest-state .c02g-turn { padding: 12px 14px; border-radius: 12px; border: 2px dashed var(--line-2); font: 700 17px/1.3 var(--f-mono); color: var(--muted); transition: border-color .3s, color .3s, background .3s; }
+    #adk-c02-rest-state .c02g-turn span { display: block; font: 500 15px/1.35 var(--f-mono); }
+    #adk-c02-rest-state .c02g-turn.on { border-style: solid; border-color: var(--agent); color: var(--agent); background: var(--agent-soft); }
+    #adk-c02-rest-state .c02g-mid { text-align: center; font: 700 16px/1 var(--f-mono); color: var(--tool); }
+    #adk-c02-rest-state .c02g-st { border-radius: 14px; border: 2px solid var(--state); background: color-mix(in oklab, var(--state) 6%, var(--surface)); padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; min-height: 172px; }
+    #adk-c02-rest-state .c02g-st .h { display: flex; justify-content: space-between; font: 700 17px/1 var(--f-mono); color: var(--ink); }
+    #adk-c02-rest-state .c02g-st .h b { color: var(--state); }
+    #adk-c02-rest-state .c02g-e { font: 600 16px/1.3 var(--f-mono); color: var(--state); padding: 9px 12px; border-radius: 9px; background: var(--state-soft); border: 1.5px solid var(--state); white-space: nowrap; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 2</span> Acme claims API · step 3 of 3</div>
+  <h2 class="title">GET the session to read the audit_log that the plugin wrote</h2>
+  <div class="c02g-grid fill">
+    <div class="c02g-left">
+      <div class="code-wrap term">
+        <div class="code-head">terminal 2 · rest_calls.sh · last call</div>
+        <pre class="code c17" data-lang="bash"><code>$ curl -s localhost:8000/apps/claims_api/users/u-tom/sessions/claim-77</code></pre>
+      </div>
+      <div class="code-wrap out">
+        <div class="code-head">output · illustrative · abbreviated</div>
+        <pre class="code c17" data-lang="output" data-focus="1:6, 2:7, 3:5-7"><code>{"id": "claim-77", "appName": "claims_api",
+ "userId": "u-tom",
+ "state": {
+   "channel": "email",
+   "audit_log": [
+     "lookup_policy({'policy_number': 'POL-448120'})",
+     "lookup_policy({'policy_number': 'POL-448120'})"]},
+ "events": [ … ]}</code></pre>
+      </div>
+    </div>
+    <div class="c02g-right">
+      <div class="panel flat c02g-viz" id="c02g-viz" aria-label="Turn 1 over /run and turn 2 over /run_sse each call lookup_policy once; the AuditPlugin adds one audit_log entry per call, so the session holds two">
+        <div class="c02g-turns">
+          <div class="c02g-turn" id="c02g-t1">turn 1 · /run<span>lookup_policy</span></div>
+          <div class="c02g-turn" id="c02g-t2">turn 2 · /run_sse<span>lookup_policy</span></div>
+        </div>
+        <div class="c02g-mid">↓ AuditPlugin.before_tool_callback ↓</div>
+        <div class="c02g-st">
+          <div class="h">claim-77 · state <b id="c02g-n">audit_log: 0</b></div>
+          <div class="c02g-e" id="c02g-e1">lookup_policy({'policy_number': …})</div>
+          <div class="c02g-e" id="c02g-e2">lookup_policy({'policy_number': …})</div>
+        </div>
+      </div>
+      <div class="c02-cap">
+        <p data-until="1">Two turns ran in <code>claim-77</code>. Where did two entries come from?</p>
+        <p data-step="1" data-until="2">Turn 1 called <code>lookup_policy</code>. The plugin wrote entry 1.</p>
+        <p data-step="2" data-until="3">Turn 2 called it again. The plugin wrote entry 2.</p>
+        <p data-step="3">Same routes as <code>adk deploy cloud_run</code>. Put auth in front of them.</p>
+      </div>
+      <div class="cites push"><a class="cite doc" href="https://adk.dev/deploy/cloud-run/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Cloud Run</a></div>
+    </div>
+  </div>
+  <aside class="notes">Last call of step 3: GET the session. The response holds the state and the events; this slide shows the state. Click 1: turn 1, the /run call, invoked lookup_policy once, and the AuditPlugin wrote the first audit_log entry before the tool ran. Click 2: turn 2, the /run_sse call, invoked it again, so there is a second entry: one entry per tool call, in every agent of the App, without any change to the agent. Click 3: these are the same FastAPI routes that adk deploy cloud_run serves, so put authentication in front of them in production; anyone who can GET a session can read its state. Analogy: the audit log is the visitor book at the security desk. Hand-off: this session remembers one chat; the next slide makes Tom known in every new session.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c02-rest-state";
+  let tw = [];
+  function stop() { tw.forEach((t) => t.kill()); tw = []; }
+  function render(slide, n, animate) {
+    if (window.c02Focus) window.c02Focus(slide, n);
+    stop();
+    const t = [slide.querySelector("#c02g-t1"), slide.querySelector("#c02g-t2")];
+    const e = [slide.querySelector("#c02g-e1"), slide.querySelector("#c02g-e2")];
+    const num = slide.querySelector("#c02g-n");
+    gsap.killTweensOf(e);
+    const k = Math.min(n, 2);
+    t.forEach((el, i) => el.classList.toggle("on", k >= i + 1));
+    num.textContent = `audit_log: ${k}`;
+    e.forEach((el, i) => {
+      if (animate && n === i + 1) {
+        gsap.set(el, { autoAlpha: 0, y: -60 });
+        tw.push(gsap.to(el, { autoAlpha: 1, y: 0, duration: 0.6, delay: 0.35, ease: "power3.out" }));
+      } else gsap.set(el, { autoAlpha: k >= i + 1 ? 1 : 0, y: 0 });
+    });
+  }
+  Deck.register(ID, {
+    enter(slide, n) { render(slide, n || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { stop(); },
+  });
+})();
+</script>

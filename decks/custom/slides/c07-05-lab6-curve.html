@@ -1,0 +1,206 @@
+<section class="slide" id="custom-c07-lab6-curve" data-tone="state" data-title="Lab 6: the learning curve">
+  <style>
+    #custom-c07-lab6-curve .lc-grid { display: grid; grid-template-columns: 930px 1fr; gap: 26px; min-height: 0; }
+    #custom-c07-lab6-curve .lc-left { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    #custom-c07-lab6-curve .lc-right { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    #custom-c07-lab6-curve .lc-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    #custom-c07-lab6-curve .lab-head { font-size: 14px; gap: 10px; }
+    #custom-c07-lab6-curve .lab-head .run { font-size: 14px; padding: 7px 10px; }
+    #custom-c07-lab6-curve .code-head { padding: 7px 14px; font-size: 13px; }
+    #custom-c07-lab6-curve pre.code { font-size: 13.5px; line-height: 1.42; padding: 9px 16px 10px; }
+    #custom-c07-lab6-curve .steps-rail { gap: 8px; }
+    #custom-c07-lab6-curve .steps-rail > * { font-size: 15px; line-height: 1.34; grid-template-columns: 30px 1fr; gap: 10px; }
+    #custom-c07-lab6-curve .steps-rail > *::before { width: 26px; height: 26px; font-size: 14px; }
+    #custom-c07-lab6-curve .gotcha { grid-template-columns: 78px 1fr; gap: 4px 10px; padding: 11px 14px; font-size: 14.5px; line-height: 1.34; }
+    #custom-c07-lab6-curve .gotcha > b { font-size: 12px; line-height: 1.6; }
+    #custom-c07-lab6-curve .paper { padding: 11px 14px; gap: 5px; }
+    #custom-c07-lab6-curve .paper .pid { font-size: 12.5px; align-items: center; }
+    #custom-c07-lab6-curve .paper h4 { font-size: 15px; line-height: 1.25; }
+    #custom-c07-lab6-curve .paper .find { font-size: 14.5px; line-height: 1.34; }
+    #custom-c07-lab6-curve .paper .so { font-size: 14.5px; line-height: 1.3; }
+    #custom-c07-lab6-curve .cites { display: flex; gap: 8px; flex-wrap: nowrap; margin-top: auto; }
+    #custom-c07-lab6-curve .cites .cite { flex: none; flex-direction: row; white-space: nowrap; font-size: 13.5px; line-height: 1.2; padding: 5px 10px 5px 7px; gap: 7px; }
+    #custom-c07-lab6-curve .cites .cite::before { width: 16px; height: 16px; }
+    #custom-c07-lab6-curve code { font-size: .88em; }
+    #custom-c07-lab6-curve pre.code, #custom-c07-lab6-curve pre.code *, #custom-c07-lab6-curve code { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #c07lc-svg text { font-family: var(--f-mono); font-variant-ligatures: none; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 6</span> Acme claims intake · step 4 of 4</div>
+  <h2 class="title sm">Margin sampling reaches random's 900-label score with about 300 labels</h2>
+  <div class="lc-grid fill">
+    <div class="lc-left">
+      <svg id="c07lc-svg" viewBox="0 0 930 440" width="930" height="440" role="img" aria-label="Learning curve, PR-AUC against labels bought, mean of 5 seeds. Random sampling, grey, rises from 0.546 at 100 labels to 0.622 at 900. Margin sampling, green, rises from 0.546 to 0.620 at 300 labels and 0.659 at 900. A dashed line at 0.622 runs left from random's 900-label point and meets the margin curve near 300 labels. Two budget bars show 9 adjuster-days for random and 3 for margin."></svg>
+      <div class="lc-cards">
+        <div class="gotcha" data-step="4">
+          <b>Symptom</b><span>Margin falls below random after a few rounds.</span>
+          <b class="why">Cause</b><span>Heavy label noise: uncertainty sampling queries the noise.</span>
+          <b class="fix">Fix</b><span>Keep the random 20 per batch. Cap queries per customer or segment.</span>
+        </div>
+        <div class="paper" data-step="5">
+          <div class="pid">arXiv:2610.25215 <span>18 Oct 2026</span></div>
+          <h4>Hidden Cartographer: dual-budget data selection</h4>
+          <div class="find">Separate the annotation budget from the training budget: annotate <b>20-30%</b> of the pool, fine-tune on <b>10-15%</b>.</div>
+          <div class="so">Plan adjuster labels and training rows as two budgets.</div>
+        </div>
+      </div>
+    </div>
+    <div class="lc-right">
+      <div class="lab-head"><span class="run">python lab6_active_learning.py</span><span class="small">~7 s · 5 seeds</span></div>
+      <div class="code-wrap out">
+        <div class="code-head">output · captured run · mean of 5 seeds</div>
+        <pre class="code" data-lang="none" data-focus="1:2-10, 2:10, 3:4"><code><span class="dim"> labels  random PR-AUC  margin PR-AUC</span>
+    100          0.546          0.546
+    200          0.548          0.599
+    300          0.570          <span class="ok">0.620</span>
+    400          0.587          0.633
+    500          0.605          0.643
+    600          0.606          0.646
+    700          0.615          0.652
+    800          0.620          0.657
+    900          <span class="ok">0.622</span>          0.659</code></pre>
+      </div>
+      <div class="steps-rail">
+        <div data-step="1"><span>Each row is a mean of 5 seeds. Average at least 5 seeds before you claim a gain.</span></div>
+        <div data-step="2"><span>Mix 80 margin + 20 random per batch: an unbiased prevalence estimate and calibrated scores.</span></div>
+        <div data-step="3"><span>Write <code>strategy</code>, <code>round</code> and <code>score</code> for every queried claim to the label store.</span></div>
+        <div data-step="4"><span>Near-identical borderline claims? Run k-means on the top-1,000 margins, take 1 per cluster.</span></div>
+      </div>
+      <div class="cites">
+        <a class="cite doc" href="https://scikit-activeml.github.io/" target="_blank" rel="noopener"><b>Docs</b>&nbsp;scikit-activeml 1.0.1</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2610.25215" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.25215</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">This is the payoff of Lab 6: the script prints PR-AUC on a fixed held-out test set after each round of 100 adjuster labels, averaged over 5 seeds. Step 1 draws both curves from that exact table; both start at 0.546 because they share the 100-claim seed set. Step 2: take random's best score, 0.622 at 900 labels, and slide left; the margin curve is already at 0.620 with 300 labels, so the adjusters need about a third of the time, 3 days instead of 9 at 100 claims a day, on this synthetic task. Analogy: a tutor who only asks about the questions you are unsure of learns your weak spots three times faster than one who asks at random. The gotcha: when labels are very noisy, the least-sure claims are often the mislabeled ones, so keep the random 20 in every batch, which also gives you an honest prevalence estimate. Likely question: does the 3x hold on real claims? Not by default; rerun this comparison on your own pool, and for LLM data read Hidden Cartographer, which budgets annotation and training separately.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c07-lab6-curve";
+  // exact captured output, lab-data.md Lab 6
+  const LAB = [100, 200, 300, 400, 500, 600, 700, 800, 900];
+  const RAND = [0.546, 0.548, 0.570, 0.587, 0.605, 0.606, 0.615, 0.620, 0.622];
+  const MARG = [0.546, 0.599, 0.620, 0.633, 0.643, 0.646, 0.652, 0.657, 0.659];
+  const P = { x0: 70, x1: 862, y0: 30, y1: 390, lo: 0.50, hi: 0.67 };
+  const X = (l) => P.x0 + ((l - 100) / 800) * (P.x1 - P.x0);
+  const Y = (v) => P.y1 - ((v - P.lo) / (P.hi - P.lo)) * (P.y1 - P.y0);
+  // where the margin curve crosses 0.622 (linear between 300 and 400 labels)
+  const MEET_L = 300 + 100 * (0.622 - 0.620) / (0.633 - 0.620);
+  const MX = X(MEET_L), MY = Y(0.622);
+  let S = null, ctr = { d: 9 };
+
+  const mk = (tag, a, p, t) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); if (t !== undefined) e.textContent = t; p.appendChild(e); return e; };
+  function poly(p, arr, col, w) {
+    const pts = arr.map((v, i) => [X(LAB[i]), Y(v)]);
+    let L = 0; for (let i = 1; i < pts.length; i++) L += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+    L = Math.ceil(L) + 2;
+    const e = mk("polyline", { points: pts.map((q) => q.join(",")).join(" "), fill: "none", stroke: col, "stroke-width": w, "stroke-linejoin": "round", "stroke-linecap": "round", "stroke-dasharray": L, "stroke-dashoffset": L }, p);
+    e._L = L; return e;
+  }
+
+  function build(slide) {
+    const svg = slide.querySelector("#c07lc-svg");
+    if (svg._S) return svg._S;
+    svg.innerHTML = "";
+    const s = {};
+    // axes and grid
+    [0.50, 0.55, 0.60, 0.65].forEach((v) => {
+      mk("line", { x1: P.x0, y1: Y(v), x2: P.x1, y2: Y(v), stroke: "var(--line)", "stroke-width": 1 }, svg);
+      mk("text", { x: P.x0 - 10, y: Y(v) + 4, "text-anchor": "end", "font-size": 12, fill: "var(--muted)" }, svg, v.toFixed(2));
+    });
+    mk("line", { x1: P.x0, y1: P.y0, x2: P.x0, y2: P.y1, stroke: "var(--line-2)", "stroke-width": 1.3 }, svg);
+    mk("line", { x1: P.x0, y1: P.y1, x2: P.x1, y2: P.y1, stroke: "var(--line-2)", "stroke-width": 1.3 }, svg);
+    LAB.forEach((l) => mk("text", { x: X(l), y: P.y1 + 20, "text-anchor": "middle", "font-size": 12, fill: "var(--muted)" }, svg, String(l)));
+    mk("text", { x: P.x1, y: P.y1 + 42, "text-anchor": "end", "font-size": 12.5, fill: "var(--muted)" }, svg, "labels bought: seed 100 + 100 per adjuster-day");
+    mk("text", { x: 0, y: 16, "font-size": 13, "font-weight": 700, fill: "var(--ink-2)" }, svg, "PR-AUC · fixed test set");
+    // legend
+    const lg = mk("g", {}, svg);
+    mk("line", { x1: 100, y1: 46, x2: 130, y2: 46, stroke: "var(--state)", "stroke-width": 4, "stroke-linecap": "round" }, lg);
+    mk("text", { x: 138, y: 51, "font-size": 14, "font-weight": 700, fill: "var(--state)" }, lg, "margin");
+    mk("line", { x1: 220, y1: 46, x2: 250, y2: 46, stroke: "var(--muted)", "stroke-width": 4, "stroke-linecap": "round" }, lg);
+    mk("text", { x: 258, y: 51, "font-size": 14, "font-weight": 700, fill: "var(--muted)" }, lg, "random");
+
+    // step 1: the two curves
+    s.rand = poly(svg, RAND, "var(--muted)", 3.2);
+    s.marg = poly(svg, MARG, "var(--state)", 4);
+    s.dots = mk("g", { opacity: 0 }, svg);
+    RAND.forEach((v, i) => mk("circle", { cx: X(LAB[i]), cy: Y(v), r: 4.5, fill: "var(--bg)", stroke: "var(--muted)", "stroke-width": 2.2 }, s.dots));
+    MARG.forEach((v, i) => mk("circle", { cx: X(LAB[i]), cy: Y(v), r: 5, fill: "var(--bg)", stroke: "var(--state)", "stroke-width": 2.6 }, s.dots));
+    mk("text", { x: X(900) + 10, y: Y(0.659) + 5, "font-size": 13, "font-weight": 700, fill: "var(--state)" }, s.dots, "0.659");
+    mk("text", { x: X(900) + 10, y: Y(0.622) + 18, "font-size": 13, "font-weight": 700, fill: "var(--muted)" }, s.dots, "0.622");
+
+    // step 2: dashed 0.622 line slides left to the margin curve
+    s.hline = mk("line", { x1: X(900), y1: MY, x2: X(900), y2: MY, stroke: "var(--ink-2)", "stroke-width": 2, "stroke-dasharray": "7 6", opacity: 0 }, svg);
+    s.meet = mk("g", { opacity: 0 }, svg);
+    mk("line", { x1: MX, y1: MY, x2: MX, y2: 312, stroke: "var(--state)", "stroke-width": 1.6, "stroke-dasharray": "4 4" }, s.meet);
+    mk("circle", { cx: MX, cy: MY, r: 8, fill: "none", stroke: "var(--state)", "stroke-width": 3 }, s.meet);
+    mk("text", { x: MX - 14, y: MY - 14, "text-anchor": "end", "font-size": 13.5, "font-weight": 700, fill: "var(--state)" }, s.meet, "margin 0.620 @ 300");
+    mk("text", { x: X(560), y: MY - 10, "text-anchor": "middle", "font-size": 13.5, "font-weight": 700, fill: "var(--ink-2)" }, s.meet, "random's best: 0.622 @ 900");
+
+    // step 3: budget bars, 3x bracket, adjuster-days counter
+    s.bars = mk("g", { opacity: 0 }, svg);
+    s.bR = mk("rect", { x: P.x0, y: 322, width: 0, height: 24, rx: 6, fill: "var(--faint)" }, s.bars);
+    mk("text", { x: X(900) - 10, y: 339, "text-anchor": "end", "font-size": 13, "font-weight": 700, fill: "var(--ink)" }, s.bars, "random · 900 labels · 9 days");
+    s.bM = mk("rect", { x: P.x0, y: 354, width: 0, height: 24, rx: 6, fill: "var(--state)" }, s.bars);
+    mk("text", { x: P.x0 + 10, y: 371, "font-size": 13, "font-weight": 700, fill: "#fff" }, s.bars, "margin · ~300 · 3 days");
+    s.brk = mk("g", { opacity: 0 }, svg);
+    const by = 366, bx1 = X(300) + 10, bx2 = X(900);
+    mk("path", { d: `M${bx1} ${by - 8} L${bx1} ${by} L${bx2} ${by} L${bx2} ${by - 8}`, fill: "none", stroke: "var(--state)", "stroke-width": 2.2 }, s.brk);
+    mk("rect", { x: (bx1 + bx2) / 2 - 92, y: by - 13, width: 184, height: 26, rx: 13, fill: "var(--bg)", stroke: "var(--state)", "stroke-width": 1.6 }, s.brk);
+    mk("text", { x: (bx1 + bx2) / 2, y: by + 5, "text-anchor": "middle", "font-size": 14, "font-weight": 700, fill: "var(--state)" }, s.brk, "3× fewer labels");
+    s.box = mk("g", { opacity: 0 }, svg);
+    mk("rect", { x: 640, y: 178, width: 270, height: 104, rx: 12, fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 1.6 }, s.box);
+    mk("text", { x: 656, y: 202, "font-size": 12.5, "font-weight": 700, fill: "var(--ink-2)" }, s.box, "adjuster-days to PR-AUC 0.622");
+    s.num = mk("text", { x: 656, y: 252, "font-size": 44, "font-weight": 800, fill: "var(--state)" }, s.box, "9");
+    mk("text", { x: 712, y: 250, "font-size": 18, "font-weight": 700, fill: "var(--state)" }, s.box, "days");
+    mk("text", { x: 656, y: 272, "font-size": 12, fill: "var(--muted)" }, s.box, "100 labels/day · random needs 9");
+    svg._S = s;
+    return s;
+  }
+
+  function render(s, n, animate) {
+    const op = (el, v, d) => { gsap.killTweensOf(el, "opacity"); animate ? gsap.to(el, { opacity: v, duration: .45, delay: d || 0 }) : gsap.set(el, { opacity: v }); };
+    const draw = (el, on, d) => {
+      gsap.killTweensOf(el);
+      if (!on) return gsap.set(el, { attr: { "stroke-dashoffset": el._L } });
+      if (animate && el.getAttribute("stroke-dashoffset") !== "0") gsap.to(el, { attr: { "stroke-dashoffset": 0 }, duration: 1.5, delay: d || 0, ease: "power1.inOut" });
+      else gsap.set(el, { attr: { "stroke-dashoffset": 0 } });
+    };
+    const to = (el, attrs, on, d, dur) => {
+      gsap.killTweensOf(el, "attr");
+      if (animate && on) gsap.to(el, { attr: attrs, duration: dur || 1, delay: d || 0, ease: "power2.inOut" });
+      else gsap.set(el, { attr: attrs });
+    };
+    // step 1
+    draw(s.rand, n >= 1, 0);
+    draw(s.marg, n >= 1, .25);
+    op(s.dots, n >= 1 ? 1 : 0, animate ? 1.4 : 0);
+    // step 2
+    op(s.hline, n >= 2 ? 1 : 0);
+    to(s.hline, { x2: n >= 2 ? MX : X(900) }, n >= 2, .2, 1.3);
+    op(s.meet, n >= 2 ? 1 : 0, animate ? 1.4 : 0);
+    // step 3
+    op(s.bars, n >= 3 ? 1 : 0);
+    to(s.bR, { width: n >= 3 ? X(900) - P.x0 : 0 }, n >= 3, .1, .9);
+    to(s.bM, { width: n >= 3 ? X(300) - P.x0 : 0 }, n >= 3, .4, .9);
+    op(s.brk, n >= 3 ? 1 : 0, animate ? 1.2 : 0);
+    op(s.box, n >= 3 ? 1 : 0, animate ? .3 : 0);
+    gsap.killTweensOf(ctr);
+    const target = n >= 3 ? 3 : 9;
+    if (animate && n >= 3 && ctr.d !== target) {
+      ctr.d = 9; s.num.textContent = "9";
+      gsap.to(ctr, { d: target, duration: 1.4, delay: .6, ease: "power1.inOut", onUpdate: () => { s.num.textContent = String(Math.round(ctr.d)); } });
+    } else { ctr.d = target; s.num.textContent = String(target); }
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { S = build(slide); render(S, step || 0, false); },
+    step(slide, n, animate) { S = build(slide); render(S, n, animate); },
+    leave(slide) {
+      const svg = slide.querySelector("#c07lc-svg");
+      if (svg) gsap.killTweensOf(svg.querySelectorAll("*"));
+      gsap.killTweensOf(ctr);
+    }
+  });
+})();
+</script>

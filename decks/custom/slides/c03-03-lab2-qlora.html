@@ -1,0 +1,172 @@
+<section class="slide" id="custom-c03-lab2-qlora" data-tone="model" data-title="Lab 2 · QLoRA trainer call">
+  <div class="kicker"><span class="pill">Lab 2</span> Acme claims extractor · step 2 of 4</div>
+  <h2 class="title">QLoRA in one trainer call: NF4, double quant, paged 8-bit Adam</h2>
+  <div class="grid fill" style="grid-template-columns:760px 1fr;gap:28px">
+    <div class="stack" style="gap:12px">
+      <div class="code-wrap">
+        <div class="code-head">lab3_qlora_claims.py · trl 1.16.0 · transformers 5.20.2 · bitsandbytes 0.50.2</div>
+        <pre class="code" data-lang="python" data-focus="1:11-14, 2:21-26, 3:19, 4:6-8"><code>import torch
+from datasets import load_dataset
+from peft import LoraConfig
+from transformers import BitsAndBytesConfig
+from trl import SFTConfig, SFTTrainer
+DT = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16  # T4: fp16
+PREC = {"bf16": DT == torch.bfloat16, "fp16": DT == torch.float16}   # SFTConfig flags
+print("dtype:", DT)
+ds = load_dataset("json", data_files={"train": "claims_train.jsonl",
+                                      "validation": "claims_val.jsonl"})
+bnb = BitsAndBytesConfig(load_in_4bit=True,
+    bnb_4bit_quant_type="nf4",              # default is "fp4": always set nf4
+    bnb_4bit_use_double_quant=True,         # quantize the quantization constants too
+    bnb_4bit_compute_dtype=DT)
+args = SFTConfig(
+    output_dir="qwen3-4b-claims-qlora", model_init_kwargs={"dtype": DT},
+    **PREC, max_length=1024, learning_rate=1e-4, num_train_epochs=3,
+    per_device_train_batch_size=4, gradient_accumulation_steps=4,  # T4: batch 2
+    optim="paged_adamw_8bit",               # QLoRA paged optimizer
+    eval_strategy="epoch", save_strategy="epoch", logging_steps=10, report_to="none")
+trainer = SFTTrainer(
+    model="Qwen/Qwen3-4B-Instruct-2507", args=args,
+    train_dataset=ds["train"], eval_dataset=ds["validation"],
+    quantization_config=bnb,                # trainer argument only
+    peft_config=LoraConfig(r=16, lora_alpha=32, lora_dropout=0.05,
+                           target_modules="all-linear", task_type="CAUSAL_LM"))
+trainer.model.print_trainable_parameters()  # step 3 checks this number
+trainer.train()
+trainer.save_model("qwen3-4b-claims-qlora/final")</code></pre>
+      </div>
+    </div>
+
+    <div class="stack" style="gap:12px">
+      <div class="lab-head">
+        <span class="run">python lab3_qlora_claims.py</span>
+        <span class="run">nvidia-smi --query-gpu=memory.used --format=csv -l 5</span>
+      </div>
+      <svg id="cq3-vram" viewBox="0 0 600 270" width="600" height="270" aria-label="GPU memory bar for a 16 GB card. The base weights shrink from bf16 8.1 GB to NF4 2.3 GB. Thin slices for quantization constants, the LoRA adapter and the 8-bit Adam states have labelled leader lines. Activations take a hatched block. A CPU RAM box below receives Adam pages only when GPU memory runs out."></svg>
+      <div class="steps-rail cq3-rail">
+        <div data-step="1"><span>Set <code>nf4</code> and double quant. <code>BitsAndBytesConfig</code> defaults to <code>fp4</code>; the TRL CLI defaults to <code>nf4</code>.</span></div>
+        <div data-step="2"><span>Pass <code>quantization_config</code> to <code>SFTTrainer</code> only. Setting it in <code>model_init_kwargs</code> too raises <code>ValueError</code>. TRL places the model on the GPU and sets the adapter dtype.</span></div>
+        <div data-step="3"><span><code>paged_adamw_8bit</code> keeps 8-bit Adam states. It pages them to CPU RAM only when GPU memory runs out.</span></div>
+        <div data-step="4"><span>T4 has no bf16. <code>DT</code> and <code>PREC</code> switch the dtype, the compute dtype and the <code>bf16</code>/<code>fp16</code> flags together.</span></div>
+      </div>
+      <div class="code-wrap out" data-step="4">
+        <div class="code-head">output · illustrative · first line</div>
+        <pre class="code" data-lang="none"><code>dtype: <span class="ok">torch.float16</span>    <span class="dim"># T4 · L4, A10G, A100: torch.bfloat16</span></code></pre>
+      </div>
+    </div>
+  </div>
+  <style>
+    #custom-c03-lab2-qlora .grid > .stack { min-width: 0; }
+    #custom-c03-lab2-qlora pre.code { font-size: 13.5px; line-height: 19px; padding: 8px 16px 10px; }
+    #custom-c03-lab2-qlora .code-head { font-size: 13.5px; }
+    #custom-c03-lab2-qlora .lab-head { gap: 8px; }
+    #custom-c03-lab2-qlora .lab-head .run { font-size: 13px; }
+    #custom-c03-lab2-qlora .cq3-rail { gap: 8px; }
+    #custom-c03-lab2-qlora .cq3-rail > * { font-size: 15.5px; line-height: 1.34; grid-template-columns: 30px 1fr; gap: 10px; }
+    #custom-c03-lab2-qlora .cq3-rail > *::before { width: 26px; height: 26px; font-size: 14px; }
+    #custom-c03-lab2-qlora .cq3-rail code { font-size: .84em; }
+    #custom-c03-lab2-qlora .out pre.code { font-size: 14px; }
+  </style>
+  <aside class="notes">This is the complete QLoRA script for the Acme claims extractor: Qwen3-4B-Instruct-2507 in 4-bit, LoRA r=16 on all linear layers, and one SFTTrainer call. First band: set nf4 and double quant yourself, because BitsAndBytesConfig defaults to fp4 without double quant, while the TRL CLI defaults to nf4, so a script and a CLI run called "QLoRA" can differ. Second band: give quantization_config to the trainer only; TRL moves it into model_init_kwargs, so setting it there as well raises a ValueError, and TRL also places the model on the GPU and casts the adapter, so you need neither device_map nor prepare_model_for_kbit_training. Third band: the paged 8-bit Adam keeps small optimizer states; paging to CPU RAM happens only when a memory spike would otherwise cause an out-of-memory error, so at normal settings the states stay on the GPU. Fourth band: a T4 has no bf16, and SFTConfig defaults to bf16=True, so the DT line switches the model dtype, the compute dtype and the bf16/fp16 flags in one place; on a T4 also use batch size 2. Think of NF4 as a zip file of the weights that is decompressed one layer at a time for each matrix multiply. Likely question: "How long does it take?" Read train_runtime at the end of the log; it depends on the GPU and on the number of rows, so measure it on your data.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const W = 600, GB = W / 16;                // bar = 16 GB
+  const BY = 40, BH = 120;                   // bar top, height
+  const BF16 = 8.1 * GB, NF4 = 2.3 * GB;     // 4.06B params x 2 bytes; NF4 approx.
+  const CW = 8, AW = 12, OW = 10;            // drawn widths (enlarged) for thin slices
+  let svg, wBlk, wTxt, wSub, cBlk, aBlk, oBlk, actBlk, free, leaders = [], cpu, page, built = false;
+  const tw = { v: 8.1 };
+  const mk = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); parent.appendChild(e); return e; };
+  const txt = (s, attrs, parent) => { const e = mk("text", attrs, parent); e.textContent = s; return e; };
+  const mono = "font-family:var(--f-mono)";
+
+  function build(slide) {
+    svg = slide.querySelector("#cq3-vram");
+    svg.innerHTML = ""; leaders = [];
+    const defs = mk("defs", {}, svg);
+    const pat = mk("pattern", { id: "cq3-hatch", width: 10, height: 10, patternUnits: "userSpaceOnUse", patternTransform: "rotate(45)" }, defs);
+    mk("rect", { width: 10, height: 10, fill: "var(--state)", opacity: 0.18 }, pat);
+    mk("line", { x1: 0, y1: 0, x2: 0, y2: 10, stroke: "var(--state)", "stroke-width": 4, opacity: 0.6 }, pat);
+    txt("GPU memory · 16 GB card · sizes approx.", { x: 0, y: 16, "font-size": 15, fill: "var(--muted)", style: mono }, svg);
+    [4, 8, 12, 16].forEach((g) => txt(g + " GB", { x: g * GB, y: 34, "text-anchor": g === 16 ? "end" : "middle", "font-size": 13, fill: "var(--muted)", style: mono }, svg));
+    [4, 8, 12].forEach((g) => mk("line", { x1: g * GB, x2: g * GB, y1: BY, y2: BY + BH, stroke: "var(--line-2)", "stroke-dasharray": "3 4" }, svg));
+    mk("rect", { x: 0, y: BY, width: W, height: BH, rx: 10, fill: "none", stroke: "var(--ink-2)", "stroke-width": 1.5 }, svg);
+    wBlk = mk("rect", { x: 0, y: BY, width: BF16, height: BH, rx: 10, fill: "var(--muted)", opacity: 0.5 }, svg);
+    wTxt = txt("bf16", { x: 12, y: BY + 52, "font-size": 18, "font-weight": 700, fill: "var(--ink)", style: mono }, svg);
+    wSub = txt("8.1 GB", { x: 12, y: BY + 78, "font-size": 16, fill: "var(--ink-2)", style: mono }, svg);
+    const x1 = NF4, x2 = x1 + CW + 2, x3 = x2 + AW + 2, x4 = x3 + OW + 2;
+    cBlk = mk("rect", { x: x1, y: BY, width: CW, height: BH, fill: "var(--ink-2)" }, svg);
+    aBlk = mk("rect", { x: x2, y: BY, width: AW, height: BH, fill: "var(--model)" }, svg);
+    oBlk = mk("rect", { x: x3, y: BY, width: OW, height: BH, fill: "var(--tool)" }, svg);
+    actBlk = mk("rect", { x: x4, y: BY, width: 150, height: BH, fill: "url(#cq3-hatch)" }, svg);
+    const act = txt("activations", { x: x4 + 75, y: BY + 56, "text-anchor": "middle", "font-size": 15, "font-weight": 700, fill: "var(--state)", style: mono }, svg);
+    const act2 = txt("batch × length", { x: x4 + 75, y: BY + 78, "text-anchor": "middle", "font-size": 13, fill: "var(--state)", style: mono }, svg);
+    free = txt("headroom", { x: (x4 + 150 + W) / 2, y: BY + 66, "text-anchor": "middle", "font-size": 15, fill: "var(--muted)", style: mono }, svg);
+    // leader callouts under the bar for the three thin slices
+    const L = [
+      { s: 1, x: x1 + CW / 2, y: BY + BH + 22, c: "var(--ink-2)", t: "quant constants (double quant)" },
+      { s: 2, x: x2 + AW / 2, y: BY + BH + 46, c: "var(--model)", t: "LoRA adapter + grads ≈ 0.13 GB" },
+      { s: 3, x: x3 + OW / 2, y: BY + BH + 70, c: "var(--tool)", t: "8-bit Adam states ≈ 0.07 GB" },
+    ];
+    L.forEach((r) => {
+      const g = mk("g", {}, svg);
+      mk("line", { x1: r.x, y1: BY + BH, x2: r.x, y2: r.y - 5, stroke: r.c, "stroke-width": 2 }, g);
+      mk("line", { x1: r.x, y1: r.y - 5, x2: 150, y2: r.y - 5, stroke: r.c, "stroke-width": 2 }, g);
+      txt(r.t, { x: 160, y: r.y, "font-size": 15, "font-weight": 700, fill: r.c, style: mono }, g);
+      leaders.push({ g, s: r.s });
+    });
+    leaders.push({ g: act, s: 2 }, { g: act2, s: 2 });
+    // CPU RAM + paging pipe (step 3)
+    cpu = mk("g", {}, svg);
+    mk("rect", { x: 430, y: BY + BH + 30, width: 170, height: 64, rx: 10, fill: "var(--surface)", stroke: "var(--tool)", "stroke-width": 1.5, "stroke-dasharray": "5 4" }, cpu);
+    txt("CPU RAM", { x: 515, y: BY + BH + 56, "text-anchor": "middle", "font-size": 16, "font-weight": 700, fill: "var(--tool)", style: mono }, cpu);
+    txt("only on OOM spikes", { x: 515, y: BY + BH + 78, "text-anchor": "middle", "font-size": 13, fill: "var(--muted)", style: mono }, cpu);
+    mk("path", { d: `M${x3 + OW / 2} ${BY + BH} V${BY + BH + 12} H515 V${BY + BH + 30}`, fill: "none", stroke: "var(--tool)", "stroke-width": 2, "stroke-dasharray": "6 5" }, cpu);
+    page = mk("rect", { x: x3, y: BY + BH + 8, width: 10, height: 8, rx: 2, fill: "var(--tool)" }, cpu);
+    built = true;
+  }
+
+  const show = (el, on, animate, delay = 0) => {
+    if (on && animate) gsap.fromTo(el, { opacity: 0 }, { opacity: 1, duration: 0.45, delay });
+    else el.style.opacity = on ? 1 : 0;
+  };
+
+  function render(slide, n, animate) {
+    if (!built) build(slide);
+    gsap.killTweensOf([wBlk, cBlk, aBlk, oBlk, actBlk, cpu, page, free, tw].concat(leaders.map((r) => r.g)));
+    const nf = n >= 1;
+    const val = (v) => (v > 2.31 ? v.toFixed(1) + " GB" : "≈ 2.3 GB (−72%)");
+    wTxt.textContent = nf ? "NF4" : "bf16";
+    if (nf && animate && n === 1) {
+      tw.v = 8.1; wBlk.setAttribute("width", BF16); wSub.textContent = val(8.1);
+      gsap.to(wBlk, { attr: { width: NF4 }, duration: 1.1, ease: "power2.inOut" });
+      gsap.to(tw, { v: 2.3, duration: 1.1, ease: "power2.inOut", onUpdate: () => { wSub.textContent = val(tw.v); } });
+      gsap.fromTo(cBlk, { opacity: 0 }, { opacity: 1, duration: 0.6, delay: 1.1 });
+    } else {
+      wBlk.setAttribute("width", nf ? NF4 : BF16);
+      wSub.textContent = val(nf ? 2.3 : 8.1);
+      cBlk.style.opacity = nf ? 1 : 0;
+    }
+    wSub.setAttribute("x", 12);
+    show(aBlk, n >= 2, animate && n === 2, 0);
+    show(actBlk, n >= 2, animate && n === 2, 0.2);
+    show(free, n >= 2, animate && n === 2, 0.4);
+    show(oBlk, n >= 3, animate && n === 3, 0);
+    show(cpu, n >= 3, animate && n === 3, 0.2);
+    leaders.forEach((r) => show(r.g, n >= r.s, animate && n === r.s, 0.3));
+    if (n >= 3) {
+      gsap.fromTo(page, { attr: { x: NF4 + CW + AW + 4 }, opacity: 1 }, { attr: { x: 510 }, duration: 1.8, repeat: -1, repeatDelay: 1.2, ease: "power1.inOut" });
+    } else {
+      page.setAttribute("x", NF4 + CW + AW + 4);
+    }
+  }
+
+  Deck.register("custom-c03-lab2-qlora", {
+    enter(slide, step) { build(slide); render(slide, step, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { if (built) gsap.killTweensOf([wBlk, cBlk, aBlk, oBlk, actBlk, cpu, page, free, tw].concat(leaders.map((r) => r.g))); }
+  });
+})();
+</script>

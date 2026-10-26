@@ -1,0 +1,112 @@
+<section class="slide" id="adk-c03-migrate-context" data-tone="agent" data-title="Build: include_contents in a graph">
+  <style>
+    #adk-c03-migrate-context .mc-main { width: 100%; display: grid; grid-template-columns: 900px 1fr; gap: 40px; align-items: start; }
+    #adk-c03-migrate-context .mc-right { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
+    #adk-c03-migrate-context .diagram .node { padding: 0 18px; height: 56px; min-width: 0; justify-content: center; box-sizing: border-box; }
+    #adk-c03-migrate-context .diagram .node .nt { font-size: 20px; white-space: nowrap; }
+    #adk-c03-migrate-context .rq { border: 2px solid var(--line-2); border-radius: 16px; background: var(--surface); padding: 16px 20px 18px; display: flex; flex-direction: column; gap: 12px; margin-top: 22px; }
+    #adk-c03-migrate-context .rq-h { display: flex; align-items: center; gap: 12px; font: 700 17px/1 var(--f-mono); text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+    #adk-c03-migrate-context .rq-h .ic { margin-left: auto; text-transform: none; letter-spacing: 0; font: 700 17px/1 var(--f-mono); padding: 7px 10px; border-radius: 8px; }
+    #adk-c03-migrate-context .rq-h .ic.none { color: var(--risk); background: var(--risk-soft); }
+    #adk-c03-migrate-context .rq-h .ic.def { color: var(--state); background: var(--state-soft); }
+    #adk-c03-migrate-context .rq-list { position: relative; height: 254px; }
+    #adk-c03-migrate-context .rq-row { position: absolute; left: 0; right: 0; display: grid; grid-template-columns: 150px 1fr; gap: 12px; align-items: center; height: 74px; padding: 0 18px; box-sizing: border-box;
+      border-radius: 10px; font: 500 20px/1.25 var(--f-mono); color: var(--ink-2); border: 1.5px solid var(--line-2); background: var(--bg); }
+    #adk-c03-migrate-context .rq-row b { font: 700 15px/1 var(--f-mono); text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+    #adk-c03-migrate-context .rq-row span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #adk-c03-migrate-context .rq-row.sys { border-color: color-mix(in oklab, var(--agent) 45%, transparent); background: var(--agent-soft); }
+    #adk-c03-migrate-context .rq-row.sys b { color: var(--agent); }
+    #adk-c03-migrate-context .rq-row.ph { border-style: dashed; color: var(--muted); font-style: italic; }
+    #adk-c03-migrate-context .rq-row.bad { border-color: var(--risk); background: var(--risk-soft); color: var(--risk); }
+    #adk-c03-migrate-context .rq-row.bad b { color: var(--risk); }
+    #adk-c03-migrate-context .rq-row.usr { border-color: var(--human); background: var(--human-soft); }
+    #adk-c03-migrate-context .rq-row.usr b { color: var(--human); }
+    #adk-c03-migrate-context .rq-row.fnd { border-color: var(--state); background: var(--state-soft); }
+    #adk-c03-migrate-context .rq-row.fnd b { color: var(--state); }
+    #adk-c03-migrate-context .cap { display: grid; }
+    #adk-c03-migrate-context .cap > * { grid-area: 1 / 1; font-size: 23px; line-height: 1.4; color: var(--ink-2); }
+    #adk-c03-migrate-context .cap code { font-size: .82em; }
+    #adk-c03-migrate-context, #adk-c03-migrate-context * { font-variant-ligatures: none !important; }
+    #adk-c03-migrate-context .out pre.code .dim { color: #a3abd6; opacity: 1; }
+    #adk-c03-migrate-context .cites .cite { display: inline-flex; flex-direction: row; align-items: center; gap: 10px; white-space: nowrap; padding: 6px 12px 6px 10px; border-radius: 10px; }
+  </style>
+  <div class="kicker"><span class="pill">Build</span> Port a 1.x pipeline · 2 of 3</div>
+  <h2 class="title">A single_turn node sees no history until you set include_contents</h2>
+  <div class="mc-main fill">
+    <div>
+      <div class="diagram" style="width:900px;height:60px" data-wires="mc-start>mc-intake; mc-intake>mc-synth">
+        <div class="node n-agent pill" id="mc-start" style="left:0;top:2px;width:120px"><span class="nt">START</span></div>
+        <div class="node n-agent" id="mc-intake" style="left:230px;top:2px;width:220px"><span class="nt">intake_agent</span></div>
+        <div class="node n-agent" id="mc-synth" style="left:580px;top:2px;width:320px" data-on="1:hot"><span class="nt">synthesizer_agent</span></div>
+      </div>
+      <div class="rq" id="mc-rq">
+        <div class="rq-h">LLM request · synthesizer_agent <span class="ic none" id="mc-ic">include_contents='none'</span></div>
+        <div class="rq-list">
+          <div class="rq-row sys"><b>system</b><span>Write the customer reply from the intake finding.</span></div>
+          <div class="rq-row ph" data-r="before"><b>user</b><span>Handle the requests as specified in the System Instruction.</span></div>
+          <div class="rq-row bad" data-r="before"><b>response</b><span>Understood. Provide request</span></div>
+          <div class="rq-row usr" data-r="after"><b>user</b><span>refund A-1001 arrived broken</span></div>
+          <div class="rq-row fnd" data-r="after"><b>intake_agent</b><span>A-1001: $89.00, delivered 12 days ago.</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="mc-right">
+      <div class="cap">
+        <p data-until="1">Press to send the ticket through the ported graph.</p>
+        <p data-step="1" data-until="2">Node 2 gets its instruction and a placeholder. It answers <b class="c-risk">"Understood. Provide request"</b>.</p>
+        <p data-step="2" data-until="3">With <code>include_contents="default"</code>, the ticket and the finding come back.</p>
+        <p data-step="3">A golden test asserts that request 2 still holds the user text.</p>
+      </div>
+      <div class="code-wrap good" data-step="2">
+        <div class="code-head">the fix · one keyword</div>
+        <pre class="code" data-lang="python"><code>synth = Agent(
+    name="synthesizer_agent",
+    mode="single_turn",  # ...
+    include_contents="default")</code></pre>
+      </div>
+      <div class="cites" data-step="3"><a class="cite repo" href="https://github.com/google/adk-python/issues/5780" target="_blank" rel="noopener"><b>Repo</b>&nbsp;adk-python issue #5780</a></div>
+    </div>
+  </div>
+  <aside class="notes">This is the trap in the port, from google/adk-python issue 5780. Inside a Workflow, single_turn agent nodes default to include_contents='none'; the LlmAgent field default is still 'default', but the workflow changes it. Step 1: the synthesizer gets only its system instruction plus a placeholder user turn, "Handle the requests as specified in the System Instruction.", and it answers "Understood. Provide request". The ticket text and the intake finding never reach it. Step 2: set include_contents="default" on the node that needs the history, and the user text and the intake finding come back into the request. Step 3: catch this in CI with a golden test: a scripted BaseLlm that records llm_request.contents, and an assertion that the second request still holds the original user text. Analogy: the second clerk got a sticky note that says "do your job" instead of the customer's letter. A likely question: "Should every node get default?" No: only the nodes that need the conversation; the others stay cheaper with none.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c03-migrate-context";
+  const Y = 90; // row pitch in the request panel
+  let tw = [];
+  function stop() { tw.forEach((t) => t.kill()); tw = []; }
+  function render(slide, n, animate) {
+    stop();
+    const list = slide.querySelector("#mc-rq .rq-list");
+    const ic = slide.querySelector("#mc-ic");
+    if (!list) return;
+    const sys = list.querySelector(".sys");
+    const before = [...list.querySelectorAll('[data-r="before"]')];
+    const after = [...list.querySelectorAll('[data-r="after"]')];
+    const fixed = n >= 2;
+    ic.textContent = fixed ? "include_contents='default'" : "include_contents='none'";
+    ic.classList.toggle("none", !fixed); ic.classList.toggle("def", fixed);
+    gsap.set(sys, { y: 0, autoAlpha: 1 });
+    if (!fixed) {
+      gsap.set(after, { y: Y, autoAlpha: 0, x: 0 });
+      before.forEach((r, i) => {
+        if (n < 1) gsap.set(r, { y: Y * (i + 1), x: 0, autoAlpha: 0 });
+        else if (animate && n === 1) tw.push(gsap.fromTo(r, { y: Y * (i + 1), x: -16, autoAlpha: 0 }, { x: 0, autoAlpha: 1, duration: 0.4, delay: 0.4 + i * 0.6 }));
+        else gsap.set(r, { y: Y * (i + 1), x: 0, autoAlpha: 1 });
+      });
+    } else if (animate && n === 2) {
+      before.forEach((r, i) => { gsap.set(r, { y: Y * (i + 1), x: 0, autoAlpha: 1 }); tw.push(gsap.to(r, { x: 40, autoAlpha: 0, duration: 0.35, delay: i * 0.12 })); });
+      after.forEach((r, i) => tw.push(gsap.fromTo(r, { y: Y * (i + 1), x: -40, autoAlpha: 0 }, { x: 0, autoAlpha: 1, duration: 0.45, delay: 0.5 + i * 0.35, ease: "power2.out" })));
+      tw.push(gsap.fromTo(ic, { scale: 1.15 }, { scale: 1, duration: 0.4, delay: 0.3 }));
+    } else {
+      gsap.set(before, { autoAlpha: 0, x: 0 });
+      after.forEach((r, i) => gsap.set(r, { y: Y * (i + 1), x: 0, autoAlpha: 1 }));
+    }
+  }
+  Deck.register(ID, {
+    enter(slide, n) { render(slide, n || 0, false); },
+    step(slide, n, animate) { render(slide, n, animate); },
+    leave() { stop(); },
+  });
+})();
+</script>

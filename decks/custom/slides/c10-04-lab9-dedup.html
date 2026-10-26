@@ -1,0 +1,240 @@
+<section class="slide" id="custom-c10-lab9-dedup" data-tone="state" data-title="Lab 9: MinHash dedup + decontam">
+  <style>
+    #custom-c10-lab9-dedup { gap: 20px; }
+    #custom-c10-lab9-dedup .m-grid { display: grid; grid-template-columns: 636px 1fr; gap: 24px; min-height: 0; }
+    #custom-c10-lab9-dedup .m-left, #custom-c10-lab9-dedup .m-right { display: flex; flex-direction: column; gap: 9px; min-width: 0; }
+    #custom-c10-lab9-dedup .lab-head { font-size: 14px; gap: 10px; }
+    #custom-c10-lab9-dedup .lab-head .run { font-size: 15px; padding: 7px 11px; }
+    #custom-c10-lab9-dedup .code-head { padding: 7px 14px; font-size: 13px; }
+    #custom-c10-lab9-dedup .m-code pre.code { font-size: 11px; line-height: 1.3; padding: 8px 14px 9px; }
+    #custom-c10-lab9-dedup .out pre.code { font-size: 11.5px; line-height: 1.36; padding: 8px 14px 9px; }
+    #custom-c10-lab9-dedup .steps-rail { gap: 6px; }
+    #custom-c10-lab9-dedup .steps-rail > * { font-size: 14.5px; line-height: 1.32; grid-template-columns: 28px 1fr; gap: 10px; }
+    #custom-c10-lab9-dedup .steps-rail > *::before { width: 24px; height: 24px; font-size: 13px; }
+    #custom-c10-lab9-dedup .steps-rail code, #custom-c10-lab9-dedup .gotcha code { font-size: .84em; }
+    #custom-c10-lab9-dedup .gotcha { grid-template-columns: 70px 1fr; gap: 3px 12px; padding: 9px 14px; font-size: 14px; line-height: 1.34; }
+    #custom-c10-lab9-dedup .gotcha > b { font-size: 12px; line-height: 1.6; }
+    #custom-c10-lab9-dedup .gotcha .em { font: 500 12px/1.4 var(--f-mono); color: var(--risk); }
+    #custom-c10-lab9-dedup .cite { font-size: 14px; padding: 5px 11px 5px 9px; align-self: flex-start; }
+    #custom-c10-lab9-dedup pre.code, #custom-c10-lab9-dedup pre.code *, #custom-c10-lab9-dedup code, #custom-c10-lab9-dedup .code-head, #custom-c10-lab9-dedup svg text { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+    #c10m-svg text { font-family: var(--f-mono); }
+    #c10m-svg text.sn { font-family: var(--f-body); }
+  </style>
+  <div class="kicker"><span class="pill">Lab 9</span> Acme HR policy assistant · step 3 of 4</div>
+  <h2 class="title">MinHash LSH removes near-duplicates and the item that leaks the test</h2>
+  <div class="m-grid fill">
+    <div class="m-left">
+      <div class="code-wrap m-code">
+        <div class="code-head">hr_eval/lab9_dedup.py · captured run</div>
+        <pre class="code" data-lang="python" data-focus="1:4-6, 2:7-10, 3:23-34, 4:35-40"><code>import re
+from datasketch import MinHash, MinHashLSH
+NUM_PERM = 128
+def shingles(text, k=5):
+    t = re.sub(r"\s+", " ", re.sub(r"[^a-z0-9 ]", "", text.lower())).strip()
+    return {t[i:i + k] for i in range(max(1, len(t) - k + 1))}
+def signature(text):
+    m = MinHash(num_perm=NUM_PERM)          # 2.0.0 default scheme = "affine32"
+    m.update_batch(s.encode("utf8") for s in shingles(text))
+    return m
+train = {
+    "tr-001": "Employees accrue 1.5 days of paid time off per month of service.",
+    "tr-002": "Employees accrue 1.5 days of paid time-off per month of service!",
+    "tr-003": "Parental leave is 16 weeks at full pay for all new parents.",
+    "tr-004": "Remote work requires manager approval and a signed equipment form.",
+    "tr-005": "Expense reports must be filed within 30 days of the purchase date.",
+    "tr-006": "Expense reports must be submitted within 30 days of the purchase date.",
+}
+test = {                                    # texts from the frozen eval set (step 2)
+    "te-001": "Parental leave is 16 weeks at full pay for all new parents",
+    "te-002": "Badges must be worn visibly at all times inside the office.",
+}
+lsh = MinHashLSH(threshold=0.7, num_perm=NUM_PERM)        # 1) dedup inside train
+sigs, kept, dropped = {}, [], []
+for key, text in train.items():
+    sigs[key] = signature(text)
+    matches = lsh.query(sigs[key])
+    if matches:
+        dropped.append((key, matches[0], round(sigs[key].jaccard(sigs[matches[0]]), 2)))
+    else:
+        lsh.insert(key, sigs[key])
+        kept.append(key)
+print("kept:", kept)
+print("dropped (dup, of, est. Jaccard):", dropped)
+test_lsh = MinHashLSH(threshold=0.7, num_perm=NUM_PERM)   # 2) index the TEST set
+for key, text in test.items():
+    test_lsh.insert(key, signature(text))
+leaked = {k: test_lsh.query(sigs[k]) for k in kept if test_lsh.query(sigs[k])}
+print("train docs leaking into test:", leaked)
+print("final train set:", [k for k in kept if k not in leaked])</code></pre>
+      </div>
+    </div>
+    <div class="m-right">
+      <div class="lab-head"><span class="run">python lab9_dedup.py</span><span class="small">datasketch==2.0.0 · offline · no API key</span></div>
+      <svg id="c10m-svg" viewBox="0 0 728 180" width="728" height="180" role="img" aria-label="Six train policy cards in a row. Step 1: each card drops shingle chips. Step 2: each chip row becomes a 128-bar MinHash signature; near-duplicate cards have almost the same bars. Step 3: the signatures split into 14 bands of 9 rows; tr-002 snaps onto tr-001 with estimated Jaccard 0.82 and tr-006 snaps onto tr-005 with 0.77, and both duplicates fade. Step 4: a test index with te-001 and te-002 lights up; tr-003 is pulled out with a red tag, leaks te-001; the final train set is tr-001, tr-004, tr-005."></svg>
+      <div class="steps-rail">
+        <div data-step="1"><span>Character 5-grams catch "filed" vs "submitted" (est. Jaccard 0.77). Word 1-grams miss it.</span></div>
+        <div data-step="2"><span>128 hashes per text. <code>update_batch</code> is faster than <code>update</code> in a loop.</span></div>
+        <div data-step="3"><span>Threshold 0.7 with 128 perms picked b = 14 bands × r = 9 rows. <code>query</code> gives candidates: check <code>jaccard()</code>.</span></div>
+        <div data-step="4"><span>Index the TEST set, query train: tr-003 leaks te-001. The first member wins, so sort the newest policy first: "16 weeks" vs "12 weeks" are near-duplicates with different facts.</span></div>
+      </div>
+      <div class="code-wrap out" data-step="3">
+        <div class="code-head">output · captured run</div>
+        <pre class="code" data-lang="none"><code><span class="ok">kept: ['tr-001', 'tr-003', 'tr-004', 'tr-005']</span>
+dropped (dup, of, est. Jaccard): <span class="err">[('tr-002', 'tr-001', 0.82), ('tr-006', 'tr-005', 0.77)]</span>
+<span data-step="4">train docs leaking into test: <span class="err">{'tr-003': ['te-001']}</span></span>
+<span data-step="4"><span class="ok">final train set: ['tr-001', 'tr-004', 'tr-005']</span></span></code></pre>
+      </div>
+      <div class="gotcha" data-step="5">
+        <b>Symptom</b><span class="em">ValueError: MinHash scheme 'legacy' does not match scheme 'affine32' of the MinHash previously given to this index</span>
+        <b class="fix">Fix</b><span>datasketch 1.x pickles: rebuild the index, or pass <code>scheme="legacy"</code> everywhere.</span>
+        <b class="why">Also</b><span><code>ValueError: The given key already exists</code>: query before insert.</span>
+      </div>
+      <a class="cite doc" data-step="5" href="https://ekzhu.com/datasketch/lsh.html" target="_blank" rel="noopener"><b>Docs</b>&nbsp;MinHash LSH - datasketch 2.0.0 documentation</a>
+    </div>
+  </div>
+  <aside class="notes">Step 2 froze the HR eval set; this is the test side. Before we fine-tune the HR assistant, we remove near-duplicates inside the training text and any training item that copies the eval set. Step 1: the shingles are character 5-grams on lowercased text without punctuation, so "filed" versus "submitted" still shares most shingles; step 2: MinHash turns each shingle set into 128 numbers, and two texts share a number with probability equal to their Jaccard similarity. Step 3: LSH with threshold 0.7 cuts the signature into 14 bands of 9 rows, and tr-002 and tr-006 hit the buckets of tr-001 and tr-005 with estimated Jaccard 0.82 and 0.77; step 4: we index only the test set and query train, and tr-003 is the same sentence as te-001, so it leaves the training data. Analogy: a fingerprint check at the exam door, with the answer sheet locked in a separate room. Likely question: "Why not delete the newer duplicate?" Query-then-insert keeps whichever comes first, so sort by policy version first: two versions that differ only in 16 versus 12 weeks are near-duplicates with different facts. The gotcha card is the upgrade trap: datasketch 2.0.0 changed the default MinHash scheme, so an index pickled with 1.x must be rebuilt. Train and test are now clean, so step 4 checks the last instrument: the LLM judge that scores the answers.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c10-lab9-dedup";
+  const CW = 108, GAP = 16, CH = 50, SY = 60, SH = 16, NB = 128;
+  const cx = (i) => i * (CW + GAP);
+  const TR = [
+    { id: "tr-001", a: "accrue 1.5 days", b: "paid time off ." },
+    { id: "tr-002", a: "accrue 1.5 days", b: "paid time-off !" },
+    { id: "tr-003", a: "Parental leave", b: "16 weeks full pay" },
+    { id: "tr-004", a: "Remote work needs", b: "manager approval" },
+    { id: "tr-005", a: "Expense reports", b: "must be filed" },
+    { id: "tr-006", a: "Expense reports", b: "must be submitted" },
+  ];
+  // signature bars: deterministic hash; a duplicate copies its source except a fixed share of rows
+  const h = (i, s) => (((i + 1) * 2654435761 + s * 40503) >>> 0) % 997;
+  const base = [1, 1, 3, 4, 5, 5];               // tr-002 copies tr-001's bars, tr-006 copies tr-005's
+  const diff = [0, 18, 0, 0, 0, 23];             // % of rows that differ (0.82 and 0.77 estimated Jaccard)
+  const barH = (c, i) => {
+    const seed = diff[c] && ((i * 37) % 100) < diff[c] ? 50 + c : base[c];
+    return 3 + (h(i, seed) % 12);
+  };
+  let S = null;
+
+  function mk(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  }
+  function card(parent, x, y, d, tone) {
+    const g = mk("g", { transform: `translate(${x},${y})` }, parent);
+    mk("rect", { x: 0, y: 0, width: CW, height: CH, rx: 8, fill: "var(--bg)" }, g);
+    const r = mk("rect", { x: 0, y: 0, width: CW, height: CH, rx: 8, fill: `var(--${tone}-soft)`, stroke: `var(--${tone})`, "stroke-width": 1.6 }, g);
+    const t = mk("g", {}, g);
+    mk("text", { x: 8, y: 15, "font-size": 11.5, "font-weight": 700, fill: `var(--${tone})` }, t, d.id);
+    mk("text", { x: 8, y: 30, "font-size": 11, fill: "var(--ink-2)", class: "sn" }, t, d.a);
+    mk("text", { x: 8, y: 43, "font-size": 11, fill: "var(--ink-2)", class: "sn" }, t, d.b);
+    return { g, r, t };
+  }
+
+  function build(slide) {
+    const svg = slide.querySelector("#c10m-svg");
+    if (svg._S) return svg._S;
+    svg.innerHTML = "";
+    const s = { prev: 0, tweens: [], cards: [], chips: [], strips: [], bands: [], badges: [] };
+    TR.forEach((d, c) => {
+      // shingle chips (step 1)
+      const chips = [];
+      for (let k = 0; k < 6; k++) chips.push(mk("rect", { x: cx(c) + 6 + k * 17, y: SY + 2, width: 13, height: 10, rx: 2, fill: "var(--tool)", opacity: 0 }, svg));
+      s.chips.push(chips);
+      // signature strip (step 2): 128 bars
+      const st = mk("g", { opacity: 0 }, svg);
+      for (let i = 0; i < NB; i++) {
+        const bh = barH(c, i);
+        mk("rect", { x: cx(c) + i * (CW / NB), y: SY + SH - bh, width: CW / NB * 0.8, height: bh, fill: "var(--state)" }, st);
+      }
+      s.strips.push(st);
+      // band ticks (step 3): 14 bands x 9 rows
+      const bd = mk("g", { opacity: 0 }, svg);
+      for (let b = 0; b <= 14; b++) mk("line", { x1: cx(c) + b * 9 * (CW / NB), y1: SY - 2, x2: cx(c) + b * 9 * (CW / NB), y2: SY + SH + 4, stroke: "var(--agent)", "stroke-width": 1 }, bd);
+      s.bands.push(bd);
+    });
+    // cards on top of chips
+    // duplicates first, so the kept card sits on top of its stacked twin
+    const order = [1, 5, 0, 2, 3, 4], tmp = {};
+    order.forEach((c) => (tmp[c] = card(svg, cx(c), 0, TR[c], "state")));
+    TR.forEach((d, c) => s.cards.push(tmp[c]));
+    s.cap = mk("text", { x: cx(2), y: SY + SH + 18, "font-size": 11, fill: "var(--muted)", opacity: 0 }, svg, "");
+    // duplicate badges
+    [[1, 0, "tr-002 · 0.82"], [5, 4, "tr-006 · 0.77"]].forEach(([d, k, t]) => {
+      const g = mk("g", { opacity: 0 }, svg);
+      mk("rect", { x: cx(k) + 6, y: SY + SH + 6, width: 100, height: 18, rx: 9, fill: "var(--risk)" }, g);
+      mk("text", { x: cx(k) + 56, y: SY + SH + 19, "text-anchor": "middle", "font-size": 11, "font-weight": 700, fill: "#fff" }, g, t);
+      s.badges.push(g);
+    });
+    // test index (step 4)
+    s.idx = mk("g", { opacity: 0 }, svg);
+    mk("rect", { x: cx(2) - 10, y: 102, width: CW * 2 + GAP + 20, height: CH + 26, rx: 12, fill: "none", stroke: "var(--agent)", "stroke-width": 1.6, "stroke-dasharray": "6 5" }, s.idx);
+    mk("text", { x: cx(2), y: 117, "font-size": 11, "font-weight": 700, fill: "var(--agent)" }, s.idx, "test_lsh (TEST index)");
+    card(s.idx, cx(2), 124, { id: "te-001", a: "Parental leave", b: "16 weeks (no '.')" }, "agent");
+    card(s.idx, cx(3), 124, { id: "te-002", a: "Badges must be", b: "worn visibly" }, "agent");
+    s.leak = mk("g", { opacity: 0 }, svg);
+    mk("path", { d: `M${CW + 2} ${124 + CH / 2 + 6} L${cx(2) - 10} ${124 + CH / 2 + 6}`, fill: "none", stroke: "var(--risk)", "stroke-width": 2.4, "stroke-dasharray": "5 4" }, s.leak);
+    mk("rect", { x: 130, y: 128, width: 86, height: 20, rx: 10, fill: "var(--risk)" }, s.leak);
+    mk("text", { x: 173, y: 142, "text-anchor": "middle", "font-size": 10.5, "font-weight": 700, fill: "#fff" }, s.leak, "leaks te-001");
+    s.fin = mk("g", { opacity: 0 }, svg);
+    mk("rect", { x: cx(4) + 4, y: 116, width: CW * 2 + GAP - 8, height: 52, rx: 12, fill: "var(--state-soft)", stroke: "var(--state)", "stroke-width": 1.8 }, s.fin);
+    mk("text", { x: cx(4) + 16, y: 137, "font-size": 12, "font-weight": 700, fill: "var(--state)" }, s.fin, "final train set: 3");
+    mk("text", { x: cx(4) + 16, y: 156, "font-size": 11.5, fill: "var(--ink)" }, s.fin, "tr-001 · tr-004 · tr-005");
+    svg._S = s;
+    return s;
+  }
+
+  function render(s, n, animate) {
+    s.tweens.forEach((t) => t.kill()); s.tweens = [];
+    const T = (tw) => s.tweens.push(tw);
+    const fwd = animate && n > s.prev;
+    const to = (e, v, d) => (fwd ? T(gsap.to(e, Object.assign({ duration: .5, delay: d || 0, ease: "power2.out" }, v))) : gsap.set(e, v));
+    // step 1: chips drop out of each card; step 2 they fold into the strip
+    s.chips.forEach((chips, c) => chips.forEach((ch, k) => {
+      const on = n === 1;
+      if (fwd && n === 1) { gsap.set(ch, { attr: { y: 20 }, opacity: 0 }); T(gsap.to(ch, { attr: { y: SY + 2 }, opacity: 1, duration: .45, delay: c * .08 + k * .04, ease: "back.out(2)" })); }
+      else to(ch, { attr: { y: SY + 2 }, opacity: on ? 1 : 0 });
+    }));
+    s.strips.forEach((st, c) => {
+      const dupGone = (n >= 3 && (c === 1 || c === 5)) || (n >= 4 && c === 2);
+      to(st, { opacity: n >= 2 ? (dupGone ? 0 : 1) : 0 }, n === 2 ? .15 + c * .08 : 0);
+    });
+    s.bands.forEach((bd, c) => to(bd, { opacity: n >= 3 && !(c === 1 || c === 5) && !(n >= 4 && c === 2) ? 0.8 : 0 }));
+    s.cap.textContent = n >= 3 ? "14 bands × 9 rows per signature" : "128-bar MinHash signature";
+    to(s.cap, { opacity: n >= 2 && n < 4 ? 1 : 0 });
+    // step 3: duplicates snap onto the kept card and fade
+    s.cards.forEach((cd, c) => {
+      let x = cx(c), y = 0, op = 1, stroke = "var(--state)";
+      if (n >= 3 && c === 1) { x = cx(0) + 7; y = 5; op = 0.6; }
+      if (n >= 3 && c === 5) { x = cx(4) + 7; y = 5; op = 0.6; }
+      if (n >= 4 && c === 2) { x = 0; y = 124; stroke = "var(--risk)"; }
+      cd.r.setAttribute("stroke", stroke);
+      const twin = n >= 3 && (c === 1 || c === 5);
+      if (fwd) T(gsap.to(cd.t, { opacity: twin ? 0 : 1, duration: .3 })); else gsap.set(cd.t, { opacity: twin ? 0 : 1 });
+      if (fwd) T(gsap.to(cd.g, { attr: { transform: `translate(${x},${y})` }, opacity: op, duration: .7, ease: "power3.inOut" }));
+      else gsap.set(cd.g, { attr: { transform: `translate(${x},${y})` }, opacity: op });
+    });
+    s.badges.forEach((b) => to(b, { opacity: n >= 3 ? 1 : 0 }, .6));
+    // step 4: test index, leak, final set
+    to(s.idx, { opacity: n >= 4 ? 1 : 0 });
+    to(s.leak, { opacity: n >= 4 ? 1 : 0 }, .5);
+    to(s.fin, { opacity: n >= 4 ? 1 : 0 }, .9);
+    s.prev = n;
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) { S = build(slide); S.prev = step || 0; render(S, step || 0, false); },
+    step(slide, n, animate) { S = build(slide); render(S, n, animate); },
+    leave(slide) {
+      const svg = slide.querySelector("#c10m-svg");
+      if (svg && svg._S) { svg._S.tweens.forEach((t) => t.kill()); svg._S.tweens = []; }
+      if (svg) gsap.killTweensOf(svg.querySelectorAll("*"));
+    }
+  });
+})();
+</script>

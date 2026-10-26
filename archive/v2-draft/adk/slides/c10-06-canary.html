@@ -1,0 +1,213 @@
+<section class="slide tight" id="adk-c10-canary" data-tone="risk" data-title="Canary behind an eval run">
+  <style>
+    #adk-c10-canary .cn-body { display: grid; grid-template-columns: 712px minmax(0, 1fr); gap: 24px; align-items: start; }
+    #adk-c10-canary .cn-col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    #adk-c10-canary .code-head { padding: 7px 14px; font-size: 13px; }
+    #adk-c10-canary pre.code { font-size: 13px; line-height: 1.5; padding: 8px 14px; }
+    #adk-c10-canary #cn-svg { display: block; width: 100%; height: auto; overflow: visible; }
+    #adk-c10-canary #cn-svg text { font-family: var(--f-mono); }
+    #adk-c10-canary .steps-rail { gap: 7px; }
+    #adk-c10-canary .steps-rail > * { font-size: 16px; line-height: 1.3; grid-template-columns: 28px 1fr; gap: 10px; }
+    #adk-c10-canary .steps-rail > *::before { width: 26px; height: 26px; font-size: 13px; }
+    #adk-c10-canary .gotcha { grid-template-columns: 84px 1fr; padding: 10px 16px; font-size: 15px; gap: 3px 12px; }
+    #adk-c10-canary .gotcha > b { font-size: 12px; }
+    #adk-c10-canary ul.checks { gap: 6px; }
+    #adk-c10-canary ul.checks li { font-size: 15.5px; line-height: 1.3; }
+    #adk-c10-canary .cn-foot { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    #adk-c10-canary .cn-foot .cite { font-size: 12px; padding: 4px 9px; }
+    #adk-c10-canary .cn-foot .delta { font-size: 14px; }
+  </style>
+  <div class="kicker">Build</div>
+  <h2 class="title sm">Canary a new agent revision behind an eval run on its tagged URL</h2>
+  <div class="cn-body fill">
+    <div class="cn-col">
+      <div class="code-wrap bad term">
+        <div class="code-head">terminal · google-adk 2.13.0</div>
+        <pre class="code" data-lang="bash"><code>$ adk deploy cloud_run --project=$PROJECT --region=$REGION \
+    --service_name=contoso-hr hr_agent
+# the new revision takes 100% of traffic at once; no eval on the live URL</code></pre>
+      </div>
+      <div class="code-wrap good term" data-step="1">
+        <div class="code-head">terminal · Cloud Run revisions + google-agents-cli 1.11.0</div>
+        <pre class="code" data-lang="bash" data-focus="1:3-4, 2:5-6, 3:7-8, 4:9, 5:11-12"><code># guard metrics, written down before launch:
+#   error rate · p99 latency · tokens per invocation · judge score
+# 1. new revision at 0% traffic; the tag gets its own URL
+$ gcloud run deploy contoso-hr --image IMAGE_URL --no-traffic --tag cand
+# 2. eval the live candidate before any user reaches it
+$ agents-cli eval run --url https://cand---contoso-hr-xyz.a.run.app
+# 3. shift traffic; hold each step while the guard metrics stay steady
+$ gcloud run services update-traffic contoso-hr --to-revisions REV_NEW=5
+$ gcloud run services update-traffic contoso-hr --to-revisions REV_NEW=25
+$ gcloud run services update-traffic contoso-hr --to-revisions REV_NEW=100
+# 4. rollback trigger: tokens per invocation &gt; 1.5x baseline (a loop)
+$ gcloud run services update-traffic contoso-hr --to-revisions REV_PREV=100</code></pre>
+      </div>
+      <div class="gotcha" data-step="6">
+        <b>Symptom</b><span>You look for a traffic split on Agent Runtime and do not find one.</span>
+        <b class="why">Cause</b><span>No traffic-splitting or revision-rollback feature was found for Agent Runtime.</span>
+        <b class="fix">Fix</b><span>Blue/green: deploy a second resource, then switch the client to the new resource id. Switch back to roll back.</span>
+      </div>
+      <div class="cn-foot" data-step="6">
+        <span class="delta up">rollback in one command</span>
+        <a class="cite doc" href="https://docs.cloud.google.com/run/docs/rollouts-rollbacks-traffic-migration" target="_blank" rel="noopener"><b>Docs</b>&nbsp;Cloud Run rollouts, rollbacks and traffic migration</a>
+      </div>
+    </div>
+    <div class="cn-col">
+      <svg id="cn-svg" viewBox="0 0 640 316" aria-label="A traffic dial moves from 0 to 5 to 25 percent while four guard gauges watch error rate, p99 latency, tokens per invocation and judge score; at 25 percent the tokens gauge passes 1.5 times baseline and the dial snaps back to 0 with REV_PREV=100"></svg>
+      <div class="steps-rail">
+        <div data-step="1"><span><code>--no-traffic --tag</code>: live, but no users.</span></div>
+        <div data-step="2"><span>Evals run against the tagged URL.</span></div>
+        <div data-step="3"><span>5% of traffic; all four gauges hold.</span></div>
+        <div data-step="4"><span>At 25%, tokens per invocation pass 1.5x.</span></div>
+        <div data-step="5"><span>One command sends 100% back.</span></div>
+      </div>
+      <ul class="checks" data-step="6" data-fx="stagger">
+        <li>Soak and roll out gradually for every system-prompt change (Anthropic postmortem, 2026-04-23).</li>
+        <li class="no">Never shadow a candidate that has live write tools; stub them.</li>
+      </ul>
+      <div class="cn-foot" data-step="6">
+        <a class="cite doc" href="https://www.anthropic.com/engineering/april-23-postmortem" target="_blank" rel="noopener"><b>Postmortem</b>&nbsp;Anthropic: an update on recent Claude Code quality reports</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">The before line is the default: adk deploy cloud_run creates a new revision and it takes all the traffic at once. The after path uses plain Cloud Run revisions: deploy with --no-traffic and a tag, which gives the candidate its own URL, then point agents-cli eval run --url at that URL so the evals hit the real deployed revision before any user does. Shift 5%, then 25%, then 100%, and hold each step while error rate, p99 latency, tokens per invocation and the judge score stay steady. Tokens per invocation is the agent-specific gauge: a loop does not raise errors, it burns tokens, so a jump past 1.5x baseline is the rollback trigger, and the rollback is one update-traffic command. Analogy: a new chef cooks for one table before the whole room. Likely question: "What about Agent Runtime?" No traffic split was found there, so use blue/green with a second resource; and never shadow-test a candidate with live write tools, because a shadow call to a refund or HR write tool is a real write. Next: three deploy defaults that break the Contoso HR assistant in its first production week.</aside>
+</section>
+<script>
+(() => {
+  const ID = "adk-c10-canary", NS = "http://www.w3.org/2000/svg";
+  const D = { cx: 160, cy: 196, r: 128 };                         // main traffic dial
+  const STOPS = [0, 5, 25, 100];                                   // even spacing on the dial
+  const DIAL = [3, 0, 0, 1, 2, 0, 0];                              // stop index per step (s0 = the BEFORE: 100% at once)
+  const G = [                                                      // guard gauges, value scale 0..2 x baseline
+    { name: "error rate", cx: 424, cy: 104, zone: [1.5, 2] },
+    { name: "p99 latency", cx: 572, cy: 104, zone: [1.5, 2] },
+    { name: "tokens/inv", cx: 424, cy: 262, zone: [1.5, 2], mark: "1.5x" },
+    { name: "judge score", cx: 572, cy: 262, zone: [0, 0.5] },
+  ];
+  const R = 56;
+  // value per gauge per step; null = gauge idle
+  const VAL = [
+    [null, null, null, null], [null, null, null, null], [null, null, null, 1.0],
+    [1.0, 1.05, 1.0, 1.0], [1.0, 1.1, 1.8, 0.95], [1.0, 1.0, 1.0, 1.0], [1.0, 1.0, 1.0, 1.0],
+  ];
+  const CAP = [
+    ["REV_NEW gets 100% at once", "--risk"], ["0% · tag cand has its own URL", "--muted"],
+    ["eval run --url cand: pass", "--state"], ["5% · all gauges steady", "--state"],
+    ["25% · tokens/inv > 1.5x baseline", "--risk"], ["REV_PREV=100 · rolled back", "--risk"],
+    ["REV_PREV=100 · rolled back", "--risk"],
+  ];
+  let last = -1, tl = null, e = null;
+  const mk = (tag, attrs, parent) => { const el = document.createElementNS(NS, tag); for (const k in attrs) el.setAttribute(k, attrs[k]); parent.appendChild(el); return el; };
+  const pt = (cx, cy, r, f) => [cx - r * Math.cos(f * Math.PI), cy - r * Math.sin(f * Math.PI)];
+  const arc = (cx, cy, r, f0, f1) => { const [x0, y0] = pt(cx, cy, r, f0), [x1, y1] = pt(cx, cy, r, f1); return `M ${x0} ${y0} A ${r} ${r} 0 0 1 ${x1} ${y1}`; };
+  function build(svg) {
+    svg.innerHTML = "";
+    mk("text", { x: 20, y: 22, style: "fill:var(--risk);font:700 12px var(--f-mono)" }, svg).textContent = "TRAFFIC TO REV_NEW";
+    mk("path", { d: arc(D.cx, D.cy, D.r, 0, 1), fill: "none", style: "stroke:var(--line)", "stroke-width": 20, "stroke-linecap": "round" }, svg);
+    const prog = mk("path", { d: arc(D.cx, D.cy, D.r, 0, 1), fill: "none", style: "stroke:var(--state)", "stroke-width": 20, "stroke-linecap": "round", pathLength: 1, "stroke-dasharray": "1 1" }, svg);
+    STOPS.forEach((s, i) => {
+      const f = i / 3, [x, y] = pt(D.cx, D.cy, D.r + 30, f), [a, b] = pt(D.cx, D.cy, D.r - 16, f), [c, d] = pt(D.cx, D.cy, D.r + 12, f);
+      mk("line", { x1: a, y1: b, x2: c, y2: d, style: "stroke:var(--ink-2)", "stroke-width": 2 }, svg);
+      mk("text", { x, y: y + 4, "text-anchor": "middle", style: "fill:var(--ink-2);font:700 13px var(--f-mono)" }, svg).textContent = s + "%";
+    });
+    const needle = mk("g", {}, svg);
+    mk("line", { x1: D.cx, y1: D.cy, x2: D.cx - D.r + 22, y2: D.cy, style: "stroke:var(--ink)", "stroke-width": 4, "stroke-linecap": "round" }, needle);
+    mk("circle", { cx: D.cx, cy: D.cy, r: 9, style: "fill:var(--ink)" }, svg);
+    const val = mk("text", { x: D.cx, y: D.cy + 46, "text-anchor": "middle", style: "fill:var(--ink);font:700 34px var(--f-mono)" }, svg);
+    const cap = mk("text", { x: D.cx, y: D.cy + 72, "text-anchor": "middle", style: "font:700 12px var(--f-mono)" }, svg);
+    const gs = G.map((g) => {
+      const grp = mk("g", {}, svg);
+      mk("path", { d: arc(g.cx, g.cy, R, 0, 1), fill: "none", style: "stroke:var(--line)", "stroke-width": 11 }, grp);
+      mk("path", { d: arc(g.cx, g.cy, R, g.zone[0] / 2, g.zone[1] / 2), fill: "none", style: "stroke:var(--risk);opacity:.4", "stroke-width": 11 }, grp);
+      const [bx0, by0] = pt(g.cx, g.cy, R - 9, 0.5), [bx1, by1] = pt(g.cx, g.cy, R + 9, 0.5);
+      mk("line", { x1: bx0, y1: by0, x2: bx1, y2: by1, style: "stroke:var(--muted)", "stroke-width": 1.5, "stroke-dasharray": "2 2" }, grp);
+      if (g.mark) { const [mx, my] = pt(g.cx, g.cy, R + 18, 0.75); mk("text", { x: mx + 4, y: my, "text-anchor": "start", style: "fill:var(--risk);font:700 11px var(--f-mono)" }, grp).textContent = g.mark; }
+      const nd = mk("g", {}, grp);
+      const ln = mk("line", { x1: g.cx, y1: g.cy, x2: g.cx - R + 8, y2: g.cy, "stroke-width": 3, "stroke-linecap": "round" }, nd);
+      const hub = mk("circle", { cx: g.cx, cy: g.cy, r: 5 }, grp);
+      mk("text", { x: g.cx, y: g.cy + 22, "text-anchor": "middle", style: "fill:var(--ink-2);font:600 12px var(--f-mono)" }, grp).textContent = g.name;
+      const st = mk("text", { x: g.cx, y: g.cy + 38, "text-anchor": "middle", style: "font:700 11px var(--f-mono)" }, grp);
+      return { grp, nd, ln, hub, st, g };
+    });
+    mk("text", { x: 498, y: 22, "text-anchor": "middle", style: "fill:var(--risk);font:700 12px var(--f-mono)" }, svg).textContent = "GUARD METRICS · 1.0 = BASELINE";
+    return { prog, needle, val, cap, gs };
+  }
+  const dialRot = (k) => (k / 3) * 180;
+  function gauge(x, v, warm) {
+    const bad = v != null && (v >= x.g.zone[0] && v <= x.g.zone[1]);
+    const c = v == null ? "--line-2" : bad ? "--risk" : "--state";
+    x.ln.style.stroke = `var(${c})`; x.hub.style.fill = `var(${c})`;
+    x.st.style.fill = `var(${c})`;
+    x.st.textContent = v == null ? "idle" : bad ? "> 1.5x · rollback" : warm ? "eval: pass" : "steady";
+    gsap.set(x.grp, { opacity: v == null ? 0.4 : 1 });
+  }
+  function setFinal(n) {
+    const k = DIAL[n];
+    gsap.set(e.needle, { rotation: dialRot(k), svgOrigin: `${D.cx} ${D.cy}` });
+    e.prog.setAttribute("stroke-dashoffset", 1 - k / 3);
+    e.prog.style.stroke = n === 0 || n >= 4 ? "var(--risk)" : "var(--state)";
+    e.val.textContent = (n >= 5 ? 0 : STOPS[k]) + "%";
+    e.val.style.fill = n === 0 ? "var(--risk)" : "var(--ink)";
+    e.cap.textContent = CAP[n][0]; e.cap.style.fill = `var(${CAP[n][1]})`;
+    e.gs.forEach((x, i) => {
+      const v = VAL[n][i];
+      gsap.set(x.nd, { rotation: ((v == null ? 1 : v) / 2) * 180, svgOrigin: `${x.g.cx} ${x.g.cy}` });
+      gauge(x, v, n === 2);
+    });
+  }
+  function render(s, n, animate) {
+    if (!e) e = build(s.querySelector("#cn-svg"));
+    if (tl) tl.kill();
+    gsap.killTweensOf([e.needle, e.prog, e.cap, ...e.gs.map((x) => x.nd), ...e.gs.map((x) => x.grp)]);
+    setFinal(n);
+    const fwd = animate && n === last + 1;
+    last = n;
+    if (!fwd) return;
+    tl = gsap.timeline();
+    const o = { svgOrigin: `${D.cx} ${D.cy}` };
+    tl.from(e.cap, { autoAlpha: 0, duration: 0.3 }, 0);
+    if (n === 1) {
+      tl.fromTo(e.needle, { rotation: dialRot(3), ...o }, { rotation: 0, ...o, duration: 0.9, ease: "power2.inOut" }, 0)
+        .fromTo(e.prog, { attr: { "stroke-dashoffset": 0 } }, { attr: { "stroke-dashoffset": 1 }, duration: 0.9, ease: "power2.inOut" }, 0);
+    } else if (n === 2) {
+      const j = e.gs[3];
+      tl.fromTo(j.nd, { rotation: 0, svgOrigin: `${j.g.cx} ${j.g.cy}` }, { rotation: 90, svgOrigin: `${j.g.cx} ${j.g.cy}`, duration: 0.8, ease: "back.out(1.6)" }, 0.1);
+    } else if (n === 3) {
+      tl.fromTo(e.needle, { rotation: 0, ...o }, { rotation: dialRot(1), ...o, duration: 0.8, ease: "back.out(1.4)" }, 0)
+        .fromTo(e.prog, { attr: { "stroke-dashoffset": 1 } }, { attr: { "stroke-dashoffset": 2 / 3 }, duration: 0.8 }, 0);
+      e.gs.forEach((x, i) => {
+        const end = (VAL[3][i] / 2) * 180, so = `${x.g.cx} ${x.g.cy}`;
+        tl.fromTo(x.nd, { rotation: 0, svgOrigin: so }, { rotation: end + 14, svgOrigin: so, duration: 0.45, ease: "power2.out" }, 0.3 + i * 0.12)
+          .to(x.nd, { rotation: end, svgOrigin: so, duration: 0.5, ease: "elastic.out(1, 0.4)" });
+      });
+    } else if (n === 4) {
+      const t = e.gs[2], so = `${t.g.cx} ${t.g.cy}`;
+      gauge(t, 1.0, false);
+      e.prog.style.stroke = "var(--state)"; e.cap.style.fill = "var(--state)"; e.cap.textContent = "25% · holding";
+      tl.fromTo(e.needle, { rotation: dialRot(1), ...o }, { rotation: dialRot(2), ...o, duration: 0.8, ease: "back.out(1.4)" }, 0)
+        .fromTo(e.prog, { attr: { "stroke-dashoffset": 2 / 3 } }, { attr: { "stroke-dashoffset": 1 / 3 }, duration: 0.8 }, 0)
+        .fromTo(t.nd, { rotation: 90, svgOrigin: so }, { rotation: 0.8 * 180, svgOrigin: so, duration: 1.1, ease: "power3.in" }, 0.9)
+        .call(() => { gauge(t, 1.8, false); e.prog.style.stroke = "var(--risk)"; e.cap.textContent = CAP[4][0]; e.cap.style.fill = "var(--risk)"; })
+        .to(t.grp, { opacity: 0.35, duration: 0.12, yoyo: true, repeat: 5 });
+    } else if (n === 5) {
+      const t = e.gs[2], so = `${t.g.cx} ${t.g.cy}`;
+      e.val.textContent = "25%";
+      tl.fromTo(e.needle, { rotation: dialRot(2), ...o }, { rotation: 0, ...o, duration: 0.35, ease: "power4.in" }, 0.1)
+        .fromTo(e.prog, { attr: { "stroke-dashoffset": 1 / 3 } }, { attr: { "stroke-dashoffset": 1 }, duration: 0.35, ease: "power4.in" }, 0.1)
+        .call(() => { e.val.textContent = "0%"; }, null, 0.45)
+        .fromTo(e.needle, { rotation: 0, ...o }, { rotation: 6, ...o, duration: 0.12, yoyo: true, repeat: 1 }, 0.45)
+        .fromTo(t.nd, { rotation: 0.8 * 180, svgOrigin: so }, { rotation: 90, svgOrigin: so, duration: 0.9, ease: "power2.out" }, 0.5);
+    }
+  }
+  Deck.register(ID, {
+    enter(s, n) { last = n - 1; render(s, n, false); last = n; },
+    step(s, n, animate) { render(s, n, animate); },
+    leave() {
+      if (tl) tl.kill();
+      tl = null;
+      if (e) gsap.killTweensOf([e.needle, e.prog, e.cap, ...e.gs.map((x) => x.nd), ...e.gs.map((x) => x.grp)]);
+      last = -1;
+    },
+  });
+})();
+</script>

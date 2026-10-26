@@ -1,0 +1,232 @@
+<section class="slide" id="custom-c05-lab4-generator" data-tone="model" data-title="Lab 4: claims generator with exact gold">
+  <style>
+    #custom-c05-lab4-generator { gap: 22px; }
+    #custom-c05-lab4-generator .g-grid { display: grid; grid-template-columns: 790px 1fr; gap: 26px; min-height: 0; }
+    #custom-c05-lab4-generator .g-left, #custom-c05-lab4-generator .g-right { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    #custom-c05-lab4-generator .g-left > * { width: 100%; }
+    #custom-c05-lab4-generator .g-code pre.code { font-size: 12px; line-height: 1.42; padding: 12px 16px 12px; }
+    #custom-c05-lab4-generator .code-head { padding: 8px 14px; font-size: 13.5px; }
+    #custom-c05-lab4-generator .g-swap { display: grid; }
+    #custom-c05-lab4-generator .g-swap > * { grid-area: 1 / 1; align-self: start; }
+    #custom-c05-lab4-generator .g-swap pre.code { font-size: 11.5px; line-height: 1.42; padding: 10px 16px 12px; }
+    #custom-c05-lab4-generator .lab-head { font-size: 15px; gap: 12px; }
+    #custom-c05-lab4-generator .lab-head .run { font-size: 15px; padding: 7px 11px; }
+    #custom-c05-lab4-generator .steps-rail { gap: 8px; }
+    #custom-c05-lab4-generator .steps-rail > * { font-size: 15.5px; line-height: 1.36; grid-template-columns: 30px 1fr; gap: 10px; }
+    #custom-c05-lab4-generator .steps-rail > *::before { width: 26px; height: 26px; font-size: 14px; }
+    #custom-c05-lab4-generator .g-foot { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: auto; }
+    #custom-c05-lab4-generator code { font-size: .88em; }
+    #custom-c05-lab4-generator .cite.paper { display: inline-flex; flex-direction: row; gap: 10px; padding: 8px 14px 8px 10px; border-radius: 10px; border: 1px solid var(--line); }
+    #custom-c05-lab4-generator pre.code, #custom-c05-lab4-generator pre.code *, #custom-c05-lab4-generator code { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+  </style>
+  <div class="kicker"><span class="pill">Lab 4</span> Acme claims payout calculator · step 1 of 5</div>
+  <h2 class="title">A claims generator gives exact gold answers and difficulty control</h2>
+  <div class="g-grid fill">
+    <div class="g-left">
+      <div class="code-wrap g-code">
+        <div class="code-head">claims_rl/claims_data.py · datasets 5.1.0 · trl 1.16.0</div>
+        <pre class="code" data-lang="python" data-focus="1:4-5, 2:7-12, 3:13-16, 4:18-20"><code># claims_data.py - procedural insurance-claim payout problems with exact gold answers
+import random
+from datasets import Dataset
+# raw string: "\b" is a backspace otherwise
+SYSTEM = r"You are a claims adjuster. Think briefly, then give the payout as \boxed{number}."
+
+def make_claim(rng):
+    damage = rng.randrange(500, 20000, 50)
+    deductible = rng.choice([250, 500, 1000])
+    share = rng.choice([70, 80, 90, 100])            # % insurer pays after the deductible
+    limit = rng.choice([5000, 10000, 15000])
+    payout = min(max(damage - deductible, 0) * share / 100, limit)
+    q = (f"Damage ${damage}. Deductible ${deductible}. Insurer pays {share}% after the "
+         f"deductible, capped at ${limit}. What is the payout in dollars?")
+    return {"prompt": [{"role": "system", "content": SYSTEM}, {"role": "user", "content": q}],
+            "solution": f"{payout:g}"}               # accuracy_reward reads `solution`
+
+def claims_dataset(n, seed):
+    rng = random.Random(seed)
+    return Dataset.from_list([make_claim(rng) for _ in range(n)])</code></pre>
+      </div>
+      <div class="g-swap">
+        <div class="code-wrap term" data-until="4">
+          <div class="code-head">run it Monday · Linux + one 24 GB GPU · Python 3.11 or 3.12</div>
+          <pre class="code" data-lang="bash"><code>$ python -m venv .venv &amp;&amp; source .venv/bin/activate
+$ pip install "trl[peft,math_verify]==1.16.0" "transformers==5.20.2" "peft==0.21.2" \
+    "datasets==5.1.0" "accelerate==1.15.0" "math-verify==0.9.0" "trackio==0.43.0"
+$ pip install "vllm==0.31.0"   # optional; not 0.32.0: trl[vllm] pins vllm&lt;=0.31.0
+$ export HF_TOKEN=hf_...       # optional: gated models or Hub push only
+claims_rl/  claims_data.py  lab2_grpo_claims.py  lab4_rewards.py  lab4_kl_length.py</code></pre>
+        </div>
+        <div class="code-wrap out" data-step="4">
+          <div class="code-head">output · sample rows from claims_dataset(n, seed=7)</div>
+          <pre class="code" data-lang="none"><code><span class="dim">user prompt (shortened)                                            solution</span>
+Damage $8750. Deductible $250. Insurer pays 100% ... capped at $15000. <span class="ok">-&gt; 8500</span>
+Damage $1700. Deductible $250. Insurer pays 70% ... capped at $10000.  <span class="ok">-&gt; 1015</span>
+Damage $15400. Deductible $250. Insurer pays 80% ... capped at $5000.  <span class="ok">-&gt; 5000</span>
+Damage $2700. Deductible $500. Insurer pays 100% ... capped at $5000.  <span class="ok">-&gt; 2200</span></code></pre>
+        </div>
+      </div>
+    </div>
+    <div class="g-right">
+      <div class="lab-head"><span class="run">python -c "import claims_data"</span><span>CPU · seconds</span></div>
+      <svg id="c05g-svg" viewBox="0 0 576 316" width="576" height="316" aria-label="A payout pipe with four bars and three amber valves. The damage bar shrinks by the deductible, scales by the share, then is clipped at the policy limit. Step by step the four seed-7 claims flow through: 8750 to 8500, 1700 to 1015, 15400 to 5000 where the red part above the 5000 cap is cut off, and 2700 to 2200. The final number is stamped as the gold solution."></svg>
+      <div class="steps-rail">
+        <div data-step="1"><span><code>r"..."</code> keeps <code>\boxed</code> intact. Without <code>r</code>, <code>\b</code> is a backspace (gotcha after Lab 4).</span></div>
+        <div data-step="2"><span>Three valves in a fixed order. The formula is the gold, so the reward has no label noise.</span></div>
+        <div data-step="3"><span><code>accuracy_reward</code> reads the <code>solution</code> column. Gold it cannot parse gives <code>None</code>: the row is skipped.</span></div>
+        <div data-step="4"><span>Seed 7 trains, seed 99 holds out. Keep a difficulty mix (2610.25812).</span></div>
+      </div>
+      <div class="g-foot" data-step="4">
+        <a class="cite doc" href="https://huggingface.co/docs/trl/main/en/grpo_trainer" target="_blank" rel="noopener"><b>Docs</b>&nbsp;TRL GRPO Trainer</a>
+        <a class="cite paper" href="https://arxiv.org/abs/2610.25812" target="_blank" rel="noopener"><b>arXiv</b>&nbsp;2610.25812</a>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">Lab 4 starts with data, and for RL the best data is a generator whose answers are exact. make_claim draws a damage amount, a deductible, a coinsurance share and a policy limit, and the payout is one line of arithmetic, so the gold solution has no label noise and the reward cannot be wrong. Watch the pipe: the damage bar shrinks by the deductible, scales by the share, and the 15400 claim hits the 5000 cap, which is exactly the step a weak model forgets. Analogy: it is a maths teacher who writes the exam with a calculator beside her, so every answer key is right. Likely question: "Why the raw string on SYSTEM?" Without the r prefix, the \b in \boxed is a backspace character, so the model is told to answer in a garbled format that accuracy_reward cannot read; the research verifier found this bug. Train on seed 7 and hold out seed 99, and keep a mix of easy and hard claims so groups do not all score the same.</aside>
+</section>
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const ID = "custom-c05-lab4-generator";
+  // the first 4 claims from claims_dataset(n, seed=7) (lab-rl Lab 2, RAN)
+  const CLAIMS = [
+    { damage: 8750, ded: 250, share: 100, limit: 15000 },
+    { damage: 1700, ded: 250, share: 70, limit: 10000 },
+    { damage: 15400, ded: 250, share: 80, limit: 5000 },
+    { damage: 2700, ded: 500, share: 100, limit: 5000 },
+  ].map((c) => {
+    const a = Math.max(c.damage - c.ded, 0), b = (a * c.share) / 100, pay = Math.min(b, c.limit);
+    return { ...c, vals: [c.damage, a, b, pay], raw: b, pay };
+  });
+  const CX = [60, 200, 340, 480], BW = 64, BASE = 236, SCALE = 170 / 16000;
+  const MID = [130, 270, 410];
+  const NAMES = ["damage", "- deductible", "x share", "payout"];
+  const VALVE0 = ["- deductible", "x share %", "min(., limit)"];
+  let S = null, tl = null;
+
+  const el = (parent, tag, attrs, style, text) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (style) Object.assign(e.style, style);
+    if (text !== undefined) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  };
+  const mono = (w, s) => `${w} ${s}px var(--f-mono)`;
+  let SC = SCALE;
+  const H = (v) => v * SC;   // per-claim scale: the damage bar always fills the chart
+
+  function build(svg) {
+    svg.innerHTML = "";
+    const counter = el(svg, "text", { x: 0, y: 18 }, { font: mono(700, 14), fill: "var(--ink-2)" }, "");
+    // pipe
+    el(svg, "rect", { x: 14, y: BASE + 4, width: 548, height: 14, rx: 7 }, { fill: "var(--surface-2)", stroke: "var(--line-2)", strokeWidth: 1.5 });
+    const flow = el(svg, "rect", { x: 14, y: BASE + 4, width: 0, height: 14, rx: 7 }, { fill: "var(--state)", opacity: 0.45 });
+    // cap line in the payout column
+    const capLine = el(svg, "line", { x1: CX[3] - 50, y1: BASE, x2: CX[3] + 50, y2: BASE }, { stroke: "var(--risk)", strokeWidth: 2.5, strokeDasharray: "7 5", opacity: 0 });
+    // bars
+    const bars = CX.map((cx, i) => {
+      const r = el(svg, "rect", { x: cx - BW / 2, y: BASE, width: BW, height: 0, rx: 6 }, { fill: i === 3 ? "var(--state)" : "var(--state-soft)", stroke: "var(--state)", strokeWidth: 2 });
+      const v = el(svg, "text", { x: cx, y: BASE - 8, "text-anchor": "middle" }, { font: mono(700, 14), fill: "var(--ink)", opacity: 0 }, "");
+      el(svg, "text", { x: cx, y: 308, "text-anchor": "middle" }, { font: mono(600, 12.5), fill: "var(--muted)" }, NAMES[i]);
+      return { r, v };
+    });
+    const over = el(svg, "rect", { x: CX[3] - BW / 2, y: BASE, width: BW, height: 0, rx: 6 }, { fill: "var(--risk-soft)", stroke: "var(--risk)", strokeWidth: 2, strokeDasharray: "5 4", opacity: 0 });
+    const overTx = el(svg, "text", { x: CX[3], y: 0, "text-anchor": "middle" }, { font: mono(700, 12), fill: "var(--risk)", opacity: 0 }, "cut");
+    // valves
+    const valves = MID.map((mx, i) => {
+      const g = el(svg, "g", {});
+      const c = el(g, "circle", { cx: mx, cy: BASE + 11, r: 13 }, { fill: "var(--tool-soft)", stroke: "var(--tool)", strokeWidth: 2.5 });
+      el(g, "line", { x1: mx - 7, y1: BASE + 11, x2: mx + 7, y2: BASE + 11 }, { stroke: "var(--tool)", strokeWidth: 2.5, strokeLinecap: "round" });
+      const pill = el(svg, "rect", { x: mx - 50, y: 262, width: 100, height: 24, rx: 12 }, { fill: "var(--tool-soft)", stroke: "var(--tool)", strokeWidth: 1.5 });
+      const t = el(svg, "text", { x: mx, y: 279, "text-anchor": "middle" }, { font: mono(700, 12), fill: "var(--ink)" }, VALVE0[i]);
+      return { g, c, pill, t };
+    });
+    // gold stamp
+    const stamp = el(svg, "g", {});
+    el(stamp, "rect", { x: 400, y: 8, width: 166, height: 40, rx: 8 }, { fill: "var(--surface)", stroke: "var(--state)", strokeWidth: 2.5 });
+    const stampTx = el(stamp, "text", { x: 483, y: 34, "text-anchor": "middle" }, { font: mono(700, 15), fill: "var(--state)" }, "");
+    S = { svg, counter, flow, capLine, bars, over, overTx, valves, stamp, stampTx };
+  }
+
+  function stop() {
+    if (tl) { tl.kill(); tl = null; }
+    if (S) gsap.killTweensOf([S.flow, S.capLine, S.over, S.overTx, S.stamp, ...S.bars.map((b) => b.r), ...S.bars.map((b) => b.v), ...S.valves.map((v) => v.g)]);
+  }
+
+  function setBar(b, v, cx) {
+    b.r.setAttribute("y", BASE - H(v)); b.r.setAttribute("height", H(v));
+    b.v.setAttribute("y", BASE - H(v) - 8); b.v.textContent = `$${v}`; b.v.style.opacity = 1;
+  }
+
+  function render(n, animate) {
+    if (!S) return;
+    stop();
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const anim = animate && !reduce;
+    // reset
+    S.bars.forEach((b) => { b.r.setAttribute("y", BASE); b.r.setAttribute("height", 0); b.v.style.opacity = 0; });
+    gsap.set([S.over, S.overTx, S.capLine], { opacity: 0 });
+    gsap.set(S.stamp, { opacity: 0, scale: 1, rotation: 0, svgOrigin: "483 28" });
+    gsap.set(S.valves.map((v) => v.g), { scale: 1, svgOrigin: "0 0" });
+    S.flow.setAttribute("width", 0);
+    if (n < 1) {
+      S.counter.textContent = "4 claims · seed=7";
+      S.valves.forEach((v, i) => { v.t.textContent = VALVE0[i]; });
+      return;
+    }
+    const c = CLAIMS[Math.min(n, 4) - 1];
+    SC = 150 / c.damage;
+    S.counter.textContent = `claim ${Math.min(n, 4)} of 4 · seed=7`;
+    S.valves[0].t.textContent = `- $${c.ded}`;
+    S.valves[1].t.textContent = `x ${c.share}%`;
+    S.valves[2].t.textContent = `cap $${c.limit}`;
+    const capY = BASE - H(c.limit);
+    S.capLine.setAttribute("y1", capY); S.capLine.setAttribute("y2", capY);
+    const clipped = c.raw > c.limit;
+    S.over.setAttribute("y", BASE - H(c.raw)); S.over.setAttribute("height", Math.max(0, H(c.raw - c.limit)));
+    S.overTx.setAttribute("y", BASE - H(c.raw) - 8);
+    S.stampTx.textContent = `solution "${c.pay}"`;
+    const finalState = () => {
+      c.vals.forEach((v, i) => setBar(S.bars[i], v, CX[i]));
+      S.flow.setAttribute("width", 548);
+      gsap.set(S.capLine, { opacity: c.limit <= c.damage ? 0.9 : 0 });
+      gsap.set([S.over, S.overTx], { opacity: clipped ? 1 : 0 });
+      gsap.set(S.stamp, { opacity: 1, rotation: -4 });
+    };
+    if (!anim) { finalState(); return; }
+    tl = gsap.timeline();
+    const prox = { w: 0 };
+    tl.to(prox, { w: 548, duration: 2.2, ease: "none", onUpdate: () => S.flow.setAttribute("width", prox.w) }, 0);
+    c.vals.forEach((v, i) => {
+      const t = 0.15 + i * 0.55;
+      const from = i === 0 ? 0 : c.vals[i - 1];
+      const b = S.bars[i];
+      const start = i === 3 && clipped ? c.raw : from;
+      tl.call(() => { b.v.style.opacity = 0; }, null, t)
+        .fromTo(b.r, { attr: { y: BASE - H(start), height: H(start) } }, { attr: { y: BASE - H(i === 3 ? (clipped ? c.raw : v) : v), height: H(i === 3 ? (clipped ? c.raw : v) : v) }, duration: 0.4, ease: "power2.out" }, t);
+      if (i > 0) tl.fromTo(S.valves[i - 1].g, { scale: 1, svgOrigin: `${MID[i - 1]} ${BASE + 11}` }, { scale: 1.35, duration: 0.15, yoyo: true, repeat: 1, svgOrigin: `${MID[i - 1]} ${BASE + 11}` }, t - 0.12);
+      tl.call(() => { setBar(b, i === 3 && clipped ? c.raw : v, CX[i]); if (!(i === 3 && clipped)) b.v.textContent = `$${v}`; }, null, t + 0.4);
+    });
+    const tc = 0.15 + 3 * 0.55 + 0.45;
+    if (c.limit <= c.damage) tl.to(S.capLine, { opacity: 0.9, duration: 0.25 }, tc - 0.3);
+    if (clipped) {
+      tl.call(() => setBar(S.bars[3], c.pay, CX[3]), null, tc)
+        .to([S.over, S.overTx], { opacity: 1, duration: 0.2 }, tc);
+    }
+    tl.fromTo(S.stamp, { opacity: 0, scale: 1.6, rotation: 8 }, { opacity: 1, scale: 1, rotation: -4, duration: 0.35, ease: "back.out(2.5)" }, tc + 0.25);
+  }
+
+  Deck.register(ID, {
+    enter(slide, step) {
+      stop();
+      build(slide.querySelector("#c05g-svg"));
+      render(step || 0, false);
+    },
+    step(slide, n, animate) {
+      if (!S || !slide.contains(S.svg)) build(slide.querySelector("#c05g-svg"));
+      render(n, animate);
+    },
+    leave() { stop(); },
+  });
+})();
+</script>
